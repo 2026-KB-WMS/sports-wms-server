@@ -33,7 +33,7 @@ CREATE TABLE product (
     category_id  BIGINT        NOT NULL,
     product_code VARCHAR(50)   NOT NULL,
     name         VARCHAR(200)  NOT NULL,
-    description  TEXT          NULL,
+    description  VARCHAR(1000) NULL,
     status       VARCHAR(20)   NOT NULL DEFAULT 'ACTIVE',
     created_at   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
