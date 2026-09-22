@@ -1,0 +1,13 @@
+.git
+.gradle
+.gradle-user-home
+build/
+.idea
+out/
+bin/
+.vscode
+*.iml
+.env
+.env.example
+HELP.md
+README.md
