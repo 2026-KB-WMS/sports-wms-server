@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
-import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.product.application.port.in.ProductSkuUseCase;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
@@ -16,6 +15,7 @@ import com.kb.wms.product.application.port.out.ProductSkuRepository;
 import com.kb.wms.product.application.port.out.SkuOptionValueRepository;
 import com.kb.wms.product.domain.entity.ProductSku;
 import com.kb.wms.product.domain.entity.SkuOptionValue;
+import com.kb.wms.product.exception.ProductErrorCode;
 
 import lombok.RequiredArgsConstructor;
 
@@ -31,8 +31,6 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class ProductSkuService implements ProductSkuUseCase {
 
-    private static final String DUPLICATE_OPTION_VALUE = "DUPLICATE_OPTION_VALUE";
-
     private final ProductSkuRepository productSkuRepository;
     private final ProductRepository productRepository;
     private final OptionValueRepository optionValueRepository;
@@ -42,13 +40,13 @@ public class ProductSkuService implements ProductSkuUseCase {
     @Transactional
     public ProductSku registerSku(ProductSkuRegisterCommand command) {
         if (!productRepository.findById(command.productId()).isPresent()) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "상품을 찾을 수 없습니다.");
+            throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);
         }
         if (productSkuRepository.existsBySkuCode(command.skuCode())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "이미 존재하는 SKU 코드입니다.");
+            throw new BusinessException(ProductErrorCode.SKU_CODE_DUPLICATED);
         }
         if (command.barcode() != null && productSkuRepository.existsByBarcode(command.barcode())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "이미 존재하는 바코드입니다.");
+            throw new BusinessException(ProductErrorCode.BARCODE_DUPLICATED);
         }
 
         ProductSku sku = ProductSku.register(
@@ -66,22 +64,21 @@ public class ProductSkuService implements ProductSkuUseCase {
     @Override
     public ProductSku getSku(Long skuId) {
         return productSkuRepository.findById(skuId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "SKU를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(ProductErrorCode.SKU_NOT_FOUND));
     }
 
     @Override
     @Transactional
     public void connectOptions(SkuOptionConnectCommand command) {
         ProductSku sku = productSkuRepository.findById(command.skuId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "SKU를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(ProductErrorCode.SKU_NOT_FOUND));
 
         for (Long optionValueId : command.optionValueIds()) {
             if (!optionValueRepository.findById(optionValueId).isPresent()) {
-                throw new BusinessException(ErrorCode.NOT_FOUND, "옵션 값을 찾을 수 없습니다.");
+                throw new BusinessException(ProductErrorCode.OPTION_VALUE_NOT_FOUND);
             }
             if (skuOptionValueRepository.existsBySkuIdAndOptionValueId(sku.getSkuId(), optionValueId)) {
-                throw new BusinessException(
-                        ErrorCode.CONFLICT, "이미 연결된 옵션 값입니다.", DUPLICATE_OPTION_VALUE);
+                throw new BusinessException(ProductErrorCode.DUPLICATE_OPTION_VALUE);
             }
             skuOptionValueRepository.save(SkuOptionValue.connect(sku.getSkuId(), optionValueId));
         }

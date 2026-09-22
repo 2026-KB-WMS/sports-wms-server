@@ -6,13 +6,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
-import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.product.application.port.in.ProductUseCase;
 import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
 import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
 import com.kb.wms.product.domain.entity.Product;
+import com.kb.wms.product.exception.ProductErrorCode;
 
 import lombok.RequiredArgsConstructor;
 
@@ -29,13 +29,13 @@ public class ProductService implements ProductUseCase {
     @Transactional
     public Product registerProduct(ProductRegisterCommand command) {
         if (!brandRepository.findById(command.brandId()).isPresent()) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "브랜드를 찾을 수 없습니다.");
+            throw new BusinessException(ProductErrorCode.BRAND_NOT_FOUND);
         }
         if (!categoryRepository.findById(command.categoryId()).isPresent()) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "카테고리를 찾을 수 없습니다.");
+            throw new BusinessException(ProductErrorCode.CATEGORY_NOT_FOUND);
         }
         if (productRepository.existsByProductCode(command.productCode())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "이미 존재하는 상품 코드입니다.");
+            throw new BusinessException(ProductErrorCode.PRODUCT_CODE_DUPLICATED);
         }
 
         Product product = Product.register(
@@ -52,6 +52,6 @@ public class ProductService implements ProductUseCase {
     @Override
     public Product getProduct(Long productId) {
         return productRepository.findById(productId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "상품을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
     }
 }

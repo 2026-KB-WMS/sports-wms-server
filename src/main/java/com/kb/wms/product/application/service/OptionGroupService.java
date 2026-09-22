@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
-import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.product.application.port.in.OptionGroupUseCase;
 import com.kb.wms.product.application.port.in.command.OptionGroupRegisterCommand;
 import com.kb.wms.product.application.port.out.OptionGroupRepository;
@@ -21,6 +20,7 @@ import com.kb.wms.product.domain.entity.OptionGroup;
 import com.kb.wms.product.domain.entity.OptionValue;
 import com.kb.wms.product.domain.entity.ProductSku;
 import com.kb.wms.product.domain.entity.SkuOptionValue;
+import com.kb.wms.product.exception.ProductErrorCode;
 
 import lombok.RequiredArgsConstructor;
 
@@ -44,7 +44,7 @@ public class OptionGroupService implements OptionGroupUseCase {
     @Transactional
     public OptionGroup registerOptionGroup(OptionGroupRegisterCommand command) {
         if (optionGroupRepository.existsByName(command.name())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "이미 존재하는 옵션 그룹명입니다.");
+            throw new BusinessException(ProductErrorCode.OPTION_GROUP_NAME_DUPLICATED);
         }
         return optionGroupRepository.save(OptionGroup.register(command.name()));
     }
@@ -52,7 +52,7 @@ public class OptionGroupService implements OptionGroupUseCase {
     @Override
     public List<OptionGroup> getOptionGroupsByProduct(Long productId) {
         if (!productRepository.findById(productId).isPresent()) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "상품을 찾을 수 없습니다.");
+            throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);
         }
 
         List<ProductSku> skus = productSkuRepository.findAll(productId);

@@ -6,11 +6,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
-import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.product.application.port.in.CategoryUseCase;
 import com.kb.wms.product.application.port.in.command.CategoryRegisterCommand;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.domain.entity.Category;
+import com.kb.wms.product.exception.ProductErrorCode;
 
 import lombok.RequiredArgsConstructor;
 
@@ -25,13 +25,13 @@ public class CategoryService implements CategoryUseCase {
     @Transactional
     public Category registerCategory(CategoryRegisterCommand command) {
         if (categoryRepository.existsByCategoryCode(command.categoryCode())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "이미 존재하는 카테고리 코드입니다.");
+            throw new BusinessException(ProductErrorCode.CATEGORY_CODE_DUPLICATED);
         }
 
         int depth = 1;
         if (command.parentCategoryId() != null) {
             Category parent = categoryRepository.findById(command.parentCategoryId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "상위 카테고리를 찾을 수 없습니다."));
+                    .orElseThrow(() -> new BusinessException(ProductErrorCode.PARENT_CATEGORY_NOT_FOUND));
             depth = parent.getDepth() + 1;
         }
 
