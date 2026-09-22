@@ -32,6 +32,9 @@ public class CategoryService implements CategoryUseCase {
         if (command.parentCategoryId() != null) {
             Category parent = categoryRepository.findById(command.parentCategoryId())
                     .orElseThrow(() -> new BusinessException(ProductErrorCode.PARENT_CATEGORY_NOT_FOUND));
+            if (!parent.isActive()) {
+                throw new BusinessException(ProductErrorCode.PARENT_CATEGORY_INACTIVE);
+            }
             depth = parent.getDepth() + 1;
         }
 

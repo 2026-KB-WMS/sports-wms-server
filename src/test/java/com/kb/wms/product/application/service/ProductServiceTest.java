@@ -19,7 +19,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
+import com.kb.wms.product.application.port.in.command.ProductUpdateCommand;
 import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
@@ -144,5 +146,123 @@ class ProductServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND.name());
+    }
+
+    @Test
+    @DisplayName("변경할 필드가 없으면 VALIDATION_ERROR 예외를 던진다")
+    void updateProduct_noChanges_throwsBusinessException() {
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, null);
+
+        assertThatThrownBy(() -> productService.updateProduct(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
+        verify(productRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 상품을 수정하면 PRODUCT_NOT_FOUND 예외를 던진다")
+    void updateProduct_productNotFound() {
+        ProductUpdateCommand command = new ProductUpdateCommand(999L, "새 이름", null, null, null, null);
+        when(productRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productService.updateProduct(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND.name());
+    }
+
+    @Test
+    @DisplayName("이름·설명만 변경하면 해당 필드만 수정되어 저장된다")
+    void updateProduct_partialUpdate_success() {
+        Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, "새 이름", "새 설명", null, null, null);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Product result = productService.updateProduct(command);
+
+        assertThat(result.getName()).isEqualTo("새 이름");
+        assertThat(result.getDescription()).isEqualTo("새 설명");
+        verify(brandRepository, never()).findById(any());
+        verify(categoryRepository, never()).findById(any());
+        verify(productRepository).save(existing);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 브랜드로 변경하면 BRAND_NOT_FOUND 예외를 던진다")
+    void updateProduct_brandNotFound() {
+        Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, 2L, null, null);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(brandRepository.findById(2L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productService.updateProduct(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.BRAND_NOT_FOUND.name());
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("비활성 브랜드로 변경하면 BRAND_INACTIVE 예외를 던진다")
+    void updateProduct_brandInactive() {
+        Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
+        Brand inactiveBrand = Brand.register("브랜드 B", null);
+        inactiveBrand.deactivate();
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, 2L, null, null);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(brandRepository.findById(2L)).thenReturn(Optional.of(inactiveBrand));
+
+        assertThatThrownBy(() -> productService.updateProduct(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.BRAND_INACTIVE.name());
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 카테고리로 변경하면 CATEGORY_NOT_FOUND 예외를 던진다")
+    void updateProduct_categoryNotFound() {
+        Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, 2L, null);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findById(2L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productService.updateProduct(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.CATEGORY_NOT_FOUND.name());
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("비활성 카테고리로 변경하면 CATEGORY_INACTIVE 예외를 던진다")
+    void updateProduct_categoryInactive() {
+        Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
+        Category inactiveCategory = Category.register(null, "SHOES", "신발", 1, 0);
+        inactiveCategory.deactivate();
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, 2L, null);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findById(2L)).thenReturn(Optional.of(inactiveCategory));
+
+        assertThatThrownBy(() -> productService.updateProduct(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.CATEGORY_INACTIVE.name());
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("isActive를 false로 변경하면 상품이 비활성화되어 저장된다")
+    void updateProduct_deactivate_success() {
+        Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Product result = productService.updateProduct(command);
+
+        assertThat(result.isActive()).isFalse();
     }
 }

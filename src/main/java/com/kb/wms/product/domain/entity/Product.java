@@ -54,6 +54,22 @@ public class Product {
                 .build();
     }
 
+    public void changeName(String name) {
+        this.name = name;
+    }
+
+    public void changeDescription(String description) {
+        this.description = description;
+    }
+
+    public void changeBrand(Long brandId) {
+        this.brandId = brandId;
+    }
+
+    public void changeCategory(Long categoryId) {
+        this.categoryId = categoryId;
+    }
+
     public void deactivate() {
         this.status = ProductStatus.INACTIVE;
     }

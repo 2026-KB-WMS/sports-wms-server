@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.BrandQueryUseCase;
+import com.kb.wms.product.application.port.in.command.BrandRegisterCommand;
 import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.exception.ProductErrorCode;
@@ -19,6 +20,16 @@ import lombok.RequiredArgsConstructor;
 public class BrandService implements BrandQueryUseCase {
 
     private final BrandRepository brandRepository;
+
+    @Override
+    @Transactional
+    public Brand registerBrand(BrandRegisterCommand command) {
+        if (brandRepository.existsByName(command.name())) {
+            throw new BusinessException(ProductErrorCode.DUPLICATE_BRAND_NAME);
+        }
+        Brand brand = Brand.register(command.name(), command.description());
+        return brandRepository.save(brand);
+    }
 
     @Override
     public List<Brand> getBrands() {

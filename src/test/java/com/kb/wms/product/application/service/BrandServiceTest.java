@@ -2,6 +2,9 @@ package com.kb.wms.product.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -15,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.product.application.port.in.command.BrandRegisterCommand;
 import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.exception.ProductErrorCode;
@@ -27,6 +31,30 @@ class BrandServiceTest {
 
     @InjectMocks
     private BrandService brandService;
+
+    @Test
+    @DisplayName("브랜드명이 중복되지 않으면 등록에 성공한다")
+    void registerBrand_success() {
+        when(brandRepository.existsByName("브랜드 A")).thenReturn(false);
+        when(brandRepository.save(any(Brand.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Brand result = brandService.registerBrand(new BrandRegisterCommand("브랜드 A", "설명"));
+
+        assertThat(result.getName()).isEqualTo("브랜드 A");
+        assertThat(result.isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("브랜드명이 중복되면 DUPLICATE_BRAND_NAME 예외를 던진다")
+    void registerBrand_duplicateName_throwsBusinessException() {
+        when(brandRepository.existsByName("브랜드 A")).thenReturn(true);
+
+        assertThatThrownBy(() -> brandService.registerBrand(new BrandRegisterCommand("브랜드 A", "설명")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.DUPLICATE_BRAND_NAME.name());
+        verify(brandRepository, never()).save(any());
+    }
 
     @Test
     @DisplayName("브랜드 목록을 그대로 반환한다")
