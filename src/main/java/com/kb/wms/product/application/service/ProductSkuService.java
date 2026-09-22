@@ -1,6 +1,9 @@
 package com.kb.wms.product.application.service;
 
 import java.util.List;
+import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,10 +12,15 @@ import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.ProductSkuUseCase;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
+import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
+import com.kb.wms.product.application.port.out.OptionGroupRepository;
 import com.kb.wms.product.application.port.out.OptionValueRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
 import com.kb.wms.product.application.port.out.ProductSkuRepository;
 import com.kb.wms.product.application.port.out.SkuOptionValueRepository;
+import com.kb.wms.product.domain.entity.OptionGroup;
+import com.kb.wms.product.domain.entity.OptionValue;
+import com.kb.wms.product.domain.entity.Product;
 import com.kb.wms.product.domain.entity.ProductSku;
 import com.kb.wms.product.domain.entity.SkuOptionValue;
 import com.kb.wms.product.exception.ProductErrorCode;
@@ -35,18 +43,21 @@ public class ProductSkuService implements ProductSkuUseCase {
     private final ProductRepository productRepository;
     private final OptionValueRepository optionValueRepository;
     private final SkuOptionValueRepository skuOptionValueRepository;
+    private final OptionGroupRepository optionGroupRepository;
 
     @Override
     @Transactional
     public ProductSku registerSku(ProductSkuRegisterCommand command) {
-        if (!productRepository.findById(command.productId()).isPresent()) {
-            throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);
+        Product product = productRepository.findById(command.productId())
+                .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+        if (!product.isActive()) {
+            throw new BusinessException(ProductErrorCode.PRODUCT_INACTIVE);
         }
         if (productSkuRepository.existsBySkuCode(command.skuCode())) {
-            throw new BusinessException(ProductErrorCode.SKU_CODE_DUPLICATED);
+            throw new BusinessException(ProductErrorCode.DUPLICATE_SKU_CODE);
         }
         if (command.barcode() != null && productSkuRepository.existsByBarcode(command.barcode())) {
-            throw new BusinessException(ProductErrorCode.BARCODE_DUPLICATED);
+            throw new BusinessException(ProductErrorCode.DUPLICATE_BARCODE);
         }
 
         ProductSku sku = ProductSku.register(
@@ -73,14 +84,44 @@ public class ProductSkuService implements ProductSkuUseCase {
         ProductSku sku = productSkuRepository.findById(command.skuId())
                 .orElseThrow(() -> new BusinessException(ProductErrorCode.SKU_NOT_FOUND));
 
+        Set<Long> connectedOptionGroupIds = new HashSet<>();
+        for (SkuOptionValue link : skuOptionValueRepository.findBySkuId(sku.getSkuId())) {
+            optionValueRepository.findById(link.getOptionValueId())
+                    .map(OptionValue::getOptionGroupId)
+                    .ifPresent(connectedOptionGroupIds::add);
+        }
+
         for (Long optionValueId : command.optionValueIds()) {
-            if (!optionValueRepository.findById(optionValueId).isPresent()) {
-                throw new BusinessException(ProductErrorCode.OPTION_VALUE_NOT_FOUND);
+            OptionValue optionValue = optionValueRepository.findById(optionValueId)
+                    .orElseThrow(() -> new BusinessException(ProductErrorCode.OPTION_VALUE_NOT_FOUND));
+            if (!optionValue.isActive()) {
+                throw new BusinessException(ProductErrorCode.OPTION_VALUE_INACTIVE);
             }
             if (skuOptionValueRepository.existsBySkuIdAndOptionValueId(sku.getSkuId(), optionValueId)) {
                 throw new BusinessException(ProductErrorCode.DUPLICATE_OPTION_VALUE);
             }
+            if (!connectedOptionGroupIds.add(optionValue.getOptionGroupId())) {
+                throw new BusinessException(ProductErrorCode.OPTION_GROUP_CONFLICT);
+            }
             skuOptionValueRepository.save(SkuOptionValue.connect(sku.getSkuId(), optionValueId));
         }
+    }
+
+    @Override
+    public List<SkuOptionSummary> getSkuOptions(Long skuId) {
+        List<SkuOptionSummary> summaries = new ArrayList<>();
+        for (SkuOptionValue link : skuOptionValueRepository.findBySkuId(skuId)) {
+            OptionValue optionValue = optionValueRepository.findById(link.getOptionValueId()).orElse(null);
+            if (optionValue == null) {
+                continue;
+            }
+            OptionGroup optionGroup = optionGroupRepository.findById(optionValue.getOptionGroupId()).orElse(null);
+            summaries.add(new SkuOptionSummary(
+                    optionValue.getOptionGroupId(),
+                    optionGroup != null ? optionGroup.getName() : null,
+                    optionValue.getOptionValueId(),
+                    optionValue.getValue()));
+        }
+        return summaries;
     }
 }

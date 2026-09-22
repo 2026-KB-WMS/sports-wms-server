@@ -11,6 +11,8 @@ import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
 import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
+import com.kb.wms.product.domain.entity.Brand;
+import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.domain.entity.Product;
 import com.kb.wms.product.exception.ProductErrorCode;
 
@@ -28,14 +30,18 @@ public class ProductService implements ProductUseCase {
     @Override
     @Transactional
     public Product registerProduct(ProductRegisterCommand command) {
-        if (!brandRepository.findById(command.brandId()).isPresent()) {
-            throw new BusinessException(ProductErrorCode.BRAND_NOT_FOUND);
+        Brand brand = brandRepository.findById(command.brandId())
+                .orElseThrow(() -> new BusinessException(ProductErrorCode.BRAND_NOT_FOUND));
+        if (!brand.isActive()) {
+            throw new BusinessException(ProductErrorCode.BRAND_INACTIVE);
         }
-        if (!categoryRepository.findById(command.categoryId()).isPresent()) {
-            throw new BusinessException(ProductErrorCode.CATEGORY_NOT_FOUND);
+        Category category = categoryRepository.findById(command.categoryId())
+                .orElseThrow(() -> new BusinessException(ProductErrorCode.CATEGORY_NOT_FOUND));
+        if (!category.isActive()) {
+            throw new BusinessException(ProductErrorCode.CATEGORY_INACTIVE);
         }
         if (productRepository.existsByProductCode(command.productCode())) {
-            throw new BusinessException(ProductErrorCode.PRODUCT_CODE_DUPLICATED);
+            throw new BusinessException(ProductErrorCode.DUPLICATE_PRODUCT_CODE);
         }
 
         Product product = Product.register(

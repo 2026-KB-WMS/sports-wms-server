@@ -1,5 +1,6 @@
 package com.kb.wms.common.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.kb.wms.common.exception.ErrorCode;
 
 import java.util.List;
@@ -7,11 +8,14 @@ import java.util.List;
 /**
  * 공통 오류 응답 포맷.
  * 공통 API 규칙 문서에 정의된 success/status_code/message/error_code/errors 스키마를 따른다.
+ * JSON 필드명은 명세대로 status_code, error_code(snake_case)를 쓴다.
  */
 public record ErrorResponse(
         boolean success,
+        @JsonProperty("status_code")
         int statusCode,
         String message,
+        @JsonProperty("error_code")
         String errorCode,
         List<FieldError> errors
 ) {

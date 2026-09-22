@@ -10,4 +10,6 @@ import com.kb.wms.product.domain.entity.Brand;
 public interface BrandQueryUseCase {
 
     List<Brand> getBrands();
+
+    Brand getBrand(Long brandId);
 }

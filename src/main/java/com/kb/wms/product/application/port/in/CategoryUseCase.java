@@ -13,4 +13,6 @@ public interface CategoryUseCase {
     Category registerCategory(CategoryRegisterCommand command);
 
     List<Category> getCategories();
+
+    Category getCategory(Long categoryId);
 }

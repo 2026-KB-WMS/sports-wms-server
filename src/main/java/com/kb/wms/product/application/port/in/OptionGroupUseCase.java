@@ -3,6 +3,7 @@ package com.kb.wms.product.application.port.in;
 import java.util.List;
 
 import com.kb.wms.product.application.port.in.command.OptionGroupRegisterCommand;
+import com.kb.wms.product.application.port.in.result.ProductOptionGroupSummary;
 import com.kb.wms.product.domain.entity.OptionGroup;
 
 /**
@@ -13,5 +14,5 @@ public interface OptionGroupUseCase {
 
     OptionGroup registerOptionGroup(OptionGroupRegisterCommand command);
 
-    List<OptionGroup> getOptionGroupsByProduct(Long productId);
+    List<ProductOptionGroupSummary> getOptionGroupsByProduct(Long productId);
 }

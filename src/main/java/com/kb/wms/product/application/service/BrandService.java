@@ -5,9 +5,11 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.BrandQueryUseCase;
 import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.domain.entity.Brand;
+import com.kb.wms.product.exception.ProductErrorCode;
 
 import lombok.RequiredArgsConstructor;
 
@@ -21,5 +23,11 @@ public class BrandService implements BrandQueryUseCase {
     @Override
     public List<Brand> getBrands() {
         return brandRepository.findAll();
+    }
+
+    @Override
+    public Brand getBrand(Long brandId) {
+        return brandRepository.findById(brandId)
+                .orElseThrow(() -> new BusinessException(ProductErrorCode.BRAND_NOT_FOUND));
     }
 }
