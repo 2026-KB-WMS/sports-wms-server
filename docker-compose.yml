@@ -1,4 +1,20 @@
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wms-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/wms?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: wms
+      SPRING_DATASOURCE_PASSWORD: wms
+    ports:
+      - "8080:8080"
+
   mysql:
     image: mysql:8.4
     container_name: wms-db
