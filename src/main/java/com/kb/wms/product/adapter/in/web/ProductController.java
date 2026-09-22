@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductRegisterRequest;
+import com.kb.wms.product.adapter.in.web.dto.request.ProductUpdateRequest;
 import com.kb.wms.product.adapter.in.web.dto.response.ProductDetailResponse;
 import com.kb.wms.product.adapter.in.web.dto.response.ProductSummaryResponse;
 import com.kb.wms.product.application.port.in.BrandQueryUseCase;
@@ -58,6 +60,14 @@ public class ProductController {
     @GetMapping("/{productId}")
     public ApiResponse<ProductDetailResponse> getProduct(@PathVariable Long productId) {
         Product product = productUseCase.getProduct(productId);
+        return ApiResponse.ok(toDetailResponse(product));
+    }
+
+    @PatchMapping("/{productId}")
+    public ApiResponse<ProductDetailResponse> updateProduct(
+            @PathVariable Long productId,
+            @Valid @RequestBody ProductUpdateRequest request) {
+        Product product = productUseCase.updateProduct(request.toCommand(productId));
         return ApiResponse.ok(toDetailResponse(product));
     }
 

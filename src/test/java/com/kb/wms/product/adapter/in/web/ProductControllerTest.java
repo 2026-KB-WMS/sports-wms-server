@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -25,6 +26,7 @@ import com.kb.wms.product.application.port.in.BrandQueryUseCase;
 import com.kb.wms.product.application.port.in.CategoryUseCase;
 import com.kb.wms.product.application.port.in.ProductUseCase;
 import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
+import com.kb.wms.product.application.port.in.command.ProductUpdateCommand;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.domain.entity.Product;
@@ -47,6 +49,10 @@ class ProductControllerTest {
 
     private record TestRequest(Long brandId, Long categoryId, String productCode, String productName,
                                 String description) {
+    }
+
+    private record TestUpdateRequest(String productName, String description, Long brandId, Long categoryId,
+                                      Boolean isActive) {
     }
 
     @Test
@@ -102,5 +108,51 @@ class ProductControllerTest {
         mockMvc.perform(get("/api/v1/products/{productId}", 999L))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error_code").value("PRODUCT_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("상품을 수정하면 200과 수정된 상품을 반환한다")
+    void updateProduct_success() throws Exception {
+        Product updated = Product.register(1L, 1L, "P-0001", "새 이름", "새 설명");
+        when(productUseCase.updateProduct(any(ProductUpdateCommand.class))).thenReturn(updated);
+        when(brandQueryUseCase.getBrand(1L)).thenReturn(Brand.register("브랜드 A", null));
+        when(categoryUseCase.getCategory(1L)).thenReturn(Category.register(null, "CAT-001", "라켓", 1, 0));
+
+        mockMvc.perform(patch("/api/v1/products/{productId}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new TestUpdateRequest("새 이름", "새 설명", null, null, null))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.productName").value("새 이름"))
+                .andExpect(jsonPath("$.data.description").value("새 설명"));
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 상품을 수정하면 404 PRODUCT_NOT_FOUND를 반환한다")
+    void updateProduct_notFound() throws Exception {
+        when(productUseCase.updateProduct(any(ProductUpdateCommand.class)))
+                .thenThrow(new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+
+        mockMvc.perform(patch("/api/v1/products/{productId}", 999L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new TestUpdateRequest("새 이름", null, null, null, null))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error_code").value("PRODUCT_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("변경할 필드가 없으면 400 VALIDATION_ERROR를 반환한다")
+    void updateProduct_noChanges_returnsValidationError() throws Exception {
+        when(productUseCase.updateProduct(any(ProductUpdateCommand.class)))
+                .thenThrow(new BusinessException(com.kb.wms.common.exception.ErrorCode.VALIDATION_ERROR,
+                        "수정할 필드를 하나 이상 입력해주세요."));
+
+        mockMvc.perform(patch("/api/v1/products/{productId}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new TestUpdateRequest(null, null, null, null, null))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
     }
 }
