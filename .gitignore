@@ -39,3 +39,6 @@ out/
 
 ### Local scripts ###
 github-labels.json
+
+### Env ###
+.env
