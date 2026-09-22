@@ -1,0 +1,2 @@
+-- Flyway 마이그레이션 시작점.
+-- 도메인별로 파일을 분리해서 추가한다 (예: V2__create_auth_tables.sql, V3__create_product_tables.sql ...).
