@@ -37,7 +37,7 @@ public class CategoryJpaEntity extends BaseTimeEntity {
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 
-    @Column(name = "depth", nullable = false)
+    @Column(name = "depth", nullable = false, columnDefinition = "TINYINT")
     private int depth;
 
     @Column(name = "sort_order", nullable = false)

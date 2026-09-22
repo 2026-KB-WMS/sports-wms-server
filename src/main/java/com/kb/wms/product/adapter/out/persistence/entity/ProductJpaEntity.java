@@ -11,7 +11,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -41,8 +40,7 @@ public class ProductJpaEntity extends BaseTimeEntity {
     @Column(name = "name", nullable = false, length = 200)
     private String name;
 
-    @Lob
-    @Column(name = "description")
+    @Column(name = "description", length = 1000)
     private String description;
 
     @Enumerated(EnumType.STRING)
