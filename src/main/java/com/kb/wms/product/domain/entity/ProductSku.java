@@ -53,6 +53,24 @@ public class ProductSku {
         this.updatedAt = updatedAt;
     }
 
+    public static ProductSku register(Long productId, String skuCode, String barcode, String name,
+                                        BigDecimal weight, BigDecimal currentPurchasePrice,
+                                        BigDecimal currentSupplyPrice, String unit,
+                                        BigDecimal safetyStockQuantity) {
+        return ProductSku.builder()
+                .productId(productId)
+                .skuCode(skuCode)
+                .barcode(barcode)
+                .name(name)
+                .weight(weight)
+                .currentPurchasePrice(currentPurchasePrice)
+                .currentSupplyPrice(currentSupplyPrice)
+                .unit(unit)
+                .safetyStockQuantity(safetyStockQuantity)
+                .status(ProductStatus.ACTIVE)
+                .build();
+    }
+
     /**
      * 점주(STORE_OWNER) 응답에서는 매입 단가·안전 재고를 노출하지 않는다.
      */

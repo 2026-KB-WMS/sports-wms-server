@@ -41,6 +41,18 @@ public class    Category {
         this.updatedAt = updatedAt;
     }
 
+    public static Category register(Long parentCategoryId, String categoryCode, String name,
+                                     int depth, int sortOrder) {
+        return Category.builder()
+                .parentCategoryId(parentCategoryId)
+                .categoryCode(categoryCode)
+                .name(name)
+                .depth(depth)
+                .sortOrder(sortOrder)
+                .status(ProductStatus.ACTIVE)
+                .build();
+    }
+
     public boolean isRoot() {
         return this.parentCategoryId == null;
     }
