@@ -25,7 +25,7 @@ public class CategoryService implements CategoryUseCase {
     @Transactional
     public Category registerCategory(CategoryRegisterCommand command) {
         if (categoryRepository.existsByCategoryCode(command.categoryCode())) {
-            throw new BusinessException(ProductErrorCode.CATEGORY_CODE_DUPLICATED);
+            throw new BusinessException(ProductErrorCode.DUPLICATE_CATEGORY_CODE);
         }
 
         int depth = 1;
@@ -43,5 +43,11 @@ public class CategoryService implements CategoryUseCase {
     @Override
     public List<Category> getCategories() {
         return categoryRepository.findAll();
+    }
+
+    @Override
+    public Category getCategory(Long categoryId) {
+        return categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new BusinessException(ProductErrorCode.CATEGORY_NOT_FOUND));
     }
 }

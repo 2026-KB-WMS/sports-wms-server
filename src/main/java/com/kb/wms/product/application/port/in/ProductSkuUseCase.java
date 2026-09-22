@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
+import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
 import com.kb.wms.product.domain.entity.ProductSku;
 
 /**
@@ -20,4 +21,6 @@ public interface ProductSkuUseCase {
     ProductSku getSku(Long skuId);
 
     void connectOptions(SkuOptionConnectCommand command);
+
+    List<SkuOptionSummary> getSkuOptions(Long skuId);
 }

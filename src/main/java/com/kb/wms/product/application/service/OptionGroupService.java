@@ -44,7 +44,7 @@ public class OptionGroupService implements OptionGroupUseCase {
     @Transactional
     public OptionGroup registerOptionGroup(OptionGroupRegisterCommand command) {
         if (optionGroupRepository.existsByName(command.name())) {
-            throw new BusinessException(ProductErrorCode.OPTION_GROUP_NAME_DUPLICATED);
+            throw new BusinessException(ProductErrorCode.DUPLICATE_OPTION_GROUP_NAME);
         }
         return optionGroupRepository.save(OptionGroup.register(command.name()));
     }

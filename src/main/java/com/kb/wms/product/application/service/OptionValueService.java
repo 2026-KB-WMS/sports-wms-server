@@ -28,7 +28,7 @@ public class OptionValueService implements OptionValueUseCase {
             throw new BusinessException(ProductErrorCode.OPTION_GROUP_NOT_FOUND);
         }
         if (optionValueRepository.existsByOptionGroupIdAndValue(command.optionGroupId(), command.value())) {
-            throw new BusinessException(ProductErrorCode.OPTION_VALUE_DUPLICATED);
+            throw new BusinessException(ProductErrorCode.DUPLICATE_OPTION_VALUE);
         }
 
         OptionValue optionValue = OptionValue.register(
