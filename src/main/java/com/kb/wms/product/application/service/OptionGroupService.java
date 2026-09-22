@@ -1,9 +1,12 @@
 package com.kb.wms.product.application.service;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.OptionGroupUseCase;
 import com.kb.wms.product.application.port.in.command.OptionGroupRegisterCommand;
+import com.kb.wms.product.application.port.in.result.OptionValueSummary;
+import com.kb.wms.product.application.port.in.result.ProductOptionGroupSummary;
 import com.kb.wms.product.application.port.out.OptionGroupRepository;
 import com.kb.wms.product.application.port.out.OptionValueRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
@@ -50,7 +55,7 @@ public class OptionGroupService implements OptionGroupUseCase {
     }
 
     @Override
-    public List<OptionGroup> getOptionGroupsByProduct(Long productId) {
+    public List<ProductOptionGroupSummary> getOptionGroupsByProduct(Long productId) {
         if (!productRepository.findById(productId).isPresent()) {
             throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);
         }
@@ -64,17 +69,26 @@ public class OptionGroupService implements OptionGroupUseCase {
             }
         }
 
-        Set<Long> optionGroupIds = new LinkedHashSet<>();
+        // optionGroupId 오름차순으로 묶기 위해 TreeMap을 사용한다.
+        Map<Long, List<OptionValue>> valuesByGroup = new TreeMap<>();
         for (Long optionValueId : optionValueIds) {
-            optionValueRepository.findById(optionValueId)
-                    .map(OptionValue::getOptionGroupId)
-                    .ifPresent(optionGroupIds::add);
+            optionValueRepository.findById(optionValueId).ifPresent(optionValue ->
+                    valuesByGroup.computeIfAbsent(optionValue.getOptionGroupId(), key -> new ArrayList<>())
+                            .add(optionValue));
         }
 
-        return optionGroupIds.stream()
-                .map(optionGroupRepository::findById)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .toList();
+        List<ProductOptionGroupSummary> summaries = new ArrayList<>();
+        for (Map.Entry<Long, List<OptionValue>> entry : valuesByGroup.entrySet()) {
+            OptionGroup group = optionGroupRepository.findById(entry.getKey()).orElse(null);
+            if (group == null) {
+                continue;
+            }
+            List<OptionValueSummary> values = entry.getValue().stream()
+                    .sorted(Comparator.comparingInt(OptionValue::getSortOrder))
+                    .map(ov -> new OptionValueSummary(ov.getOptionValueId(), ov.getValue(), ov.getSortOrder()))
+                    .toList();
+            summaries.add(new ProductOptionGroupSummary(group.getOptionGroupId(), group.getName(), values));
+        }
+        return summaries;
     }
 }
