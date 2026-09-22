@@ -20,6 +20,10 @@ public record ErrorResponse(
         return new ErrorResponse(false, errorCode.getStatus(), message, errorCode.name(), List.of());
     }
 
+    public static ErrorResponse of(ErrorCode errorCode, String errorCodeName, String message) {
+        return new ErrorResponse(false, errorCode.getStatus(), message, errorCodeName, List.of());
+    }
+
     public static ErrorResponse of(ErrorCode errorCode, String message, List<FieldError> errors) {
         return new ErrorResponse(false, errorCode.getStatus(), message, errorCode.name(), errors);
     }
