@@ -88,6 +88,22 @@ class CategoryServiceTest {
     }
 
     @Test
+    @DisplayName("상위 카테고리가 비활성 상태면 PARENT_CATEGORY_INACTIVE 예외를 던진다")
+    void registerCategory_parentInactive_throwsBusinessException() {
+        Category parent = Category.register(null, "RACKET", "라켓", 1, 0);
+        parent.deactivate();
+        CategoryRegisterCommand command = new CategoryRegisterCommand(1L, "RACKET_BEGINNER", "초보자용 라켓", 1);
+        when(categoryRepository.existsByCategoryCode("RACKET_BEGINNER")).thenReturn(false);
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(parent));
+
+        assertThatThrownBy(() -> categoryService.registerCategory(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.PARENT_CATEGORY_INACTIVE.name());
+        verify(categoryRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("카테고리 목록을 그대로 반환한다")
     void getCategories_returnsAll() {
         Category category = Category.register(null, "RACKET", "라켓", 1, 0);

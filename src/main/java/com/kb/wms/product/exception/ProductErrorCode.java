@@ -19,6 +19,7 @@ public enum ProductErrorCode implements DomainErrorCode {
     CATEGORY_NOT_FOUND(ErrorCode.NOT_FOUND, "카테고리를 찾을 수 없습니다."),
     CATEGORY_INACTIVE(ErrorCode.CONFLICT, "비활성 카테고리입니다."),
     PARENT_CATEGORY_NOT_FOUND(ErrorCode.NOT_FOUND, "상위 카테고리를 찾을 수 없습니다."),
+    PARENT_CATEGORY_INACTIVE(ErrorCode.CONFLICT, "비활성 상위 카테고리에는 하위 카테고리를 등록할 수 없습니다."),
     DUPLICATE_CATEGORY_CODE(ErrorCode.CONFLICT, "이미 존재하는 카테고리 코드입니다."),
     PRODUCT_NOT_FOUND(ErrorCode.NOT_FOUND, "상품을 찾을 수 없습니다."),
     PRODUCT_INACTIVE(ErrorCode.CONFLICT, "비활성 상품입니다."),
