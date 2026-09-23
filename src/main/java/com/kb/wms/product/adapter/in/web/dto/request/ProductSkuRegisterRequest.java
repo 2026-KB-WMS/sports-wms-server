@@ -41,7 +41,7 @@ public record ProductSkuRegisterRequest(
         String unit,
 
         @PositiveOrZero(message = "안전 재고 수량은 0 이상이어야 합니다.")
-        BigDecimal safetyStockQuantity
+        Long safetyStockQuantity
 ) {
 
     public ProductSkuRegisterCommand toCommand() {

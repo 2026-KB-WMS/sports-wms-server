@@ -28,7 +28,7 @@ public class ProductSku {
     private BigDecimal currentPurchasePrice;
     private BigDecimal currentSupplyPrice;
     private String unit;
-    private BigDecimal safetyStockQuantity;
+    private Long safetyStockQuantity;
     private ProductStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -36,7 +36,7 @@ public class ProductSku {
     @Builder
     private ProductSku(Long skuId, Long productId, String skuCode, String barcode, String name,
                         BigDecimal weight, BigDecimal currentPurchasePrice, BigDecimal currentSupplyPrice,
-                        String unit, BigDecimal safetyStockQuantity, ProductStatus status,
+                        String unit, Long safetyStockQuantity, ProductStatus status,
                         LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.skuId = skuId;
         this.productId = productId;
@@ -47,7 +47,7 @@ public class ProductSku {
         this.currentPurchasePrice = currentPurchasePrice;
         this.currentSupplyPrice = currentSupplyPrice;
         this.unit = unit == null ? DEFAULT_UNIT : unit;
-        this.safetyStockQuantity = safetyStockQuantity == null ? BigDecimal.ZERO : safetyStockQuantity;
+        this.safetyStockQuantity = safetyStockQuantity == null ? 0L : safetyStockQuantity;
         this.status = status == null ? ProductStatus.ACTIVE : status;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -56,7 +56,7 @@ public class ProductSku {
     public static ProductSku register(Long productId, String skuCode, String barcode, String name,
                                         BigDecimal weight, BigDecimal currentPurchasePrice,
                                         BigDecimal currentSupplyPrice, String unit,
-                                        BigDecimal safetyStockQuantity) {
+                                        Long safetyStockQuantity) {
         return ProductSku.builder()
                 .productId(productId)
                 .skuCode(skuCode)

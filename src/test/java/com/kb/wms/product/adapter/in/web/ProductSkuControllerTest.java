@@ -55,7 +55,7 @@ class ProductSkuControllerTest {
 
     private record SkuRequest(Long productId, String skuCode, String barcode, String skuName, BigDecimal weight,
                                BigDecimal currentPurchasePrice, BigDecimal currentSupplyPrice, String unit,
-                               BigDecimal safetyStockQuantity) {
+                               Long safetyStockQuantity) {
     }
 
     private record ConnectRequest(List<Long> optionValueIds) {
@@ -63,7 +63,7 @@ class ProductSkuControllerTest {
 
     private ProductSku mockSku() {
         return ProductSku.register(1L, "SKU-0001", "8800000000001", "라켓 A - 빨강",
-                BigDecimal.TEN, BigDecimal.valueOf(10000), BigDecimal.valueOf(15000), "EA", BigDecimal.TEN);
+                BigDecimal.TEN, BigDecimal.valueOf(10000), BigDecimal.valueOf(15000), "EA", 10L);
     }
 
     @Test
@@ -75,7 +75,7 @@ class ProductSkuControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new SkuRequest(
                                 1L, "SKU-0001", "8800000000001", "라켓 A - 빨강", BigDecimal.TEN,
-                                BigDecimal.valueOf(10000), BigDecimal.valueOf(15000), "EA", BigDecimal.TEN))))
+                                BigDecimal.valueOf(10000), BigDecimal.valueOf(15000), "EA", 10L))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.skuCode").value("SKU-0001"))
                 .andExpect(jsonPath("$.data.optionValues").isEmpty());
