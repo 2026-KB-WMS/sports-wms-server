@@ -16,6 +16,7 @@ import com.kb.wms.warehouse.adapter.in.web.dto.request.WarehouseSectionRegisterR
 import com.kb.wms.warehouse.adapter.in.web.dto.request.WarehouseSectionUpdateRequest;
 import com.kb.wms.warehouse.adapter.in.web.dto.response.WarehouseSectionResponse;
 import com.kb.wms.warehouse.application.port.in.WarehouseSectionUseCase;
+import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 import com.kb.wms.warehouse.domain.entity.WarehouseSection;
 
 import jakarta.validation.Valid;
@@ -33,19 +34,20 @@ import lombok.RequiredArgsConstructor;
 public class WarehouseSectionController {
 
     private final WarehouseSectionUseCase warehouseSectionUseCase;
+    private final WarehouseUseCase warehouseUseCase;
 
     @PostMapping("/api/v1/warehouses/sections")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<WarehouseSectionResponse> registerSection(
             @Valid @RequestBody WarehouseSectionRegisterRequest request) {
         WarehouseSection section = warehouseSectionUseCase.registerSection(request.toCommand());
-        return ApiResponse.created(WarehouseSectionResponse.from(section));
+        return ApiResponse.created(toResponse(section));
     }
 
     @GetMapping("/api/v1/warehouses/sections")
     public ApiResponse<List<WarehouseSectionResponse>> getAllSections() {
         List<WarehouseSectionResponse> items = warehouseSectionUseCase.getSections(null).stream()
-                .map(WarehouseSectionResponse::from)
+                .map(this::toResponse)
                 .toList();
         return ApiResponse.ok(items);
     }
@@ -53,7 +55,7 @@ public class WarehouseSectionController {
     @GetMapping("/api/v1/warehouses/{warehouseId}/sections")
     public ApiResponse<List<WarehouseSectionResponse>> getSectionsByWarehouse(@PathVariable Long warehouseId) {
         List<WarehouseSectionResponse> items = warehouseSectionUseCase.getSections(warehouseId).stream()
-                .map(WarehouseSectionResponse::from)
+                .map(this::toResponse)
                 .toList();
         return ApiResponse.ok(items);
     }
@@ -61,7 +63,7 @@ public class WarehouseSectionController {
     @GetMapping("/api/v1/warehouses/sections/{sectionId}")
     public ApiResponse<WarehouseSectionResponse> getSection(@PathVariable Long sectionId) {
         WarehouseSection section = warehouseSectionUseCase.getSection(sectionId);
-        return ApiResponse.ok(WarehouseSectionResponse.from(section));
+        return ApiResponse.ok(toResponse(section));
     }
 
     @PatchMapping("/api/v1/warehouses/sections/{sectionId}")
@@ -69,12 +71,20 @@ public class WarehouseSectionController {
             @PathVariable Long sectionId,
             @Valid @RequestBody WarehouseSectionUpdateRequest request) {
         WarehouseSection section = warehouseSectionUseCase.updateSection(sectionId, request.toCommand());
-        return ApiResponse.ok(WarehouseSectionResponse.from(section));
+        return ApiResponse.ok(toResponse(section));
     }
 
     @PatchMapping("/api/v1/warehouses/sections/{sectionId}/deactivate")
     public ApiResponse<WarehouseSectionResponse> deactivateSection(@PathVariable Long sectionId) {
         WarehouseSection section = warehouseSectionUseCase.deactivateSection(sectionId);
-        return ApiResponse.ok(WarehouseSectionResponse.from(section));
+        return ApiResponse.ok(toResponse(section));
+    }
+
+    private WarehouseSectionResponse toResponse(WarehouseSection section) {
+        String warehouseName = warehouseUseCase.getWarehouse(section.getWarehouseId()).getName();
+        String parentSectionCode = section.getParentSectionId() == null
+                ? null
+                : warehouseSectionUseCase.getSection(section.getParentSectionId()).getSectionCode();
+        return WarehouseSectionResponse.from(section, warehouseName, parentSectionCode);
     }
 }
