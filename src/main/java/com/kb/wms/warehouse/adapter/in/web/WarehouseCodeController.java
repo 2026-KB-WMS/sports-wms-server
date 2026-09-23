@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.response.ApiResponse;
+import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.warehouse.adapter.in.web.dto.response.CodeItemResponse;
 import com.kb.wms.warehouse.application.port.in.WarehouseCodeUseCase;
 
@@ -24,18 +25,18 @@ public class WarehouseCodeController {
     private final WarehouseCodeUseCase warehouseCodeUseCase;
 
     @GetMapping("/management-types")
-    public ApiResponse<List<CodeItemResponse>> getManagementTypes() {
+    public ApiResponse<ItemsResponse<CodeItemResponse>> getManagementTypes() {
         List<CodeItemResponse> items = warehouseCodeUseCase.getManagementTypes().stream()
                 .map(CodeItemResponse::from)
                 .toList();
-        return ApiResponse.ok(items);
+        return ApiResponse.ok(ItemsResponse.of(items));
     }
 
     @GetMapping("/section-types")
-    public ApiResponse<List<CodeItemResponse>> getSectionTypes() {
+    public ApiResponse<ItemsResponse<CodeItemResponse>> getSectionTypes() {
         List<CodeItemResponse> items = warehouseCodeUseCase.getSectionTypes().stream()
                 .map(CodeItemResponse::from)
                 .toList();
-        return ApiResponse.ok(items);
+        return ApiResponse.ok(ItemsResponse.of(items));
     }
 }
