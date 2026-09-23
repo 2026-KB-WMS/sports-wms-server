@@ -31,8 +31,8 @@ public class WarehouseMemberPersistenceAdapter implements WarehouseMemberReposit
     }
 
     @Override
-    public List<WarehouseMember> findAll(Long warehouseId) {
-        return warehouseMemberJpaRepository.findAllByFilter(warehouseId).stream()
+    public List<WarehouseMember> findAll(Long warehouseId, Long userId) {
+        return warehouseMemberJpaRepository.findAllByFilter(warehouseId, userId).stream()
                 .map(WarehouseMemberJpaEntity::toDomain)
                 .toList();
     }

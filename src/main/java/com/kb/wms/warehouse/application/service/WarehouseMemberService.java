@@ -50,8 +50,8 @@ public class WarehouseMemberService implements WarehouseMemberUseCase {
     }
 
     @Override
-    public List<WarehouseMember> getManagers(Long warehouseId) {
-        return warehouseMemberRepository.findAll(warehouseId);
+    public List<WarehouseMember> getManagers(Long warehouseId, Long userId) {
+        return warehouseMemberRepository.findAll(warehouseId, userId);
     }
 
     @Override

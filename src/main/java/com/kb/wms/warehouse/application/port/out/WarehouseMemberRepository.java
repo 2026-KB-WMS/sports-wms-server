@@ -15,9 +15,9 @@ public interface WarehouseMemberRepository {
     Optional<WarehouseMember> findById(Long warehouseMemberId);
 
     /**
-     * warehouseId가 null이면 조건을 무시하고 조회한다.
+     * warehouseId·userId가 null이면 해당 조건을 무시하고 조회한다.
      */
-    List<WarehouseMember> findAll(Long warehouseId);
+    List<WarehouseMember> findAll(Long warehouseId, Long userId);
 
     List<WarehouseMember> findByUserId(Long userId);
 
