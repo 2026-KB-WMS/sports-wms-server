@@ -11,6 +11,6 @@ public record ProductSkuRegisterCommand(
         BigDecimal currentPurchasePrice,
         BigDecimal currentSupplyPrice,
         String unit,
-        BigDecimal safetyStockQuantity
+        Long safetyStockQuantity
 ) {
 }

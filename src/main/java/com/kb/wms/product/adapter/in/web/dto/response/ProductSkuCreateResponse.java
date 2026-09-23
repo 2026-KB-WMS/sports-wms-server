@@ -19,7 +19,7 @@ public record ProductSkuCreateResponse(
         BigDecimal currentPurchasePrice,
         BigDecimal currentSupplyPrice,
         String unit,
-        BigDecimal safetyStockQuantity,
+        Long safetyStockQuantity,
         boolean isActive,
         List<SkuOptionValueResponse> optionValues,
         LocalDateTime createdAt

@@ -54,7 +54,7 @@ class ProductSkuServiceTest {
     private ProductSkuRegisterCommand registerCommand(Long productId, String skuCode, String barcode) {
         return new ProductSkuRegisterCommand(productId, skuCode, barcode, "라켓 A - 빨강",
                 BigDecimal.valueOf(100), BigDecimal.valueOf(10000), BigDecimal.valueOf(15000),
-                "EA", BigDecimal.TEN);
+                "EA", 10L);
     }
 
     private Product mockActiveProduct() {

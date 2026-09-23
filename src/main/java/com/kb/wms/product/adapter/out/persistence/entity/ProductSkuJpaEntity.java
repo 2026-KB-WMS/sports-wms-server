@@ -54,8 +54,8 @@ public class ProductSkuJpaEntity extends BaseTimeEntity {
     @Column(name = "unit", nullable = false, length = 20)
     private String unit;
 
-    @Column(name = "safety_stock_quantity", nullable = false, precision = 14, scale = 3)
-    private BigDecimal safetyStockQuantity;
+    @Column(name = "safety_stock_quantity", nullable = false)
+    private Long safetyStockQuantity;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
@@ -64,7 +64,7 @@ public class ProductSkuJpaEntity extends BaseTimeEntity {
     @Builder
     private ProductSkuJpaEntity(Long skuId, Long productId, String skuCode, String barcode, String name,
                                  BigDecimal weight, BigDecimal currentPurchasePrice, BigDecimal currentSupplyPrice,
-                                 String unit, BigDecimal safetyStockQuantity, ProductStatus status) {
+                                 String unit, Long safetyStockQuantity, ProductStatus status) {
         this.skuId = skuId;
         this.productId = productId;
         this.skuCode = skuCode;
