@@ -14,9 +14,9 @@ public interface WarehouseMemberUseCase {
     WarehouseMember assignManager(WarehouseMemberAssignCommand command);
 
     /**
-     * warehouseId가 null이면 조건을 무시하고 전체 배정을 조회한다.
+     * warehouseId·userId가 null이면 해당 조건을 무시하고 전체 배정을 조회한다.
      */
-    List<WarehouseMember> getManagers(Long warehouseId);
+    List<WarehouseMember> getManagers(Long warehouseId, Long userId);
 
     void releaseManager(Long warehouseMemberId);
 }

@@ -46,8 +46,9 @@ public class WarehouseMemberController {
 
     @GetMapping
     public ApiResponse<List<WarehouseMemberResponse>> getManagers(
-            @RequestParam(required = false) Long warehouseId) {
-        List<WarehouseMemberResponse> items = warehouseMemberUseCase.getManagers(warehouseId).stream()
+            @RequestParam(required = false) Long warehouseId,
+            @RequestParam(required = false) Long userId) {
+        List<WarehouseMemberResponse> items = warehouseMemberUseCase.getManagers(warehouseId, userId).stream()
                 .map(this::toResponse)
                 .toList();
         return ApiResponse.ok(items);

@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseRegisterCommand;
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -28,6 +29,7 @@ public record WarehouseRegisterRequest(
         String contactNumber,
 
         @DecimalMin(value = "0", inclusive = true, message = "전체 수용량은 0 이상이어야 합니다.")
+        @Digits(integer = 11, fraction = 3, message = "전체 수용량은 소수 3자리까지만 입력할 수 있습니다.")
         BigDecimal totalCapacity
 ) {
 
