@@ -1,6 +1,8 @@
 package com.kb.wms.warehouse.adapter.in.web;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -95,6 +97,22 @@ public class WarehouseSectionController {
     public ApiResponse<WarehouseSectionResponse> deactivateSection(@PathVariable Long sectionId) {
         WarehouseSection section = warehouseSectionUseCase.deactivateSection(sectionId);
         return ApiResponse.ok(toResponse(section));
+    }
+
+    /** 목록에서는 창고명·상위 구역 코드를 창고·상위 구역당 한 번만 조회한다. */
+    private List<WarehouseSectionResponse> toResponses(List<WarehouseSection> sections) {
+        Map<Long, String> warehouseNames = new HashMap<>();
+        Map<Long, String> parentCodes = new HashMap<>();
+        return sections.stream()
+                .map(section -> WarehouseSectionResponse.from(
+                        section,
+                        warehouseNames.computeIfAbsent(section.getWarehouseId(),
+                                id -> warehouseUseCase.getWarehouse(id).getName()),
+                        section.getParentSectionId() == null
+                                ? null
+                                : parentCodes.computeIfAbsent(section.getParentSectionId(),
+                                        id -> warehouseSectionUseCase.getSection(id).getSectionCode())))
+                .toList();
     }
 
     private WarehouseSectionResponse toResponse(WarehouseSection section) {

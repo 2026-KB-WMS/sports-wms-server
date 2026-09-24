@@ -1,6 +1,8 @@
 package com.kb.wms.product.adapter.in.web;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -63,11 +65,14 @@ public class ProductSkuController {
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Boolean isActive) {
+        // 같은 상품의 SKU가 여러 개이므로 상품명은 상품당 한 번만 조회한다.
+        Map<Long, String> productNames = new HashMap<>();
         List<ProductSkuListItemResponse> items = productSkuUseCase
                 .getSkus(new ProductSkuSearchCondition(productId, brandId, categoryId, keyword, isActive)).stream()
                 .map(sku -> ProductSkuListItemResponse.of(
                         sku,
-                        productUseCase.getProduct(sku.getProductId()).getName(),
+                        productNames.computeIfAbsent(sku.getProductId(),
+                                id -> productUseCase.getProduct(id).getName()),
                         productSkuUseCase.getSkuOptions(sku.getSkuId())))
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
