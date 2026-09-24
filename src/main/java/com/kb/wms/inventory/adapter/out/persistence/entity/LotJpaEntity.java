@@ -15,13 +15,16 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "lot")
+@Table(name = "lot",
+        uniqueConstraints = @UniqueConstraint(name = "uk_lot_sku_supplier_number",
+                columnNames = {"sku_id", "supplier_id", "lot_number"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LotJpaEntity extends BaseTimeEntity {
