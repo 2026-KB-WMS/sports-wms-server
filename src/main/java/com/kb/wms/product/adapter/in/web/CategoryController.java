@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.response.ApiResponse;
+import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.product.adapter.in.web.dto.request.CategoryRegisterRequest;
 import com.kb.wms.product.adapter.in.web.dto.response.CategoryResponse;
 import com.kb.wms.product.application.port.in.CategoryUseCase;
@@ -38,10 +39,10 @@ public class CategoryController {
     }
 
     @GetMapping
-    public ApiResponse<List<CategoryResponse>> getCategories() {
+    public ApiResponse<ItemsResponse<CategoryResponse>> getCategories() {
         List<CategoryResponse> items = categoryUseCase.getCategories().stream()
                 .map(CategoryResponse::from)
                 .toList();
-        return ApiResponse.ok(items);
+        return ApiResponse.ok(ItemsResponse.of(items));
     }
 }

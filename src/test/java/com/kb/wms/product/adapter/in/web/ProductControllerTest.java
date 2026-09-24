@@ -97,7 +97,7 @@ class ProductControllerTest {
 
         mockMvc.perform(get("/api/v1/products").param("brandId", "1").param("categoryId", "2"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].productCode").value("P-0001"));
+                .andExpect(jsonPath("$.data.items[0].productCode").value("P-0001"));
     }
 
     @Test

@@ -86,7 +86,7 @@ class WarehouseControllerTest {
 
         mockMvc.perform(get("/api/v1/warehouses"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].warehouseCode").value("WH-001"));
+                .andExpect(jsonPath("$.data.items[0].warehouseCode").value("WH-001"));
     }
 
     @Test

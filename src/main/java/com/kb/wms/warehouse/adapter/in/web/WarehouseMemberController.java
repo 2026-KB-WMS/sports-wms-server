@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.response.ApiResponse;
+import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.warehouse.adapter.in.web.dto.request.WarehouseMemberAssignRequest;
 import com.kb.wms.warehouse.adapter.in.web.dto.response.WarehouseMemberReleaseResponse;
 import com.kb.wms.warehouse.adapter.in.web.dto.response.WarehouseMemberResponse;
@@ -45,13 +46,13 @@ public class WarehouseMemberController {
     }
 
     @GetMapping
-    public ApiResponse<List<WarehouseMemberResponse>> getManagers(
+    public ApiResponse<ItemsResponse<WarehouseMemberResponse>> getManagers(
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) Long userId) {
         List<WarehouseMemberResponse> items = warehouseMemberUseCase.getManagers(warehouseId, userId).stream()
                 .map(this::toResponse)
                 .toList();
-        return ApiResponse.ok(items);
+        return ApiResponse.ok(ItemsResponse.of(items));
     }
 
     @DeleteMapping("/{warehouseMemberId}")

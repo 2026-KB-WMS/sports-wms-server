@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.response.ApiResponse;
+import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductSkuRegisterRequest;
 import com.kb.wms.product.adapter.in.web.dto.request.SkuOptionConnectRequest;
 import com.kb.wms.product.adapter.in.web.dto.response.ProductSkuCreateResponse;
@@ -52,14 +53,14 @@ public class ProductSkuController {
     }
 
     @GetMapping
-    public ApiResponse<List<ProductSkuListItemResponse>> getSkus(@RequestParam(required = false) Long productId) {
+    public ApiResponse<ItemsResponse<ProductSkuListItemResponse>> getSkus(@RequestParam(required = false) Long productId) {
         List<ProductSkuListItemResponse> items = productSkuUseCase.getSkus(productId).stream()
                 .map(sku -> ProductSkuListItemResponse.of(
                         sku,
                         productUseCase.getProduct(sku.getProductId()).getName(),
                         productSkuUseCase.getSkuOptions(sku.getSkuId())))
                 .toList();
-        return ApiResponse.ok(items);
+        return ApiResponse.ok(ItemsResponse.of(items));
     }
 
     @GetMapping("/{skuId}")

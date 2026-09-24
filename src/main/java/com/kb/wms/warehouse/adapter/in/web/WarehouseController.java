@@ -46,11 +46,11 @@ public class WarehouseController {
     }
 
     @GetMapping
-    public ApiResponse<List<WarehouseSummaryResponse>> getWarehouses() {
+    public ApiResponse<ItemsResponse<WarehouseSummaryResponse>> getWarehouses() {
         List<WarehouseSummaryResponse> items = warehouseUseCase.getWarehouses().stream()
                 .map(WarehouseSummaryResponse::from)
                 .toList();
-        return ApiResponse.ok(items);
+        return ApiResponse.ok(ItemsResponse.of(items));
     }
 
     @GetMapping("/my")

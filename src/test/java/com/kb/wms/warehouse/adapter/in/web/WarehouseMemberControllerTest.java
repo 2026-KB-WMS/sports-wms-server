@@ -87,7 +87,7 @@ class WarehouseMemberControllerTest {
 
         mockMvc.perform(get("/api/v1/warehouses/managers").param("warehouseId", "1").param("userId", "10"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].userId").value(10L));
+                .andExpect(jsonPath("$.data.items[0].userId").value(10L));
 
         verify(warehouseMemberUseCase).getManagers(eq(1L), eq(10L));
     }
@@ -101,7 +101,7 @@ class WarehouseMemberControllerTest {
 
         mockMvc.perform(get("/api/v1/warehouses/managers"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].userId").value(10L));
+                .andExpect(jsonPath("$.data.items[0].userId").value(10L));
     }
 
     @Test

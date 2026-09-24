@@ -105,8 +105,8 @@ class ProductSkuControllerTest {
 
         mockMvc.perform(get("/api/v1/products/skus").param("productId", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].skuCode").value("SKU-0001"))
-                .andExpect(jsonPath("$.data[0].productName").value("라켓 A"));
+                .andExpect(jsonPath("$.data.items[0].skuCode").value("SKU-0001"))
+                .andExpect(jsonPath("$.data.items[0].productName").value("라켓 A"));
     }
 
     @Test

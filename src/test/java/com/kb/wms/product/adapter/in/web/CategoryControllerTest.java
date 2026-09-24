@@ -81,7 +81,7 @@ class CategoryControllerTest {
 
         mockMvc.perform(get("/api/v1/products/categories"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].categoryCode").value("CAT-001"));
+                .andExpect(jsonPath("$.data.items[0].categoryCode").value("CAT-001"));
     }
 
     private record TestRequest(Long parentCategoryId, String categoryCode, String categoryName, Integer sortOrder) {

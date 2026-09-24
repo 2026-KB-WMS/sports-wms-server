@@ -82,6 +82,6 @@ class BrandControllerTest {
         mockMvc.perform(get("/api/v1/products/brands"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status_code").value(200))
-                .andExpect(jsonPath("$.data[0].brandName").value("브랜드 A"));
+                .andExpect(jsonPath("$.data.items[0].brandName").value("브랜드 A"));
     }
 }

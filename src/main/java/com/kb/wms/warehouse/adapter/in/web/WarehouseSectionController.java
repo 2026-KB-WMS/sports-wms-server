@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.response.ApiResponse;
+import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.warehouse.adapter.in.web.dto.request.WarehouseSectionRegisterRequest;
 import com.kb.wms.warehouse.adapter.in.web.dto.request.WarehouseSectionUpdateRequest;
 import com.kb.wms.warehouse.adapter.in.web.dto.response.WarehouseSectionResponse;
@@ -45,19 +46,19 @@ public class WarehouseSectionController {
     }
 
     @GetMapping("/api/v1/warehouses/sections")
-    public ApiResponse<List<WarehouseSectionResponse>> getAllSections() {
+    public ApiResponse<ItemsResponse<WarehouseSectionResponse>> getAllSections() {
         List<WarehouseSectionResponse> items = warehouseSectionUseCase.getSections(null).stream()
                 .map(this::toResponse)
                 .toList();
-        return ApiResponse.ok(items);
+        return ApiResponse.ok(ItemsResponse.of(items));
     }
 
     @GetMapping("/api/v1/warehouses/{warehouseId}/sections")
-    public ApiResponse<List<WarehouseSectionResponse>> getSectionsByWarehouse(@PathVariable Long warehouseId) {
+    public ApiResponse<ItemsResponse<WarehouseSectionResponse>> getSectionsByWarehouse(@PathVariable Long warehouseId) {
         List<WarehouseSectionResponse> items = warehouseSectionUseCase.getSections(warehouseId).stream()
                 .map(this::toResponse)
                 .toList();
-        return ApiResponse.ok(items);
+        return ApiResponse.ok(ItemsResponse.of(items));
     }
 
     @GetMapping("/api/v1/warehouses/sections/{sectionId}")

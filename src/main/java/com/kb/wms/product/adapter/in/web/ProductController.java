@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.response.ApiResponse;
+import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductRegisterRequest;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductUpdateRequest;
 import com.kb.wms.product.adapter.in.web.dto.response.ProductDetailResponse;
@@ -48,13 +49,13 @@ public class ProductController {
     }
 
     @GetMapping
-    public ApiResponse<List<ProductSummaryResponse>> getProducts(
+    public ApiResponse<ItemsResponse<ProductSummaryResponse>> getProducts(
             @RequestParam(required = false) Long brandId,
             @RequestParam(required = false) Long categoryId) {
         List<ProductSummaryResponse> items = productUseCase.getProducts(brandId, categoryId).stream()
                 .map(this::toSummaryResponse)
                 .toList();
-        return ApiResponse.ok(items);
+        return ApiResponse.ok(ItemsResponse.of(items));
     }
 
     @GetMapping("/{productId}")

@@ -96,7 +96,7 @@ class WarehouseSectionControllerTest {
 
         mockMvc.perform(get("/api/v1/warehouses/sections"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].sectionCode").value("A-01"));
+                .andExpect(jsonPath("$.data.items[0].sectionCode").value("A-01"));
     }
 
     @Test
@@ -108,8 +108,8 @@ class WarehouseSectionControllerTest {
 
         mockMvc.perform(get("/api/v1/warehouses/{warehouseId}/sections", 1L))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].sectionCode").value("A-01"))
-                .andExpect(jsonPath("$.data[0].warehouseId").value(1L));
+                .andExpect(jsonPath("$.data.items[0].sectionCode").value("A-01"))
+                .andExpect(jsonPath("$.data.items[0].warehouseId").value(1L));
     }
 
     @Test
