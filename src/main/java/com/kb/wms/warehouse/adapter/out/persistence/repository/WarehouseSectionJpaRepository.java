@@ -9,12 +9,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.kb.wms.warehouse.adapter.out.persistence.entity.WarehouseSectionJpaEntity;
+import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 
 import jakarta.persistence.LockModeType;
 
 public interface WarehouseSectionJpaRepository extends JpaRepository<WarehouseSectionJpaEntity, Long> {
 
     boolean existsByWarehouseIdAndSectionCode(Long warehouseId, String sectionCode);
+
+    boolean existsByParentSectionIdAndStatus(Long parentSectionId, WarehouseStatus status);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from WarehouseSectionJpaEntity s where s.sectionId = :sectionId")

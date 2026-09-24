@@ -49,6 +49,12 @@ public interface InventoryQueryRepository {
      */
     List<InventoryLotView> findAllocatableStocks(Long warehouseId, Long skuId);
 
+    /** 구역에 보유 또는 할당 수량이 0보다 큰 재고 행이 있는지 */
+    boolean existsStockInSection(Long sectionId);
+
+    /** 창고의 구역 중 보유 또는 할당 수량이 0보다 큰 재고 행이 있는지 */
+    boolean existsStockInWarehouse(Long warehouseId);
+
     // ---------- 필터 ID 존재 검증 (없는 ID로 필터링하면 404) ----------
 
     boolean existsSku(Long skuId);

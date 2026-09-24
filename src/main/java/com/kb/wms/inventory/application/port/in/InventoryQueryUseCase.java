@@ -40,4 +40,14 @@ public interface InventoryQueryUseCase {
      * 조회 결과는 잠금 전 스냅샷이므로 실제 할당은 {@link InventoryStockUseCase#allocate}에서 다시 검증된다.
      */
     List<InventoryLotView> getAllocatableStocks(Long warehouseId, Long skuId);
+
+    /**
+     * 구역에 보유·할당 수량이 0보다 큰 재고 행이 있는지. 구역 비활성화 가드(SECTION_HAS_INVENTORY)에 쓴다.
+     */
+    boolean hasStockInSection(Long sectionId);
+
+    /**
+     * 창고의 구역 중 보유·할당 수량이 0보다 큰 재고 행이 있는지. 창고 비활성화 가드(WAREHOUSE_IN_USE)에 쓴다.
+     */
+    boolean hasStockInWarehouse(Long warehouseId);
 }

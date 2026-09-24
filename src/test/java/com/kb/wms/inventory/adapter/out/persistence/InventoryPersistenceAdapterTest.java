@@ -276,6 +276,22 @@ class InventoryPersistenceAdapterTest {
 
     // ---------- fixtures ----------
 
+    @Test
+    @DisplayName("재고 존재 확인: 보유·할당 수량이 있는 구역·창고만 true, 재고 행이 없거나 0뿐이면 false")
+    void existsStock() {
+        Long emptySection = section(warehouse1, "E1", "RACK");
+        Long emptyWarehouse = warehouse("WH-3", "대구 물류센터");
+        inventoryLotRepository.save(InventoryLot.open(emptySection, lotA, QualityStatus.AVAILABLE));
+        entityManager.flush();
+
+        assertThat(inventoryQueryRepository.existsStockInSection(sectionR1)).isTrue();
+        assertThat(inventoryQueryRepository.existsStockInSection(emptySection)).isFalse();
+        assertThat(inventoryQueryRepository.existsStockInWarehouse(warehouse2)).isTrue();
+        assertThat(inventoryQueryRepository.existsStockInWarehouse(emptyWarehouse)).isFalse();
+    }
+
+    // ---------- fixtures ----------
+
     private Long sku(String code, String name, long safetyStock) {
         return productSkuJpaRepository.save(ProductSkuJpaEntity.builder()
                 .productId(1L).skuCode(code).name(name).unit("EA")

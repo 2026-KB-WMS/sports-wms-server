@@ -10,6 +10,7 @@ import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.warehouse.application.port.in.WarehouseSectionUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionUpdateCommand;
+import com.kb.wms.warehouse.application.port.out.StockPresencePort;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
 import com.kb.wms.warehouse.application.port.out.WarehouseSectionRepository;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
@@ -26,6 +27,7 @@ public class WarehouseSectionService implements WarehouseSectionUseCase {
 
     private final WarehouseSectionRepository warehouseSectionRepository;
     private final WarehouseRepository warehouseRepository;
+    private final StockPresencePort stockPresencePort;
 
     @Override
     @Transactional
@@ -79,7 +81,8 @@ public class WarehouseSectionService implements WarehouseSectionUseCase {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "수정할 필드를 하나 이상 입력해주세요.");
         }
 
-        WarehouseSection section = warehouseSectionRepository.findById(sectionId)
+        // 수용량 축소는 현재 사용량과 비교하므로, 적치와 겹치지 않게 구역 행을 잠근 뒤 확인한다.
+        WarehouseSection section = warehouseSectionRepository.findByIdForUpdate(sectionId)
                 .orElseThrow(() -> new BusinessException(WarehouseErrorCode.SECTION_NOT_FOUND));
 
         if (command.sectionCode() != null && !command.sectionCode().equals(section.getSectionCode())) {
@@ -111,10 +114,17 @@ public class WarehouseSectionService implements WarehouseSectionUseCase {
     @Override
     @Transactional
     public WarehouseSection deactivateSection(Long sectionId) {
-        WarehouseSection section = warehouseSectionRepository.findById(sectionId)
+        // 구역 행을 잠가, 확인과 상태 변경 사이에 입고 적치(구역 행을 먼저 잠금)가 끼어들지 못하게 한다.
+        WarehouseSection section = warehouseSectionRepository.findByIdForUpdate(sectionId)
                 .orElseThrow(() -> new BusinessException(WarehouseErrorCode.SECTION_NOT_FOUND));
         if (!section.isActive()) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 비활성화된 구역입니다.");
+        }
+        if (stockPresencePort.hasStockInSection(sectionId)) {
+            throw new BusinessException(WarehouseErrorCode.SECTION_HAS_INVENTORY);
+        }
+        if (warehouseSectionRepository.existsActiveChild(sectionId)) {
+            throw new BusinessException(WarehouseErrorCode.SECTION_HAS_CHILDREN);
         }
         section.deactivate();
         return warehouseSectionRepository.save(section);

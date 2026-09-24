@@ -23,6 +23,7 @@ import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionUpdateCommand;
+import com.kb.wms.warehouse.application.port.out.StockPresencePort;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
 import com.kb.wms.warehouse.application.port.out.WarehouseSectionRepository;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
@@ -36,6 +37,8 @@ class WarehouseSectionServiceTest {
     private WarehouseSectionRepository warehouseSectionRepository;
     @Mock
     private WarehouseRepository warehouseRepository;
+    @Mock
+    private StockPresencePort stockPresencePort;
 
     @InjectMocks
     private WarehouseSectionService warehouseSectionService;
@@ -225,14 +228,14 @@ class WarehouseSectionServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
-        verify(warehouseSectionRepository, never()).findById(any());
+        verify(warehouseSectionRepository, never()).findByIdForUpdate(any());
     }
 
     @Test
     @DisplayName("존재하지 않는 구역을 수정하면 SECTION_NOT_FOUND 예외를 던진다")
     void updateSection_notFound() {
         WarehouseSectionUpdateCommand command = new WarehouseSectionUpdateCommand("A-02", null, null, null);
-        when(warehouseSectionRepository.findById(999L)).thenReturn(Optional.empty());
+        when(warehouseSectionRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> warehouseSectionService.updateSection(999L, command))
                 .isInstanceOf(BusinessException.class)
@@ -245,7 +248,7 @@ class WarehouseSectionServiceTest {
     void updateSection_duplicateSectionCode() {
         WarehouseSection existing = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
         WarehouseSectionUpdateCommand command = new WarehouseSectionUpdateCommand("A-02", null, null, null);
-        when(warehouseSectionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
         when(warehouseSectionRepository.existsByWarehouseIdAndSectionCode(1L, "A-02")).thenReturn(true);
 
         assertThatThrownBy(() -> warehouseSectionService.updateSection(1L, command))
@@ -259,7 +262,7 @@ class WarehouseSectionServiceTest {
     void updateSection_invalidSectionType() {
         WarehouseSection existing = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
         WarehouseSectionUpdateCommand command = new WarehouseSectionUpdateCommand(null, null, "INVALID_TYPE", null);
-        when(warehouseSectionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> warehouseSectionService.updateSection(1L, command))
                 .isInstanceOf(BusinessException.class)
@@ -274,7 +277,7 @@ class WarehouseSectionServiceTest {
                 WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
         ReflectionTestUtils.setField(existing, "currentCapacity", BigDecimal.valueOf(80));
         WarehouseSectionUpdateCommand command = new WarehouseSectionUpdateCommand(null, null, null, BigDecimal.valueOf(50));
-        when(warehouseSectionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> warehouseSectionService.updateSection(1L, command))
                 .isInstanceOf(BusinessException.class)
@@ -287,7 +290,7 @@ class WarehouseSectionServiceTest {
     void updateSection_partialUpdate_success() {
         WarehouseSection existing = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
         WarehouseSectionUpdateCommand command = new WarehouseSectionUpdateCommand(null, "새 이름", null, null);
-        when(warehouseSectionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
         when(warehouseSectionRepository.save(any(WarehouseSection.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -300,7 +303,7 @@ class WarehouseSectionServiceTest {
     @Test
     @DisplayName("존재하지 않는 구역을 비활성화하면 SECTION_NOT_FOUND 예외를 던진다")
     void deactivateSection_notFound() {
-        when(warehouseSectionRepository.findById(999L)).thenReturn(Optional.empty());
+        when(warehouseSectionRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> warehouseSectionService.deactivateSection(999L))
                 .isInstanceOf(BusinessException.class)
@@ -313,7 +316,7 @@ class WarehouseSectionServiceTest {
     void deactivateSection_alreadyInactive_throwsConflict() {
         WarehouseSection inactive = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
         inactive.deactivate();
-        when(warehouseSectionRepository.findById(1L)).thenReturn(Optional.of(inactive));
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(inactive));
 
         assertThatThrownBy(() -> warehouseSectionService.deactivateSection(1L))
                 .isInstanceOf(BusinessException.class)
@@ -326,12 +329,41 @@ class WarehouseSectionServiceTest {
     @DisplayName("활성 구역을 비활성화하면 성공한다")
     void deactivateSection_success() {
         WarehouseSection active = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
-        when(warehouseSectionRepository.findById(1L)).thenReturn(Optional.of(active));
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(active));
         when(warehouseSectionRepository.save(any(WarehouseSection.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         WarehouseSection result = warehouseSectionService.deactivateSection(1L);
 
         assertThat(result.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("재고(보유·할당)가 남아 있는 구역을 비활성화하면 SECTION_HAS_INVENTORY 예외를 던진다")
+    void deactivateSection_hasInventory() {
+        WarehouseSection active = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(active));
+        when(stockPresencePort.hasStockInSection(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> warehouseSectionService.deactivateSection(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.SECTION_HAS_INVENTORY.name());
+        verify(warehouseSectionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("활성 하위 구역이 있는 구역을 비활성화하면 SECTION_HAS_CHILDREN 예외를 던진다")
+    void deactivateSection_hasActiveChildren() {
+        WarehouseSection active = WarehouseSection.register(1L, null, "A", "A구역", "ZONE", BigDecimal.valueOf(100));
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(active));
+        when(stockPresencePort.hasStockInSection(1L)).thenReturn(false);
+        when(warehouseSectionRepository.existsActiveChild(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> warehouseSectionService.deactivateSection(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.SECTION_HAS_CHILDREN.name());
+        verify(warehouseSectionRepository, never()).save(any());
     }
 }

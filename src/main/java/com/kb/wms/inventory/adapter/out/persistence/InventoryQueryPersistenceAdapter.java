@@ -82,6 +82,16 @@ public class InventoryQueryPersistenceAdapter implements InventoryQueryRepositor
     }
 
     @Override
+    public boolean existsStockInSection(Long sectionId) {
+        return inventoryLotJpaRepository.existsStockInSection(sectionId);
+    }
+
+    @Override
+    public boolean existsStockInWarehouse(Long warehouseId) {
+        return inventoryLotJpaRepository.existsStockInWarehouse(warehouseId);
+    }
+
+    @Override
     public boolean existsSku(Long skuId) {
         return inventoryLotJpaRepository.existsSkuId(skuId);
     }

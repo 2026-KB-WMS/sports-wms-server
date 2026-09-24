@@ -95,6 +95,16 @@ public class InventoryQueryService implements InventoryQueryUseCase {
         return inventoryQueryRepository.findAllocatableStocks(warehouseId, skuId);
     }
 
+    @Override
+    public boolean hasStockInSection(Long sectionId) {
+        return inventoryQueryRepository.existsStockInSection(sectionId);
+    }
+
+    @Override
+    public boolean hasStockInWarehouse(Long warehouseId) {
+        return inventoryQueryRepository.existsStockInWarehouse(warehouseId);
+    }
+
     private static void validatePeriod(InventoryTransactionSearchCondition condition) {
         if (condition.createdFrom() != null && condition.createdTo() != null
                 && condition.createdFrom().isAfter(condition.createdTo())) {

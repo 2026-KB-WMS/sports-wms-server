@@ -7,14 +7,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.warehouse.application.port.in.WarehouseSectionCapacityUseCase;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseUpdateCommand;
 import com.kb.wms.warehouse.application.port.in.result.WarehouseMembershipSummary;
+import com.kb.wms.warehouse.application.port.out.StockPresencePort;
 import com.kb.wms.warehouse.application.port.out.WarehouseMemberRepository;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
+import com.kb.wms.warehouse.application.port.out.WarehouseSectionRepository;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
 import com.kb.wms.warehouse.domain.entity.WarehouseMember;
+import com.kb.wms.warehouse.domain.entity.WarehouseSection;
 import com.kb.wms.warehouse.exception.WarehouseErrorCode;
 
 import lombok.RequiredArgsConstructor;
@@ -26,6 +30,9 @@ public class WarehouseService implements WarehouseUseCase {
 
     private final WarehouseRepository warehouseRepository;
     private final WarehouseMemberRepository warehouseMemberRepository;
+    private final WarehouseSectionRepository warehouseSectionRepository;
+    private final WarehouseSectionCapacityUseCase warehouseSectionCapacityUseCase;
+    private final StockPresencePort stockPresencePort;
 
     @Override
     @Transactional
@@ -76,6 +83,10 @@ public class WarehouseService implements WarehouseUseCase {
         return warehouseRepository.save(warehouse);
     }
 
+    /**
+     * 창고의 구역 행을 모두 잠근 뒤(section_id 오름차순, 입고 적치와 같은 잠금 순서) 재고 잔량을 확인한다.
+     * 진행 중인 입고·출고·발주 배정 검사는 해당 도메인이 구현되면 추가한다.
+     */
     @Override
     @Transactional
     public Warehouse deactivateWarehouse(Long warehouseId) {
@@ -83,6 +94,12 @@ public class WarehouseService implements WarehouseUseCase {
                 .orElseThrow(() -> new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND));
         if (!warehouse.isActive()) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 비활성화된 창고입니다.");
+        }
+        warehouseSectionCapacityUseCase.lock(warehouseSectionRepository.findAll(warehouseId).stream()
+                .map(WarehouseSection::getSectionId)
+                .toList());
+        if (stockPresencePort.hasStockInWarehouse(warehouseId)) {
+            throw new BusinessException(WarehouseErrorCode.WAREHOUSE_IN_USE);
         }
         warehouse.deactivate();
         return warehouseRepository.save(warehouse);

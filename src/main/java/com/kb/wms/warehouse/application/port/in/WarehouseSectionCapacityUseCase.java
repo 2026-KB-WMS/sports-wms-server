@@ -17,7 +17,8 @@ public interface WarehouseSectionCapacityUseCase {
     void lock(Collection<Long> sectionIds);
 
     /**
-     * 수량만큼 사용 용량을 늘린다. 구역이 없으면 SECTION_NOT_FOUND, 수용량을 넘으면 SECTION_CAPACITY_EXCEEDED.
+     * 수량만큼 사용 용량을 늘린다. 구역이 없으면 SECTION_NOT_FOUND, 비활성 구역이면 SECTION_INACTIVE,
+     * 비활성 창고의 구역이면 WAREHOUSE_INACTIVE, 수용량을 넘으면 SECTION_CAPACITY_EXCEEDED.
      */
     void occupy(Long sectionId, long quantity);
 
