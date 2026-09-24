@@ -3,6 +3,7 @@ package com.kb.wms.warehouse.application.port.out;
 import java.util.List;
 import java.util.Optional;
 
+import com.kb.wms.warehouse.application.port.in.query.WarehouseSearchCondition;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
 
 /**
@@ -14,7 +15,10 @@ public interface WarehouseRepository {
 
     Optional<Warehouse> findById(Long warehouseId);
 
-    List<Warehouse> findAll();
+    /** 조건이 null이면 해당 조건은 무시한다. 생성 일시 내림차순. */
+    List<Warehouse> search(WarehouseSearchCondition condition);
+
+    boolean existsById(Long warehouseId);
 
     boolean existsByWarehouseCode(String warehouseCode);
 }

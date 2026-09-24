@@ -1,5 +1,6 @@
 package com.kb.wms.product.application.port.in;
 
+import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
 import java.util.List;
 
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
@@ -16,7 +17,8 @@ public interface ProductSkuUseCase {
 
     ProductSku registerSku(ProductSkuRegisterCommand command);
 
-    List<ProductSku> getSkus(Long productId);
+    /** 필터의 상품·브랜드·카테고리가 없으면 PRODUCT_NOT_FOUND·BRAND_NOT_FOUND·CATEGORY_NOT_FOUND */
+    List<ProductSku> getSkus(ProductSkuSearchCondition condition);
 
     ProductSku getSku(Long skuId);
 

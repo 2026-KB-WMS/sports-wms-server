@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.CategoryUseCase;
+import com.kb.wms.product.application.port.in.query.CategorySearchCondition;
 import com.kb.wms.product.application.port.in.command.CategoryRegisterCommand;
 import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.exception.ProductErrorCode;
@@ -77,7 +78,8 @@ class CategoryControllerTest {
     @Test
     @DisplayName("카테고리 목록을 조회하면 200과 목록을 반환한다")
     void getCategories_success() throws Exception {
-        when(categoryUseCase.getCategories()).thenReturn(List.of(Category.register(null, "CAT-001", "라켓", 1, 0)));
+        when(categoryUseCase.getCategories(new CategorySearchCondition(null, null, null, null)))
+                .thenReturn(List.of(Category.register(null, "CAT-001", "라켓", 1, 0)));
 
         mockMvc.perform(get("/api/v1/products/categories"))
                 .andExpect(status().isOk())

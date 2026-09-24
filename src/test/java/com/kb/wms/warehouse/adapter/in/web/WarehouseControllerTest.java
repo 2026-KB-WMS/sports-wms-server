@@ -26,6 +26,7 @@ import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseUpdateCommand;
+import com.kb.wms.warehouse.application.port.in.query.WarehouseSearchCondition;
 import com.kb.wms.warehouse.application.port.in.result.WarehouseMembershipSummary;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
 import com.kb.wms.warehouse.exception.WarehouseErrorCode;
@@ -82,9 +83,10 @@ class WarehouseControllerTest {
     @DisplayName("창고 목록을 조회하면 200과 목록을 반환한다")
     void getWarehouses_success() throws Exception {
         Warehouse warehouse = Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.TEN);
-        when(warehouseUseCase.getWarehouses()).thenReturn(List.of(warehouse));
+        when(warehouseUseCase.getWarehouses(new WarehouseSearchCondition("서울", true)))
+                .thenReturn(List.of(warehouse));
 
-        mockMvc.perform(get("/api/v1/warehouses"))
+        mockMvc.perform(get("/api/v1/warehouses").param("keyword", "서울").param("isActive", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].warehouseCode").value("WH-001"));
     }

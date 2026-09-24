@@ -51,6 +51,9 @@ public class WarehouseMemberService implements WarehouseMemberUseCase {
 
     @Override
     public List<WarehouseMember> getManagers(Long warehouseId, Long userId) {
+        if (warehouseId != null && !warehouseRepository.existsById(warehouseId)) {
+            throw new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND);
+        }
         return warehouseMemberRepository.findAll(warehouseId, userId);
     }
 

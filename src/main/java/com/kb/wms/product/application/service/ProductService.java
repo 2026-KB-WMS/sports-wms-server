@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.product.application.port.in.ProductUseCase;
+import com.kb.wms.product.application.port.in.query.ProductSearchCondition;
 import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
 import com.kb.wms.product.application.port.in.command.ProductUpdateCommand;
 import com.kb.wms.product.application.port.out.BrandRepository;
@@ -53,8 +54,14 @@ public class ProductService implements ProductUseCase {
     }
 
     @Override
-    public List<Product> getProducts(Long brandId, Long categoryId) {
-        return productRepository.findAll(brandId, categoryId);
+    public List<Product> getProducts(ProductSearchCondition condition) {
+        if (condition.brandId() != null && brandRepository.findById(condition.brandId()).isEmpty()) {
+            throw new BusinessException(ProductErrorCode.BRAND_NOT_FOUND);
+        }
+        if (condition.categoryId() != null && categoryRepository.findById(condition.categoryId()).isEmpty()) {
+            throw new BusinessException(ProductErrorCode.CATEGORY_NOT_FOUND);
+        }
+        return productRepository.search(condition);
     }
 
     @Override

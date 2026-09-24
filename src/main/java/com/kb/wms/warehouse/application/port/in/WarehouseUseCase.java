@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.kb.wms.warehouse.application.port.in.command.WarehouseRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseUpdateCommand;
+import com.kb.wms.warehouse.application.port.in.query.WarehouseSearchCondition;
 import com.kb.wms.warehouse.application.port.in.result.WarehouseMembershipSummary;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
 
@@ -15,7 +16,7 @@ public interface WarehouseUseCase {
 
     Warehouse registerWarehouse(WarehouseRegisterCommand command);
 
-    List<Warehouse> getWarehouses();
+    List<Warehouse> getWarehouses(WarehouseSearchCondition condition);
 
     Warehouse getWarehouse(Long warehouseId);
 

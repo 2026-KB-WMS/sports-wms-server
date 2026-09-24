@@ -29,6 +29,7 @@ import com.kb.wms.product.application.port.in.ProductSkuUseCase;
 import com.kb.wms.product.application.port.in.ProductUseCase;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
+import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
 import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.domain.entity.Category;
@@ -99,11 +100,14 @@ class ProductSkuControllerTest {
     @DisplayName("SKU 목록을 조회하면 200과 상품명·옵션이 포함된 목록을 반환한다")
     void getSkus_success() throws Exception {
         ProductSku sku = mockSku();
-        when(productSkuUseCase.getSkus(1L)).thenReturn(List.of(sku));
+        when(productSkuUseCase.getSkus(new ProductSkuSearchCondition(1L, 2L, 3L, "SKU", true)))
+                .thenReturn(List.of(sku));
         when(productUseCase.getProduct(sku.getProductId())).thenReturn(Product.register(1L, 1L, "P-0001", "라켓 A", null));
         when(productSkuUseCase.getSkuOptions(sku.getSkuId())).thenReturn(List.of());
 
-        mockMvc.perform(get("/api/v1/products/skus").param("productId", "1"))
+        mockMvc.perform(get("/api/v1/products/skus")
+                        .param("productId", "1").param("brandId", "2").param("categoryId", "3")
+                        .param("keyword", "SKU").param("isActive", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].skuCode").value("SKU-0001"))
                 .andExpect(jsonPath("$.data.items[0].productName").value("라켓 A"));

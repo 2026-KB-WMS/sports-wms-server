@@ -13,6 +13,9 @@ import com.kb.wms.product.application.port.in.ProductSkuUseCase;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
 import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
+import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
+import com.kb.wms.product.application.port.out.BrandRepository;
+import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.application.port.out.OptionGroupRepository;
 import com.kb.wms.product.application.port.out.OptionValueRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
@@ -44,6 +47,8 @@ public class ProductSkuService implements ProductSkuUseCase {
     private final OptionValueRepository optionValueRepository;
     private final SkuOptionValueRepository skuOptionValueRepository;
     private final OptionGroupRepository optionGroupRepository;
+    private final BrandRepository brandRepository;
+    private final CategoryRepository categoryRepository;
 
     @Override
     @Transactional
@@ -68,8 +73,17 @@ public class ProductSkuService implements ProductSkuUseCase {
     }
 
     @Override
-    public List<ProductSku> getSkus(Long productId) {
-        return productSkuRepository.findAll(productId);
+    public List<ProductSku> getSkus(ProductSkuSearchCondition condition) {
+        if (condition.productId() != null && productRepository.findById(condition.productId()).isEmpty()) {
+            throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);
+        }
+        if (condition.brandId() != null && brandRepository.findById(condition.brandId()).isEmpty()) {
+            throw new BusinessException(ProductErrorCode.BRAND_NOT_FOUND);
+        }
+        if (condition.categoryId() != null && categoryRepository.findById(condition.categoryId()).isEmpty()) {
+            throw new BusinessException(ProductErrorCode.CATEGORY_NOT_FOUND);
+        }
+        return productSkuRepository.search(condition);
     }
 
     @Override

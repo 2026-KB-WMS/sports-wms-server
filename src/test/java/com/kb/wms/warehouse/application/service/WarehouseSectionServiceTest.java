@@ -23,6 +23,7 @@ import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionUpdateCommand;
+import com.kb.wms.warehouse.application.port.in.query.WarehouseSectionSearchCondition;
 import com.kb.wms.warehouse.application.port.out.StockPresencePort;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
 import com.kb.wms.warehouse.application.port.out.WarehouseSectionRepository;
@@ -186,26 +187,66 @@ class WarehouseSectionServiceTest {
     }
 
     @Test
-    @DisplayName("warehouseId를 지정하지 않으면 전체 구역을 조회한다")
+    @DisplayName("조건이 모두 비어 있으면 전체 구역을 조회한다")
     void getSections_withoutWarehouseId_returnsAll() {
         WarehouseSection section = WarehouseSection.register(1L, null, "A", "A구역", "ZONE", BigDecimal.TEN);
-        when(warehouseSectionRepository.findAll(null)).thenReturn(List.of(section));
+        WarehouseSectionSearchCondition condition = new WarehouseSectionSearchCondition(null, null, null, null, null);
+        when(warehouseSectionRepository.search(condition)).thenReturn(List.of(section));
 
-        List<WarehouseSection> result = warehouseSectionService.getSections(null);
+        List<WarehouseSection> result = warehouseSectionService.getSections(condition);
 
         assertThat(result).hasSize(1);
     }
 
     @Test
-    @DisplayName("warehouseId를 지정하면 해당 창고의 구역만 조회한다")
+    @DisplayName("창고·상위 구역·유형·keyword·isActive 조건을 리포지토리에 전달한다")
     void getSections_withWarehouseId_filtersByWarehouse() {
         WarehouseSection section = WarehouseSection.register(1L, null, "A", "A구역", "ZONE", BigDecimal.TEN);
-        when(warehouseSectionRepository.findAll(1L)).thenReturn(List.of(section));
+        WarehouseSectionSearchCondition condition =
+                new WarehouseSectionSearchCondition(1L, 10L, "RACK", "A", true);
+        when(warehouseRepository.existsById(1L)).thenReturn(true);
+        when(warehouseSectionRepository.findById(10L)).thenReturn(Optional.of(section));
+        when(warehouseSectionRepository.search(condition)).thenReturn(List.of(section));
 
-        List<WarehouseSection> result = warehouseSectionService.getSections(1L);
+        List<WarehouseSection> result = warehouseSectionService.getSections(condition);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getWarehouseId()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 창고로 필터링하면 WAREHOUSE_NOT_FOUND 예외를 던진다")
+    void getSections_warehouseNotFound() {
+        when(warehouseRepository.existsById(999L)).thenReturn(false);
+
+        assertThatThrownBy(() -> warehouseSectionService.getSections(
+                new WarehouseSectionSearchCondition(999L, null, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.WAREHOUSE_NOT_FOUND.name());
+        verify(warehouseSectionRepository, never()).search(any());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 상위 구역으로 필터링하면 PARENT_SECTION_NOT_FOUND 예외를 던진다")
+    void getSections_parentNotFound() {
+        when(warehouseSectionRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> warehouseSectionService.getSections(
+                new WarehouseSectionSearchCondition(null, 999L, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.PARENT_SECTION_NOT_FOUND.name());
+    }
+
+    @Test
+    @DisplayName("허용되지 않은 구역 유형으로 필터링하면 VALIDATION_ERROR 예외를 던진다")
+    void getSections_invalidSectionType() {
+        assertThatThrownBy(() -> warehouseSectionService.getSections(
+                new WarehouseSectionSearchCondition(null, null, "INVALID_TYPE", null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
     }
 
     @Test

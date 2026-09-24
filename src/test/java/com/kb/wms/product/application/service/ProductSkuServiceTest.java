@@ -21,12 +21,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
+import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
 import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
+import com.kb.wms.product.application.port.out.BrandRepository;
+import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.application.port.out.OptionGroupRepository;
 import com.kb.wms.product.application.port.out.OptionValueRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
 import com.kb.wms.product.application.port.out.ProductSkuRepository;
 import com.kb.wms.product.application.port.out.SkuOptionValueRepository;
+import com.kb.wms.product.domain.entity.Brand;
+import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.domain.entity.OptionGroup;
 import com.kb.wms.product.domain.entity.OptionValue;
 import com.kb.wms.product.domain.entity.Product;
@@ -47,6 +52,10 @@ class ProductSkuServiceTest {
     private SkuOptionValueRepository skuOptionValueRepository;
     @Mock
     private OptionGroupRepository optionGroupRepository;
+    @Mock
+    private BrandRepository brandRepository;
+    @Mock
+    private CategoryRepository categoryRepository;
 
     @InjectMocks
     private ProductSkuService productSkuService;
@@ -129,12 +138,42 @@ class ProductSkuServiceTest {
     }
 
     @Test
-    @DisplayName("getSkus는 상품의 SKU 목록을 그대로 반환한다")
+    @DisplayName("getSkus는 검색 조건을 리포지토리에 전달해 결과를 그대로 반환한다")
     void getSkus_passthrough() {
         List<ProductSku> skus = List.of(ProductSku.builder().skuId(1L).productId(1L).build());
-        when(productSkuRepository.findAll(1L)).thenReturn(skus);
+        ProductSkuSearchCondition condition = new ProductSkuSearchCondition(1L, 2L, 3L, "SKU", true);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(mockActiveProduct()));
+        when(brandRepository.findById(2L)).thenReturn(Optional.of(Brand.register("브랜드 A", null)));
+        when(categoryRepository.findById(3L)).thenReturn(Optional.of(Category.register(null, "RACKET", "라켓", 1, 0)));
+        when(productSkuRepository.search(condition)).thenReturn(skus);
 
-        assertThat(productSkuService.getSkus(1L)).isEqualTo(skus);
+        assertThat(productSkuService.getSkus(condition)).isEqualTo(skus);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 상품으로 필터링하면 PRODUCT_NOT_FOUND 예외를 던진다")
+    void getSkus_productNotFound() {
+        when(productRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productSkuService.getSkus(new ProductSkuSearchCondition(999L, null, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND.name());
+        verify(productSkuRepository, never()).search(any());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 브랜드·카테고리로 필터링하면 각각 BRAND_NOT_FOUND, CATEGORY_NOT_FOUND 예외를 던진다")
+    void getSkus_brandOrCategoryNotFound() {
+        when(brandRepository.findById(999L)).thenReturn(Optional.empty());
+        when(categoryRepository.findById(998L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productSkuService.getSkus(new ProductSkuSearchCondition(null, 999L, null, null, null)))
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.BRAND_NOT_FOUND.name());
+        assertThatThrownBy(() -> productSkuService.getSkus(new ProductSkuSearchCondition(null, null, 998L, null, null)))
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.CATEGORY_NOT_FOUND.name());
     }
 
     @Test

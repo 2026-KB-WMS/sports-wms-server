@@ -10,6 +10,7 @@ import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.warehouse.application.port.in.WarehouseSectionUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionUpdateCommand;
+import com.kb.wms.warehouse.application.port.in.query.WarehouseSectionSearchCondition;
 import com.kb.wms.warehouse.application.port.out.StockPresencePort;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
 import com.kb.wms.warehouse.application.port.out.WarehouseSectionRepository;
@@ -64,8 +65,18 @@ public class WarehouseSectionService implements WarehouseSectionUseCase {
     }
 
     @Override
-    public List<WarehouseSection> getSections(Long warehouseId) {
-        return warehouseSectionRepository.findAll(warehouseId);
+    public List<WarehouseSection> getSections(WarehouseSectionSearchCondition condition) {
+        if (condition.warehouseId() != null && !warehouseRepository.existsById(condition.warehouseId())) {
+            throw new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND);
+        }
+        if (condition.parentSectionId() != null
+                && warehouseSectionRepository.findById(condition.parentSectionId()).isEmpty()) {
+            throw new BusinessException(WarehouseErrorCode.PARENT_SECTION_NOT_FOUND);
+        }
+        if (condition.sectionType() != null && !WarehouseSectionType.isValidCode(condition.sectionType())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "허용되지 않은 구역 유형입니다.");
+        }
+        return warehouseSectionRepository.search(condition);
     }
 
     @Override

@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.BrandQueryUseCase;
+import com.kb.wms.product.application.port.in.query.BrandSearchCondition;
 import com.kb.wms.product.application.port.in.command.BrandRegisterCommand;
 import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.domain.entity.Brand;
@@ -32,8 +33,8 @@ public class BrandService implements BrandQueryUseCase {
     }
 
     @Override
-    public List<Brand> getBrands() {
-        return brandRepository.findAll();
+    public List<Brand> getBrands(BrandSearchCondition condition) {
+        return brandRepository.search(condition);
     }
 
     @Override

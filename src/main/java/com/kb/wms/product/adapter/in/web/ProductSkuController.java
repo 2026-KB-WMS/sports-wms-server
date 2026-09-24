@@ -24,6 +24,7 @@ import com.kb.wms.product.application.port.in.BrandQueryUseCase;
 import com.kb.wms.product.application.port.in.CategoryUseCase;
 import com.kb.wms.product.application.port.in.ProductSkuUseCase;
 import com.kb.wms.product.application.port.in.ProductUseCase;
+import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
 import com.kb.wms.product.domain.entity.Product;
 import com.kb.wms.product.domain.entity.ProductSku;
 
@@ -53,8 +54,14 @@ public class ProductSkuController {
     }
 
     @GetMapping
-    public ApiResponse<ItemsResponse<ProductSkuListItemResponse>> getSkus(@RequestParam(required = false) Long productId) {
-        List<ProductSkuListItemResponse> items = productSkuUseCase.getSkus(productId).stream()
+    public ApiResponse<ItemsResponse<ProductSkuListItemResponse>> getSkus(
+            @RequestParam(required = false) Long productId,
+            @RequestParam(required = false) Long brandId,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean isActive) {
+        List<ProductSkuListItemResponse> items = productSkuUseCase
+                .getSkus(new ProductSkuSearchCondition(productId, brandId, categoryId, keyword, isActive)).stream()
                 .map(sku -> ProductSkuListItemResponse.of(
                         sku,
                         productUseCase.getProduct(sku.getProductId()).getName(),

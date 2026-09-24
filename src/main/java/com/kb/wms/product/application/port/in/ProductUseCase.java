@@ -1,5 +1,6 @@
 package com.kb.wms.product.application.port.in;
 
+import com.kb.wms.product.application.port.in.query.ProductSearchCondition;
 import java.util.List;
 
 import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
@@ -17,7 +18,8 @@ public interface ProductUseCase {
 
     Product updateProduct(ProductUpdateCommand command);
 
-    List<Product> getProducts(Long brandId, Long categoryId);
+    /** 필터의 브랜드·카테고리가 없으면 BRAND_NOT_FOUND·CATEGORY_NOT_FOUND */
+    List<Product> getProducts(ProductSearchCondition condition);
 
     Product getProduct(Long productId);
 }

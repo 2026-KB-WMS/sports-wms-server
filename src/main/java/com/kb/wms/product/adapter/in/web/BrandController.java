@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -16,6 +17,7 @@ import com.kb.wms.product.adapter.in.web.dto.request.BrandRegisterRequest;
 import com.kb.wms.product.adapter.in.web.dto.response.BrandCreateResponse;
 import com.kb.wms.product.adapter.in.web.dto.response.BrandResponse;
 import com.kb.wms.product.application.port.in.BrandQueryUseCase;
+import com.kb.wms.product.application.port.in.query.BrandSearchCondition;
 import com.kb.wms.product.domain.entity.Brand;
 
 import jakarta.validation.Valid;
@@ -39,8 +41,10 @@ public class BrandController {
     }
 
     @GetMapping
-    public ApiResponse<ItemsResponse<BrandResponse>> getBrands() {
-        List<BrandResponse> items = brandQueryUseCase.getBrands().stream()
+    public ApiResponse<ItemsResponse<BrandResponse>> getBrands(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean isActive) {
+        List<BrandResponse> items = brandQueryUseCase.getBrands(new BrandSearchCondition(keyword, isActive)).stream()
                 .map(BrandResponse::from)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));

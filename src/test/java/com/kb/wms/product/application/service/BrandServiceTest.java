@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.command.BrandRegisterCommand;
+import com.kb.wms.product.application.port.in.query.BrandSearchCondition;
 import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.exception.ProductErrorCode;
@@ -57,12 +58,13 @@ class BrandServiceTest {
     }
 
     @Test
-    @DisplayName("브랜드 목록을 그대로 반환한다")
+    @DisplayName("브랜드 목록을 검색 조건과 함께 리포지토리에 위임해 그대로 반환한다")
     void getBrands_returnsAll() {
         Brand brand = Brand.register("브랜드 A", "설명");
-        when(brandRepository.findAll()).thenReturn(List.of(brand));
+        BrandSearchCondition condition = new BrandSearchCondition("브랜드", true);
+        when(brandRepository.search(condition)).thenReturn(List.of(brand));
 
-        List<Brand> result = brandService.getBrands();
+        List<Brand> result = brandService.getBrands(condition);
 
         assertThat(result).containsExactly(brand);
     }

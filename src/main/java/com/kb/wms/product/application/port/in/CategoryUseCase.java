@@ -1,5 +1,6 @@
 package com.kb.wms.product.application.port.in;
 
+import com.kb.wms.product.application.port.in.query.CategorySearchCondition;
 import java.util.List;
 
 import com.kb.wms.product.application.port.in.command.CategoryRegisterCommand;
@@ -12,7 +13,8 @@ public interface CategoryUseCase {
 
     Category registerCategory(CategoryRegisterCommand command);
 
-    List<Category> getCategories();
+    /** 필터의 상위 카테고리가 없으면 CATEGORY_NOT_FOUND */
+    List<Category> getCategories(CategorySearchCondition condition);
 
     Category getCategory(Long categoryId);
 }

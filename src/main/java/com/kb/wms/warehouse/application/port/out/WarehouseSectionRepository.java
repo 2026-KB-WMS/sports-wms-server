@@ -3,6 +3,7 @@ package com.kb.wms.warehouse.application.port.out;
 import java.util.List;
 import java.util.Optional;
 
+import com.kb.wms.warehouse.application.port.in.query.WarehouseSectionSearchCondition;
 import com.kb.wms.warehouse.domain.entity.WarehouseSection;
 
 /**
@@ -20,9 +21,12 @@ public interface WarehouseSectionRepository {
     Optional<WarehouseSection> findByIdForUpdate(Long sectionId);
 
     /**
-     * warehouseId가 null이면 조건을 무시하고 조회한다.
+     * 조건이 null이면 해당 조건은 무시하고 조회한다. 구역 코드 오름차순.
      */
-    List<WarehouseSection> findAll(Long warehouseId);
+    List<WarehouseSection> search(WarehouseSectionSearchCondition condition);
+
+    /** 재고 잠금 대상 등 창고의 구역 전체 (필터 없음) */
+    List<WarehouseSection> findAllByWarehouseId(Long warehouseId);
 
     boolean existsByWarehouseIdAndSectionCode(Long warehouseId, String sectionCode);
 

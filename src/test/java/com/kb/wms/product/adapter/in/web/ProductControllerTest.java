@@ -27,6 +27,7 @@ import com.kb.wms.product.application.port.in.CategoryUseCase;
 import com.kb.wms.product.application.port.in.ProductUseCase;
 import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
 import com.kb.wms.product.application.port.in.command.ProductUpdateCommand;
+import com.kb.wms.product.application.port.in.query.ProductSearchCondition;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.domain.entity.Product;
@@ -88,14 +89,16 @@ class ProductControllerTest {
     }
 
     @Test
-    @DisplayName("상품 목록을 조회하면 200과 브랜드·카테고리 필터가 그대로 전달된다")
+    @DisplayName("상품 목록을 조회하면 200과 브랜드·카테고리·keyword·isActive 필터가 그대로 전달된다")
     void getProducts_success() throws Exception {
         Product product = Product.register(1L, 2L, "P-0001", "라켓 A", "설명");
-        when(productUseCase.getProducts(eq(1L), eq(2L))).thenReturn(List.of(product));
+        when(productUseCase.getProducts(new ProductSearchCondition(1L, 2L, "라켓", true))).thenReturn(List.of(product));
         when(brandQueryUseCase.getBrand(1L)).thenReturn(Brand.register("브랜드 A", null));
         when(categoryUseCase.getCategory(2L)).thenReturn(Category.register(null, "CAT-002", "가방", 1, 0));
 
-        mockMvc.perform(get("/api/v1/products").param("brandId", "1").param("categoryId", "2"))
+        mockMvc.perform(get("/api/v1/products")
+                        .param("brandId", "1").param("categoryId", "2")
+                        .param("keyword", "라켓").param("isActive", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].productCode").value("P-0001"));
     }

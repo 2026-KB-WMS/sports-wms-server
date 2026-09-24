@@ -116,12 +116,25 @@ class WarehouseMemberServiceTest {
     @DisplayName("warehouseId·userId 필터를 그대로 리포지토리에 전달한다")
     void getManagers_passesFilters() {
         WarehouseMember member = WarehouseMember.assign(1L, 10L, "MANAGER", null);
+        when(warehouseRepository.existsById(1L)).thenReturn(true);
         when(warehouseMemberRepository.findAll(1L, 10L)).thenReturn(List.of(member));
 
         List<WarehouseMember> result = warehouseMemberService.getManagers(1L, 10L);
 
         assertThat(result).hasSize(1);
         verify(warehouseMemberRepository).findAll(eq(1L), eq(10L));
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 창고로 필터링하면 WAREHOUSE_NOT_FOUND 예외를 던진다")
+    void getManagers_warehouseNotFound() {
+        when(warehouseRepository.existsById(999L)).thenReturn(false);
+
+        assertThatThrownBy(() -> warehouseMemberService.getManagers(999L, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.WAREHOUSE_NOT_FOUND.name());
+        verify(warehouseMemberRepository, never()).findAll(any(), any());
     }
 
     @Test

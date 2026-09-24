@@ -21,6 +21,7 @@ import com.kb.wms.warehouse.adapter.in.web.dto.response.WarehouseMembershipRespo
 import com.kb.wms.warehouse.adapter.in.web.dto.response.WarehouseResponse;
 import com.kb.wms.warehouse.adapter.in.web.dto.response.WarehouseSummaryResponse;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
+import com.kb.wms.warehouse.application.port.in.query.WarehouseSearchCondition;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
 
 import jakarta.validation.Valid;
@@ -46,8 +47,11 @@ public class WarehouseController {
     }
 
     @GetMapping
-    public ApiResponse<ItemsResponse<WarehouseSummaryResponse>> getWarehouses() {
-        List<WarehouseSummaryResponse> items = warehouseUseCase.getWarehouses().stream()
+    public ApiResponse<ItemsResponse<WarehouseSummaryResponse>> getWarehouses(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean isActive) {
+        List<WarehouseSummaryResponse> items = warehouseUseCase
+                .getWarehouses(new WarehouseSearchCondition(keyword, isActive)).stream()
                 .map(WarehouseSummaryResponse::from)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));

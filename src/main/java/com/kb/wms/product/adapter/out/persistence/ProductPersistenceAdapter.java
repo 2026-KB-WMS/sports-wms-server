@@ -9,6 +9,9 @@ import com.kb.wms.product.application.port.out.ProductRepository;
 import com.kb.wms.product.adapter.out.persistence.entity.ProductJpaEntity;
 import com.kb.wms.product.adapter.out.persistence.repository.ProductJpaRepository;
 import com.kb.wms.product.domain.entity.Product;
+import com.kb.wms.product.domain.enums.ProductStatus;
+import com.kb.wms.product.application.port.in.query.ProductSearchCondition;
+import com.kb.wms.common.persistence.SearchKeyword;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,8 +33,13 @@ public class ProductPersistenceAdapter implements ProductRepository {
     }
 
     @Override
-    public List<Product> findAll(Long brandId, Long categoryId) {
-        return productJpaRepository.findAllByFilter(brandId, categoryId).stream()
+    public List<Product> search(ProductSearchCondition condition) {
+        return productJpaRepository.search(
+                        condition.brandId(),
+                        condition.categoryId(),
+                        SearchKeyword.normalize(condition.keyword()),
+                        ProductStatus.fromActiveFlag(condition.isActive()))
+                .stream()
                 .map(ProductJpaEntity::toDomain)
                 .toList();
     }

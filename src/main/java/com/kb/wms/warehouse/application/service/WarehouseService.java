@@ -11,6 +11,7 @@ import com.kb.wms.warehouse.application.port.in.WarehouseSectionCapacityUseCase;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseUpdateCommand;
+import com.kb.wms.warehouse.application.port.in.query.WarehouseSearchCondition;
 import com.kb.wms.warehouse.application.port.in.result.WarehouseMembershipSummary;
 import com.kb.wms.warehouse.application.port.out.StockPresencePort;
 import com.kb.wms.warehouse.application.port.out.WarehouseMemberRepository;
@@ -47,8 +48,8 @@ public class WarehouseService implements WarehouseUseCase {
     }
 
     @Override
-    public List<Warehouse> getWarehouses() {
-        return warehouseRepository.findAll();
+    public List<Warehouse> getWarehouses(WarehouseSearchCondition condition) {
+        return warehouseRepository.search(condition);
     }
 
     @Override
@@ -95,7 +96,7 @@ public class WarehouseService implements WarehouseUseCase {
         if (!warehouse.isActive()) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 비활성화된 창고입니다.");
         }
-        warehouseSectionCapacityUseCase.lock(warehouseSectionRepository.findAll(warehouseId).stream()
+        warehouseSectionCapacityUseCase.lock(warehouseSectionRepository.findAllByWarehouseId(warehouseId).stream()
                 .map(WarehouseSection::getSectionId)
                 .toList());
         if (stockPresencePort.hasStockInWarehouse(warehouseId)) {

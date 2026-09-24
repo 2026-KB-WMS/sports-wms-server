@@ -9,6 +9,9 @@ import com.kb.wms.product.application.port.out.ProductSkuRepository;
 import com.kb.wms.product.adapter.out.persistence.entity.ProductSkuJpaEntity;
 import com.kb.wms.product.adapter.out.persistence.repository.ProductSkuJpaRepository;
 import com.kb.wms.product.domain.entity.ProductSku;
+import com.kb.wms.product.domain.enums.ProductStatus;
+import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
+import com.kb.wms.common.persistence.SearchKeyword;
 
 import lombok.RequiredArgsConstructor;
 
@@ -32,6 +35,19 @@ public class ProductSkuPersistenceAdapter implements ProductSkuRepository {
     @Override
     public List<ProductSku> findAll(Long productId) {
         return productSkuJpaRepository.findAllByFilter(productId).stream()
+                .map(ProductSkuJpaEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<ProductSku> search(ProductSkuSearchCondition condition) {
+        return productSkuJpaRepository.search(
+                        condition.productId(),
+                        condition.brandId(),
+                        condition.categoryId(),
+                        SearchKeyword.normalize(condition.keyword()),
+                        ProductStatus.fromActiveFlag(condition.isActive()))
+                .stream()
                 .map(ProductSkuJpaEntity::toDomain)
                 .toList();
     }

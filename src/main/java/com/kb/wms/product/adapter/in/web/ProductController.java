@@ -22,6 +22,7 @@ import com.kb.wms.product.adapter.in.web.dto.response.ProductSummaryResponse;
 import com.kb.wms.product.application.port.in.BrandQueryUseCase;
 import com.kb.wms.product.application.port.in.CategoryUseCase;
 import com.kb.wms.product.application.port.in.ProductUseCase;
+import com.kb.wms.product.application.port.in.query.ProductSearchCondition;
 import com.kb.wms.product.domain.entity.Product;
 
 import jakarta.validation.Valid;
@@ -51,8 +52,11 @@ public class ProductController {
     @GetMapping
     public ApiResponse<ItemsResponse<ProductSummaryResponse>> getProducts(
             @RequestParam(required = false) Long brandId,
-            @RequestParam(required = false) Long categoryId) {
-        List<ProductSummaryResponse> items = productUseCase.getProducts(brandId, categoryId).stream()
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean isActive) {
+        List<ProductSummaryResponse> items = productUseCase
+                .getProducts(new ProductSearchCondition(brandId, categoryId, keyword, isActive)).stream()
                 .map(this::toSummaryResponse)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
