@@ -162,6 +162,7 @@ class InventoryStockServiceTest {
         InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 0L);
         StockQuantityCommand command = new StockQuantityCommand(1L, 30L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
+        when(lotRepository.findById(5L)).thenReturn(Optional.of(availableLot()));
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         List<InventoryLot> result = inventoryStockService.allocate(List.of(command));
@@ -187,12 +188,34 @@ class InventoryStockServiceTest {
         InventoryLot lot = lotWith(1L, 10L, 5L, 10L, 0L);
         StockQuantityCommand command = new StockQuantityCommand(1L, 30L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
+        when(lotRepository.findById(5L)).thenReturn(Optional.of(availableLot()));
 
         assertThatThrownBy(() -> inventoryStockService.allocate(List.of(command)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(InventoryErrorCode.INSUFFICIENT_STOCK.name());
         verify(inventoryLotRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("로트가 가용 상태가 아니면 할당 시 LOT_NOT_AVAILABLE 예외를 던진다")
+    void allocate_lotNotAvailable() {
+        InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 0L);
+        StockQuantityCommand command = new StockQuantityCommand(1L, 30L);
+        Lot quarantined = availableLot();
+        quarantined.quarantine();
+        when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
+        when(lotRepository.findById(5L)).thenReturn(Optional.of(quarantined));
+
+        assertThatThrownBy(() -> inventoryStockService.allocate(List.of(command)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(InventoryErrorCode.LOT_NOT_AVAILABLE.name());
+        verify(inventoryLotRepository, never()).save(any());
+    }
+
+    private static Lot availableLot() {
+        return Lot.register(1L, 1L, "LOT-001", null, null, BigDecimal.TEN);
     }
 
     @Test
@@ -243,6 +266,7 @@ class InventoryStockServiceTest {
     @DisplayName("피킹 수량만큼 보유·할당 수량을 차감하고 구역 사용 용량을 비운다")
     void ship_fullyPicked_success() {
         InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 30L);
+        when(inventoryLotRepository.findById(1L)).thenReturn(Optional.of(lot));
         StockShipCommand command = new StockShipCommand(1L, 30L, 30L, 7L, 9L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -259,6 +283,7 @@ class InventoryStockServiceTest {
     @DisplayName("할당 수량보다 적게 피킹하면 부족분은 해제되고 피킹분만 출고 처리된다")
     void ship_shortPicked_releasesShortage() {
         InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 30L);
+        when(inventoryLotRepository.findById(1L)).thenReturn(Optional.of(lot));
         StockShipCommand command = new StockShipCommand(1L, 30L, 20L, 7L, 9L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -274,6 +299,7 @@ class InventoryStockServiceTest {
     @DisplayName("피킹 수량이 할당 수량보다 크면 VALIDATION_ERROR 예외를 던진다")
     void ship_pickedExceedsAllocated() {
         InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 30L);
+        when(inventoryLotRepository.findById(1L)).thenReturn(Optional.of(lot));
         StockShipCommand command = new StockShipCommand(1L, 30L, 40L, 7L, 9L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
 
@@ -287,6 +313,7 @@ class InventoryStockServiceTest {
     @DisplayName("재고의 할당 수량이 요청한 출고 할당 수량보다 적으면 CONFLICT 예외를 던진다")
     void ship_insufficientAllocated() {
         InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 10L);
+        when(inventoryLotRepository.findById(1L)).thenReturn(Optional.of(lot));
         StockShipCommand command = new StockShipCommand(1L, 30L, 30L, 7L, 9L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
 

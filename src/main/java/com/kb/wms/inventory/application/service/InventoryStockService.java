@@ -33,7 +33,8 @@ import lombok.RequiredArgsConstructor;
  * 입고·출고 도메인이 재고 수량을 바꾸는 유일한 경로.
  *
  * <p>호출자의 트랜잭션에 참여하며, 명령을 순서대로 처리하다 하나라도 실패하면 예외로 트랜잭션 전체가 롤백된다
- * (all-or-nothing). 잠금 순서는 재고 행(inventory_lot_id 오름차순) → 구역 행으로 고정해 교착을 막는다.
+ * (all-or-nothing). 잠금 순서는 구역 행(section_id 오름차순) → 재고 행(inventory_lot_id 오름차순)으로
+ * 입고·출고 모두 고정해 교착을 막는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -90,7 +91,7 @@ public class InventoryStockService implements InventoryStockUseCase {
 
     /**
      * 가용 수량(품질 AVAILABLE, on_hand - allocated)에서 예약한다. 보유 수량이 그대로라 이력은 남기지 않는다.
-     * 로트 상태(만료·격리 등)는 후보 조회(FEFO)에서 거른다.
+     * 로트가 AVAILABLE이 아니면(만료·격리 등) LOT_NOT_AVAILABLE로 거절한다.
      */
     @Override
     public List<InventoryLot> allocate(List<StockQuantityCommand> commands) {
@@ -98,6 +99,11 @@ public class InventoryStockService implements InventoryStockUseCase {
         for (StockQuantityCommand command : commands) {
             requirePositive(command.quantity(), "할당 수량");
             InventoryLot inventoryLot = locked.get(command.inventoryLotId());
+            Lot lot = lotRepository.findById(inventoryLot.getLotId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, LotService.LOT_NOT_FOUND_MESSAGE));
+            if (!lot.isAvailable()) {
+                throw new BusinessException(InventoryErrorCode.LOT_NOT_AVAILABLE);
+            }
             if (!inventoryLot.canAllocate(command.quantity())) {
                 throw new BusinessException(InventoryErrorCode.INSUFFICIENT_STOCK,
                         "가용 재고가 부족합니다. (재고 " + inventoryLot.getInventoryLotId()
@@ -130,6 +136,14 @@ public class InventoryStockService implements InventoryStockUseCase {
      */
     @Override
     public List<InventoryLot> ship(List<StockShipCommand> commands) {
+        // 입고와 같은 잠금 순서(구역 → 재고 행)를 지키기 위해, 재고 행의 구역을 먼저 읽어 구역부터 잠근다.
+        sectionCapacityPort.lock(commands.stream()
+                .map(StockShipCommand::inventoryLotId).distinct()
+                .map(id -> inventoryLotRepository.findById(id)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                                InventoryQueryService.INVENTORY_NOT_FOUND_MESSAGE + " (재고 " + id + ")")))
+                .map(InventoryLot::getSectionId)
+                .toList());
         Map<Long, InventoryLot> locked = lockAll(commands.stream().map(StockShipCommand::inventoryLotId).toList());
         for (StockShipCommand command : commands) {
             requirePositive(command.allocatedQuantity(), "할당 수량");
