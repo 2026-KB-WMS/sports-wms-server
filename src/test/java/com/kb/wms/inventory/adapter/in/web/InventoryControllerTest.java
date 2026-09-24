@@ -219,4 +219,35 @@ class InventoryControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("STALE_QUANTITY"));
     }
+
+    @Test
+    @DisplayName("POST /api/v1/inventory/adjustments: 필수 쿼리 파라미터(userId)가 없으면 400 VALIDATION_ERROR를 반환한다")
+    void adjust_missingUserId_returnsValidationError() throws Exception {
+        mockMvc.perform(post("/api/v1/inventory/adjustments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new TestAdjustRequest(1L, 100L, 120L, "실사 반영"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.errors[0].field").value("userId"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/inventory/adjustments: JSON 형식이 깨졌으면 400 VALIDATION_ERROR를 반환한다")
+    void adjust_malformedJson_returnsValidationError() throws Exception {
+        mockMvc.perform(post("/api/v1/inventory/adjustments")
+                        .param("userId", "9")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"inventoryLotId\": 1, \"beforeQuantity\": "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/inventory/by-lot: 허용되지 않은 enum 값이면 400 VALIDATION_ERROR를 반환한다")
+    void getByLot_invalidEnum_returnsValidationError() throws Exception {
+        mockMvc.perform(get("/api/v1/inventory/by-lot").param("qualityStatus", "BROKEN"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
 }

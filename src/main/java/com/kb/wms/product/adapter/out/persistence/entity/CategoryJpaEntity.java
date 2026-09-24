@@ -12,13 +12,15 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "category")
+@Table(name = "category",
+        uniqueConstraints = @UniqueConstraint(name = "uk_category_code", columnNames = "category_code"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CategoryJpaEntity extends BaseTimeEntity {

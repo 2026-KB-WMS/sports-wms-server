@@ -1,5 +1,7 @@
 package com.kb.wms.inventory.adapter.out.warehouse;
 
+import java.util.Collection;
+
 import org.springframework.stereotype.Component;
 
 import com.kb.wms.inventory.application.port.out.SectionCapacityPort;
@@ -15,6 +17,11 @@ import lombok.RequiredArgsConstructor;
 public class SectionCapacityAdapter implements SectionCapacityPort {
 
     private final WarehouseSectionCapacityUseCase warehouseSectionCapacityUseCase;
+
+    @Override
+    public void lock(Collection<Long> sectionIds) {
+        warehouseSectionCapacityUseCase.lock(sectionIds);
+    }
 
     @Override
     public void occupy(Long sectionId, long quantity) {

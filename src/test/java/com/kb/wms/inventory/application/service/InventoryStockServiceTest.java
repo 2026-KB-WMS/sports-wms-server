@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -15,6 +16,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -78,6 +80,24 @@ class InventoryStockServiceTest {
         assertThat(result.get(0).getOnHandQuantity()).isEqualTo(50L);
         verify(sectionCapacityPort).occupy(10L, 50L);
         verify(inventoryTransactionRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("입고는 재고 행을 찾기(잠그기) 전에 관련 구역 행을 먼저 잠근다 (동시 첫 입고 시 재고 행 중복 생성 방지)")
+    void receive_locksSectionsBeforeInventoryRows() {
+        StockReceiveCommand first = new StockReceiveCommand(20L, 5L, QualityStatus.AVAILABLE, 10L, 1L, 9L);
+        StockReceiveCommand second = new StockReceiveCommand(10L, 5L, QualityStatus.AVAILABLE, 10L, 1L, 9L);
+        Lot lot = Lot.register(1L, 1L, "LOT-001", null, null, BigDecimal.TEN);
+        when(lotRepository.findById(5L)).thenReturn(Optional.of(lot));
+        when(inventoryLotRepository.findBySectionIdAndLotIdForUpdate(anyLong(), anyLong())).thenReturn(Optional.empty());
+        when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        inventoryStockService.receive(List.of(first, second));
+
+        InOrder inOrder = inOrder(sectionCapacityPort, inventoryLotRepository);
+        inOrder.verify(sectionCapacityPort).lock(List.of(10L, 20L));
+        inOrder.verify(inventoryLotRepository).findBySectionIdAndLotIdForUpdate(10L, 5L);
+        inOrder.verify(inventoryLotRepository).findBySectionIdAndLotIdForUpdate(20L, 5L);
     }
 
     @Test

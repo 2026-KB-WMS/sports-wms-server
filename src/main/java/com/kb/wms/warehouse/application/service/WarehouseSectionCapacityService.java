@@ -1,6 +1,7 @@
 package com.kb.wms.warehouse.application.service;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,11 @@ import lombok.RequiredArgsConstructor;
 public class WarehouseSectionCapacityService implements WarehouseSectionCapacityUseCase {
 
     private final WarehouseSectionRepository warehouseSectionRepository;
+
+    @Override
+    public void lock(Collection<Long> sectionIds) {
+        sectionIds.stream().distinct().sorted().forEach(this::lock);
+    }
 
     @Override
     public void occupy(Long sectionId, long quantity) {

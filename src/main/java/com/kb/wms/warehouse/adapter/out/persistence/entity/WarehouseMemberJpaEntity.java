@@ -12,6 +12,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -21,7 +22,9 @@ import lombok.NoArgsConstructor;
  * updated_at이 없는 배정 이력성 엔티티라 BaseTimeEntity를 상속하지 않는다.
  */
 @Entity
-@Table(name = "warehouse_member")
+@Table(name = "warehouse_member",
+        uniqueConstraints = @UniqueConstraint(name = "uk_warehouse_member_warehouse_user",
+                columnNames = {"warehouse_id", "user_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class WarehouseMemberJpaEntity {

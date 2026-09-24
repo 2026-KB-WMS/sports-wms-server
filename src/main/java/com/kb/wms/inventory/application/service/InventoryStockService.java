@@ -46,8 +46,9 @@ public class InventoryStockService implements InventoryStockUseCase {
     private final SectionCapacityPort sectionCapacityPort;
 
     /**
-     * 구역 + 로트 재고 행에 보유 수량을 더한다(없으면 생성). 기존 행은 잠그고, 행마다 INBOUND 이력을 남긴다.
-     * 재고 행 생성 시 동시 입고가 겹치지 않도록 (구역, 로트) 순으로 처리한다.
+     * 구역 + 로트 재고 행에 보유 수량을 더한다(없으면 생성). 행마다 INBOUND 이력을 남긴다.
+     * 관련 구역 행을 먼저 잠가, 같은 (구역, 로트)의 첫 입고가 동시에 와도 재고 행을 하나만 만든다
+     * (구역 잠금을 기다린 두 번째 요청은 첫 요청이 만든 행을 찾아 수량을 더한다).
      */
     @Override
     public List<InventoryLot> receive(List<StockReceiveCommand> commands) {
@@ -55,6 +56,7 @@ public class InventoryStockService implements InventoryStockUseCase {
                 .sorted(Comparator.comparing(StockReceiveCommand::sectionId)
                         .thenComparing(StockReceiveCommand::lotId))
                 .toList();
+        sectionCapacityPort.lock(ordered.stream().map(StockReceiveCommand::sectionId).toList());
 
         List<InventoryLot> results = new ArrayList<>();
         for (StockReceiveCommand command : ordered) {
