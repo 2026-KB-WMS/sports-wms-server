@@ -30,6 +30,7 @@ import com.kb.wms.product.application.port.in.CategoryUseCase;
 import com.kb.wms.product.application.port.in.ProductSkuUseCase;
 import com.kb.wms.product.application.port.in.ProductUseCase;
 import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
+import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
 import com.kb.wms.product.domain.entity.Product;
 import com.kb.wms.product.domain.entity.ProductSku;
 
@@ -67,13 +68,17 @@ public class ProductSkuController {
             @RequestParam(required = false) Boolean isActive) {
         // 같은 상품의 SKU가 여러 개이므로 상품명은 상품당 한 번만 조회한다.
         Map<Long, String> productNames = new HashMap<>();
-        List<ProductSkuListItemResponse> items = productSkuUseCase
-                .getSkus(new ProductSkuSearchCondition(productId, brandId, categoryId, keyword, isActive)).stream()
+        List<ProductSku> skus = productSkuUseCase
+                .getSkus(new ProductSkuSearchCondition(productId, brandId, categoryId, keyword, isActive));
+        // 옵션은 SKU 전체를 한 번에 조회한다(SKU마다 조회하면 N+1).
+        Map<Long, List<SkuOptionSummary>> options = productSkuUseCase.getSkuOptionsBySkuIds(
+                skus.stream().map(ProductSku::getSkuId).toList());
+        List<ProductSkuListItemResponse> items = skus.stream()
                 .map(sku -> ProductSkuListItemResponse.of(
                         sku,
                         productNames.computeIfAbsent(sku.getProductId(),
                                 id -> productUseCase.getProduct(id).getName()),
-                        productSkuUseCase.getSkuOptions(sku.getSkuId())))
+                        options.getOrDefault(sku.getSkuId(), List.of())))
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
     }

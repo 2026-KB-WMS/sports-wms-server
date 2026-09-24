@@ -1,9 +1,14 @@
 package com.kb.wms.product.application.service;
 
-import java.util.List;
-import java.util.HashSet;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -141,19 +146,33 @@ public class ProductSkuService implements ProductSkuUseCase {
 
     @Override
     public List<SkuOptionSummary> getSkuOptions(Long skuId) {
-        List<SkuOptionSummary> summaries = new ArrayList<>();
-        for (SkuOptionValue link : skuOptionValueRepository.findBySkuId(skuId)) {
-            OptionValue optionValue = optionValueRepository.findById(link.getOptionValueId()).orElse(null);
+        return getSkuOptionsBySkuIds(List.of(skuId)).getOrDefault(skuId, List.of());
+    }
+
+    @Override
+    public Map<Long, List<SkuOptionSummary>> getSkuOptionsBySkuIds(Collection<Long> skuIds) {
+        List<SkuOptionValue> links = skuOptionValueRepository.findBySkuIdIn(skuIds);
+
+        Map<Long, OptionValue> optionValues = optionValueRepository.findAllByIds(
+                        links.stream().map(SkuOptionValue::getOptionValueId).distinct().toList()).stream()
+                .collect(Collectors.toMap(OptionValue::getOptionValueId, Function.identity()));
+        Map<Long, OptionGroup> optionGroups = optionGroupRepository.findAllByIds(
+                        optionValues.values().stream().map(OptionValue::getOptionGroupId).distinct().toList()).stream()
+                .collect(Collectors.toMap(OptionGroup::getOptionGroupId, Function.identity()));
+
+        Map<Long, List<SkuOptionSummary>> result = new HashMap<>();
+        for (SkuOptionValue link : links) {
+            OptionValue optionValue = optionValues.get(link.getOptionValueId());
             if (optionValue == null) {
                 continue;
             }
-            OptionGroup optionGroup = optionGroupRepository.findById(optionValue.getOptionGroupId()).orElse(null);
-            summaries.add(new SkuOptionSummary(
+            OptionGroup optionGroup = optionGroups.get(optionValue.getOptionGroupId());
+            result.computeIfAbsent(link.getSkuId(), id -> new ArrayList<>()).add(new SkuOptionSummary(
                     optionValue.getOptionGroupId(),
                     optionGroup != null ? optionGroup.getName() : null,
                     optionValue.getOptionValueId(),
                     optionValue.getValue()));
         }
-        return summaries;
+        return result;
     }
 }

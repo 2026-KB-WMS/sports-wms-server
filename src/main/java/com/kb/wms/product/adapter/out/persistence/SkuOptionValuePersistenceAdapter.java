@@ -31,6 +31,16 @@ public class SkuOptionValuePersistenceAdapter implements SkuOptionValueRepositor
     }
 
     @Override
+    public List<SkuOptionValue> findBySkuIdIn(java.util.Collection<Long> skuIds) {
+        if (skuIds.isEmpty()) {
+            return List.of();
+        }
+        return skuOptionValueJpaRepository.findById_SkuIdIn(skuIds).stream()
+                .map(SkuOptionValueJpaEntity::toDomain)
+                .toList();
+    }
+
+    @Override
     public boolean existsBySkuIdAndOptionValueId(Long skuId, Long optionValueId) {
         return skuOptionValueJpaRepository.existsById_SkuIdAndId_OptionValueId(skuId, optionValueId);
     }

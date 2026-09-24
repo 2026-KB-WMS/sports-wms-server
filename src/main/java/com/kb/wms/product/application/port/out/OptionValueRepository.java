@@ -14,6 +14,9 @@ public interface OptionValueRepository {
 
     Optional<OptionValue> findById(Long optionValueId);
 
+    /** 여러 옵션 값을 쿼리 한 번으로 조회한다. 없는 ID는 결과에서 빠진다. */
+    List<OptionValue> findAllByIds(java.util.Collection<Long> optionValueIds);
+
     List<OptionValue> findByOptionGroupId(Long optionGroupId);
 
     boolean existsByOptionGroupIdAndValue(Long optionGroupId, String value);

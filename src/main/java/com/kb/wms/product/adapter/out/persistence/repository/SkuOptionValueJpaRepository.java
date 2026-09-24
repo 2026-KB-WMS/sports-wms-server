@@ -11,5 +11,7 @@ public interface SkuOptionValueJpaRepository extends JpaRepository<SkuOptionValu
 
     List<SkuOptionValueJpaEntity> findById_SkuId(Long skuId);
 
+    List<SkuOptionValueJpaEntity> findById_SkuIdIn(java.util.Collection<Long> skuIds);
+
     boolean existsById_SkuIdAndId_OptionValueId(Long skuId, Long optionValueId);
 }

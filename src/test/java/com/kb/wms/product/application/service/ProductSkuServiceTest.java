@@ -3,7 +3,9 @@ package com.kb.wms.product.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -288,11 +290,11 @@ class ProductSkuServiceTest {
     @Test
     @DisplayName("getSkuOptions는 옵션 값에 연결된 옵션 그룹명까지 포함해 반환한다")
     void getSkuOptions_mapsGroupNames() {
-        when(skuOptionValueRepository.findBySkuId(1L)).thenReturn(List.of(SkuOptionValue.connect(1L, 10L)));
+        when(skuOptionValueRepository.findBySkuIdIn(List.of(1L))).thenReturn(List.of(SkuOptionValue.connect(1L, 10L)));
         OptionValue red = OptionValue.builder().optionValueId(10L).optionGroupId(1L).value("빨강").sortOrder(1).build();
-        when(optionValueRepository.findById(10L)).thenReturn(Optional.of(red));
+        when(optionValueRepository.findAllByIds(List.of(10L))).thenReturn(List.of(red));
         OptionGroup colorGroup = OptionGroup.builder().optionGroupId(1L).name("색상").build();
-        when(optionGroupRepository.findById(1L)).thenReturn(Optional.of(colorGroup));
+        when(optionGroupRepository.findAllByIds(List.of(1L))).thenReturn(List.of(colorGroup));
 
         List<SkuOptionSummary> result = productSkuService.getSkuOptions(1L);
 
@@ -301,6 +303,30 @@ class ProductSkuServiceTest {
         assertThat(result.get(0).optionGroupName()).isEqualTo("색상");
         assertThat(result.get(0).optionValueId()).isEqualTo(10L);
         assertThat(result.get(0).value()).isEqualTo("빨강");
+    }
+
+    @Test
+    @DisplayName("여러 SKU의 옵션은 SKU 수와 관계없이 연결·옵션 값·옵션 그룹을 한 번씩만 조회해 SKU별로 묶어 반환한다")
+    void getSkuOptionsBySkuIds_batchQueries() {
+        when(skuOptionValueRepository.findBySkuIdIn(List.of(1L, 2L, 3L))).thenReturn(List.of(
+                SkuOptionValue.connect(1L, 10L), SkuOptionValue.connect(1L, 20L),
+                SkuOptionValue.connect(2L, 10L)));
+        OptionValue red = OptionValue.builder().optionValueId(10L).optionGroupId(1L).value("빨강").sortOrder(1).build();
+        OptionValue g4 = OptionValue.builder().optionValueId(20L).optionGroupId(2L).value("G4").sortOrder(1).build();
+        when(optionValueRepository.findAllByIds(anyCollection())).thenReturn(List.of(red, g4));
+        when(optionGroupRepository.findAllByIds(anyCollection())).thenReturn(List.of(
+                OptionGroup.builder().optionGroupId(1L).name("색상").build(),
+                OptionGroup.builder().optionGroupId(2L).name("그립").build()));
+
+        java.util.Map<Long, List<SkuOptionSummary>> result =
+                productSkuService.getSkuOptionsBySkuIds(List.of(1L, 2L, 3L));
+
+        assertThat(result.get(1L)).extracting(SkuOptionSummary::value).containsExactly("빨강", "G4");
+        assertThat(result.get(2L)).extracting(SkuOptionSummary::optionGroupName).containsExactly("색상");
+        assertThat(result).doesNotContainKey(3L);
+        verify(skuOptionValueRepository).findBySkuIdIn(List.of(1L, 2L, 3L));
+        verify(optionValueRepository, times(1)).findAllByIds(anyCollection());
+        verify(optionGroupRepository, times(1)).findAllByIds(anyCollection());
     }
 
     private ProductSku sku() {

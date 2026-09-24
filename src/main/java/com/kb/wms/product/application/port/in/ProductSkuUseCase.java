@@ -28,4 +28,7 @@ public interface ProductSkuUseCase {
     void connectOptions(SkuOptionConnectCommand command);
 
     List<SkuOptionSummary> getSkuOptions(Long skuId);
+
+    /** 여러 SKU의 옵션을 쿼리 3번(연결·옵션 값·옵션 그룹)으로 조회한다. 옵션이 없는 SKU는 빈 목록이다. */
+    java.util.Map<Long, List<SkuOptionSummary>> getSkuOptionsBySkuIds(java.util.Collection<Long> skuIds);
 }
