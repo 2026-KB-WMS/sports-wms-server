@@ -3,7 +3,9 @@ package com.kb.wms.product.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -21,12 +23,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
+import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
 import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
+import com.kb.wms.product.application.port.out.BrandRepository;
+import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.application.port.out.OptionGroupRepository;
 import com.kb.wms.product.application.port.out.OptionValueRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
 import com.kb.wms.product.application.port.out.ProductSkuRepository;
 import com.kb.wms.product.application.port.out.SkuOptionValueRepository;
+import com.kb.wms.product.domain.entity.Brand;
+import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.domain.entity.OptionGroup;
 import com.kb.wms.product.domain.entity.OptionValue;
 import com.kb.wms.product.domain.entity.Product;
@@ -47,6 +54,10 @@ class ProductSkuServiceTest {
     private SkuOptionValueRepository skuOptionValueRepository;
     @Mock
     private OptionGroupRepository optionGroupRepository;
+    @Mock
+    private BrandRepository brandRepository;
+    @Mock
+    private CategoryRepository categoryRepository;
 
     @InjectMocks
     private ProductSkuService productSkuService;
@@ -129,12 +140,42 @@ class ProductSkuServiceTest {
     }
 
     @Test
-    @DisplayName("getSkus는 상품의 SKU 목록을 그대로 반환한다")
+    @DisplayName("getSkus는 검색 조건을 리포지토리에 전달해 결과를 그대로 반환한다")
     void getSkus_passthrough() {
         List<ProductSku> skus = List.of(ProductSku.builder().skuId(1L).productId(1L).build());
-        when(productSkuRepository.findAll(1L)).thenReturn(skus);
+        ProductSkuSearchCondition condition = new ProductSkuSearchCondition(1L, 2L, 3L, "SKU", true);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(mockActiveProduct()));
+        when(brandRepository.findById(2L)).thenReturn(Optional.of(Brand.register("브랜드 A", null)));
+        when(categoryRepository.findById(3L)).thenReturn(Optional.of(Category.register(null, "RACKET", "라켓", 1, 0)));
+        when(productSkuRepository.search(condition)).thenReturn(skus);
 
-        assertThat(productSkuService.getSkus(1L)).isEqualTo(skus);
+        assertThat(productSkuService.getSkus(condition)).isEqualTo(skus);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 상품으로 필터링하면 PRODUCT_NOT_FOUND 예외를 던진다")
+    void getSkus_productNotFound() {
+        when(productRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productSkuService.getSkus(new ProductSkuSearchCondition(999L, null, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND.name());
+        verify(productSkuRepository, never()).search(any());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 브랜드·카테고리로 필터링하면 각각 BRAND_NOT_FOUND, CATEGORY_NOT_FOUND 예외를 던진다")
+    void getSkus_brandOrCategoryNotFound() {
+        when(brandRepository.findById(999L)).thenReturn(Optional.empty());
+        when(categoryRepository.findById(998L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productSkuService.getSkus(new ProductSkuSearchCondition(null, 999L, null, null, null)))
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.BRAND_NOT_FOUND.name());
+        assertThatThrownBy(() -> productSkuService.getSkus(new ProductSkuSearchCondition(null, null, 998L, null, null)))
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.CATEGORY_NOT_FOUND.name());
     }
 
     @Test
@@ -249,11 +290,11 @@ class ProductSkuServiceTest {
     @Test
     @DisplayName("getSkuOptions는 옵션 값에 연결된 옵션 그룹명까지 포함해 반환한다")
     void getSkuOptions_mapsGroupNames() {
-        when(skuOptionValueRepository.findBySkuId(1L)).thenReturn(List.of(SkuOptionValue.connect(1L, 10L)));
+        when(skuOptionValueRepository.findBySkuIdIn(List.of(1L))).thenReturn(List.of(SkuOptionValue.connect(1L, 10L)));
         OptionValue red = OptionValue.builder().optionValueId(10L).optionGroupId(1L).value("빨강").sortOrder(1).build();
-        when(optionValueRepository.findById(10L)).thenReturn(Optional.of(red));
+        when(optionValueRepository.findAllByIds(List.of(10L))).thenReturn(List.of(red));
         OptionGroup colorGroup = OptionGroup.builder().optionGroupId(1L).name("색상").build();
-        when(optionGroupRepository.findById(1L)).thenReturn(Optional.of(colorGroup));
+        when(optionGroupRepository.findAllByIds(List.of(1L))).thenReturn(List.of(colorGroup));
 
         List<SkuOptionSummary> result = productSkuService.getSkuOptions(1L);
 
@@ -262,5 +303,85 @@ class ProductSkuServiceTest {
         assertThat(result.get(0).optionGroupName()).isEqualTo("색상");
         assertThat(result.get(0).optionValueId()).isEqualTo(10L);
         assertThat(result.get(0).value()).isEqualTo("빨강");
+    }
+
+    @Test
+    @DisplayName("여러 SKU의 옵션은 SKU 수와 관계없이 연결·옵션 값·옵션 그룹을 한 번씩만 조회해 SKU별로 묶어 반환한다")
+    void getSkuOptionsBySkuIds_batchQueries() {
+        when(skuOptionValueRepository.findBySkuIdIn(List.of(1L, 2L, 3L))).thenReturn(List.of(
+                SkuOptionValue.connect(1L, 10L), SkuOptionValue.connect(1L, 20L),
+                SkuOptionValue.connect(2L, 10L)));
+        OptionValue red = OptionValue.builder().optionValueId(10L).optionGroupId(1L).value("빨강").sortOrder(1).build();
+        OptionValue g4 = OptionValue.builder().optionValueId(20L).optionGroupId(2L).value("G4").sortOrder(1).build();
+        when(optionValueRepository.findAllByIds(anyCollection())).thenReturn(List.of(red, g4));
+        when(optionGroupRepository.findAllByIds(anyCollection())).thenReturn(List.of(
+                OptionGroup.builder().optionGroupId(1L).name("색상").build(),
+                OptionGroup.builder().optionGroupId(2L).name("그립").build()));
+
+        java.util.Map<Long, List<SkuOptionSummary>> result =
+                productSkuService.getSkuOptionsBySkuIds(List.of(1L, 2L, 3L));
+
+        assertThat(result.get(1L)).extracting(SkuOptionSummary::value).containsExactly("빨강", "G4");
+        assertThat(result.get(2L)).extracting(SkuOptionSummary::optionGroupName).containsExactly("색상");
+        assertThat(result).doesNotContainKey(3L);
+        verify(skuOptionValueRepository).findBySkuIdIn(List.of(1L, 2L, 3L));
+        verify(optionValueRepository, times(1)).findAllByIds(anyCollection());
+        verify(optionGroupRepository, times(1)).findAllByIds(anyCollection());
+    }
+
+    private ProductSku sku() {
+        return ProductSku.register(1L, "SKU-0001", null, "라켓", null, null, null, null, 0L);
+    }
+
+    @Test
+    @DisplayName("SKU를 비활성화하면 상태가 바뀌어 저장된다")
+    void changeSkuStatus_deactivate() {
+        ProductSku sku = sku();
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(sku));
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductSku result = productSkuService.changeSkuStatus(1L, false);
+
+        assertThat(result.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("상품이 활성이면 비활성 SKU를 다시 활성화할 수 있다")
+    void changeSkuStatus_activate() {
+        ProductSku sku = sku();
+        sku.deactivate();
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(sku));
+        when(productRepository.findById(1L)).thenReturn(Optional.of(mockActiveProduct()));
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(productSkuService.changeSkuStatus(1L, true).isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("상품이 비활성이면 SKU 활성화는 PRODUCT_INACTIVE 예외를 던진다")
+    void changeSkuStatus_activate_productInactive() {
+        ProductSku sku = sku();
+        sku.deactivate();
+        Product inactiveProduct = mockActiveProduct();
+        inactiveProduct.deactivate();
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(sku));
+        when(productRepository.findById(1L)).thenReturn(Optional.of(inactiveProduct));
+
+        assertThatThrownBy(() -> productSkuService.changeSkuStatus(1L, true))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.PRODUCT_INACTIVE.name());
+        verify(productSkuRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("없는 SKU의 상태를 바꾸면 SKU_NOT_FOUND 예외를 던진다")
+    void changeSkuStatus_notFound() {
+        when(productSkuRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productSkuService.changeSkuStatus(999L, false))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.SKU_NOT_FOUND.name());
     }
 }

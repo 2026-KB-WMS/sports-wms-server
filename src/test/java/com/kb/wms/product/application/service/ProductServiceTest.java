@@ -22,12 +22,15 @@ import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
 import com.kb.wms.product.application.port.in.command.ProductUpdateCommand;
+import com.kb.wms.product.application.port.in.query.ProductSearchCondition;
 import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
+import com.kb.wms.product.application.port.out.ProductSkuRepository;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.domain.entity.Product;
+import com.kb.wms.product.domain.entity.ProductSku;
 import com.kb.wms.product.exception.ProductErrorCode;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,6 +42,8 @@ class ProductServiceTest {
     private BrandRepository brandRepository;
     @Mock
     private CategoryRepository categoryRepository;
+    @Mock
+    private ProductSkuRepository productSkuRepository;
 
     @InjectMocks
     private ProductService productService;
@@ -128,13 +133,40 @@ class ProductServiceTest {
     }
 
     @Test
-    @DisplayName("brandId·categoryId 필터를 그대로 리포지토리에 전달한다")
+    @DisplayName("검색 조건을 그대로 리포지토리에 전달한다")
     void getProducts_passesFilters() {
-        when(productRepository.findAll(1L, 2L)).thenReturn(List.of());
+        ProductSearchCondition condition = new ProductSearchCondition(1L, 2L, "라켓", true);
+        when(brandRepository.findById(1L)).thenReturn(Optional.of(Brand.register("브랜드 A", null)));
+        when(categoryRepository.findById(2L)).thenReturn(Optional.of(Category.register(null, "RACKET", "라켓", 1, 0)));
+        when(productRepository.search(condition)).thenReturn(List.of());
 
-        productService.getProducts(1L, 2L);
+        productService.getProducts(condition);
 
-        verify(productRepository).findAll(eq(1L), eq(2L));
+        verify(productRepository).search(eq(condition));
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 브랜드로 필터링하면 BRAND_NOT_FOUND 예외를 던진다")
+    void getProducts_brandNotFound() {
+        when(brandRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productService.getProducts(new ProductSearchCondition(999L, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.BRAND_NOT_FOUND.name());
+        verify(productRepository, never()).search(any());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 카테고리로 필터링하면 CATEGORY_NOT_FOUND 예외를 던진다")
+    void getProducts_categoryNotFound() {
+        when(categoryRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productService.getProducts(new ProductSearchCondition(null, 999L, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.CATEGORY_NOT_FOUND.name());
+        verify(productRepository, never()).search(any());
     }
 
     @Test
@@ -264,5 +296,24 @@ class ProductServiceTest {
         Product result = productService.updateProduct(command);
 
         assertThat(result.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("상품을 비활성화하면 활성 상태인 하위 SKU도 함께 비활성화되어 저장된다")
+    void updateProduct_deactivate_cascadesToSkus() {
+        Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
+        ProductSku activeSku = ProductSku.register(1L, "SKU-1", null, "SKU 1", null, null, null, null, 0L);
+        ProductSku inactiveSku = ProductSku.register(1L, "SKU-2", null, "SKU 2", null, null, null, null, 0L);
+        inactiveSku.deactivate();
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(productSkuRepository.findAll(1L)).thenReturn(List.of(activeSku, inactiveSku));
+
+        productService.updateProduct(command);
+
+        assertThat(activeSku.isActive()).isFalse();
+        verify(productSkuRepository).save(activeSku);
+        verify(productSkuRepository, never()).save(inactiveSku);
     }
 }

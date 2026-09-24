@@ -26,6 +26,7 @@ import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseUpdateCommand;
+import com.kb.wms.warehouse.application.port.in.query.WarehouseSearchCondition;
 import com.kb.wms.warehouse.application.port.in.result.WarehouseMembershipSummary;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
 import com.kb.wms.warehouse.exception.WarehouseErrorCode;
@@ -75,18 +76,19 @@ class WarehouseControllerTest {
                         .content(objectMapper.writeValueAsString(new TestRegisterRequest(
                                 "WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.TEN))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error_code").value("DUPLICATE_WAREHOUSE_CODE"));
+                .andExpect(jsonPath("$.errorCode").value("DUPLICATE_WAREHOUSE_CODE"));
     }
 
     @Test
     @DisplayName("창고 목록을 조회하면 200과 목록을 반환한다")
     void getWarehouses_success() throws Exception {
         Warehouse warehouse = Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.TEN);
-        when(warehouseUseCase.getWarehouses()).thenReturn(List.of(warehouse));
+        when(warehouseUseCase.getWarehouses(new WarehouseSearchCondition("서울", true)))
+                .thenReturn(List.of(warehouse));
 
-        mockMvc.perform(get("/api/v1/warehouses"))
+        mockMvc.perform(get("/api/v1/warehouses").param("keyword", "서울").param("isActive", "true"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].warehouseCode").value("WH-001"));
+                .andExpect(jsonPath("$.data.items[0].warehouseCode").value("WH-001"));
     }
 
     @Test
@@ -110,7 +112,7 @@ class WarehouseControllerTest {
 
         mockMvc.perform(get("/api/v1/warehouses/{warehouseId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("WAREHOUSE_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("WAREHOUSE_NOT_FOUND"));
     }
 
     @Test
@@ -135,7 +137,7 @@ class WarehouseControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new TestUpdateRequest(null, null, null, null, "WH-999", null))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 
     @Test

@@ -1,9 +1,12 @@
 package com.kb.wms.product.adapter.in.web;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -13,8 +16,11 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.response.ApiResponse;
+import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductSkuRegisterRequest;
+import com.kb.wms.product.adapter.in.web.dto.request.ProductSkuStatusRequest;
 import com.kb.wms.product.adapter.in.web.dto.request.SkuOptionConnectRequest;
+import com.kb.wms.product.adapter.in.web.dto.response.ProductSkuStatusResponse;
 import com.kb.wms.product.adapter.in.web.dto.response.ProductSkuCreateResponse;
 import com.kb.wms.product.adapter.in.web.dto.response.ProductSkuDetailResponse;
 import com.kb.wms.product.adapter.in.web.dto.response.ProductSkuListItemResponse;
@@ -23,6 +29,8 @@ import com.kb.wms.product.application.port.in.BrandQueryUseCase;
 import com.kb.wms.product.application.port.in.CategoryUseCase;
 import com.kb.wms.product.application.port.in.ProductSkuUseCase;
 import com.kb.wms.product.application.port.in.ProductUseCase;
+import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
+import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
 import com.kb.wms.product.domain.entity.Product;
 import com.kb.wms.product.domain.entity.ProductSku;
 
@@ -52,14 +60,27 @@ public class ProductSkuController {
     }
 
     @GetMapping
-    public ApiResponse<List<ProductSkuListItemResponse>> getSkus(@RequestParam(required = false) Long productId) {
-        List<ProductSkuListItemResponse> items = productSkuUseCase.getSkus(productId).stream()
+    public ApiResponse<ItemsResponse<ProductSkuListItemResponse>> getSkus(
+            @RequestParam(required = false) Long productId,
+            @RequestParam(required = false) Long brandId,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean isActive) {
+        // 같은 상품의 SKU가 여러 개이므로 상품명은 상품당 한 번만 조회한다.
+        Map<Long, String> productNames = new HashMap<>();
+        List<ProductSku> skus = productSkuUseCase
+                .getSkus(new ProductSkuSearchCondition(productId, brandId, categoryId, keyword, isActive));
+        // 옵션은 SKU 전체를 한 번에 조회한다(SKU마다 조회하면 N+1).
+        Map<Long, List<SkuOptionSummary>> options = productSkuUseCase.getSkuOptionsBySkuIds(
+                skus.stream().map(ProductSku::getSkuId).toList());
+        List<ProductSkuListItemResponse> items = skus.stream()
                 .map(sku -> ProductSkuListItemResponse.of(
                         sku,
-                        productUseCase.getProduct(sku.getProductId()).getName(),
-                        productSkuUseCase.getSkuOptions(sku.getSkuId())))
+                        productNames.computeIfAbsent(sku.getProductId(),
+                                id -> productUseCase.getProduct(id).getName()),
+                        options.getOrDefault(sku.getSkuId(), List.of())))
                 .toList();
-        return ApiResponse.ok(items);
+        return ApiResponse.ok(ItemsResponse.of(items));
     }
 
     @GetMapping("/{skuId}")
@@ -76,6 +97,14 @@ public class ProductSkuController {
                 categoryUseCase.getCategory(product.getCategoryId()).getName(),
                 productSkuUseCase.getSkuOptions(sku.getSkuId()));
         return ApiResponse.ok(response);
+    }
+
+    @PatchMapping("/{skuId}/status")
+    public ApiResponse<ProductSkuStatusResponse> changeSkuStatus(
+            @PathVariable Long skuId,
+            @Valid @RequestBody ProductSkuStatusRequest request) {
+        return ApiResponse.ok(ProductSkuStatusResponse.from(
+                productSkuUseCase.changeSkuStatus(skuId, request.isActive())));
     }
 
     @PostMapping("/{skuId}/options")

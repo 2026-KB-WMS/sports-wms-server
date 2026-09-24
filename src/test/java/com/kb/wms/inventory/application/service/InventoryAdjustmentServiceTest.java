@@ -79,6 +79,7 @@ class InventoryAdjustmentServiceTest {
         InventoryAdjustmentResult result = inventoryAdjustmentService.adjust(command);
 
         assertThat(result.inventoryLot().getOnHandQuantity()).isEqualTo(80L);
+        assertThat(result.inventoryLot().getLastCountedAt()).isNotNull();
         verify(sectionCapacityPort).vacate(10L, 20L);
         verify(sectionCapacityPort, never()).occupy(anyLong(), anyLong());
     }

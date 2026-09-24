@@ -5,10 +5,13 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
-import com.kb.wms.product.application.port.out.BrandRepository;
+import com.kb.wms.common.persistence.SearchKeyword;
 import com.kb.wms.product.adapter.out.persistence.entity.BrandJpaEntity;
 import com.kb.wms.product.adapter.out.persistence.repository.BrandJpaRepository;
+import com.kb.wms.product.application.port.in.query.BrandSearchCondition;
+import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.domain.entity.Brand;
+import com.kb.wms.product.domain.enums.ProductStatus;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,8 +33,11 @@ public class BrandPersistenceAdapter implements BrandRepository {
     }
 
     @Override
-    public List<Brand> findAll() {
-        return brandJpaRepository.findAll().stream()
+    public List<Brand> search(BrandSearchCondition condition) {
+        return brandJpaRepository.search(
+                        SearchKeyword.normalize(condition.keyword()),
+                        ProductStatus.fromActiveFlag(condition.isActive()))
+                .stream()
                 .map(BrandJpaEntity::toDomain)
                 .toList();
     }

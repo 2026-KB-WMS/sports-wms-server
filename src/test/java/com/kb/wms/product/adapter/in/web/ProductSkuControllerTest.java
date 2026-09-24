@@ -29,6 +29,7 @@ import com.kb.wms.product.application.port.in.ProductSkuUseCase;
 import com.kb.wms.product.application.port.in.ProductUseCase;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
+import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
 import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.domain.entity.Category;
@@ -92,21 +93,24 @@ class ProductSkuControllerTest {
                         .content(objectMapper.writeValueAsString(new SkuRequest(
                                 1L, "SKU-0001", null, "라켓 A - 빨강", null, null, null, null, null))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error_code").value("PRODUCT_INACTIVE"));
+                .andExpect(jsonPath("$.errorCode").value("PRODUCT_INACTIVE"));
     }
 
     @Test
     @DisplayName("SKU 목록을 조회하면 200과 상품명·옵션이 포함된 목록을 반환한다")
     void getSkus_success() throws Exception {
         ProductSku sku = mockSku();
-        when(productSkuUseCase.getSkus(1L)).thenReturn(List.of(sku));
+        when(productSkuUseCase.getSkus(new ProductSkuSearchCondition(1L, 2L, 3L, "SKU", true)))
+                .thenReturn(List.of(sku));
         when(productUseCase.getProduct(sku.getProductId())).thenReturn(Product.register(1L, 1L, "P-0001", "라켓 A", null));
         when(productSkuUseCase.getSkuOptions(sku.getSkuId())).thenReturn(List.of());
 
-        mockMvc.perform(get("/api/v1/products/skus").param("productId", "1"))
+        mockMvc.perform(get("/api/v1/products/skus")
+                        .param("productId", "1").param("brandId", "2").param("categoryId", "3")
+                        .param("keyword", "SKU").param("isActive", "true"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].skuCode").value("SKU-0001"))
-                .andExpect(jsonPath("$.data[0].productName").value("라켓 A"));
+                .andExpect(jsonPath("$.data.items[0].skuCode").value("SKU-0001"))
+                .andExpect(jsonPath("$.data.items[0].productName").value("라켓 A"));
     }
 
     @Test
@@ -136,7 +140,7 @@ class ProductSkuControllerTest {
 
         mockMvc.perform(get("/api/v1/products/skus/{skuId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("SKU_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("SKU_NOT_FOUND"));
     }
 
     @Test
@@ -162,7 +166,7 @@ class ProductSkuControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new ConnectRequest(List.of(10L, 11L)))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error_code").value("OPTION_GROUP_CONFLICT"));
+                .andExpect(jsonPath("$.errorCode").value("OPTION_GROUP_CONFLICT"));
     }
 
     @Test
@@ -172,6 +176,6 @@ class ProductSkuControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new ConnectRequest(List.of()))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 }

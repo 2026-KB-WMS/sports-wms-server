@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.command.CategoryRegisterCommand;
+import com.kb.wms.product.application.port.in.query.CategorySearchCondition;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.exception.ProductErrorCode;
@@ -104,14 +105,27 @@ class CategoryServiceTest {
     }
 
     @Test
-    @DisplayName("카테고리 목록을 그대로 반환한다")
+    @DisplayName("카테고리 목록을 검색 조건과 함께 리포지토리에 위임해 그대로 반환한다")
     void getCategories_returnsAll() {
         Category category = Category.register(null, "RACKET", "라켓", 1, 0);
-        when(categoryRepository.findAll()).thenReturn(List.of(category));
+        CategorySearchCondition condition = new CategorySearchCondition(null, 1, "라켓", true);
+        when(categoryRepository.search(condition)).thenReturn(List.of(category));
 
-        List<Category> result = categoryService.getCategories();
+        List<Category> result = categoryService.getCategories(condition);
 
         assertThat(result).containsExactly(category);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 상위 카테고리로 필터링하면 CATEGORY_NOT_FOUND 예외를 던진다")
+    void getCategories_parentNotFound() {
+        when(categoryRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> categoryService.getCategories(new CategorySearchCondition(999L, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.CATEGORY_NOT_FOUND.name());
+        verify(categoryRepository, never()).search(any());
     }
 
     @Test

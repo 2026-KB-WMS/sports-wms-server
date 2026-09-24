@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -15,6 +17,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -29,6 +32,7 @@ import com.kb.wms.inventory.application.port.out.InventoryLotRepository;
 import com.kb.wms.inventory.application.port.out.InventoryTransactionRepository;
 import com.kb.wms.inventory.application.port.out.LotRepository;
 import com.kb.wms.inventory.application.port.out.SectionCapacityPort;
+import com.kb.wms.inventory.application.port.out.SkuStatusPort;
 import com.kb.wms.inventory.domain.entity.InventoryLot;
 import com.kb.wms.inventory.domain.entity.Lot;
 import com.kb.wms.inventory.domain.enums.QualityStatus;
@@ -45,6 +49,8 @@ class InventoryStockServiceTest {
     private LotRepository lotRepository;
     @Mock
     private SectionCapacityPort sectionCapacityPort;
+    @Mock
+    private SkuStatusPort skuStatusPort;
 
     @InjectMocks
     private InventoryStockService inventoryStockService;
@@ -78,6 +84,24 @@ class InventoryStockServiceTest {
         assertThat(result.get(0).getOnHandQuantity()).isEqualTo(50L);
         verify(sectionCapacityPort).occupy(10L, 50L);
         verify(inventoryTransactionRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("입고는 재고 행을 찾기(잠그기) 전에 관련 구역 행을 먼저 잠근다 (동시 첫 입고 시 재고 행 중복 생성 방지)")
+    void receive_locksSectionsBeforeInventoryRows() {
+        StockReceiveCommand first = new StockReceiveCommand(20L, 5L, QualityStatus.AVAILABLE, 10L, 1L, 9L);
+        StockReceiveCommand second = new StockReceiveCommand(10L, 5L, QualityStatus.AVAILABLE, 10L, 1L, 9L);
+        Lot lot = Lot.register(1L, 1L, "LOT-001", null, null, BigDecimal.TEN);
+        when(lotRepository.findById(5L)).thenReturn(Optional.of(lot));
+        when(inventoryLotRepository.findBySectionIdAndLotIdForUpdate(anyLong(), anyLong())).thenReturn(Optional.empty());
+        when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        inventoryStockService.receive(List.of(first, second));
+
+        InOrder inOrder = inOrder(sectionCapacityPort, inventoryLotRepository);
+        inOrder.verify(sectionCapacityPort).lock(List.of(10L, 20L));
+        inOrder.verify(inventoryLotRepository).findBySectionIdAndLotIdForUpdate(10L, 5L);
+        inOrder.verify(inventoryLotRepository).findBySectionIdAndLotIdForUpdate(20L, 5L);
     }
 
     @Test
@@ -142,6 +166,7 @@ class InventoryStockServiceTest {
         InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 0L);
         StockQuantityCommand command = new StockQuantityCommand(1L, 30L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
+        when(lotRepository.findById(5L)).thenReturn(Optional.of(availableLot()));
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         List<InventoryLot> result = inventoryStockService.allocate(List.of(command));
@@ -167,12 +192,64 @@ class InventoryStockServiceTest {
         InventoryLot lot = lotWith(1L, 10L, 5L, 10L, 0L);
         StockQuantityCommand command = new StockQuantityCommand(1L, 30L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
+        when(lotRepository.findById(5L)).thenReturn(Optional.of(availableLot()));
 
         assertThatThrownBy(() -> inventoryStockService.allocate(List.of(command)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(InventoryErrorCode.INSUFFICIENT_STOCK.name());
         verify(inventoryLotRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("로트가 가용 상태가 아니면 할당 시 LOT_NOT_AVAILABLE 예외를 던진다")
+    void allocate_lotNotAvailable() {
+        InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 0L);
+        StockQuantityCommand command = new StockQuantityCommand(1L, 30L);
+        Lot quarantined = availableLot();
+        quarantined.quarantine();
+        when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
+        when(lotRepository.findById(5L)).thenReturn(Optional.of(quarantined));
+
+        assertThatThrownBy(() -> inventoryStockService.allocate(List.of(command)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(InventoryErrorCode.LOT_NOT_AVAILABLE.name());
+        verify(inventoryLotRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("SKU가 비활성이면 할당 시 SKU_NOT_ACTIVE 예외를 던진다")
+    void allocate_skuNotActive() {
+        InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 0L);
+        StockQuantityCommand command = new StockQuantityCommand(1L, 30L);
+        when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
+        when(lotRepository.findById(5L)).thenReturn(Optional.of(availableLot()));
+        doThrow(new BusinessException(InventoryErrorCode.SKU_NOT_ACTIVE)).when(skuStatusPort).requireActive(1L);
+
+        assertThatThrownBy(() -> inventoryStockService.allocate(List.of(command)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(InventoryErrorCode.SKU_NOT_ACTIVE.name());
+        verify(inventoryLotRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("SKU가 비활성이면 입고 시 SKU_NOT_ACTIVE 예외를 던지고 재고를 만들지 않는다")
+    void receive_skuNotActive() {
+        StockReceiveCommand command = new StockReceiveCommand(10L, 5L, QualityStatus.AVAILABLE, 50L, 1L, 9L);
+        when(lotRepository.findById(5L)).thenReturn(Optional.of(availableLot()));
+        doThrow(new BusinessException(InventoryErrorCode.SKU_NOT_ACTIVE)).when(skuStatusPort).requireActive(1L);
+
+        assertThatThrownBy(() -> inventoryStockService.receive(List.of(command)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(InventoryErrorCode.SKU_NOT_ACTIVE.name());
+        verify(sectionCapacityPort, never()).occupy(any(), anyLong());
+    }
+
+    private static Lot availableLot() {
+        return Lot.register(1L, 1L, "LOT-001", null, null, BigDecimal.TEN);
     }
 
     @Test
@@ -223,6 +300,7 @@ class InventoryStockServiceTest {
     @DisplayName("피킹 수량만큼 보유·할당 수량을 차감하고 구역 사용 용량을 비운다")
     void ship_fullyPicked_success() {
         InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 30L);
+        when(inventoryLotRepository.findById(1L)).thenReturn(Optional.of(lot));
         StockShipCommand command = new StockShipCommand(1L, 30L, 30L, 7L, 9L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -239,6 +317,7 @@ class InventoryStockServiceTest {
     @DisplayName("할당 수량보다 적게 피킹하면 부족분은 해제되고 피킹분만 출고 처리된다")
     void ship_shortPicked_releasesShortage() {
         InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 30L);
+        when(inventoryLotRepository.findById(1L)).thenReturn(Optional.of(lot));
         StockShipCommand command = new StockShipCommand(1L, 30L, 20L, 7L, 9L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -254,6 +333,7 @@ class InventoryStockServiceTest {
     @DisplayName("피킹 수량이 할당 수량보다 크면 VALIDATION_ERROR 예외를 던진다")
     void ship_pickedExceedsAllocated() {
         InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 30L);
+        when(inventoryLotRepository.findById(1L)).thenReturn(Optional.of(lot));
         StockShipCommand command = new StockShipCommand(1L, 30L, 40L, 7L, 9L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
 
@@ -267,6 +347,7 @@ class InventoryStockServiceTest {
     @DisplayName("재고의 할당 수량이 요청한 출고 할당 수량보다 적으면 CONFLICT 예외를 던진다")
     void ship_insufficientAllocated() {
         InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 10L);
+        when(inventoryLotRepository.findById(1L)).thenReturn(Optional.of(lot));
         StockShipCommand command = new StockShipCommand(1L, 30L, 30L, 7L, 9L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
 

@@ -14,6 +14,9 @@ public interface OptionGroupRepository {
 
     Optional<OptionGroup> findById(Long optionGroupId);
 
+    /** 여러 옵션 그룹을 쿼리 한 번으로 조회한다. 없는 ID는 결과에서 빠진다. */
+    List<OptionGroup> findAllByIds(java.util.Collection<Long> optionGroupIds);
+
     List<OptionGroup> findAll();
 
     boolean existsByName(String name);

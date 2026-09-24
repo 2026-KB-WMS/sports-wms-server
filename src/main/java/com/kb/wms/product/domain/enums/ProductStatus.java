@@ -5,5 +5,13 @@ package com.kb.wms.product.domain.enums;
  */
 public enum ProductStatus {
     ACTIVE,
-    INACTIVE
+    INACTIVE;
+
+    /** isActive 필터 값을 상태로 바꾼다. null이면 조건 없음(null). */
+    public static ProductStatus fromActiveFlag(Boolean isActive) {
+        if (isActive == null) {
+            return null;
+        }
+        return isActive ? ACTIVE : INACTIVE;
+    }
 }

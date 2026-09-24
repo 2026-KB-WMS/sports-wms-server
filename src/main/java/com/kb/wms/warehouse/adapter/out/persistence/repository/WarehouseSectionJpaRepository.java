@@ -9,12 +9,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.kb.wms.warehouse.adapter.out.persistence.entity.WarehouseSectionJpaEntity;
+import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 
 import jakarta.persistence.LockModeType;
 
 public interface WarehouseSectionJpaRepository extends JpaRepository<WarehouseSectionJpaEntity, Long> {
 
     boolean existsByWarehouseIdAndSectionCode(Long warehouseId, String sectionCode);
+
+    boolean existsByParentSectionIdAndStatus(Long parentSectionId, WarehouseStatus status);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from WarehouseSectionJpaEntity s where s.sectionId = :sectionId")
@@ -23,6 +26,19 @@ public interface WarehouseSectionJpaRepository extends JpaRepository<WarehouseSe
     @Query("""
             select s from WarehouseSectionJpaEntity s
             where (:warehouseId is null or s.warehouseId = :warehouseId)
+              and (:parentSectionId is null or s.parentSectionId = :parentSectionId)
+              and (:sectionType is null or s.sectionType = :sectionType)
+              and (:status is null or s.status = :status)
+              and (:keyword is null
+                   or lower(s.name) like lower(concat('%', :keyword, '%'))
+                   or lower(s.sectionCode) like lower(concat('%', :keyword, '%')))
+            order by s.sectionCode, s.sectionId
             """)
-    List<WarehouseSectionJpaEntity> findAllByFilter(@Param("warehouseId") Long warehouseId);
+    List<WarehouseSectionJpaEntity> search(@Param("warehouseId") Long warehouseId,
+                                           @Param("parentSectionId") Long parentSectionId,
+                                           @Param("sectionType") String sectionType,
+                                           @Param("keyword") String keyword,
+                                           @Param("status") WarehouseStatus status);
+
+    List<WarehouseSectionJpaEntity> findAllByWarehouseId(Long warehouseId);
 }

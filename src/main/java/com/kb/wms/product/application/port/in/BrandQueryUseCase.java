@@ -1,5 +1,6 @@
 package com.kb.wms.product.application.port.in;
 
+import com.kb.wms.product.application.port.in.query.BrandSearchCondition;
 import java.util.List;
 
 import com.kb.wms.product.application.port.in.command.BrandRegisterCommand;
@@ -12,7 +13,7 @@ public interface BrandQueryUseCase {
 
     Brand registerBrand(BrandRegisterCommand command);
 
-    List<Brand> getBrands();
+    List<Brand> getBrands(BrandSearchCondition condition);
 
     Brand getBrand(Long brandId);
 }

@@ -30,6 +30,16 @@ public class OptionGroupPersistenceAdapter implements OptionGroupRepository {
     }
 
     @Override
+    public List<OptionGroup> findAllByIds(java.util.Collection<Long> optionGroupIds) {
+        if (optionGroupIds.isEmpty()) {
+            return List.of();
+        }
+        return optionGroupJpaRepository.findAllById(optionGroupIds).stream()
+                .map(OptionGroupJpaEntity::toDomain)
+                .toList();
+    }
+
+    @Override
     public List<OptionGroup> findAll() {
         return optionGroupJpaRepository.findAll().stream()
                 .map(OptionGroupJpaEntity::toDomain)

@@ -69,7 +69,7 @@ class InventoryControllerTest {
         mockMvc.perform(get("/api/v1/inventory/{inventoryId}", "abc"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 
     @Test
@@ -125,11 +125,11 @@ class InventoryControllerTest {
 
         mockMvc.perform(get("/api/v1/inventory/{inventoryId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
     }
 
     @Test
-    @DisplayName("GET /api/v1/inventory/low-stock: 안전 재고 이하 SKU 목록을 반환한다")
+    @DisplayName("GET /api/v1/inventory/low-stock: 안전 재고 미만 SKU 목록을 반환한다")
     void getLowStock_success() throws Exception {
         LowStockItem item = new LowStockItem(1L, "SKU-001", "상품A", "EA", 50L, 30L, 20L);
         when(inventoryQueryUseCase.getLowStock(new LowStockSearchCondition(null, null)))
@@ -202,7 +202,7 @@ class InventoryControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new TestAdjustRequest(1L, 100L, 120L, null))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 
     @Test
@@ -217,6 +217,37 @@ class InventoryControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new TestAdjustRequest(1L, 99L, 120L, "실사 반영"))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error_code").value("STALE_QUANTITY"));
+                .andExpect(jsonPath("$.errorCode").value("STALE_QUANTITY"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/inventory/adjustments: 필수 쿼리 파라미터(userId)가 없으면 400 VALIDATION_ERROR를 반환한다")
+    void adjust_missingUserId_returnsValidationError() throws Exception {
+        mockMvc.perform(post("/api/v1/inventory/adjustments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new TestAdjustRequest(1L, 100L, 120L, "실사 반영"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.errors[0].field").value("userId"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/inventory/adjustments: JSON 형식이 깨졌으면 400 VALIDATION_ERROR를 반환한다")
+    void adjust_malformedJson_returnsValidationError() throws Exception {
+        mockMvc.perform(post("/api/v1/inventory/adjustments")
+                        .param("userId", "9")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"inventoryLotId\": 1, \"beforeQuantity\": "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/inventory/by-lot: 허용되지 않은 enum 값이면 400 VALIDATION_ERROR를 반환한다")
+    void getByLot_invalidEnum_returnsValidationError() throws Exception {
+        mockMvc.perform(get("/api/v1/inventory/by-lot").param("qualityStatus", "BROKEN"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 }

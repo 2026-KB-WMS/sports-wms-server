@@ -1,15 +1,12 @@
 package com.kb.wms.common.response;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
 /**
  * 공통 성공 응답 포맷.
- * 공통 API 규칙 문서에 정의된 success/status_code/message/data 스키마를 따른다.
- * JSON 필드명은 명세대로 status_code(snake_case)를 쓰고, 나머지 데이터 필드는 그대로 camelCase를 유지한다.
+ * 공통 API 규칙 문서에 정의된 success/statusCode/message/data 스키마를 따른다.
+ * JSON 필드명은 모두 camelCase다.
  */
 public record ApiResponse<T>(
         boolean success,
-        @JsonProperty("status_code")
         int statusCode,
         String message,
         T data

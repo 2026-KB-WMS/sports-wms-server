@@ -17,16 +17,22 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.warehouse.application.port.in.WarehouseSectionCapacityUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseUpdateCommand;
+import com.kb.wms.warehouse.application.port.in.query.WarehouseSearchCondition;
 import com.kb.wms.warehouse.application.port.in.result.WarehouseMembershipSummary;
+import com.kb.wms.warehouse.application.port.out.StockPresencePort;
 import com.kb.wms.warehouse.application.port.out.WarehouseMemberRepository;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
+import com.kb.wms.warehouse.application.port.out.WarehouseSectionRepository;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
 import com.kb.wms.warehouse.domain.entity.WarehouseMember;
+import com.kb.wms.warehouse.domain.entity.WarehouseSection;
 import com.kb.wms.warehouse.exception.WarehouseErrorCode;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,6 +42,12 @@ class WarehouseServiceTest {
     private WarehouseRepository warehouseRepository;
     @Mock
     private WarehouseMemberRepository warehouseMemberRepository;
+    @Mock
+    private WarehouseSectionRepository warehouseSectionRepository;
+    @Mock
+    private WarehouseSectionCapacityUseCase warehouseSectionCapacityUseCase;
+    @Mock
+    private StockPresencePort stockPresencePort;
 
     @InjectMocks
     private WarehouseService warehouseService;
@@ -68,12 +80,13 @@ class WarehouseServiceTest {
     }
 
     @Test
-    @DisplayName("창고 목록을 조회하면 리포지토리 결과를 그대로 반환한다")
+    @DisplayName("창고 목록 조회는 검색 조건을 리포지토리에 전달해 결과를 그대로 반환한다")
     void getWarehouses_returnsAll() {
         Warehouse warehouse = Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.TEN);
-        when(warehouseRepository.findAll()).thenReturn(List.of(warehouse));
+        WarehouseSearchCondition condition = new WarehouseSearchCondition("서울", true);
+        when(warehouseRepository.search(condition)).thenReturn(List.of(warehouse));
 
-        List<Warehouse> result = warehouseService.getWarehouses();
+        List<Warehouse> result = warehouseService.getWarehouses(condition);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getWarehouseCode()).isEqualTo("WH-001");
@@ -164,6 +177,24 @@ class WarehouseServiceTest {
         Warehouse result = warehouseService.deactivateWarehouse(1L);
 
         assertThat(result.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("창고를 비활성화할 때 창고의 구역 행을 잠근 뒤 재고가 남아 있으면 WAREHOUSE_IN_USE 예외를 던진다")
+    void deactivateWarehouse_hasInventory() {
+        Warehouse active = Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.TEN);
+        WarehouseSection section = WarehouseSection.register(1L, null, "A", "A구역", "ZONE", BigDecimal.TEN);
+        ReflectionTestUtils.setField(section, "sectionId", 7L);
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(active));
+        when(warehouseSectionRepository.findAllByWarehouseId(1L)).thenReturn(List.of(section));
+        when(stockPresencePort.hasStockInWarehouse(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> warehouseService.deactivateWarehouse(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.WAREHOUSE_IN_USE.name());
+        verify(warehouseSectionCapacityUseCase).lock(List.of(7L));
+        verify(warehouseRepository, never()).save(any());
     }
 
     @Test

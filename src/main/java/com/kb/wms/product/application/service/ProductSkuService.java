@@ -1,9 +1,14 @@
 package com.kb.wms.product.application.service;
 
-import java.util.List;
-import java.util.HashSet;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +18,9 @@ import com.kb.wms.product.application.port.in.ProductSkuUseCase;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
 import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
+import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
+import com.kb.wms.product.application.port.out.BrandRepository;
+import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.application.port.out.OptionGroupRepository;
 import com.kb.wms.product.application.port.out.OptionValueRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
@@ -44,6 +52,8 @@ public class ProductSkuService implements ProductSkuUseCase {
     private final OptionValueRepository optionValueRepository;
     private final SkuOptionValueRepository skuOptionValueRepository;
     private final OptionGroupRepository optionGroupRepository;
+    private final BrandRepository brandRepository;
+    private final CategoryRepository categoryRepository;
 
     @Override
     @Transactional
@@ -68,14 +78,41 @@ public class ProductSkuService implements ProductSkuUseCase {
     }
 
     @Override
-    public List<ProductSku> getSkus(Long productId) {
-        return productSkuRepository.findAll(productId);
+    public List<ProductSku> getSkus(ProductSkuSearchCondition condition) {
+        if (condition.productId() != null && productRepository.findById(condition.productId()).isEmpty()) {
+            throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);
+        }
+        if (condition.brandId() != null && brandRepository.findById(condition.brandId()).isEmpty()) {
+            throw new BusinessException(ProductErrorCode.BRAND_NOT_FOUND);
+        }
+        if (condition.categoryId() != null && categoryRepository.findById(condition.categoryId()).isEmpty()) {
+            throw new BusinessException(ProductErrorCode.CATEGORY_NOT_FOUND);
+        }
+        return productSkuRepository.search(condition);
     }
 
     @Override
     public ProductSku getSku(Long skuId) {
         return productSkuRepository.findById(skuId)
                 .orElseThrow(() -> new BusinessException(ProductErrorCode.SKU_NOT_FOUND));
+    }
+
+    @Override
+    @Transactional
+    public ProductSku changeSkuStatus(Long skuId, boolean active) {
+        ProductSku sku = productSkuRepository.findById(skuId)
+                .orElseThrow(() -> new BusinessException(ProductErrorCode.SKU_NOT_FOUND));
+        if (active) {
+            Product product = productRepository.findById(sku.getProductId())
+                    .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+            if (!product.isActive()) {
+                throw new BusinessException(ProductErrorCode.PRODUCT_INACTIVE);
+            }
+            sku.activate();
+        } else {
+            sku.deactivate();
+        }
+        return productSkuRepository.save(sku);
     }
 
     @Override
@@ -109,19 +146,33 @@ public class ProductSkuService implements ProductSkuUseCase {
 
     @Override
     public List<SkuOptionSummary> getSkuOptions(Long skuId) {
-        List<SkuOptionSummary> summaries = new ArrayList<>();
-        for (SkuOptionValue link : skuOptionValueRepository.findBySkuId(skuId)) {
-            OptionValue optionValue = optionValueRepository.findById(link.getOptionValueId()).orElse(null);
+        return getSkuOptionsBySkuIds(List.of(skuId)).getOrDefault(skuId, List.of());
+    }
+
+    @Override
+    public Map<Long, List<SkuOptionSummary>> getSkuOptionsBySkuIds(Collection<Long> skuIds) {
+        List<SkuOptionValue> links = skuOptionValueRepository.findBySkuIdIn(skuIds);
+
+        Map<Long, OptionValue> optionValues = optionValueRepository.findAllByIds(
+                        links.stream().map(SkuOptionValue::getOptionValueId).distinct().toList()).stream()
+                .collect(Collectors.toMap(OptionValue::getOptionValueId, Function.identity()));
+        Map<Long, OptionGroup> optionGroups = optionGroupRepository.findAllByIds(
+                        optionValues.values().stream().map(OptionValue::getOptionGroupId).distinct().toList()).stream()
+                .collect(Collectors.toMap(OptionGroup::getOptionGroupId, Function.identity()));
+
+        Map<Long, List<SkuOptionSummary>> result = new HashMap<>();
+        for (SkuOptionValue link : links) {
+            OptionValue optionValue = optionValues.get(link.getOptionValueId());
             if (optionValue == null) {
                 continue;
             }
-            OptionGroup optionGroup = optionGroupRepository.findById(optionValue.getOptionGroupId()).orElse(null);
-            summaries.add(new SkuOptionSummary(
+            OptionGroup optionGroup = optionGroups.get(optionValue.getOptionGroupId());
+            result.computeIfAbsent(link.getSkuId(), id -> new ArrayList<>()).add(new SkuOptionSummary(
                     optionValue.getOptionGroupId(),
                     optionGroup != null ? optionGroup.getName() : null,
                     optionValue.getOptionValueId(),
                     optionValue.getValue()));
         }
-        return summaries;
+        return result;
     }
 }

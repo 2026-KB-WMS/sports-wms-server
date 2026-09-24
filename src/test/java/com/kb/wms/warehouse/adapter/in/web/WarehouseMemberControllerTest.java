@@ -75,7 +75,7 @@ class WarehouseMemberControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TestAssignRequest(1L, 10L, "MANAGER"))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error_code").value("ALREADY_ASSIGNED"));
+                .andExpect(jsonPath("$.errorCode").value("ALREADY_ASSIGNED"));
     }
 
     @Test
@@ -87,7 +87,7 @@ class WarehouseMemberControllerTest {
 
         mockMvc.perform(get("/api/v1/warehouses/managers").param("warehouseId", "1").param("userId", "10"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].userId").value(10L));
+                .andExpect(jsonPath("$.data.items[0].userId").value(10L));
 
         verify(warehouseMemberUseCase).getManagers(eq(1L), eq(10L));
     }
@@ -101,7 +101,7 @@ class WarehouseMemberControllerTest {
 
         mockMvc.perform(get("/api/v1/warehouses/managers"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].userId").value(10L));
+                .andExpect(jsonPath("$.data.items[0].userId").value(10L));
     }
 
     @Test
@@ -122,6 +122,6 @@ class WarehouseMemberControllerTest {
 
         mockMvc.perform(delete("/api/v1/warehouses/managers/{warehouseMemberId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("MEMBER_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("MEMBER_NOT_FOUND"));
     }
 }

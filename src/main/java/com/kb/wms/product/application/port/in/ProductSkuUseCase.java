@@ -1,5 +1,6 @@
 package com.kb.wms.product.application.port.in;
 
+import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
 import java.util.List;
 
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
@@ -16,11 +17,18 @@ public interface ProductSkuUseCase {
 
     ProductSku registerSku(ProductSkuRegisterCommand command);
 
-    List<ProductSku> getSkus(Long productId);
+    /** 필터의 상품·브랜드·카테고리가 없으면 PRODUCT_NOT_FOUND·BRAND_NOT_FOUND·CATEGORY_NOT_FOUND */
+    List<ProductSku> getSkus(ProductSkuSearchCondition condition);
 
     ProductSku getSku(Long skuId);
+
+    /** 활성화는 상품이 비활성이면 PRODUCT_INACTIVE로 거절한다. 이미 같은 상태면 그대로 반환한다. */
+    ProductSku changeSkuStatus(Long skuId, boolean active);
 
     void connectOptions(SkuOptionConnectCommand command);
 
     List<SkuOptionSummary> getSkuOptions(Long skuId);
+
+    /** 여러 SKU의 옵션을 쿼리 3번(연결·옵션 값·옵션 그룹)으로 조회한다. 옵션이 없는 SKU는 빈 목록이다. */
+    java.util.Map<Long, List<SkuOptionSummary>> getSkuOptionsBySkuIds(java.util.Collection<Long> skuIds);
 }

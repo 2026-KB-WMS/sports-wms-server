@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.CategoryUseCase;
+import com.kb.wms.product.application.port.in.query.CategorySearchCondition;
 import com.kb.wms.product.application.port.in.command.CategoryRegisterCommand;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.domain.entity.Category;
@@ -44,8 +45,12 @@ public class CategoryService implements CategoryUseCase {
     }
 
     @Override
-    public List<Category> getCategories() {
-        return categoryRepository.findAll();
+    public List<Category> getCategories(CategorySearchCondition condition) {
+        if (condition.parentCategoryId() != null
+                && categoryRepository.findById(condition.parentCategoryId()).isEmpty()) {
+            throw new BusinessException(ProductErrorCode.CATEGORY_NOT_FOUND);
+        }
+        return categoryRepository.search(condition);
     }
 
     @Override

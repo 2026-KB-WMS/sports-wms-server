@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionUpdateCommand;
+import com.kb.wms.warehouse.application.port.in.query.WarehouseSectionSearchCondition;
 import com.kb.wms.warehouse.domain.entity.WarehouseSection;
 
 /**
@@ -15,9 +16,10 @@ public interface WarehouseSectionUseCase {
     WarehouseSection registerSection(WarehouseSectionRegisterCommand command);
 
     /**
-     * warehouseId가 null이면 조건을 무시하고 전체 구역을 조회한다.
+     * 구역 목록 조회. 조건이 null이면 무시한다.
+     * 필터의 창고·상위 구역이 없으면 WAREHOUSE_NOT_FOUND·PARENT_SECTION_NOT_FOUND, 허용되지 않은 구역 유형은 VALIDATION_ERROR.
      */
-    List<WarehouseSection> getSections(Long warehouseId);
+    List<WarehouseSection> getSections(WarehouseSectionSearchCondition condition);
 
     WarehouseSection getSection(Long sectionId);
 

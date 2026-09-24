@@ -14,13 +14,16 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "warehouse_section")
+@Table(name = "warehouse_section",
+        uniqueConstraints = @UniqueConstraint(name = "uk_warehouse_section_code",
+                columnNames = {"warehouse_id", "section_code"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class WarehouseSectionJpaEntity extends BaseTimeEntity {

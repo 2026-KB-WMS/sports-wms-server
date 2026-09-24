@@ -164,9 +164,9 @@ class InventoryPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("안전 재고 이하: 창고 범위 가용 재고로 비교하고, 재고 없는 SKU는 가용 0으로 포함, 안전재고 0은 제외")
+    @DisplayName("안전 재고 미만: 창고 범위 가용 재고로 비교하고, 재고 없는 SKU는 가용 0으로 포함, 안전재고 0은 제외")
     void lowStock() {
-        // 창고1: SKU-A 가용 80 > 50 이라 제외, SKU-B 가용 0 <= 10
+        // 창고1: SKU-A 가용 80 > 50 이라 제외, SKU-B 가용 0 < 10
         assertThat(inventoryQueryRepository.findLowStock(new LowStockSearchCondition(warehouse1, null)))
                 .extracting(LowStockItem::skuCode, LowStockItem::availableQuantity, LowStockItem::shortageQuantity)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("SKU-B", 0L, 10L));
@@ -272,6 +272,22 @@ class InventoryPersistenceAdapterTest {
         assertThatThrownBy(() -> lotRepository.save(
                 Lot.register(skuA, 3L, "LOT-A", null, LocalDate.of(2028, 1, 1), BigDecimal.valueOf(70000))))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    // ---------- fixtures ----------
+
+    @Test
+    @DisplayName("재고 존재 확인: 보유·할당 수량이 있는 구역·창고만 true, 재고 행이 없거나 0뿐이면 false")
+    void existsStock() {
+        Long emptySection = section(warehouse1, "E1", "RACK");
+        Long emptyWarehouse = warehouse("WH-3", "대구 물류센터");
+        inventoryLotRepository.save(InventoryLot.open(emptySection, lotA, QualityStatus.AVAILABLE));
+        entityManager.flush();
+
+        assertThat(inventoryQueryRepository.existsStockInSection(sectionR1)).isTrue();
+        assertThat(inventoryQueryRepository.existsStockInSection(emptySection)).isFalse();
+        assertThat(inventoryQueryRepository.existsStockInWarehouse(warehouse2)).isTrue();
+        assertThat(inventoryQueryRepository.existsStockInWarehouse(emptyWarehouse)).isFalse();
     }
 
     // ---------- fixtures ----------

@@ -58,6 +58,21 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
     boolean existsSectionId(@Param("sectionId") Long sectionId);
 
     @Query("""
+            select count(il) > 0 from InventoryLotJpaEntity il
+            where il.sectionId = :sectionId
+              and (il.onHandQuantity > 0 or il.allocatedQuantity > 0)
+            """)
+    boolean existsStockInSection(@Param("sectionId") Long sectionId);
+
+    @Query("""
+            select count(il) > 0 from InventoryLotJpaEntity il
+            join WarehouseSectionJpaEntity ws on ws.sectionId = il.sectionId
+            where ws.warehouseId = :warehouseId
+              and (il.onHandQuantity > 0 or il.allocatedQuantity > 0)
+            """)
+    boolean existsStockInWarehouse(@Param("warehouseId") Long warehouseId);
+
+    @Query("""
             select new com.kb.wms.inventory.application.port.in.result.InventorySkuSummary(
                 s.skuId, s.skuCode, s.name, s.unit,
                 sum(il.onHandQuantity),
@@ -157,7 +172,7 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
                                       and l.status = com.kb.wms.inventory.domain.enums.LotStatus.AVAILABLE
                                       and (:warehouseId is null or ws.warehouseId = :warehouseId)
                                      then il.onHandQuantity - il.allocatedQuantity else 0L end), 0L)
-                   <= s.safetyStockQuantity
+                   < s.safetyStockQuantity
             order by s.safetyStockQuantity
                      - coalesce(sum(case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.AVAILABLE
                                           and l.status = com.kb.wms.inventory.domain.enums.LotStatus.AVAILABLE

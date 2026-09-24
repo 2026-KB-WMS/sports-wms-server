@@ -13,5 +13,8 @@ public interface SkuOptionValueRepository {
 
     List<SkuOptionValue> findBySkuId(Long skuId);
 
+    /** 여러 SKU의 옵션 연결을 쿼리 한 번으로 조회한다(목록 응답 N+1 방지). */
+    List<SkuOptionValue> findBySkuIdIn(java.util.Collection<Long> skuIds);
+
     boolean existsBySkuIdAndOptionValueId(Long skuId, Long optionValueId);
 }

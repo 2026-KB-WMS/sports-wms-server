@@ -1,7 +1,9 @@
 package com.kb.wms.inventory.adapter.in.web;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -51,15 +53,18 @@ public class LotController {
     @GetMapping("/api/v1/lots/{lotId}")
     public ApiResponse<LotDetailResponse> getLot(@PathVariable Long lotId) {
         LotSummary summary = lotUseCase.getLot(lotId);
+        // 같은 창고를 여러 행이 공유하므로 창고명은 창고당 한 번만 조회한다.
+        Map<Long, String> warehouseNames = new HashMap<>();
         List<LotDetailResponse.InventoryItem> inventory = inventoryQueryUseCase
                 .getInventoriesByLot(InventoryLotSearchCondition.ofLot(lotId)).stream()
-                .map(this::toInventoryItem)
+                .map(view -> toInventoryItem(view, warehouseNames))
                 .toList();
         return ApiResponse.ok(LotDetailResponse.of(summary, inventory));
     }
 
-    private LotDetailResponse.InventoryItem toInventoryItem(InventoryLotView view) {
-        String warehouseName = warehouseUseCase.getWarehouse(view.warehouseId()).getName();
+    private LotDetailResponse.InventoryItem toInventoryItem(InventoryLotView view, Map<Long, String> warehouseNames) {
+        String warehouseName = warehouseNames.computeIfAbsent(view.warehouseId(),
+                id -> warehouseUseCase.getWarehouse(id).getName());
         return new LotDetailResponse.InventoryItem(
                 view.inventoryLotId(),
                 view.warehouseId(),

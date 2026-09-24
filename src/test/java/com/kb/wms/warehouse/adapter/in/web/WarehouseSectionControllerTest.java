@@ -27,6 +27,7 @@ import com.kb.wms.warehouse.application.port.in.WarehouseSectionUseCase;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionUpdateCommand;
+import com.kb.wms.warehouse.application.port.in.query.WarehouseSectionSearchCondition;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
 import com.kb.wms.warehouse.domain.entity.WarehouseSection;
 import com.kb.wms.warehouse.exception.WarehouseErrorCode;
@@ -84,32 +85,37 @@ class WarehouseSectionControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new TestRegisterRequest(1L, null, "A-01", "1구역", "INVALID", BigDecimal.valueOf(100)))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 
     @Test
     @DisplayName("전체 구역 목록을 조회하면 200과 목록을 반환한다")
     void getAllSections_success() throws Exception {
         WarehouseSection section = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
-        when(warehouseSectionUseCase.getSections(null)).thenReturn(List.of(section));
+        when(warehouseSectionUseCase.getSections(new WarehouseSectionSearchCondition(null, null, null, null, null)))
+                .thenReturn(List.of(section));
         when(warehouseUseCase.getWarehouse(1L)).thenReturn(warehouse);
 
         mockMvc.perform(get("/api/v1/warehouses/sections"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].sectionCode").value("A-01"));
+                .andExpect(jsonPath("$.data.items[0].sectionCode").value("A-01"));
     }
 
     @Test
     @DisplayName("창고별 구역 목록을 조회하면 200과 해당 창고의 구역만 반환한다")
     void getSectionsByWarehouse_success() throws Exception {
         WarehouseSection section = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
-        when(warehouseSectionUseCase.getSections(1L)).thenReturn(List.of(section));
+        when(warehouseSectionUseCase.getSections(
+                new WarehouseSectionSearchCondition(1L, 10L, "RACK", "A-", true)))
+                .thenReturn(List.of(section));
         when(warehouseUseCase.getWarehouse(1L)).thenReturn(warehouse);
 
-        mockMvc.perform(get("/api/v1/warehouses/{warehouseId}/sections", 1L))
+        mockMvc.perform(get("/api/v1/warehouses/{warehouseId}/sections", 1L)
+                        .param("parentSectionId", "10").param("sectionType", "RACK")
+                        .param("keyword", "A-").param("isActive", "true"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].sectionCode").value("A-01"))
-                .andExpect(jsonPath("$.data[0].warehouseId").value(1L));
+                .andExpect(jsonPath("$.data.items[0].sectionCode").value("A-01"))
+                .andExpect(jsonPath("$.data.items[0].warehouseId").value(1L));
     }
 
     @Test
@@ -134,7 +140,7 @@ class WarehouseSectionControllerTest {
 
         mockMvc.perform(get("/api/v1/warehouses/sections/{sectionId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("SECTION_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("SECTION_NOT_FOUND"));
     }
 
     @Test
@@ -160,7 +166,7 @@ class WarehouseSectionControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new TestUpdateRequest(null, null, null, null, 2L, null, null))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 
     @Test

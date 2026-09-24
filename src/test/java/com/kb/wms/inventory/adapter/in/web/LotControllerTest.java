@@ -67,7 +67,7 @@ class LotControllerTest {
 
         mockMvc.perform(get("/api/v1/lots").param("skuId", "999"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
     }
 
     @Test
@@ -102,6 +102,6 @@ class LotControllerTest {
 
         mockMvc.perform(get("/api/v1/lots/{lotId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
     }
 }

@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.CategoryUseCase;
+import com.kb.wms.product.application.port.in.query.CategorySearchCondition;
 import com.kb.wms.product.application.port.in.command.CategoryRegisterCommand;
 import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.exception.ProductErrorCode;
@@ -46,7 +47,7 @@ class CategoryControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new TestRequest(null, "CAT-001", "라켓", 0))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status_code").value(201))
+                .andExpect(jsonPath("$.statusCode").value(201))
                 .andExpect(jsonPath("$.data.categoryCode").value("CAT-001"))
                 .andExpect(jsonPath("$.data.categoryName").value("라켓"));
     }
@@ -58,7 +59,7 @@ class CategoryControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TestRequest(null, "", "라켓", 0))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 
     @Test
@@ -71,17 +72,18 @@ class CategoryControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TestRequest(999L, "CAT-001", "라켓", 0))))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("PARENT_CATEGORY_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("PARENT_CATEGORY_NOT_FOUND"));
     }
 
     @Test
     @DisplayName("카테고리 목록을 조회하면 200과 목록을 반환한다")
     void getCategories_success() throws Exception {
-        when(categoryUseCase.getCategories()).thenReturn(List.of(Category.register(null, "CAT-001", "라켓", 1, 0)));
+        when(categoryUseCase.getCategories(new CategorySearchCondition(null, null, null, null)))
+                .thenReturn(List.of(Category.register(null, "CAT-001", "라켓", 1, 0)));
 
         mockMvc.perform(get("/api/v1/products/categories"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].categoryCode").value("CAT-001"));
+                .andExpect(jsonPath("$.data.items[0].categoryCode").value("CAT-001"));
     }
 
     private record TestRequest(Long parentCategoryId, String categoryCode, String categoryName, Integer sortOrder) {

@@ -1,5 +1,7 @@
 package com.kb.wms.inventory.application.service;
 
+import java.time.LocalDateTime;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -60,6 +62,8 @@ public class InventoryAdjustmentService implements InventoryAdjustmentUseCase {
             sectionCapacityPort.vacate(inventoryLot.getSectionId(), -delta);
             inventoryLot.decrease(-delta);
         }
+        // 실사 조정 = 재고 조정이므로 마지막 실사 시각을 갱신한다.
+        inventoryLot.markCounted(LocalDateTime.now());
         InventoryLot saved = inventoryLotRepository.save(inventoryLot);
 
         InventoryTransaction transaction = inventoryTransactionRepository.save(InventoryTransaction.record(

@@ -5,10 +5,13 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.kb.wms.common.persistence.SearchKeyword;
 import com.kb.wms.warehouse.adapter.out.persistence.entity.WarehouseJpaEntity;
 import com.kb.wms.warehouse.adapter.out.persistence.repository.WarehouseJpaRepository;
+import com.kb.wms.warehouse.application.port.in.query.WarehouseSearchCondition;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
+import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,10 +33,18 @@ public class WarehousePersistenceAdapter implements WarehouseRepository {
     }
 
     @Override
-    public List<Warehouse> findAll() {
-        return warehouseJpaRepository.findAll().stream()
+    public List<Warehouse> search(WarehouseSearchCondition condition) {
+        return warehouseJpaRepository.search(
+                        SearchKeyword.normalize(condition.keyword()),
+                        WarehouseStatus.fromActiveFlag(condition.isActive()))
+                .stream()
                 .map(WarehouseJpaEntity::toDomain)
                 .toList();
+    }
+
+    @Override
+    public boolean existsById(Long warehouseId) {
+        return warehouseJpaRepository.existsById(warehouseId);
     }
 
     @Override

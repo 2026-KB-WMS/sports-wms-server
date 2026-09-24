@@ -1,7 +1,7 @@
 package com.kb.wms.inventory.application.port.in.result;
 
 /**
- * 안전 재고 이하 SKU (GET /api/v1/inventory/low-stock).
+ * 안전 재고 미만 SKU (GET /api/v1/inventory/low-stock).
  *
  * @param shortageQuantity safetyStockQuantity - availableQuantity
  */
