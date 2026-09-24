@@ -1,6 +1,7 @@
 package com.kb.wms.inventory.adapter.out.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -251,6 +253,25 @@ class InventoryPersistenceAdapterTest {
                 .satisfies(l -> assertThat(l.skuCode()).isEqualTo("SKU-A"));
         assertThat(inventoryQueryRepository.findLot(lotQ)).isPresent();
         assertThat(lotRepository.findBySkuIdAndSupplierIdAndLotNumber(skuA, 3L, "LOT-A")).isPresent();
+    }
+
+    @Test
+    @DisplayName("같은 구역·로트로 재고 행을 두 번 저장하면 UNIQUE(section_id, lot_id) 제약을 위반한다")
+    void inventoryLot_duplicateSectionAndLot_violatesUniqueConstraint() {
+        // IDENTITY 채번 전략이라 save() 시점에 즉시 INSERT가 나가 제약 위반도 그때 발생한다(flush 대기 없음).
+        assertThatThrownBy(() -> {
+            InventoryLot duplicate = InventoryLot.open(sectionR1, lotA, QualityStatus.AVAILABLE);
+            duplicate.increase(1);
+            inventoryLotRepository.save(duplicate);
+        }).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("같은 SKU·공급처·로트 번호로 로트를 두 번 저장하면 UNIQUE(sku_id, supplier_id, lot_number) 제약을 위반한다")
+    void lot_duplicateSkuSupplierLotNumber_violatesUniqueConstraint() {
+        assertThatThrownBy(() -> lotRepository.save(
+                Lot.register(skuA, 3L, "LOT-A", null, LocalDate.of(2028, 1, 1), BigDecimal.valueOf(70000))))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     // ---------- fixtures ----------
