@@ -22,6 +22,9 @@ public interface ProductSkuUseCase {
 
     ProductSku getSku(Long skuId);
 
+    /** 활성화는 상품이 비활성이면 PRODUCT_INACTIVE로 거절한다. 이미 같은 상태면 그대로 반환한다. */
+    ProductSku changeSkuStatus(Long skuId, boolean active);
+
     void connectOptions(SkuOptionConnectCommand command);
 
     List<SkuOptionSummary> getSkuOptions(Long skuId);

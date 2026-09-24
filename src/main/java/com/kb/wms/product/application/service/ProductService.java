@@ -14,9 +14,11 @@ import com.kb.wms.product.application.port.in.command.ProductUpdateCommand;
 import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
+import com.kb.wms.product.application.port.out.ProductSkuRepository;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.domain.entity.Product;
+import com.kb.wms.product.domain.entity.ProductSku;
 import com.kb.wms.product.exception.ProductErrorCode;
 
 import lombok.RequiredArgsConstructor;
@@ -29,6 +31,7 @@ public class ProductService implements ProductUseCase {
     private final ProductRepository productRepository;
     private final BrandRepository brandRepository;
     private final CategoryRepository categoryRepository;
+    private final ProductSkuRepository productSkuRepository;
 
     @Override
     @Transactional
@@ -101,6 +104,13 @@ public class ProductService implements ProductUseCase {
                 product.activate();
             } else {
                 product.deactivate();
+                // 재고 도메인은 sku.status만 신뢰하므로 하위 SKU도 같은 트랜잭션에서 비활성화한다.
+                productSkuRepository.findAll(command.productId()).stream()
+                        .filter(ProductSku::isActive)
+                        .forEach(sku -> {
+                            sku.deactivate();
+                            productSkuRepository.save(sku);
+                        });
             }
         }
 

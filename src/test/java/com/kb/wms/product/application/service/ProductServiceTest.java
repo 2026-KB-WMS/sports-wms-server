@@ -26,9 +26,11 @@ import com.kb.wms.product.application.port.in.query.ProductSearchCondition;
 import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
+import com.kb.wms.product.application.port.out.ProductSkuRepository;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.domain.entity.Product;
+import com.kb.wms.product.domain.entity.ProductSku;
 import com.kb.wms.product.exception.ProductErrorCode;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,6 +42,8 @@ class ProductServiceTest {
     private BrandRepository brandRepository;
     @Mock
     private CategoryRepository categoryRepository;
+    @Mock
+    private ProductSkuRepository productSkuRepository;
 
     @InjectMocks
     private ProductService productService;
@@ -292,5 +296,24 @@ class ProductServiceTest {
         Product result = productService.updateProduct(command);
 
         assertThat(result.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("상품을 비활성화하면 활성 상태인 하위 SKU도 함께 비활성화되어 저장된다")
+    void updateProduct_deactivate_cascadesToSkus() {
+        Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
+        ProductSku activeSku = ProductSku.register(1L, "SKU-1", null, "SKU 1", null, null, null, null, 0L);
+        ProductSku inactiveSku = ProductSku.register(1L, "SKU-2", null, "SKU 2", null, null, null, null, 0L);
+        inactiveSku.deactivate();
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(productSkuRepository.findAll(1L)).thenReturn(List.of(activeSku, inactiveSku));
+
+        productService.updateProduct(command);
+
+        assertThat(activeSku.isActive()).isFalse();
+        verify(productSkuRepository).save(activeSku);
+        verify(productSkuRepository, never()).save(inactiveSku);
     }
 }

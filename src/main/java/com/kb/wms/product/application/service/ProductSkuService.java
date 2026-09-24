@@ -94,6 +94,24 @@ public class ProductSkuService implements ProductSkuUseCase {
 
     @Override
     @Transactional
+    public ProductSku changeSkuStatus(Long skuId, boolean active) {
+        ProductSku sku = productSkuRepository.findById(skuId)
+                .orElseThrow(() -> new BusinessException(ProductErrorCode.SKU_NOT_FOUND));
+        if (active) {
+            Product product = productRepository.findById(sku.getProductId())
+                    .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+            if (!product.isActive()) {
+                throw new BusinessException(ProductErrorCode.PRODUCT_INACTIVE);
+            }
+            sku.activate();
+        } else {
+            sku.deactivate();
+        }
+        return productSkuRepository.save(sku);
+    }
+
+    @Override
+    @Transactional
     public void connectOptions(SkuOptionConnectCommand command) {
         ProductSku sku = productSkuRepository.findById(command.skuId())
                 .orElseThrow(() -> new BusinessException(ProductErrorCode.SKU_NOT_FOUND));

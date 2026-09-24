@@ -20,6 +20,7 @@ import com.kb.wms.inventory.application.port.out.InventoryLotRepository;
 import com.kb.wms.inventory.application.port.out.InventoryTransactionRepository;
 import com.kb.wms.inventory.application.port.out.LotRepository;
 import com.kb.wms.inventory.application.port.out.SectionCapacityPort;
+import com.kb.wms.inventory.application.port.out.SkuStatusPort;
 import com.kb.wms.inventory.domain.entity.InventoryLot;
 import com.kb.wms.inventory.domain.entity.InventoryTransaction;
 import com.kb.wms.inventory.domain.entity.Lot;
@@ -45,6 +46,7 @@ public class InventoryStockService implements InventoryStockUseCase {
     private final InventoryTransactionRepository inventoryTransactionRepository;
     private final LotRepository lotRepository;
     private final SectionCapacityPort sectionCapacityPort;
+    private final SkuStatusPort skuStatusPort;
 
     /**
      * 구역 + 로트 재고 행에 보유 수량을 더한다(없으면 생성). 행마다 INBOUND 이력을 남긴다.
@@ -67,6 +69,7 @@ public class InventoryStockService implements InventoryStockUseCase {
             if (!lot.isAvailable()) {
                 throw new BusinessException(InventoryErrorCode.LOT_NOT_AVAILABLE);
             }
+            skuStatusPort.requireActive(lot.getSkuId());
 
             InventoryLot inventoryLot = inventoryLotRepository
                     .findBySectionIdAndLotIdForUpdate(command.sectionId(), command.lotId())
@@ -104,6 +107,7 @@ public class InventoryStockService implements InventoryStockUseCase {
             if (!lot.isAvailable()) {
                 throw new BusinessException(InventoryErrorCode.LOT_NOT_AVAILABLE);
             }
+            skuStatusPort.requireActive(lot.getSkuId());
             if (!inventoryLot.canAllocate(command.quantity())) {
                 throw new BusinessException(InventoryErrorCode.INSUFFICIENT_STOCK,
                         "가용 재고가 부족합니다. (재고 " + inventoryLot.getInventoryLotId()

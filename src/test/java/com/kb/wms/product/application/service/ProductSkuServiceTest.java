@@ -302,4 +302,60 @@ class ProductSkuServiceTest {
         assertThat(result.get(0).optionValueId()).isEqualTo(10L);
         assertThat(result.get(0).value()).isEqualTo("빨강");
     }
+
+    private ProductSku sku() {
+        return ProductSku.register(1L, "SKU-0001", null, "라켓", null, null, null, null, 0L);
+    }
+
+    @Test
+    @DisplayName("SKU를 비활성화하면 상태가 바뀌어 저장된다")
+    void changeSkuStatus_deactivate() {
+        ProductSku sku = sku();
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(sku));
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductSku result = productSkuService.changeSkuStatus(1L, false);
+
+        assertThat(result.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("상품이 활성이면 비활성 SKU를 다시 활성화할 수 있다")
+    void changeSkuStatus_activate() {
+        ProductSku sku = sku();
+        sku.deactivate();
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(sku));
+        when(productRepository.findById(1L)).thenReturn(Optional.of(mockActiveProduct()));
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(productSkuService.changeSkuStatus(1L, true).isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("상품이 비활성이면 SKU 활성화는 PRODUCT_INACTIVE 예외를 던진다")
+    void changeSkuStatus_activate_productInactive() {
+        ProductSku sku = sku();
+        sku.deactivate();
+        Product inactiveProduct = mockActiveProduct();
+        inactiveProduct.deactivate();
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(sku));
+        when(productRepository.findById(1L)).thenReturn(Optional.of(inactiveProduct));
+
+        assertThatThrownBy(() -> productSkuService.changeSkuStatus(1L, true))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.PRODUCT_INACTIVE.name());
+        verify(productSkuRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("없는 SKU의 상태를 바꾸면 SKU_NOT_FOUND 예외를 던진다")
+    void changeSkuStatus_notFound() {
+        when(productSkuRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productSkuService.changeSkuStatus(999L, false))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.SKU_NOT_FOUND.name());
+    }
 }

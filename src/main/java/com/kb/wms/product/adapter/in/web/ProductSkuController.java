@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,7 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductSkuRegisterRequest;
+import com.kb.wms.product.adapter.in.web.dto.request.ProductSkuStatusRequest;
 import com.kb.wms.product.adapter.in.web.dto.request.SkuOptionConnectRequest;
+import com.kb.wms.product.adapter.in.web.dto.response.ProductSkuStatusResponse;
 import com.kb.wms.product.adapter.in.web.dto.response.ProductSkuCreateResponse;
 import com.kb.wms.product.adapter.in.web.dto.response.ProductSkuDetailResponse;
 import com.kb.wms.product.adapter.in.web.dto.response.ProductSkuListItemResponse;
@@ -84,6 +87,14 @@ public class ProductSkuController {
                 categoryUseCase.getCategory(product.getCategoryId()).getName(),
                 productSkuUseCase.getSkuOptions(sku.getSkuId()));
         return ApiResponse.ok(response);
+    }
+
+    @PatchMapping("/{skuId}/status")
+    public ApiResponse<ProductSkuStatusResponse> changeSkuStatus(
+            @PathVariable Long skuId,
+            @Valid @RequestBody ProductSkuStatusRequest request) {
+        return ApiResponse.ok(ProductSkuStatusResponse.from(
+                productSkuUseCase.changeSkuStatus(skuId, request.isActive())));
     }
 
     @PostMapping("/{skuId}/options")

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -31,6 +32,7 @@ import com.kb.wms.inventory.application.port.out.InventoryLotRepository;
 import com.kb.wms.inventory.application.port.out.InventoryTransactionRepository;
 import com.kb.wms.inventory.application.port.out.LotRepository;
 import com.kb.wms.inventory.application.port.out.SectionCapacityPort;
+import com.kb.wms.inventory.application.port.out.SkuStatusPort;
 import com.kb.wms.inventory.domain.entity.InventoryLot;
 import com.kb.wms.inventory.domain.entity.Lot;
 import com.kb.wms.inventory.domain.enums.QualityStatus;
@@ -47,6 +49,8 @@ class InventoryStockServiceTest {
     private LotRepository lotRepository;
     @Mock
     private SectionCapacityPort sectionCapacityPort;
+    @Mock
+    private SkuStatusPort skuStatusPort;
 
     @InjectMocks
     private InventoryStockService inventoryStockService;
@@ -212,6 +216,36 @@ class InventoryStockServiceTest {
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(InventoryErrorCode.LOT_NOT_AVAILABLE.name());
         verify(inventoryLotRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("SKU가 비활성이면 할당 시 SKU_NOT_ACTIVE 예외를 던진다")
+    void allocate_skuNotActive() {
+        InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 0L);
+        StockQuantityCommand command = new StockQuantityCommand(1L, 30L);
+        when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
+        when(lotRepository.findById(5L)).thenReturn(Optional.of(availableLot()));
+        doThrow(new BusinessException(InventoryErrorCode.SKU_NOT_ACTIVE)).when(skuStatusPort).requireActive(1L);
+
+        assertThatThrownBy(() -> inventoryStockService.allocate(List.of(command)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(InventoryErrorCode.SKU_NOT_ACTIVE.name());
+        verify(inventoryLotRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("SKU가 비활성이면 입고 시 SKU_NOT_ACTIVE 예외를 던지고 재고를 만들지 않는다")
+    void receive_skuNotActive() {
+        StockReceiveCommand command = new StockReceiveCommand(10L, 5L, QualityStatus.AVAILABLE, 50L, 1L, 9L);
+        when(lotRepository.findById(5L)).thenReturn(Optional.of(availableLot()));
+        doThrow(new BusinessException(InventoryErrorCode.SKU_NOT_ACTIVE)).when(skuStatusPort).requireActive(1L);
+
+        assertThatThrownBy(() -> inventoryStockService.receive(List.of(command)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(InventoryErrorCode.SKU_NOT_ACTIVE.name());
+        verify(sectionCapacityPort, never()).occupy(any(), anyLong());
     }
 
     private static Lot availableLot() {
