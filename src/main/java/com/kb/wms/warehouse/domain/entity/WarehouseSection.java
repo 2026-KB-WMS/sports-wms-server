@@ -67,6 +67,21 @@ public class WarehouseSection {
         return this.capacity.subtract(this.currentCapacity);
     }
 
+    /** 수량만큼 적치해도 수용량을 넘지 않는지 */
+    public boolean canOccupy(BigDecimal quantity) {
+        return availableCapacity().compareTo(quantity) >= 0;
+    }
+
+    /** 재고 적치로 사용 용량을 늘린다. 수용량 검증은 호출 전에 {@link #canOccupy}로 한다. */
+    public void occupy(BigDecimal quantity) {
+        this.currentCapacity = this.currentCapacity.add(quantity);
+    }
+
+    /** 재고 반출로 사용 용량을 줄인다. 0 아래로는 내려가지 않는다. */
+    public void vacate(BigDecimal quantity) {
+        this.currentCapacity = this.currentCapacity.subtract(quantity).max(BigDecimal.ZERO);
+    }
+
     public void changeSectionCode(String sectionCode) {
         this.sectionCode = sectionCode;
     }
