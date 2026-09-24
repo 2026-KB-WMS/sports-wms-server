@@ -32,4 +32,9 @@ public class LotPersistenceAdapter implements LotRepository {
         return lotJpaRepository.findBySkuIdAndSupplierIdAndLotNumber(skuId, supplierId, lotNumber)
                 .map(LotJpaEntity::toDomain);
     }
+
+    @Override
+    public boolean existsById(Long lotId) {
+        return lotJpaRepository.existsById(lotId);
+    }
 }

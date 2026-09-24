@@ -48,4 +48,12 @@ public interface InventoryQueryRepository {
      * (유통기한 빠른 순 → 로트 생성 순 → inventory_lot_id 순).
      */
     List<InventoryLotView> findAllocatableStocks(Long warehouseId, Long skuId);
+
+    // ---------- 필터 ID 존재 검증 (없는 ID로 필터링하면 404) ----------
+
+    boolean existsSku(Long skuId);
+
+    boolean existsWarehouse(Long warehouseId);
+
+    boolean existsSection(Long sectionId);
 }

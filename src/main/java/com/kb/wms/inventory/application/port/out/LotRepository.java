@@ -17,4 +17,6 @@ public interface LotRepository {
      * UNIQUE(sku_id, supplier_id, lot_number) 기준 조회 (로트 find-or-create).
      */
     Optional<Lot> findBySkuIdAndSupplierIdAndLotNumber(Long skuId, Long supplierId, String lotNumber);
+
+    boolean existsById(Long lotId);
 }

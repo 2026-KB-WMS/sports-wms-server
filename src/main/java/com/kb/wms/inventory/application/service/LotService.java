@@ -29,8 +29,15 @@ public class LotService implements LotUseCase {
     private final LotRepository lotRepository;
     private final InventoryQueryRepository inventoryQueryRepository;
 
+    /**
+     * supplierId는 Supplier(입고 도메인) 테이블이 아직 없어 존재 검증을 하지 않는다.
+     * 테이블이 생기면 skuId와 같은 방식으로 404 검증을 추가한다.
+     */
     @Override
     public List<LotSummary> getLots(LotSearchCondition condition) {
+        if (condition.skuId() != null && !inventoryQueryRepository.existsSku(condition.skuId())) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "SKU를 찾을 수 없습니다.");
+        }
         return inventoryQueryRepository.findLots(condition);
     }
 
