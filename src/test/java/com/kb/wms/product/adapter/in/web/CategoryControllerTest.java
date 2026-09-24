@@ -46,7 +46,7 @@ class CategoryControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new TestRequest(null, "CAT-001", "라켓", 0))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status_code").value(201))
+                .andExpect(jsonPath("$.statusCode").value(201))
                 .andExpect(jsonPath("$.data.categoryCode").value("CAT-001"))
                 .andExpect(jsonPath("$.data.categoryName").value("라켓"));
     }
@@ -58,7 +58,7 @@ class CategoryControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TestRequest(null, "", "라켓", 0))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 
     @Test
@@ -71,7 +71,7 @@ class CategoryControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TestRequest(999L, "CAT-001", "라켓", 0))))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("PARENT_CATEGORY_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("PARENT_CATEGORY_NOT_FOUND"));
     }
 
     @Test

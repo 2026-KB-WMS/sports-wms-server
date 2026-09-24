@@ -92,7 +92,7 @@ class ProductSkuControllerTest {
                         .content(objectMapper.writeValueAsString(new SkuRequest(
                                 1L, "SKU-0001", null, "라켓 A - 빨강", null, null, null, null, null))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error_code").value("PRODUCT_INACTIVE"));
+                .andExpect(jsonPath("$.errorCode").value("PRODUCT_INACTIVE"));
     }
 
     @Test
@@ -136,7 +136,7 @@ class ProductSkuControllerTest {
 
         mockMvc.perform(get("/api/v1/products/skus/{skuId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("SKU_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("SKU_NOT_FOUND"));
     }
 
     @Test
@@ -162,7 +162,7 @@ class ProductSkuControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new ConnectRequest(List.of(10L, 11L)))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error_code").value("OPTION_GROUP_CONFLICT"));
+                .andExpect(jsonPath("$.errorCode").value("OPTION_GROUP_CONFLICT"));
     }
 
     @Test
@@ -172,6 +172,6 @@ class ProductSkuControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new ConnectRequest(List.of()))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 }

@@ -61,7 +61,7 @@ class BrandControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TestRequest("브랜드 A", "설명"))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error_code").value("DUPLICATE_BRAND_NAME"));
+                .andExpect(jsonPath("$.errorCode").value("DUPLICATE_BRAND_NAME"));
     }
 
     @Test
@@ -71,7 +71,7 @@ class BrandControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TestRequest("", "설명"))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 
     @Test
@@ -81,7 +81,7 @@ class BrandControllerTest {
 
         mockMvc.perform(get("/api/v1/products/brands"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status_code").value(200))
+                .andExpect(jsonPath("$.statusCode").value(200))
                 .andExpect(jsonPath("$.data.items[0].brandName").value("브랜드 A"));
     }
 }

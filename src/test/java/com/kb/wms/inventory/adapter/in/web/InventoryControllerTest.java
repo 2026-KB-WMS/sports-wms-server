@@ -69,7 +69,7 @@ class InventoryControllerTest {
         mockMvc.perform(get("/api/v1/inventory/{inventoryId}", "abc"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 
     @Test
@@ -125,7 +125,7 @@ class InventoryControllerTest {
 
         mockMvc.perform(get("/api/v1/inventory/{inventoryId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
     }
 
     @Test
@@ -202,7 +202,7 @@ class InventoryControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new TestAdjustRequest(1L, 100L, 120L, null))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 
     @Test
@@ -217,6 +217,6 @@ class InventoryControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new TestAdjustRequest(1L, 99L, 120L, "실사 반영"))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error_code").value("STALE_QUANTITY"));
+                .andExpect(jsonPath("$.errorCode").value("STALE_QUANTITY"));
     }
 }

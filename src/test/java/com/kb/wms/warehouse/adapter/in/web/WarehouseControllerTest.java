@@ -75,7 +75,7 @@ class WarehouseControllerTest {
                         .content(objectMapper.writeValueAsString(new TestRegisterRequest(
                                 "WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.TEN))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error_code").value("DUPLICATE_WAREHOUSE_CODE"));
+                .andExpect(jsonPath("$.errorCode").value("DUPLICATE_WAREHOUSE_CODE"));
     }
 
     @Test
@@ -110,7 +110,7 @@ class WarehouseControllerTest {
 
         mockMvc.perform(get("/api/v1/warehouses/{warehouseId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("WAREHOUSE_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("WAREHOUSE_NOT_FOUND"));
     }
 
     @Test
@@ -135,7 +135,7 @@ class WarehouseControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new TestUpdateRequest(null, null, null, null, "WH-999", null))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 
     @Test

@@ -61,7 +61,7 @@ class OptionGroupControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TestRequest("색상"))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error_code").value("DUPLICATE_OPTION_GROUP_NAME"));
+                .andExpect(jsonPath("$.errorCode").value("DUPLICATE_OPTION_GROUP_NAME"));
     }
 
     @Test
@@ -86,7 +86,7 @@ class OptionGroupControllerTest {
 
         mockMvc.perform(get("/api/v1/products/{productId}/option-groups", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("PRODUCT_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("PRODUCT_NOT_FOUND"));
     }
 
     private record TestRequest(String name) {

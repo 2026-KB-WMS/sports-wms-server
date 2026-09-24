@@ -84,7 +84,7 @@ class ProductControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new TestRequest(999L, 1L, "P-0001", "라켓 A", "설명"))))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("BRAND_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("BRAND_NOT_FOUND"));
     }
 
     @Test
@@ -107,7 +107,7 @@ class ProductControllerTest {
 
         mockMvc.perform(get("/api/v1/products/{productId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("PRODUCT_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("PRODUCT_NOT_FOUND"));
     }
 
     @Test
@@ -138,7 +138,7 @@ class ProductControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new TestUpdateRequest("새 이름", null, null, null, null))))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("PRODUCT_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("PRODUCT_NOT_FOUND"));
     }
 
     @Test
@@ -153,6 +153,6 @@ class ProductControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new TestUpdateRequest(null, null, null, null, null))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 }

@@ -75,7 +75,7 @@ class WarehouseMemberControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TestAssignRequest(1L, 10L, "MANAGER"))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error_code").value("ALREADY_ASSIGNED"));
+                .andExpect(jsonPath("$.errorCode").value("ALREADY_ASSIGNED"));
     }
 
     @Test
@@ -122,6 +122,6 @@ class WarehouseMemberControllerTest {
 
         mockMvc.perform(delete("/api/v1/warehouses/managers/{warehouseMemberId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("MEMBER_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("MEMBER_NOT_FOUND"));
     }
 }

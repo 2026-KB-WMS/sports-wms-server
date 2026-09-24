@@ -84,7 +84,7 @@ class WarehouseSectionControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new TestRegisterRequest(1L, null, "A-01", "1구역", "INVALID", BigDecimal.valueOf(100)))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 
     @Test
@@ -134,7 +134,7 @@ class WarehouseSectionControllerTest {
 
         mockMvc.perform(get("/api/v1/warehouses/sections/{sectionId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("SECTION_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("SECTION_NOT_FOUND"));
     }
 
     @Test
@@ -160,7 +160,7 @@ class WarehouseSectionControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new TestUpdateRequest(null, null, null, null, 2L, null, null))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 
     @Test

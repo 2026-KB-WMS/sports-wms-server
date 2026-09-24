@@ -59,7 +59,7 @@ class OptionValueControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TestRequest("빨강", 1))))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("OPTION_GROUP_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("OPTION_GROUP_NOT_FOUND"));
     }
 
     @Test
@@ -69,6 +69,6 @@ class OptionValueControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TestRequest("", 1))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 }
