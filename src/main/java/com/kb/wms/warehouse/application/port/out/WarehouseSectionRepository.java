@@ -15,6 +15,11 @@ public interface WarehouseSectionRepository {
     Optional<WarehouseSection> findById(Long sectionId);
 
     /**
+     * SELECT ... FOR UPDATE로 조회한다. 사용 용량(current_capacity)을 바꿀 때 트랜잭션 안에서만 호출한다.
+     */
+    Optional<WarehouseSection> findByIdForUpdate(Long sectionId);
+
+    /**
      * warehouseId가 null이면 조건을 무시하고 조회한다.
      */
     List<WarehouseSection> findAll(Long warehouseId);
