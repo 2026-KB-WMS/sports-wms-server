@@ -164,9 +164,9 @@ class InventoryPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("안전 재고 이하: 창고 범위 가용 재고로 비교하고, 재고 없는 SKU는 가용 0으로 포함, 안전재고 0은 제외")
+    @DisplayName("안전 재고 미만: 창고 범위 가용 재고로 비교하고, 재고 없는 SKU는 가용 0으로 포함, 안전재고 0은 제외")
     void lowStock() {
-        // 창고1: SKU-A 가용 80 > 50 이라 제외, SKU-B 가용 0 <= 10
+        // 창고1: SKU-A 가용 80 > 50 이라 제외, SKU-B 가용 0 < 10
         assertThat(inventoryQueryRepository.findLowStock(new LowStockSearchCondition(warehouse1, null)))
                 .extracting(LowStockItem::skuCode, LowStockItem::availableQuantity, LowStockItem::shortageQuantity)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("SKU-B", 0L, 10L));

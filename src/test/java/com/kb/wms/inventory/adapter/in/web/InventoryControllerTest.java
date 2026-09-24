@@ -129,7 +129,7 @@ class InventoryControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/v1/inventory/low-stock: 안전 재고 이하 SKU 목록을 반환한다")
+    @DisplayName("GET /api/v1/inventory/low-stock: 안전 재고 미만 SKU 목록을 반환한다")
     void getLowStock_success() throws Exception {
         LowStockItem item = new LowStockItem(1L, "SKU-001", "상품A", "EA", 50L, 30L, 20L);
         when(inventoryQueryUseCase.getLowStock(new LowStockSearchCondition(null, null)))

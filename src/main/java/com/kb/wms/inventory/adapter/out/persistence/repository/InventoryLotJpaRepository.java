@@ -172,7 +172,7 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
                                       and l.status = com.kb.wms.inventory.domain.enums.LotStatus.AVAILABLE
                                       and (:warehouseId is null or ws.warehouseId = :warehouseId)
                                      then il.onHandQuantity - il.allocatedQuantity else 0L end), 0L)
-                   <= s.safetyStockQuantity
+                   < s.safetyStockQuantity
             order by s.safetyStockQuantity
                      - coalesce(sum(case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.AVAILABLE
                                           and l.status = com.kb.wms.inventory.domain.enums.LotStatus.AVAILABLE
