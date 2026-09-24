@@ -19,6 +19,7 @@ import com.kb.wms.inventory.application.port.in.result.InventoryTransactionView;
 import com.kb.wms.inventory.application.port.in.result.LowStockItem;
 import com.kb.wms.inventory.application.port.out.InventoryLotRepository;
 import com.kb.wms.inventory.application.port.out.InventoryQueryRepository;
+import com.kb.wms.inventory.application.port.out.LotRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,17 +29,27 @@ import lombok.RequiredArgsConstructor;
 public class InventoryQueryService implements InventoryQueryUseCase {
 
     static final String INVENTORY_NOT_FOUND_MESSAGE = "재고를 찾을 수 없습니다.";
+    private static final String SKU_NOT_FOUND_MESSAGE = "SKU를 찾을 수 없습니다.";
+    private static final String WAREHOUSE_NOT_FOUND_MESSAGE = "창고를 찾을 수 없습니다.";
+    private static final String SECTION_NOT_FOUND_MESSAGE = "구역을 찾을 수 없습니다.";
+    private static final String LOT_NOT_FOUND_MESSAGE = "로트를 찾을 수 없습니다.";
 
     private final InventoryQueryRepository inventoryQueryRepository;
     private final InventoryLotRepository inventoryLotRepository;
+    private final LotRepository lotRepository;
 
     @Override
     public List<InventorySkuSummary> getInventories(InventorySearchCondition condition) {
+        validateSkuId(condition.skuId());
+        validateWarehouseId(condition.warehouseId());
         return inventoryQueryRepository.findSkuSummaries(condition);
     }
 
     @Override
     public List<InventoryLotView> getInventoriesByLot(InventoryLotSearchCondition condition) {
+        validateSkuId(condition.skuId());
+        validateWarehouseId(condition.warehouseId());
+        validateSectionId(condition.sectionId());
         return inventoryQueryRepository.findLotViews(condition);
     }
 
@@ -50,6 +61,7 @@ public class InventoryQueryService implements InventoryQueryUseCase {
 
     @Override
     public List<LowStockItem> getLowStock(LowStockSearchCondition condition) {
+        validateWarehouseId(condition.warehouseId());
         return inventoryQueryRepository.findLowStock(condition);
     }
 
@@ -59,6 +71,10 @@ public class InventoryQueryService implements InventoryQueryUseCase {
         if (condition.referenceId() != null && condition.referenceType() == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "referenceId는 referenceType과 함께 지정해야 합니다.");
         }
+        validateWarehouseId(condition.warehouseId());
+        validateSectionId(condition.sectionId());
+        validateSkuId(condition.skuId());
+        validateLotId(condition.lotId());
         return inventoryQueryRepository.findTransactions(condition);
     }
 
@@ -83,6 +99,30 @@ public class InventoryQueryService implements InventoryQueryUseCase {
         if (condition.createdFrom() != null && condition.createdTo() != null
                 && condition.createdFrom().isAfter(condition.createdTo())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "createdFrom은 createdTo보다 이전이어야 합니다.");
+        }
+    }
+
+    private void validateSkuId(Long skuId) {
+        if (skuId != null && !inventoryQueryRepository.existsSku(skuId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, SKU_NOT_FOUND_MESSAGE);
+        }
+    }
+
+    private void validateWarehouseId(Long warehouseId) {
+        if (warehouseId != null && !inventoryQueryRepository.existsWarehouse(warehouseId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, WAREHOUSE_NOT_FOUND_MESSAGE);
+        }
+    }
+
+    private void validateSectionId(Long sectionId) {
+        if (sectionId != null && !inventoryQueryRepository.existsSection(sectionId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, SECTION_NOT_FOUND_MESSAGE);
+        }
+    }
+
+    private void validateLotId(Long lotId) {
+        if (lotId != null && !lotRepository.existsById(lotId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, LOT_NOT_FOUND_MESSAGE);
         }
     }
 }

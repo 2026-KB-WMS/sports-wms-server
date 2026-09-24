@@ -48,6 +48,15 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
 
     // ---------- 조회 전용 (다른 도메인 테이블은 ID 조인으로 읽기만) ----------
 
+    @Query("select count(s) > 0 from ProductSkuJpaEntity s where s.skuId = :skuId")
+    boolean existsSkuId(@Param("skuId") Long skuId);
+
+    @Query("select count(w) > 0 from WarehouseJpaEntity w where w.warehouseId = :warehouseId")
+    boolean existsWarehouseId(@Param("warehouseId") Long warehouseId);
+
+    @Query("select count(ws) > 0 from WarehouseSectionJpaEntity ws where ws.sectionId = :sectionId")
+    boolean existsSectionId(@Param("sectionId") Long sectionId);
+
     @Query("""
             select new com.kb.wms.inventory.application.port.in.result.InventorySkuSummary(
                 s.skuId, s.skuCode, s.name, s.unit,

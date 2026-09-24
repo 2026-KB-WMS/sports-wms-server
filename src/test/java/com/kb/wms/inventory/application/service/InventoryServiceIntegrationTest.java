@@ -26,7 +26,11 @@ import com.kb.wms.inventory.application.port.in.command.LotRegisterCommand;
 import com.kb.wms.inventory.application.port.in.command.StockQuantityCommand;
 import com.kb.wms.inventory.application.port.in.command.StockReceiveCommand;
 import com.kb.wms.inventory.application.port.in.command.StockShipCommand;
+import com.kb.wms.inventory.application.port.in.query.InventoryLotSearchCondition;
+import com.kb.wms.inventory.application.port.in.query.InventorySearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventoryTransactionSearchCondition;
+import com.kb.wms.inventory.application.port.in.query.LotSearchCondition;
+import com.kb.wms.inventory.application.port.in.query.LowStockSearchCondition;
 import com.kb.wms.inventory.application.port.in.result.InventoryAdjustmentResult;
 import com.kb.wms.inventory.application.port.in.result.InventoryTransactionView;
 import com.kb.wms.inventory.application.port.out.InventoryLotRepository;
@@ -309,6 +313,38 @@ class InventoryServiceIntegrationTest {
                 java.time.LocalDateTime.of(2026, 9, 2, 0, 0), java.time.LocalDateTime.of(2026, 9, 1, 0, 0))),
                 "VALIDATION_ERROR");
         assertThat(queryUseCase.getInventory(invA).availableQuantity()).isEqualTo(80L);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 필터 ID(skuId·warehouseId·sectionId·lotId)로 조회하면 NOT_FOUND")
+    void queryFilterNotFound() {
+        assertError(() -> queryUseCase.getInventories(new InventorySearchCondition(-1L, null, null)), "NOT_FOUND");
+        assertError(() -> queryUseCase.getInventories(new InventorySearchCondition(null, -1L, null)), "NOT_FOUND");
+
+        assertError(() -> queryUseCase.getInventoriesByLot(
+                new InventoryLotSearchCondition(-1L, null, null, null, null, null, null)), "NOT_FOUND");
+        assertError(() -> queryUseCase.getInventoriesByLot(
+                new InventoryLotSearchCondition(null, -1L, null, null, null, null, null)), "NOT_FOUND");
+        assertError(() -> queryUseCase.getInventoriesByLot(
+                new InventoryLotSearchCondition(null, null, -1L, null, null, null, null)), "NOT_FOUND");
+
+        assertError(() -> queryUseCase.getLowStock(new LowStockSearchCondition(-1L, null)), "NOT_FOUND");
+
+        assertError(() -> queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
+                null, -1L, null, null, null, null, null, null, null, null)), "NOT_FOUND");
+        assertError(() -> queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
+                null, null, -1L, null, null, null, null, null, null, null)), "NOT_FOUND");
+        assertError(() -> queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
+                null, null, null, -1L, null, null, null, null, null, null)), "NOT_FOUND");
+        assertError(() -> queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
+                null, null, null, null, -1L, null, null, null, null, null)), "NOT_FOUND");
+
+        assertError(() -> lotUseCase.getLots(new LotSearchCondition(-1L, null, null, null)), "NOT_FOUND");
+
+        // 있는 ID는 그대로 통과한다.
+        assertThat(queryUseCase.getInventories(new InventorySearchCondition(skuId, null, null))).isNotEmpty();
+        assertThat(queryUseCase.getInventoriesByLot(
+                new InventoryLotSearchCondition(null, null, sectionR1, null, null, null, null))).isNotEmpty();
     }
 
     // ---------- helpers ----------

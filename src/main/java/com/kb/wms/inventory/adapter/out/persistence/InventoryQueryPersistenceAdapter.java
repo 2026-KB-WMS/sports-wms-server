@@ -81,6 +81,21 @@ public class InventoryQueryPersistenceAdapter implements InventoryQueryRepositor
         return inventoryLotJpaRepository.findAllocatableStocks(warehouseId, skuId);
     }
 
+    @Override
+    public boolean existsSku(Long skuId) {
+        return inventoryLotJpaRepository.existsSkuId(skuId);
+    }
+
+    @Override
+    public boolean existsWarehouse(Long warehouseId) {
+        return inventoryLotJpaRepository.existsWarehouseId(warehouseId);
+    }
+
+    @Override
+    public boolean existsSection(Long sectionId) {
+        return inventoryLotJpaRepository.existsSectionId(sectionId);
+    }
+
     /** 빈 문자열·공백 검색어는 조건 없음으로 본다. */
     private static String keyword(String keyword) {
         return StringUtils.hasText(keyword) ? keyword.trim() : null;
