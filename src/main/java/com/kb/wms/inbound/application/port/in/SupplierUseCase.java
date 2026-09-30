@@ -1,0 +1,25 @@
+package com.kb.wms.inbound.application.port.in;
+
+import java.util.List;
+
+import com.kb.wms.inbound.application.port.in.command.SupplierRegisterCommand;
+import com.kb.wms.inbound.application.port.in.command.SupplierUpdateCommand;
+import com.kb.wms.inbound.application.port.in.query.SupplierSearchCondition;
+import com.kb.wms.inbound.domain.entity.Supplier;
+
+/**
+ * 공급처 등록/조회/수정/비활성화 유스케이스.
+ * POST, GET, PATCH /api/v1/suppliers
+ */
+public interface SupplierUseCase {
+
+    Supplier registerSupplier(SupplierRegisterCommand command);
+
+    List<Supplier> getSuppliers(SupplierSearchCondition condition);
+
+    Supplier getSupplier(Long supplierId);
+
+    Supplier updateSupplier(Long supplierId, SupplierUpdateCommand command);
+
+    Supplier deactivateSupplier(Long supplierId);
+}
