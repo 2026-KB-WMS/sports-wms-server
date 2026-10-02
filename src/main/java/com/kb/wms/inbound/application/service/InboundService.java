@@ -133,12 +133,14 @@ public class InboundService implements InboundUseCase {
 
     @Override
     public List<SectionCandidate> getAssignableSections(Long inboundId, SectionCandidateCondition condition) {
+        validateSectionCondition(condition);
         Inbound inbound = findOrThrow(inboundId);
         return inboundQueryRepository.findAssignableSections(inbound.getWarehouseId(), condition);
     }
 
     @Override
     public List<SectionCandidate> getDefectSections(Long inboundId, SectionCandidateCondition condition) {
+        validateSectionCondition(condition);
         Inbound inbound = findOrThrow(inboundId);
         return inboundQueryRepository.findDefectSections(inbound.getWarehouseId(), condition);
     }
@@ -151,6 +153,12 @@ public class InboundService implements InboundUseCase {
         String prefix = NO_PREFIX + today.format(NO_DATE_FORMAT) + "-";
         long sequence = inboundRepository.countByInboundNoPrefix(prefix) + 1;
         return prefix + String.format("%04d", sequence);
+    }
+
+    private static void validateSectionCondition(SectionCandidateCondition condition) {
+        if (condition.requiredQuantity() != null && condition.requiredQuantity().signum() < 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "필요 수량은 0 이상이어야 합니다.");
+        }
     }
 
     private Inbound findOrThrow(Long inboundId) {
