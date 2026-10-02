@@ -23,6 +23,8 @@ public interface PurchaseOrderRepository {
 
     List<PurchaseOrderLine> findLinesByPurchaseOrderId(Long purchaseOrderId);
 
+    Optional<PurchaseOrderLine> findLineById(Long purchaseOrderLineId);
+
     boolean existsByPurchaseOrderNo(String purchaseOrderNo);
 
     /** 해당 접두사(예: PO-20261002-)로 시작하는 발주 번호 개수. 일련번호 채번에 쓴다. */

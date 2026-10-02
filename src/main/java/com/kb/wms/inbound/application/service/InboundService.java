@@ -40,7 +40,7 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class InboundService implements InboundUseCase {
 
-    private static final String NO_PREFIX = "IN-";
+    private static final String NO_PREFIX = "IB-";
     private static final DateTimeFormatter NO_DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
     private static final int NOTE_MAX_LENGTH = 1000;
     private static final int CANCEL_REASON_MAX_LENGTH = 500;
@@ -144,7 +144,7 @@ public class InboundService implements InboundUseCase {
     }
 
     /**
-     * IN-YYYYMMDD-일련번호(4자리). 당일 입고 개수 + 1로 채번하며, 동시 등록으로 번호가 겹치면
+     * IB-YYYYMMDD-일련번호(4자리). 당일 입고 개수 + 1로 채번하며, 동시 등록으로 번호가 겹치면
      * UNIQUE 제약이 409 DUPLICATE_INBOUND_NO로 응답한다.
      */
     private String nextInboundNo(LocalDate today) {
