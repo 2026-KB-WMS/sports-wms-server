@@ -3,11 +3,9 @@ package com.kb.wms.inbound.application.port.in;
 import java.util.List;
 
 import com.kb.wms.inbound.application.port.in.command.InboundCancelCommand;
-import com.kb.wms.inbound.application.port.in.command.InboundInspectCommand;
 import com.kb.wms.inbound.application.port.in.command.InboundRegisterCommand;
 import com.kb.wms.inbound.application.port.in.query.InboundSearchCondition;
 import com.kb.wms.inbound.application.port.in.query.SectionCandidateCondition;
-import com.kb.wms.inbound.application.port.in.result.InboundCompleteResult;
 import com.kb.wms.inbound.application.port.in.result.InboundDetails;
 import com.kb.wms.inbound.application.port.in.result.InboundSummary;
 import com.kb.wms.inbound.application.port.in.result.InboundView;
@@ -15,9 +13,10 @@ import com.kb.wms.inbound.application.port.in.result.SectionCandidate;
 import com.kb.wms.inbound.domain.entity.Inbound;
 
 /**
- * 입고 등록/조회/검수/완료/취소와 검수용 구역 후보 조회 유스케이스.
+ * 입고 등록/조회/취소와 검수용 구역 후보 조회 유스케이스.
  * POST, GET /api/v1/inbounds, GET .../{id}, GET .../{id}/details, GET .../{id}/assignable-sections,
- * GET .../{id}/defect-sections, PATCH .../{id}/inspect, PATCH .../{id}/complete, PATCH .../{id}/cancel
+ * GET .../{id}/defect-sections, PATCH .../{id}/cancel
+ * (검수 PATCH .../{id}/inspect, 완료 PATCH .../{id}/complete는 각각 별도 유스케이스로 둔다.)
  */
 public interface InboundUseCase {
 
@@ -29,12 +28,6 @@ public interface InboundUseCase {
     InboundView getInbound(Long inboundId);
 
     InboundDetails getInboundDetails(Long inboundId);
-
-    /** 검수 항목 전체를 교체하고(재호출 가능) 처음이면 입고를 INSPECTING으로 전환한다. 재고에는 반영하지 않는다. */
-    Inbound inspectInbound(Long inboundId, InboundInspectCommand command);
-
-    /** 입고를 완료(COMPLETED)하고 재고·재고 이력·발주 상태를 한 트랜잭션으로 반영한다. */
-    InboundCompleteResult completeInbound(Long inboundId, Long userId);
 
     /** 완료 전(ARRIVED·INSPECTING)의 입고를 사유와 함께 취소한다. */
     Inbound cancelInbound(Long inboundId, InboundCancelCommand command);
