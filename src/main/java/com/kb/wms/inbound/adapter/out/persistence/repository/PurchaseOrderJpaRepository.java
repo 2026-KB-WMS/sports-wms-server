@@ -5,8 +5,11 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import jakarta.persistence.LockModeType;
 
 import com.kb.wms.inbound.adapter.out.persistence.entity.PurchaseOrderJpaEntity;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderSummary;
@@ -18,6 +21,10 @@ public interface PurchaseOrderJpaRepository extends JpaRepository<PurchaseOrderJ
     boolean existsByPurchaseOrderNo(String purchaseOrderNo);
 
     long countByPurchaseOrderNoStartingWith(String prefix);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select po from PurchaseOrderJpaEntity po where po.purchaseOrderId = :purchaseOrderId")
+    Optional<PurchaseOrderJpaEntity> findByIdForUpdate(@Param("purchaseOrderId") Long purchaseOrderId);
 
     /** 진행 중 발주 = REQUESTED·CONFIRMED */
     @Query("""

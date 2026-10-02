@@ -16,7 +16,8 @@ public enum PurchaseOrderErrorCode implements DomainErrorCode {
     PURCHASE_ORDER_NOT_FOUND(ErrorCode.NOT_FOUND, "창고 발주를 찾을 수 없습니다."),
     PURCHASE_PRICE_MISSING(ErrorCode.CONFLICT, "SKU에 매입 단가가 없어 발주 단가를 확정할 수 없습니다."),
     SUPPLIER_INACTIVE(ErrorCode.CONFLICT, "발주의 공급처가 비활성 상태입니다."),
-    DUPLICATE_PURCHASE_ORDER_NO(ErrorCode.CONFLICT, "이미 사용 중인 발주 번호입니다. 다시 시도해주세요.");
+    DUPLICATE_PURCHASE_ORDER_NO(ErrorCode.CONFLICT, "이미 사용 중인 발주 번호입니다. 다시 시도해주세요."),
+    PURCHASE_ORDER_HAS_INBOUND(ErrorCode.CONFLICT, "취소되지 않은 입고가 있는 발주는 취소할 수 없습니다. 입고를 먼저 취소해주세요.");
 
     private final ErrorCode errorCode;
     private final String defaultMessage;

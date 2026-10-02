@@ -18,6 +18,9 @@ public interface PurchaseOrderRepository {
 
     Optional<PurchaseOrder> findById(Long purchaseOrderId);
 
+    /** 비관적 쓰기 락으로 발주 헤더를 조회한다. 입고 등록·발주 취소처럼 발주 상태를 기준으로 판단하는 흐름이 서로 어긋나지 않게 한다. */
+    Optional<PurchaseOrder> findByIdForUpdate(Long purchaseOrderId);
+
     List<PurchaseOrderLine> findLinesByPurchaseOrderId(Long purchaseOrderId);
 
     boolean existsByPurchaseOrderNo(String purchaseOrderNo);
