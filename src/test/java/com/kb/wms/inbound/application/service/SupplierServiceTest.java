@@ -22,6 +22,7 @@ import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inbound.application.port.in.command.SupplierRegisterCommand;
 import com.kb.wms.inbound.application.port.in.command.SupplierUpdateCommand;
 import com.kb.wms.inbound.application.port.in.query.SupplierSearchCondition;
+import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
 import com.kb.wms.inbound.application.port.out.SupplierRepository;
 import com.kb.wms.inbound.domain.entity.Supplier;
 import com.kb.wms.inbound.exception.SupplierErrorCode;
@@ -31,6 +32,9 @@ class SupplierServiceTest {
 
     @Mock
     private SupplierRepository supplierRepository;
+
+    @Mock
+    private PurchaseOrderRepository purchaseOrderRepository;
 
     @InjectMocks
     private SupplierService supplierService;
@@ -235,5 +239,20 @@ class SupplierServiceTest {
         Supplier result = supplierService.deactivateSupplier(1L);
 
         assertThat(result.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("진행 중인 발주가 있는 공급처를 비활성화하면 SUPPLIER_IN_USE 예외를 던진다")
+    void deactivateSupplier_inProgressPurchaseOrder_throwsInUse() {
+        Supplier active = newSupplier();
+        when(supplierRepository.findById(1L)).thenReturn(Optional.of(active));
+        when(purchaseOrderRepository.existsInProgressBySupplierId(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> supplierService.deactivateSupplier(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(SupplierErrorCode.SUPPLIER_IN_USE.name());
+        assertThat(active.isActive()).isTrue();
+        verify(supplierRepository, never()).save(any());
     }
 }

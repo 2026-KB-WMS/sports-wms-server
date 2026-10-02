@@ -51,6 +51,11 @@ public class PurchaseOrderPersistenceAdapter implements PurchaseOrderRepository 
     }
 
     @Override
+    public long countByPurchaseOrderNoPrefix(String prefix) {
+        return purchaseOrderJpaRepository.countByPurchaseOrderNoStartingWith(prefix);
+    }
+
+    @Override
     public boolean existsByPurchaseOrderNo(String purchaseOrderNo) {
         return purchaseOrderJpaRepository.existsByPurchaseOrderNo(purchaseOrderNo);
     }

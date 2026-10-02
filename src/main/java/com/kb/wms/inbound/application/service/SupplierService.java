@@ -11,6 +11,7 @@ import com.kb.wms.inbound.application.port.in.SupplierUseCase;
 import com.kb.wms.inbound.application.port.in.command.SupplierRegisterCommand;
 import com.kb.wms.inbound.application.port.in.command.SupplierUpdateCommand;
 import com.kb.wms.inbound.application.port.in.query.SupplierSearchCondition;
+import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
 import com.kb.wms.inbound.application.port.out.SupplierRepository;
 import com.kb.wms.inbound.domain.entity.Supplier;
 import com.kb.wms.inbound.exception.SupplierErrorCode;
@@ -23,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 public class SupplierService implements SupplierUseCase {
 
     private final SupplierRepository supplierRepository;
+    private final PurchaseOrderRepository purchaseOrderRepository;
 
     @Override
     @Transactional
@@ -84,10 +86,6 @@ public class SupplierService implements SupplierUseCase {
         return supplierRepository.save(supplier);
     }
 
-    /**
-     * 진행 중인 발주(REQUESTED·CONFIRMED) 검사(409 SUPPLIER_IN_USE)는
-     * 발주(PurchaseOrder) 도메인이 구현되면 추가한다.
-     */
     @Override
     @Transactional
     public Supplier deactivateSupplier(Long supplierId) {
@@ -95,6 +93,9 @@ public class SupplierService implements SupplierUseCase {
                 .orElseThrow(() -> new BusinessException(SupplierErrorCode.SUPPLIER_NOT_FOUND));
         if (!supplier.isActive()) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 비활성화된 공급처입니다.");
+        }
+        if (purchaseOrderRepository.existsInProgressBySupplierId(supplierId)) {
+            throw new BusinessException(SupplierErrorCode.SUPPLIER_IN_USE);
         }
         supplier.deactivate();
         return supplierRepository.save(supplier);

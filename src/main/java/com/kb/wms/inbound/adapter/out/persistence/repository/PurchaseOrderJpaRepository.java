@@ -17,6 +17,8 @@ public interface PurchaseOrderJpaRepository extends JpaRepository<PurchaseOrderJ
 
     boolean existsByPurchaseOrderNo(String purchaseOrderNo);
 
+    long countByPurchaseOrderNoStartingWith(String prefix);
+
     /** 진행 중 발주 = REQUESTED·CONFIRMED */
     @Query("""
             select count(po) > 0 from PurchaseOrderJpaEntity po
