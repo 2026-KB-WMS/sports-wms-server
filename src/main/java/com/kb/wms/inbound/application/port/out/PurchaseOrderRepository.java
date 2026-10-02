@@ -22,6 +22,9 @@ public interface PurchaseOrderRepository {
 
     boolean existsByPurchaseOrderNo(String purchaseOrderNo);
 
+    /** 해당 접두사(예: PO-20261002-)로 시작하는 발주 번호 개수. 일련번호 채번에 쓴다. */
+    long countByPurchaseOrderNoPrefix(String prefix);
+
     /** 공급처에 진행 중인 발주(REQUESTED·CONFIRMED)가 있는지. 공급처 비활성화 가드(SUPPLIER_IN_USE)에 쓴다. */
     boolean existsInProgressBySupplierId(Long supplierId);
 }
