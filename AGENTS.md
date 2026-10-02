@@ -31,23 +31,28 @@ com.kb.wms.<domain>/
 
 ## 코딩 규칙 (결정 사항)
 
-- **엔티티 참조는 `Long xxxId`만** 사용한다. 같은 도메인/다른 도메인 모두 `@ManyToOne`, `@OneToMany` 등 JPA 연관관계 금지 (ADR-005).
+각 규칙의 배경은 `docs/adr/`에 있다. 규칙을 바꾸려면 ADR부터 갱신한다.
+
+- **엔티티 참조는 `Long xxxId`만** 사용한다. 같은 도메인/다른 도메인 모두 `@ManyToOne`, `@OneToMany` 등 JPA 연관관계 금지 ([ADR-005](docs/adr/005-entity-reference-by-id.md)). 예외: 조회 전용 API의 JPQL 조인([ADR-007](docs/adr/007-inventory-query-jpql-cross-domain-join.md)), 복합키 `sku_option_value`([ADR-009](docs/adr/009-sku-option-value-embedded-id.md)).
 - 수량 컬럼(`*_quantity`)은 **BIGINT** (DECIMAL 금지).
 - API JSON 필드명은 **camelCase** 전부 (응답 envelope의 `statusCode`, `errorCode`, `pageInfo` 포함). snake_case 금지.
 - 목록 API는 `data.items`로 통일한다. 페이징은 전 도메인 일괄 적용 예정이므로 지금은 추가하지 않는다.
-- 사용자에게 노출되는 에러는 도메인별 `<Domain>ErrorCode` enum + 서비스에서 throw. 도메인 모델 내부 가드 예외는 개발자용으로 inline 유지.
+- 사용자에게 노출되는 에러는 도메인별 `<Domain>ErrorCode` enum + 서비스에서 throw. 도메인 모델 내부 가드 예외는 개발자용으로 inline 유지 ([ADR-008](docs/adr/008-inventory-two-tier-exceptions.md)).
 - 404는 도메인 전용 코드 사용 (`PRODUCT_NOT_FOUND`, `SUPPLIER_NOT_FOUND` 등), generic `NOT_FOUND` 지양.
 - 다른 도메인 데이터를 읽는 조회 API는 서비스에서 조합하지 않고, **읽기 전용 쿼리 조인(ID 기준)** 으로 처리한다.
-- 재고 수량 변경은 비관적 락(pessimistic lock).
+- 재고 수량 변경은 비관적 락, 여러 로트는 ID 오름차순으로 잠근다 ([ADR-006](docs/adr/006-inventory-pessimistic-lock.md)).
 - 아직 없는 테이블에 대한 FK는 마이그레이션에서 빼고, 해당 테이블 생성 시 `ALTER TABLE`로 추가한다.
 - 구현 순서는 auth/JWT를 마지막으로 둔다.
 
-## 명세 (Source of truth = Notion)
+## 문서 (`docs/`)
 
-- ERD(데이터 사전), 기능 명세, API 명세(WMS API 명세), 업무 상태 전이도는 Notion이 기준이다.
+- `docs/README.md`의 표가 **어떤 문서의 기준이 레포이고 어떤 문서가 아직 Notion인지** 알려준다. 먼저 이 표를 본다.
+- 이전 완료(레포가 기준): `docs/adr/`(기술 결정 기록), `docs/api/conventions.md`(공통 API 규칙).
+- 아직 Notion이 기준: 도메인별 API 명세, ERD, 업무 상태 전이도 등. **도메인 구현을 시작할 때 해당 도메인 문서를 `docs/`로 옮기고** 표를 갱신한다.
+- `docs/domain/<도메인>.md`는 상태 전이, 권한, 부수 효과 정리다. 입고·출고·발주처럼 상태 전이와 재고 연동이 있는 도메인은 구현/리뷰 전에 읽는다. 아직 Notion에서 이전되지 않은 내용의 요약이면 문서 상단에 "기준은 Notion"이라고 적혀 있고, 충돌하면 Notion을 따른다. (현재: `inbound.md`)
+- 코드를 바꾸는 설계 결정을 내리면 **같은 PR에 ADR을 추가/개정**한다.
 - **명세와 코드가 다르면 임의로 한쪽을 고치지 말고** 불일치 내용을 먼저 알린다. 명세 변경이 필요하면 사용자 결정을 받는다.
-- 설계/명세 문서는 Notion "WMS 문서 관리", 도메인 구현 일정/진행은 "WMS 개발 일정" DB(도메인당 1페이지, status 속성 사용). 보류/후속 항목은 "[보류]" 페이지에 기록.
-- `docs/domain/<도메인>.md`는 상태 전이, 권한, 부수 효과를 정리한 **요약 스냅샷**이다. 입고·출고·발주처럼 상태 전이와 재고 연동이 있는 도메인을 구현/리뷰하기 전에 읽는다. 기준은 항상 Notion이며, 충돌하면 Notion을 따르고 이 문서를 갱신한다. (현재: `inbound.md`)
+- Notion에 남기는 것: "WMS 개발 일정" DB(도메인당 1페이지, status 속성 사용)와 "[보류]" 페이지(보류/후속 항목). Notion 페이지는 사용자가 요청할 때만 수정한다.
 
 ## Git / GitHub 워크플로
 
