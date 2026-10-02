@@ -23,6 +23,9 @@ public interface PurchaseOrderRepository {
 
     List<PurchaseOrderLine> findLinesByPurchaseOrderId(Long purchaseOrderId);
 
+    /** 발주 항목을 비관적 쓰기 락으로 조회한다(항목 ID 오름차순). 입고 완료에서 입고 수량을 누적할 때 쓴다. */
+    List<PurchaseOrderLine> findLinesByPurchaseOrderIdForUpdate(Long purchaseOrderId);
+
     Optional<PurchaseOrderLine> findLineById(Long purchaseOrderLineId);
 
     boolean existsByPurchaseOrderNo(String purchaseOrderNo);
