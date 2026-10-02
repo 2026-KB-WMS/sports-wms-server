@@ -61,6 +61,13 @@ public class PurchaseOrderPersistenceAdapter implements PurchaseOrderRepository 
     }
 
     @Override
+    public List<PurchaseOrderLine> findLinesByPurchaseOrderIdForUpdate(Long purchaseOrderId) {
+        return purchaseOrderLineJpaRepository.findByPurchaseOrderIdForUpdate(purchaseOrderId).stream()
+                .map(PurchaseOrderLineJpaEntity::toDomain)
+                .toList();
+    }
+
+    @Override
     public Optional<PurchaseOrderLine> findLineById(Long purchaseOrderLineId) {
         return purchaseOrderLineJpaRepository.findById(purchaseOrderLineId).map(PurchaseOrderLineJpaEntity::toDomain);
     }
