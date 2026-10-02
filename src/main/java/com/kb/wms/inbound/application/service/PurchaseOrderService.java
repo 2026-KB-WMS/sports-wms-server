@@ -22,6 +22,7 @@ import com.kb.wms.inbound.application.port.in.result.PurchaseOrderDetails;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderSummary;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderView;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderQueryRepository;
+import com.kb.wms.inbound.application.port.out.InboundRepository;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
 import com.kb.wms.inbound.application.port.out.SkuPurchasePricePort;
 import com.kb.wms.inbound.application.port.out.SupplierRepository;
@@ -52,6 +53,7 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
     private static final int CANCEL_REASON_MAX_LENGTH = 500;
 
     private final PurchaseOrderRepository purchaseOrderRepository;
+    private final InboundRepository inboundRepository;
     private final PurchaseOrderQueryRepository purchaseOrderQueryRepository;
     private final SupplierRepository supplierRepository;
     private final WarehouseAvailabilityPort warehouseAvailabilityPort;
@@ -130,13 +132,15 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
     }
 
     /**
-     * 취소 사유 저장(StatusHistory)과 입고가 등록된 발주 취소 차단(409 PURCHASE_ORDER_HAS_INBOUND)은
-     * StatusHistory·입고(Inbound) 도메인이 구현되면 추가한다.
+     * 발주 헤더를 락으로 잡은 뒤 취소되지 않은 입고가 있으면 409 PURCHASE_ORDER_HAS_INBOUND로 막는다.
+     * 입고 등록도 같은 발주 행을 락으로 잡으므로 취소와 입고 등록이 동시에 통과하지 못한다.
+     * 취소 사유 저장(StatusHistory)은 StatusHistory 도메인이 구현되면 추가한다.
      */
     @Override
     @Transactional
     public PurchaseOrder cancelPurchaseOrder(Long purchaseOrderId, PurchaseOrderCancelCommand command) {
-        PurchaseOrder purchaseOrder = findOrThrow(purchaseOrderId);
+        PurchaseOrder purchaseOrder = purchaseOrderRepository.findByIdForUpdate(purchaseOrderId)
+                .orElseThrow(PurchaseOrderService::notFound);
         if (!purchaseOrder.isInProgress()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "요청 또는 확정 상태의 발주만 취소할 수 있습니다. 현재 상태: " + purchaseOrder.getStatus());
@@ -149,6 +153,9 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         if (hasReason && reason.length() > CANCEL_REASON_MAX_LENGTH) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     "취소 사유는 " + CANCEL_REASON_MAX_LENGTH + "자 이하여야 합니다.");
+        }
+        if (inboundRepository.existsNotCanceledByPurchaseOrderId(purchaseOrderId)) {
+            throw new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_HAS_INBOUND);
         }
         purchaseOrder.cancel();
         return purchaseOrderRepository.save(purchaseOrder);

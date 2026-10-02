@@ -34,6 +34,7 @@ import com.kb.wms.inbound.application.port.in.result.PurchaseOrderDetails;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderLineView;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderSummary;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderView;
+import com.kb.wms.inbound.application.port.out.InboundRepository;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderQueryRepository;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
 import com.kb.wms.inbound.application.port.out.SkuPurchasePricePort;
@@ -64,6 +65,9 @@ class PurchaseOrderServiceTest {
 
     @Mock
     private SkuPurchasePricePort skuPurchasePricePort;
+
+    @Mock
+    private InboundRepository inboundRepository;
 
     @InjectMocks
     private PurchaseOrderService purchaseOrderService;
@@ -336,7 +340,7 @@ class PurchaseOrderServiceTest {
     @Test
     @DisplayName("REQUESTED 발주는 사유 없이도 취소할 수 있다")
     void cancel_requestedWithoutReason() {
-        when(purchaseOrderRepository.findById(4L))
+        when(purchaseOrderRepository.findByIdForUpdate(4L))
                 .thenReturn(Optional.of(purchaseOrder(4L, PurchaseOrderStatus.REQUESTED)));
         when(purchaseOrderRepository.save(any(PurchaseOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -348,7 +352,7 @@ class PurchaseOrderServiceTest {
     @Test
     @DisplayName("취소 요청 본문이 없어도 REQUESTED 발주는 취소할 수 있다")
     void cancel_requestedWithoutCommand() {
-        when(purchaseOrderRepository.findById(4L))
+        when(purchaseOrderRepository.findByIdForUpdate(4L))
                 .thenReturn(Optional.of(purchaseOrder(4L, PurchaseOrderStatus.REQUESTED)));
         when(purchaseOrderRepository.save(any(PurchaseOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -360,7 +364,7 @@ class PurchaseOrderServiceTest {
     @Test
     @DisplayName("CONFIRMED 발주는 사유와 함께 취소할 수 있다")
     void cancel_confirmedWithReason() {
-        when(purchaseOrderRepository.findById(4L))
+        when(purchaseOrderRepository.findByIdForUpdate(4L))
                 .thenReturn(Optional.of(purchaseOrder(4L, PurchaseOrderStatus.CONFIRMED)));
         when(purchaseOrderRepository.save(any(PurchaseOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -374,7 +378,7 @@ class PurchaseOrderServiceTest {
     @DisplayName("CONFIRMED 발주를 사유 없이(null·공백) 취소하면 VALIDATION_ERROR를 던진다")
     void cancel_confirmedWithoutReason() {
         PurchaseOrder confirmed = purchaseOrder(4L, PurchaseOrderStatus.CONFIRMED);
-        when(purchaseOrderRepository.findById(4L)).thenReturn(Optional.of(confirmed));
+        when(purchaseOrderRepository.findByIdForUpdate(4L)).thenReturn(Optional.of(confirmed));
 
         assertError(() -> purchaseOrderService.cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand(null)),
                 ErrorCode.VALIDATION_ERROR.name());
@@ -389,7 +393,7 @@ class PurchaseOrderServiceTest {
     @Test
     @DisplayName("취소 사유가 500자를 넘으면 VALIDATION_ERROR를 던진다")
     void cancel_reasonTooLong() {
-        when(purchaseOrderRepository.findById(4L))
+        when(purchaseOrderRepository.findByIdForUpdate(4L))
                 .thenReturn(Optional.of(purchaseOrder(4L, PurchaseOrderStatus.REQUESTED)));
 
         assertError(() -> purchaseOrderService.cancelPurchaseOrder(
@@ -402,7 +406,7 @@ class PurchaseOrderServiceTest {
     @DisplayName("이미 취소·완료된 발주를 취소하면 CONFLICT를 던진다")
     void cancel_alreadyFinished() {
         for (PurchaseOrderStatus status : List.of(PurchaseOrderStatus.CANCELED, PurchaseOrderStatus.COMPLETED)) {
-            when(purchaseOrderRepository.findById(4L)).thenReturn(Optional.of(purchaseOrder(4L, status)));
+            when(purchaseOrderRepository.findByIdForUpdate(4L)).thenReturn(Optional.of(purchaseOrder(4L, status)));
 
             assertError(() -> purchaseOrderService.cancelPurchaseOrder(
                             4L, new PurchaseOrderCancelCommand("사유")),
@@ -412,9 +416,20 @@ class PurchaseOrderServiceTest {
     }
 
     @Test
+    @DisplayName("취소되지 않은 입고가 있는 발주는 PURCHASE_ORDER_HAS_INBOUND로 취소할 수 없다")
+    void cancel_hasInbound() {
+        when(purchaseOrderRepository.findByIdForUpdate(4L))
+                .thenReturn(Optional.of(purchaseOrder(4L, PurchaseOrderStatus.CONFIRMED)));
+        when(inboundRepository.existsNotCanceledByPurchaseOrderId(4L)).thenReturn(true);
+
+        assertError(() -> purchaseOrderService.cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand("입고 전 취소")),
+                PurchaseOrderErrorCode.PURCHASE_ORDER_HAS_INBOUND.name());
+        verify(purchaseOrderRepository, never()).save(any(PurchaseOrder.class));
+    }
+    @Test
     @DisplayName("없는 발주를 취소하면 PURCHASE_ORDER_NOT_FOUND를 던진다")
     void cancel_notFound() {
-        when(purchaseOrderRepository.findById(999L)).thenReturn(Optional.empty());
+        when(purchaseOrderRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
 
         assertError(() -> purchaseOrderService.cancelPurchaseOrder(999L, new PurchaseOrderCancelCommand("사유")),
                 PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND.name());
