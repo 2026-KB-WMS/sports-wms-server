@@ -9,10 +9,12 @@
 | ADR (기술 결정 기록) | **레포** | [`adr/`](adr/README.md) | 2026-10-02 이전 완료 (ADR-001~009) |
 | 공통 API 규칙 | **레포** | [`api/conventions.md`](api/conventions.md) | 2026-10-02 이전 완료 |
 | 입고 도메인 상태 전이/권한/부수 효과 | **레포** | [`domain/inbound.md`](domain/inbound.md) | 2026-10-02 기준 문서로 승격(구현 완료). 구현 현황·보류 항목 포함. Notion "업무 상태 전이도"의 입고 부분은 참고용 |
-| 업무 상태 전이도 (출고·지점 발주·재고 할당) | Notion | WMS 문서 관리 → 업무 상태 전이도 | 해당 도메인 구현 시 `domain/`으로 이전 |
+| 지점 발주 도메인 상태 전이/권한/부수 효과 | **레포** | [`domain/store-order.md`](domain/store-order.md) | 2026-10-03 기준 문서로 이전(구현 시작 시점, 구현 전). 항목 상태·점주용 `progressStage` 포함. Notion "업무 상태 전이도"의 지점 발주 부분은 참고용 |
+| 업무 상태 전이도 (출고·재고 할당) | Notion | WMS 문서 관리 → 업무 상태 전이도 | 해당 도메인 구현 시 `domain/`으로 이전 |
 | API 명세: 상품 / 창고 / 재고 / 지점 | **레포** | [`api/product.md`](api/product.md), [`warehouse.md`](api/warehouse.md), [`inventory.md`](api/inventory.md), [`store.md`](api/store.md) | 2026-10-02 이전 완료(구현된 도메인). 각 파일 상단 "구현 대비 메모" 참고 |
 | API 명세: 입고 (공급처·창고 발주·입고) | **레포** | [`api/inbound.md`](api/inbound.md) | 2026-10-02 이전 완료(Supplier 5 + PurchaseOrder 6 + Inbound 9). 상단 "구현 대비 메모" 참고 |
-| API 명세: 인증, 출고, 지점 발주 | Notion | WMS 문서 관리 → API 명세 | 미구현. 도메인 구현 시 `api/<도메인>.md`로 이전 |
+| API 명세: 지점 발주 | **레포** | [`api/store-order.md`](api/store-order.md) | 2026-10-03 이전 완료(12개, 구현 전). 재고 할당 `/allocations`는 제외(출고 도메인 구현 시 이전). 상단 "구현 대비 메모" 참고 |
+| API 명세: 인증, 출고(재고 할당 포함) | Notion | WMS 문서 관리 → API 명세 | 미구현. 도메인 구현 시 `api/<도메인>.md`로 이전 |
 | ERD 데이터 사전 / ERD 개요 | Notion | WMS 문서 관리 | 도메인 구현 시 이전 검토. 컬럼 정의는 Flyway SQL이 실제 기준 |
 | 기능 명세, 유스케이스, 사용자별 요구사항, 비기능 명세, 프로젝트 개요, 화면 설계 | Notion | WMS 문서 관리 | 이전 계획 없음 (기획 문서) |
 | 개발 일정, [보류] 항목 | Notion | WMS 개발 일정 DB | 진행 관리용, 이전하지 않음 |
