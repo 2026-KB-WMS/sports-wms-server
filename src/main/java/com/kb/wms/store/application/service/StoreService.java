@@ -79,7 +79,7 @@ public class StoreService implements StoreUseCase {
 
     /**
      * 진행 중인 지점 발주(REQUESTED·APPROVED·ASSIGNED·ON_HOLD) 검사(409 STORE_IN_USE)는
-     * 발주(purchaseorder) 도메인이 구현되면 추가한다.
+     * 지점 발주(storeorder) 도메인이 구현되면 추가한다.
      */
     @Override
     @Transactional

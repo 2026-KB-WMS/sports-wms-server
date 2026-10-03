@@ -25,9 +25,9 @@ com.kb.wms.<domain>/
 └── exception/                # <Domain>ErrorCode
 ```
 
-- 도메인: auth, inbound, inventory, outbound, product, purchaseorder, store, warehouse. 공통 코드는 `common`(SecurityConfig, GlobalExceptionHandler, ApiResponse).
+- 도메인: auth, inbound, inventory, outbound, product, storeorder, store, warehouse. 공통 코드는 `common`(SecurityConfig, GlobalExceptionHandler, ApiResponse).
 - 새 도메인/기능은 **product 도메인의 구조를 기준 예시**로 따른다.
-- 패키지 매핑 주의: `inbound` = Supplier/PurchaseOrder/PurchaseOrderLine/Inbound/InboundLine (ERD "입고"), `purchaseorder` = StoreOrder/StoreOrderLine (ERD "발주", 지점→창고 요청). 이름이 헷갈려도 임의로 바꾸지 않는다.
+- 패키지 매핑 주의: `inbound` = Supplier/PurchaseOrder/PurchaseOrderLine/Inbound/InboundLine (ERD "입고"), `storeorder` = StoreOrder/StoreOrderLine (ERD "발주", 지점→창고 요청). `inbound`의 PurchaseOrder(창고 발주)와 혼동하지 않는다.
 
 ## 코딩 규칙 (결정 사항)
 

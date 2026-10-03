@@ -6,7 +6,7 @@
 
 ## 범위
 
-`purchaseorder` 패키지 = StoreOrder, StoreOrderLine (ERD "발주" 섹션). 지점 → 창고 상품 보충 요청이다.
+`storeorder` 패키지 = StoreOrder, StoreOrderLine (ERD "발주" 섹션). 지점 → 창고 상품 보충 요청이다.
 창고 → 공급업체 요청인 PurchaseOrder/PurchaseOrderLine은 `inbound` 패키지이며 이 문서의 범위가 아니다([`inbound.md`](inbound.md)).
 재고 할당(StockAllocation)과 출고(Outbound)는 ERD 출고 섹션이라 `outbound` 도메인에서 구현한다. 이 도메인은 연동 포트만 정의한다.
 

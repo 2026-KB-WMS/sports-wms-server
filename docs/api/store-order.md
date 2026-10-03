@@ -1,7 +1,7 @@
 # StoreOrder 도메인 API 명세 (지점 발주)
 
 > 기준은 레포. 2026-10-03 Notion(최종 수정 2026-09-24 ~ 10-03)에서 이전. 공통 규칙은 [conventions.md](conventions.md) 참고.
-> Base path: `/api/v1/orders`. 구현 패키지는 `purchaseorder`(ERD "발주": StoreOrder, StoreOrderLine). 창고 → 공급업체 발주(`/purchase-orders`)는 [inbound.md](inbound.md)이며 별개다.
+> Base path: `/api/v1/orders`. 구현 패키지는 `storeorder`(ERD "발주": StoreOrder, StoreOrderLine). 창고 → 공급업체 발주(`/purchase-orders`)는 [inbound.md](inbound.md)이며 별개다.
 > 상태 전이는 [docs/domain/store-order.md](../domain/store-order.md) 참고.
 
 ## 범위
