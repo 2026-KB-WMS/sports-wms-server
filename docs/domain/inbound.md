@@ -7,7 +7,7 @@
 ## 범위
 
 `inbound` 패키지 = Supplier, PurchaseOrder, PurchaseOrderLine, Inbound, InboundLine (ERD "입고" 섹션).
-지점→창고 요청인 StoreOrder/StoreOrderLine은 `purchaseorder` 패키지이며 이 문서의 범위가 아니다.
+지점→창고 요청인 StoreOrder/StoreOrderLine은 `storeorder` 패키지이며 이 문서의 범위가 아니다.
 
 ## 권한
 

@@ -15,7 +15,7 @@ Sports WMS(창고관리시스템) 백엔드입니다.
 
 - **도메인별 패키지 분리** + 도메인 내부는 **헥사고날(포트-어댑터) 구조**
 - 의존 방향: `adapter → application → domain`
-- 도메인: 인증(`auth`) · 상품(`product`) · 창고(`warehouse`) · 입고(`inbound`) · 재고(`inventory`) · 발주(`purchaseorder`) · 출고(`outbound`) · 지점(`store`)
+- 도메인: 인증(`auth`) · 상품(`product`) · 창고(`warehouse`) · 입고(`inbound`) · 재고(`inventory`) · 발주(`storeorder`) · 출고(`outbound`) · 지점(`store`)
 - 상세 설계(결정 배경, 인증/예외/응답 포맷, 인프라)는 Notion 문서 참고: [시스템 아키텍처](https://app.notion.com/p/3e3d0c80e04a81dcbe53d5a948ffe16c)
 
 ### 패키지 구조
@@ -32,7 +32,7 @@ com.kb.wms
 ├── warehouse/
 ├── inbound/
 ├── inventory/
-├── purchaseorder/
+├── storeorder/
 ├── outbound/
 └── store/
 ```

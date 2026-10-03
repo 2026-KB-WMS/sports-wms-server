@@ -17,7 +17,7 @@ tools: Read, Grep, Glob, Bash
 8. 다른 도메인 데이터 조회가 서비스 조합이 아닌 읽기 전용 쿼리 조인으로 구현됐는가.
 
 ## 입고·출고·발주 도메인 추가 점검
-`inbound`, `outbound`, `purchaseorder`(및 재고 할당) 변경이 포함되면 아래도 본다. 참고: `docs/domain/*.md`.
+`inbound`, `outbound`, `storeorder`(및 재고 할당) 변경이 포함되면 아래도 본다. 참고: `docs/domain/*.md`.
 1. **트랜잭션 경계**: 한 업무 행위가 여러 엔티티/도메인을 바꾸는 경우(예: 입고 완료 → 재고 증가 + InventoryTransaction + PurchaseOrderLine 갱신 + PurchaseOrder 자동 완료 + StatusHistory) 전부 하나의 `@Transactional` 안에서 일어나는가. 중간 실패 시 일부만 반영되는 경로가 없는가. 트랜잭션 밖에서 외부 호출/예외 삼킴(`catch` 후 무시)이 없는가.
 2. **도메인 간 의존 방향**: 다른 도메인의 service/entity를 직접 호출하지 않고 포트(UseCase/Repository 포트)를 통하는가. 순환 의존이 생기지 않았는가.
 3. **재고 변경 일관성**: 재고 수량을 바꾸는 모든 경로가 `InventoryTransaction`을 함께 남기고 비관적 락을 쓰는가. 할당(AVAILABLE→ALLOCATED)이 원자적이라 음수 재고/중복 할당이 불가능한가. 락 획득 순서가 일정한가(데드락 방지: 예를 들어 ID 오름차순).
