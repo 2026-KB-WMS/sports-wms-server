@@ -47,10 +47,10 @@ com.kb.wms.<domain>/
 ## 문서 (`docs/`)
 
 - `docs/README.md`의 표가 **어떤 문서의 기준이 레포이고 어떤 문서가 아직 Notion인지** 알려준다. 먼저 이 표를 본다.
-- 이전 완료(레포가 기준): `docs/adr/`(기술 결정 기록), `docs/api/conventions.md`(공통 API 규칙), 구현 완료된 도메인의 API 명세(`docs/api/product.md`, `warehouse.md`, `inventory.md`, `store.md`, `inbound.md`).
-- 아직 Notion이 기준: 미구현 도메인의 API 명세(auth, 출고, 지점 발주), ERD, 업무 상태 전이도 등. **도메인 구현을 시작할 때 해당 도메인 문서를 `docs/`로 옮기고** 표를 갱신한다.
+- 이전 완료(레포가 기준): `docs/adr/`(기술 결정 기록), `docs/api/conventions.md`(공통 API 규칙), 구현 완료된 도메인의 API 명세(`docs/api/product.md`, `warehouse.md`, `inventory.md`, `store.md`, `inbound.md`), 구현을 시작하며 이전한 지점 발주 문서(`docs/api/store-order.md`, `docs/domain/store-order.md`).
+- 아직 Notion이 기준: 미구현 도메인의 API 명세(auth, 출고·재고 할당), ERD, 업무 상태 전이도 등. **도메인 구현을 시작할 때 해당 도메인 문서를 `docs/`로 옮기고** 표를 갱신한다.
 - 이전된 API 명세 안의 "구현 대비 메모"는 Notion 명세와 코드의 알려진 차이다. 새로 발견한 차이도 임의로 고치지 말고 그 메모에 추가하거나 사용자에게 보고한다.
-- `docs/domain/<도메인>.md`는 상태 전이, 권한, 부수 효과 정리다. 입고·출고·발주처럼 상태 전이와 재고 연동이 있는 도메인은 구현/리뷰 전에 읽는다. 아직 Notion에서 이전되지 않은 내용의 요약이면 문서 상단에 "기준은 Notion"이라고 적혀 있고, 충돌하면 Notion을 따른다. (현재 `inbound.md`는 구현 완료로 기준 문서로 승격됨)
+- `docs/domain/<도메인>.md`는 상태 전이, 권한, 부수 효과 정리다. 입고·출고·발주처럼 상태 전이와 재고 연동이 있는 도메인은 구현/리뷰 전에 읽는다. 아직 Notion에서 이전되지 않은 내용의 요약이면 문서 상단에 "기준은 Notion"이라고 적혀 있고, 충돌하면 Notion을 따른다. (현재 `inbound.md`는 구현 완료로, `store-order.md`는 구현 시작 시점에 기준 문서로 승격됨)
 - 코드를 바꾸는 설계 결정을 내리면 **같은 PR에 ADR을 추가/개정**한다.
 - **명세와 코드가 다르면 임의로 한쪽을 고치지 말고** 불일치 내용을 먼저 알린다. 명세 변경이 필요하면 사용자 결정을 받는다.
 - Notion에 남기는 것: "WMS 개발 일정" DB(도메인당 1페이지, status 속성 사용)와 "[보류]" 페이지(보류/후속 항목). Notion 페이지는 사용자가 요청할 때만 수정한다.
