@@ -24,6 +24,7 @@ import com.kb.wms.store.application.port.in.command.StoreUpdateCommand;
 import com.kb.wms.store.application.port.in.query.StoreSearchCondition;
 import com.kb.wms.store.application.port.in.result.StoreMembershipSummary;
 import com.kb.wms.store.application.port.out.StoreMemberRepository;
+import com.kb.wms.store.application.port.out.StoreOrderPresencePort;
 import com.kb.wms.store.application.port.out.StoreRepository;
 import com.kb.wms.store.domain.entity.Store;
 import com.kb.wms.store.domain.entity.StoreMember;
@@ -36,6 +37,8 @@ class StoreServiceTest {
     private StoreRepository storeRepository;
     @Mock
     private StoreMemberRepository storeMemberRepository;
+    @Mock
+    private StoreOrderPresencePort storeOrderPresencePort;
 
     @InjectMocks
     private StoreService storeService;
@@ -139,6 +142,21 @@ class StoreServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(StoreErrorCode.STORE_NOT_FOUND.name());
+    }
+
+    @Test
+    @DisplayName("진행 중인 발주가 있는 지점을 비활성화하면 STORE_IN_USE 예외를 던지고 저장하지 않는다")
+    void deactivateStore_inProgressOrder_throwsStoreInUse() {
+        Store active = Store.register("ST-GANGNAM", "강남점", "서울시 강남구", "김점주", "02-333-1234");
+        when(storeRepository.findById(1L)).thenReturn(Optional.of(active));
+        when(storeOrderPresencePort.hasInProgressOrders(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> storeService.deactivateStore(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(StoreErrorCode.STORE_IN_USE.name());
+        assertThat(active.isActive()).isTrue();
+        verify(storeRepository, never()).save(any());
     }
 
     @Test

@@ -78,7 +78,7 @@
 - 출고·할당 의존 동작(승인 후 취소 시 할당 해제·`READY` 출고 취소, `ORDER_IN_PICKING`·`OUTBOUND_IN_PROGRESS`·`ORDER_IN_FULFILLMENT` 검사, `latestOutboundStatus`·`outbounds` 조회)은 출고 연동 포트만 정의하고 출고 도메인 구현 때 완성한다. 그 전에는 임시 구현이 "출고 없음"을 돌려준다. 보류 항목은 Notion "[보류]" 페이지에 기록한다.
 - 인증은 입고와 같은 방식이다. 처리 사용자 `userId`는 `@RequestParam`으로 받고 역할·소속 지점/창고·작성자 검사는 인증 연동 때 처리한다.
 - 다른 도메인 데이터(지점명·창고명·SKU 정보)는 조회 쿼리에서 ID 기준 읽기 전용 조인으로 가져온다(ADR-007 방식).
-- 지점 도메인의 `STORE_IN_USE`(진행 중 발주가 있으면 비활성화 금지)는 이 도메인 완료 후 연결한다.
+- 지점 도메인의 `STORE_IN_USE`(진행 중 발주가 있으면 비활성화 금지)는 연결했다(#141). 지점 도메인은 `StoreOrderPresencePort`로 확인하고, 이 도메인의 읽기 전용 `StoreOrderPresenceUseCase`에 연결한다. 발주 등록·상태 전이 유스케이스와 분리해 지점 ↔ 발주 순환 의존을 피한다.
 - 목록 페이지네이션은 전 도메인 일괄 적용 때까지 보류한다(`data.items`).
 
 ## 리뷰 시 자주 놓치는 지점

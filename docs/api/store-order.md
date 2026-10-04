@@ -6,12 +6,12 @@
 
 ## 범위
 
-- 이 문서는 지점 발주 12개를 포함한다. **아직 구현 전**이며 구현을 시작하면서 이전했다(트래킹 이슈 #117, 선행 #116).
+- 이 문서는 지점 발주 12개를 포함한다. 11개를 구현했고 `GET /orders/my`만 인증 연동 때까지 보류한다(트래킹 이슈 #117, 선행 #116).
 - 재고 할당(`/allocations`, 4개)은 포함하지 않는다. `StockAllocation`은 ERD 출고 섹션이라 출고 도메인 구현 시 이전한다.
 
 ## 구현 대비 메모
 
-구현 전이므로 "구현할 때 지킬 규칙과 알려진 차이"를 적는다. 구현하면서 달라진 점은 이 목록에 추가한다.
+구현하면서 정한 규칙과 Notion 명세와의 알려진 차이를 적는다. 달라진 점은 이 목록에 추가한다.
 
 - Notion 상태 컬럼은 "시작 전"이다.
 - Notion 명세의 `pageInfo`(`page`·`size`)와 일반 `NOT_FOUND`는 현재 구현 기준과 다름 → conventions.md 기준을 따른다. 목록 API는 `data.items`만 반환하고 `page`·`size`는 지원하지 않는다(페이지네이션 보류). 404는 도메인 전용 코드를 쓴다(`STORE_ORDER_NOT_FOUND` 등, 이름은 구현 시 확정. 지점·창고·SKU는 각 도메인 코드).
@@ -34,7 +34,7 @@
 |---|---|---|---|---|
 | POST | /orders | STORE_OWNER | P1 | 지점 발주 등록(REQUESTED) |
 | GET | /orders | HQ_ADMIN | P1 | 전체 발주 목록 |
-| GET | /orders/my | STORE_OWNER, WAREHOUSE_MANAGER | P2 | 내 발주 목록 |
+| GET | /orders/my | STORE_OWNER, WAREHOUSE_MANAGER | P2 | 내 발주 목록 (**보류**: 인증 연동 때 구현) |
 | GET | /orders/{orderId} | HQ_ADMIN, STORE_OWNER, WAREHOUSE_MANAGER | P1 | 발주 헤더 조회 |
 | GET | /orders/{orderId}/details | HQ_ADMIN, STORE_OWNER, WAREHOUSE_MANAGER | P2 | 발주 항목·출고·상태 이력 조회 |
 | PATCH | /orders/{orderId}/approve | HQ_ADMIN | P1 | 승인(REQUESTED → APPROVED) |

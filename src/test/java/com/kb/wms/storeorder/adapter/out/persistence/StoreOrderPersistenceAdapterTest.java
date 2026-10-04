@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -386,6 +387,21 @@ class StoreOrderPersistenceAdapterTest {
     @DisplayName("항목이 없는 발주 번호의 항목 뷰는 비어 있다")
     void findLineViews_absent() {
         assertThat(queryRepository.findLineViews(999_999L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("지점의 발주 중 주어진 상태가 하나라도 있으면 true, 다른 지점·다른 상태만 있으면 false")
+    void existsByStoreIdAndStatusIn() {
+        Set<StoreOrderStatus> inProgress = Set.of(
+                StoreOrderStatus.REQUESTED, StoreOrderStatus.APPROVED,
+                StoreOrderStatus.ASSIGNED, StoreOrderStatus.ON_HOLD);
+
+        assertThat(storeOrderRepository.existsByStoreIdAndStatusIn(gangnam, inProgress)).isTrue();
+        // 부산 지점은 COMPLETED 발주만 있다
+        assertThat(storeOrderRepository.existsByStoreIdAndStatusIn(busanStore, inProgress)).isFalse();
+        assertThat(storeOrderRepository.existsByStoreIdAndStatusIn(busanStore, Set.of(StoreOrderStatus.COMPLETED)))
+                .isTrue();
+        assertThat(storeOrderRepository.existsByStoreIdAndStatusIn(999_999L, inProgress)).isFalse();
     }
 
     // ---------- 헬퍼 ----------
