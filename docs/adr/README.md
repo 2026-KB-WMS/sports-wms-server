@@ -21,3 +21,4 @@
 | [007](007-inventory-query-jpql-cross-domain-join.md) | 재고 조회 API는 도메인 간 테이블을 JPQL로 직접 조인 | Accepted | 2026-09-24 |
 | [008](008-inventory-two-tier-exceptions.md) | 재고 도메인은 가드 예외와 사용자 응답 오류(ErrorCode)를 2단으로 분리 | Accepted | 2026-09-24 |
 | [009](009-sku-option-value-embedded-id.md) | sku_option_value 복합키는 @Embeddable/@EmbeddedId로 구현 | Accepted | 2026-09-24 |
+| [010](010-store-order-progress-stage-derived.md) | 지점 발주 진행 단계(progressStage)는 저장하지 않고 파생 값으로 계산 | Accepted | 2026-10-04 |
