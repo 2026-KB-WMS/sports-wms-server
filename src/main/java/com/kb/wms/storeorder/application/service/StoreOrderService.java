@@ -18,14 +18,20 @@ import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.storeorder.application.port.in.StoreOrderUseCase;
+import com.kb.wms.storeorder.application.port.in.command.StoreOrderCancelCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderRegisterCommand;
+import com.kb.wms.storeorder.application.port.in.command.StoreOrderRejectCommand;
 import com.kb.wms.storeorder.application.port.in.query.StoreOrderSearchCondition;
+import com.kb.wms.storeorder.application.port.in.result.StoreOrderCancelResult;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderDetail;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderDetails;
+import com.kb.wms.storeorder.application.port.in.result.StoreOrderFulfillmentCancelResult;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderListItem;
+import com.kb.wms.storeorder.application.port.in.result.StoreOrderStatusChange;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderStatusHistoryView;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderSummary;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderView;
+import com.kb.wms.storeorder.application.port.out.SkuAvailabilityPort;
 import com.kb.wms.storeorder.application.port.out.SkuSupplyPricePort;
 import com.kb.wms.storeorder.application.port.out.StoreAvailabilityPort;
 import com.kb.wms.storeorder.application.port.out.StoreOrderOutboundPort;
@@ -56,6 +62,7 @@ public class StoreOrderService implements StoreOrderUseCase {
     private static final String NO_PREFIX = "SO-";
     private static final DateTimeFormatter NO_DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
     private static final int NOTE_MAX_LENGTH = 1000;
+    private static final int REASON_MAX_LENGTH = 500;
 
     /** 응답의 statusReason을 내려주는 상태. 재개 후 ASSIGNED 등 사유가 필요 없는 상태에서는 null이다. */
     private static final Set<StoreOrderStatus> REASON_STATUSES =
@@ -67,6 +74,7 @@ public class StoreOrderService implements StoreOrderUseCase {
     private final StoreAvailabilityPort storeAvailabilityPort;
     private final WarehouseExistencePort warehouseExistencePort;
     private final SkuSupplyPricePort skuSupplyPricePort;
+    private final SkuAvailabilityPort skuAvailabilityPort;
     private final StatusHistoryUseCase statusHistoryUseCase;
 
     @Override
@@ -152,6 +160,139 @@ public class StoreOrderService implements StoreOrderUseCase {
                 storeOrderQueryRepository.findLineViews(storeOrderId),
                 storeOrderOutboundPort.findOutbounds(storeOrderId),
                 history);
+    }
+
+    /**
+     * 발주 행을 비관적 락으로 잡고 상태 확인과 변경을 한 트랜잭션에서 처리해 같은 발주에 대한
+     * 동시 승인·반려·취소 중 하나만 성공하게 한다. 승인 조건은 지점과 모든 항목의 SKU가 활성인 것이다.
+     */
+    @Override
+    @Transactional
+    public StoreOrderStatusChange approveStoreOrder(Long storeOrderId, Long changedBy) {
+        requireChangedBy(changedBy);
+        StoreOrder order = findForUpdateOrThrow(storeOrderId);
+        if (!order.isRequested()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "요청 상태의 발주만 승인할 수 있습니다. 현재 상태: " + order.getStatus());
+        }
+
+        storeAvailabilityPort.requireActive(order.getStoreId());
+        List<StoreOrderLine> lines = storeOrderRepository.findLinesByStoreOrderIdForUpdate(storeOrderId);
+        lines.forEach(line -> skuAvailabilityPort.requireActive(line.getSkuId()));
+
+        StoreOrderStatus from = order.getStatus();
+        order.approve();
+        StoreOrder saved = storeOrderRepository.save(order);
+        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, storeOrderId,
+                from.name(), saved.getStatus().name(), null, changedBy);
+
+        return new StoreOrderStatusChange(storeOrderId, saved.getOrderNo(), saved.getStatus(), null,
+                updatedAtOf(saved));
+    }
+
+    @Override
+    @Transactional
+    public StoreOrderStatusChange rejectStoreOrder(StoreOrderRejectCommand command) {
+        requireChangedBy(command.changedBy());
+        String reason = normalizeReason(command.reason());
+        if (reason == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "반려 사유를 입력해주세요.");
+        }
+
+        StoreOrder order = findForUpdateOrThrow(command.storeOrderId());
+        if (!order.isRequested()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "요청 상태의 발주만 반려할 수 있습니다. 현재 상태: " + order.getStatus());
+        }
+
+        StoreOrderStatus from = order.getStatus();
+        order.reject();
+        StoreOrder saved = storeOrderRepository.save(order);
+        cancelLines(command.storeOrderId());
+        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, command.storeOrderId(),
+                from.name(), saved.getStatus().name(), reason, command.changedBy());
+
+        return new StoreOrderStatusChange(command.storeOrderId(), saved.getOrderNo(), saved.getStatus(), reason,
+                updatedAtOf(saved));
+    }
+
+    /**
+     * 승인 전(REQUESTED) 취소는 사유가 선택이고, 승인 이후(APPROVED·ASSIGNED·ON_HOLD) 취소는 사유가 필수다.
+     * 피킹이 시작된 출고가 있으면 막고, 승인 이후 취소는 출고 연동 포트로 READY 출고 취소·할당 해제를 같은 트랜잭션에서 처리한다.
+     * 작성자·역할 검사는 인증 연동 때 웹 어댑터에서 적용한다.
+     */
+    @Override
+    @Transactional
+    public StoreOrderCancelResult cancelStoreOrder(StoreOrderCancelCommand command) {
+        requireChangedBy(command.changedBy());
+        String reason = normalizeReason(command.reason());
+
+        StoreOrder order = findForUpdateOrThrow(command.storeOrderId());
+        if (order.isTerminal()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "진행 중인 발주만 취소할 수 있습니다. 현재 상태: " + order.getStatus());
+        }
+        boolean afterApproval = !order.isRequested();
+        if (afterApproval && reason == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "승인된 발주를 취소할 때는 사유를 입력해야 합니다.");
+        }
+        if (storeOrderOutboundPort.existsPickingStarted(command.storeOrderId())) {
+            throw new BusinessException(StoreOrderErrorCode.ORDER_IN_PICKING);
+        }
+
+        StoreOrderFulfillmentCancelResult fulfillment = afterApproval
+                ? storeOrderOutboundPort.cancelFulfillment(command.storeOrderId(), command.changedBy())
+                : StoreOrderFulfillmentCancelResult.NONE;
+
+        StoreOrderStatus from = order.getStatus();
+        order.cancel();
+        StoreOrder saved = storeOrderRepository.save(order);
+        cancelLines(command.storeOrderId());
+        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, command.storeOrderId(),
+                from.name(), saved.getStatus().name(), reason, command.changedBy());
+
+        return new StoreOrderCancelResult(command.storeOrderId(), saved.getOrderNo(), saved.getStatus(), reason,
+                fulfillment.releasedAllocationCount(), fulfillment.canceledOutboundCount(), updatedAtOf(saved));
+    }
+
+    private void requireChangedBy(Long changedBy) {
+        if (changedBy == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "처리 사용자는 필수입니다.");
+        }
+    }
+
+    /** 공백만 있으면 null, 500자를 넘으면 400. 앞뒤 공백은 제거한다. */
+    private String normalizeReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return null;
+        }
+        String trimmed = reason.strip();
+        if (trimmed.length() > REASON_MAX_LENGTH) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "사유는 " + REASON_MAX_LENGTH + "자 이하여야 합니다.");
+        }
+        return trimmed;
+    }
+
+    /** 발주 취소·반려에 따라 항목을 모두 CANCELED로 바꾼다. 항목 행도 잠그고 처리한다. */
+    private void cancelLines(Long storeOrderId) {
+        List<StoreOrderLine> lines = storeOrderRepository.findLinesByStoreOrderIdForUpdate(storeOrderId);
+        lines.forEach(StoreOrderLine::cancel);
+        storeOrderRepository.saveLines(lines);
+    }
+
+    /**
+     * 저장 결과의 updatedAt은 flush 전이라 비어 있을 수 있어, 조회 쿼리(JPQL 실행 전 flush)로 확정된 값을 읽는다.
+     */
+    private LocalDateTime updatedAtOf(StoreOrder saved) {
+        return storeOrderQueryRepository.findView(saved.getStoreOrderId())
+                .map(StoreOrderView::updatedAt)
+                .orElse(saved.getUpdatedAt());
+    }
+
+    private StoreOrder findForUpdateOrThrow(Long storeOrderId) {
+        return storeOrderRepository.findByIdForUpdate(storeOrderId)
+                .orElseThrow(() -> new BusinessException(StoreOrderErrorCode.STORE_ORDER_NOT_FOUND));
     }
 
     private void validateRegister(StoreOrderRegisterCommand command) {

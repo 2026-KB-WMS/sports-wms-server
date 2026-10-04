@@ -30,13 +30,19 @@ import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.common.statushistory.domain.entity.StatusHistory;
 import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderRegisterCommand;
+import com.kb.wms.storeorder.application.port.in.command.StoreOrderCancelCommand;
+import com.kb.wms.storeorder.application.port.in.command.StoreOrderRejectCommand;
 import com.kb.wms.storeorder.application.port.in.query.StoreOrderSearchCondition;
+import com.kb.wms.storeorder.application.port.in.result.StoreOrderCancelResult;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderDetail;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderDetails;
+import com.kb.wms.storeorder.application.port.in.result.StoreOrderFulfillmentCancelResult;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderLineView;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderListItem;
+import com.kb.wms.storeorder.application.port.in.result.StoreOrderStatusChange;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderSummary;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderView;
+import com.kb.wms.storeorder.application.port.out.SkuAvailabilityPort;
 import com.kb.wms.storeorder.application.port.out.SkuSupplyPricePort;
 import com.kb.wms.storeorder.application.port.out.StoreAvailabilityPort;
 import com.kb.wms.storeorder.application.port.out.StoreOrderOutboundPort;
@@ -71,6 +77,9 @@ class StoreOrderServiceTest {
 
     @Mock
     private SkuSupplyPricePort skuSupplyPricePort;
+
+    @Mock
+    private SkuAvailabilityPort skuAvailabilityPort;
 
     @Mock
     private StatusHistoryUseCase statusHistoryUseCase;
@@ -336,5 +345,286 @@ class StoreOrderServiceTest {
         assertThat(details.statusHistory().get(0).fromStatus()).isNull();
         assertThat(details.statusHistory().get(0).toStatus()).isEqualTo("REQUESTED");
         assertThat(details.statusHistory().get(1).changedBy()).isEqualTo(2L);
+    }
+
+    // ---------- 승인·반려·취소 fixtures ----------
+
+    private static StoreOrder orderIn(Long id, StoreOrderStatus status) {
+        return StoreOrder.builder()
+                .storeOrderId(id).orderNo("SO-20261004-0001").storeId(1L).warehouseId(
+                        status == StoreOrderStatus.REQUESTED || status == StoreOrderStatus.APPROVED ? null : 3L)
+                .status(status).createdBy(5L).build();
+    }
+
+    private static StoreOrderLine requestedLine(Long storeOrderId, Long skuId) {
+        return StoreOrderLine.register(storeOrderId, skuId, 3, new BigDecimal("1500.00"));
+    }
+
+    private void givenLockedOrder(Long id, StoreOrderStatus status) {
+        when(storeOrderRepository.findByIdForUpdate(id)).thenReturn(Optional.of(orderIn(id, status)));
+        org.mockito.Mockito.lenient().when(storeOrderRepository.save(any(StoreOrder.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+    }
+
+    private void givenLines(Long id, StoreOrderLine... lines) {
+        when(storeOrderRepository.findLinesByStoreOrderIdForUpdate(id)).thenReturn(List.of(lines));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<StoreOrderLine> capturedSavedLines() {
+        ArgumentCaptor<List<StoreOrderLine>> captor = ArgumentCaptor.forClass(List.class);
+        verify(storeOrderRepository).saveLines(captor.capture());
+        return captor.getValue();
+    }
+
+    // ---------- approveStoreOrder ----------
+
+    @Test
+    @DisplayName("승인하면 APPROVED로 바뀌고 창고는 비워 둔 채 이력을 남긴다")
+    void approveStoreOrder_success() {
+        givenLockedOrder(1L, StoreOrderStatus.REQUESTED);
+        givenLines(1L, requestedLine(1L, 10L), requestedLine(1L, 11L));
+        LocalDateTime updatedAt = LocalDateTime.of(2026, 10, 4, 10, 0);
+        when(storeOrderQueryRepository.findView(1L)).thenReturn(Optional.of(
+                new StoreOrderView(1L, "SO-20261004-0001", 1L, "강남점", null, null, StoreOrderStatus.APPROVED,
+                        updatedAt, null, null, 2L, new BigDecimal("9000.00"), 2L, 5L, updatedAt, updatedAt)));
+
+        StoreOrderStatusChange result = storeOrderService.approveStoreOrder(1L, 2L);
+
+        assertThat(result.storeOrderId()).isEqualTo(1L);
+        assertThat(result.orderNo()).isEqualTo("SO-20261004-0001");
+        assertThat(result.status()).isEqualTo(StoreOrderStatus.APPROVED);
+        assertThat(result.statusReason()).isNull();
+        assertThat(result.updatedAt()).isEqualTo(updatedAt);
+
+        ArgumentCaptor<StoreOrder> captor = ArgumentCaptor.forClass(StoreOrder.class);
+        verify(storeOrderRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(StoreOrderStatus.APPROVED);
+        assertThat(captor.getValue().getWarehouseId()).isNull();
+
+        verify(storeAvailabilityPort).requireActive(1L);
+        verify(skuAvailabilityPort).requireActive(10L);
+        verify(skuAvailabilityPort).requireActive(11L);
+        verify(statusHistoryUseCase).record(
+                StatusHistoryEntityType.STORE_ORDER, 1L, "REQUESTED", "APPROVED", null, 2L);
+    }
+
+    @Test
+    @DisplayName("없는 발주를 승인하면 404 STORE_ORDER_NOT_FOUND")
+    void approveStoreOrder_notFound() {
+        when(storeOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.empty());
+
+        assertError(() -> storeOrderService.approveStoreOrder(9L, 2L), "STORE_ORDER_NOT_FOUND");
+        verifyNoInteractions(statusHistoryUseCase);
+    }
+
+    @Test
+    @DisplayName("REQUESTED가 아닌 발주를 승인하면 409 CONFLICT이고 부작용이 없다")
+    void approveStoreOrder_notRequested() {
+        for (StoreOrderStatus status : List.of(StoreOrderStatus.APPROVED, StoreOrderStatus.REJECTED,
+                StoreOrderStatus.CANCELED, StoreOrderStatus.ASSIGNED, StoreOrderStatus.COMPLETED)) {
+            when(storeOrderRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(orderIn(1L, status)));
+
+            assertError(() -> storeOrderService.approveStoreOrder(1L, 2L), "CONFLICT");
+        }
+        verify(storeOrderRepository, never()).save(any());
+        verifyNoInteractions(statusHistoryUseCase, skuAvailabilityPort);
+    }
+
+    @Test
+    @DisplayName("지점이 비활성이면 승인하지 않는다")
+    void approveStoreOrder_inactiveStore() {
+        givenLockedOrder(1L, StoreOrderStatus.REQUESTED);
+        doThrow(new BusinessException(com.kb.wms.common.exception.ErrorCode.CONFLICT, "비활성 지점"))
+                .when(storeAvailabilityPort).requireActive(1L);
+
+        assertError(() -> storeOrderService.approveStoreOrder(1L, 2L), "CONFLICT");
+        verify(storeOrderRepository, never()).save(any());
+        verifyNoInteractions(statusHistoryUseCase);
+    }
+
+    @Test
+    @DisplayName("항목 SKU가 비활성이면 승인하지 않는다")
+    void approveStoreOrder_inactiveSku() {
+        givenLockedOrder(1L, StoreOrderStatus.REQUESTED);
+        givenLines(1L, requestedLine(1L, 10L), requestedLine(1L, 11L));
+        // 10L은 통과(기본 no-op), 11L만 예외. 인자가 다른 호출을 허용하려고 lenient로 둔다.
+        org.mockito.Mockito.lenient()
+                .doThrow(new BusinessException(com.kb.wms.common.exception.ErrorCode.CONFLICT, "비활성 SKU"))
+                .when(skuAvailabilityPort).requireActive(11L);
+
+        assertError(() -> storeOrderService.approveStoreOrder(1L, 2L), "CONFLICT");
+        verify(storeOrderRepository, never()).save(any());
+        verifyNoInteractions(statusHistoryUseCase);
+    }
+
+    @Test
+    @DisplayName("처리 사용자가 없으면 400 VALIDATION_ERROR")
+    void approveStoreOrder_requiresChangedBy() {
+        assertError(() -> storeOrderService.approveStoreOrder(1L, null), "VALIDATION_ERROR");
+        verifyNoInteractions(storeOrderRepository);
+    }
+
+    // ---------- rejectStoreOrder ----------
+
+    @Test
+    @DisplayName("반려하면 REJECTED로 바뀌고 모든 항목이 CANCELED가 되며 사유를 이력에 남긴다")
+    void rejectStoreOrder_success() {
+        givenLockedOrder(1L, StoreOrderStatus.REQUESTED);
+        givenLines(1L, requestedLine(1L, 10L), requestedLine(1L, 11L));
+
+        StoreOrderStatusChange result = storeOrderService.rejectStoreOrder(
+                new StoreOrderRejectCommand(1L, "  단가 협의 필요  ", 2L));
+
+        assertThat(result.status()).isEqualTo(StoreOrderStatus.REJECTED);
+        assertThat(result.statusReason()).isEqualTo("단가 협의 필요");
+        assertThat(capturedSavedLines()).extracting(StoreOrderLine::getStatus)
+                .containsOnly(StoreOrderLineStatus.CANCELED);
+        verify(statusHistoryUseCase).record(
+                StatusHistoryEntityType.STORE_ORDER, 1L, "REQUESTED", "REJECTED", "단가 협의 필요", 2L);
+    }
+
+    @Test
+    @DisplayName("반려 사유가 없거나 공백이거나 500자를 넘으면 400 VALIDATION_ERROR이고 발주를 조회하지 않는다")
+    void rejectStoreOrder_reasonValidation() {
+        assertError(() -> storeOrderService.rejectStoreOrder(new StoreOrderRejectCommand(1L, null, 2L)),
+                "VALIDATION_ERROR");
+        assertError(() -> storeOrderService.rejectStoreOrder(new StoreOrderRejectCommand(1L, "   ", 2L)),
+                "VALIDATION_ERROR");
+        assertError(() -> storeOrderService.rejectStoreOrder(
+                new StoreOrderRejectCommand(1L, "a".repeat(501), 2L)), "VALIDATION_ERROR");
+        verifyNoInteractions(storeOrderRepository);
+    }
+
+    @Test
+    @DisplayName("500자 사유는 허용한다")
+    void rejectStoreOrder_reasonAtLimit() {
+        givenLockedOrder(1L, StoreOrderStatus.REQUESTED);
+        givenLines(1L, requestedLine(1L, 10L));
+
+        StoreOrderStatusChange result = storeOrderService.rejectStoreOrder(
+                new StoreOrderRejectCommand(1L, "a".repeat(500), 2L));
+
+        assertThat(result.statusReason()).hasSize(500);
+    }
+
+    @Test
+    @DisplayName("없는 발주를 반려하면 404, REQUESTED가 아니면 409 CONFLICT이고 부작용이 없다")
+    void rejectStoreOrder_notFoundOrNotRequested() {
+        when(storeOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.empty());
+        assertError(() -> storeOrderService.rejectStoreOrder(new StoreOrderRejectCommand(9L, "사유", 2L)),
+                "STORE_ORDER_NOT_FOUND");
+
+        when(storeOrderRepository.findByIdForUpdate(1L))
+                .thenReturn(Optional.of(orderIn(1L, StoreOrderStatus.APPROVED)));
+        assertError(() -> storeOrderService.rejectStoreOrder(new StoreOrderRejectCommand(1L, "사유", 2L)),
+                "CONFLICT");
+
+        verify(storeOrderRepository, never()).save(any());
+        verify(storeOrderRepository, never()).saveLines(any());
+        verifyNoInteractions(statusHistoryUseCase);
+    }
+
+    // ---------- cancelStoreOrder ----------
+
+    @Test
+    @DisplayName("승인 전 취소는 사유 없이도 되고 출고 정리 없이 항목을 모두 CANCELED로 바꾼다")
+    void cancelStoreOrder_requestedWithoutReason() {
+        givenLockedOrder(1L, StoreOrderStatus.REQUESTED);
+        givenLines(1L, requestedLine(1L, 10L));
+        when(storeOrderOutboundPort.existsPickingStarted(1L)).thenReturn(false);
+
+        StoreOrderCancelResult result = storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, null, 5L));
+
+        assertThat(result.status()).isEqualTo(StoreOrderStatus.CANCELED);
+        assertThat(result.statusReason()).isNull();
+        assertThat(result.releasedAllocationCount()).isZero();
+        assertThat(result.canceledOutboundCount()).isZero();
+        assertThat(capturedSavedLines()).extracting(StoreOrderLine::getStatus)
+                .containsOnly(StoreOrderLineStatus.CANCELED);
+        verify(storeOrderOutboundPort, never()).cancelFulfillment(anyLong(), anyLong());
+        verify(statusHistoryUseCase).record(
+                StatusHistoryEntityType.STORE_ORDER, 1L, "REQUESTED", "CANCELED", null, 5L);
+    }
+
+    @Test
+    @DisplayName("승인 이후 취소는 출고 연동 포트로 할당 해제·READY 출고 취소를 하고 건수를 돌려준다")
+    void cancelStoreOrder_afterApprovalReleasesFulfillment() {
+        for (StoreOrderStatus status : List.of(
+                StoreOrderStatus.APPROVED, StoreOrderStatus.ASSIGNED, StoreOrderStatus.ON_HOLD)) {
+            givenLockedOrder(1L, status);
+            givenLines(1L, requestedLine(1L, 10L));
+            when(storeOrderOutboundPort.existsPickingStarted(1L)).thenReturn(false);
+            when(storeOrderOutboundPort.cancelFulfillment(1L, 2L))
+                    .thenReturn(new StoreOrderFulfillmentCancelResult(2, 1));
+
+            StoreOrderCancelResult result = storeOrderService.cancelStoreOrder(
+                    new StoreOrderCancelCommand(1L, "재고 이슈", 2L));
+
+            assertThat(result.status()).isEqualTo(StoreOrderStatus.CANCELED);
+            assertThat(result.statusReason()).isEqualTo("재고 이슈");
+            assertThat(result.releasedAllocationCount()).isEqualTo(2);
+            assertThat(result.canceledOutboundCount()).isEqualTo(1);
+            verify(statusHistoryUseCase).record(
+                    StatusHistoryEntityType.STORE_ORDER, 1L, status.name(), "CANCELED", "재고 이슈", 2L);
+            org.mockito.Mockito.clearInvocations(statusHistoryUseCase, storeOrderRepository);
+        }
+    }
+
+    @Test
+    @DisplayName("승인 이후 취소에 사유가 없으면 400 VALIDATION_ERROR이고 아무것도 바꾸지 않는다")
+    void cancelStoreOrder_afterApprovalRequiresReason() {
+        givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
+
+        assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, "  ", 2L)),
+                "VALIDATION_ERROR");
+        verify(storeOrderRepository, never()).save(any());
+        verifyNoInteractions(statusHistoryUseCase);
+        verify(storeOrderOutboundPort, never()).cancelFulfillment(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("사유가 500자를 넘으면 400 VALIDATION_ERROR")
+    void cancelStoreOrder_reasonTooLong() {
+        assertError(() -> storeOrderService.cancelStoreOrder(
+                new StoreOrderCancelCommand(1L, "a".repeat(501), 5L)), "VALIDATION_ERROR");
+        verifyNoInteractions(storeOrderRepository);
+    }
+
+    @Test
+    @DisplayName("이미 취소·반려·완료된 발주를 취소하면 409 CONFLICT이고 부작용을 다시 실행하지 않는다")
+    void cancelStoreOrder_alreadyTerminal() {
+        for (StoreOrderStatus status : List.of(
+                StoreOrderStatus.CANCELED, StoreOrderStatus.REJECTED, StoreOrderStatus.COMPLETED)) {
+            when(storeOrderRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(orderIn(1L, status)));
+
+            assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, "사유", 2L)),
+                    "CONFLICT");
+        }
+        verify(storeOrderRepository, never()).save(any());
+        verify(storeOrderOutboundPort, never()).cancelFulfillment(anyLong(), anyLong());
+        verifyNoInteractions(statusHistoryUseCase);
+    }
+
+    @Test
+    @DisplayName("피킹이 시작된 출고가 있으면 409 ORDER_IN_PICKING이고 출고 정리도 하지 않는다")
+    void cancelStoreOrder_orderInPicking() {
+        givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
+        when(storeOrderOutboundPort.existsPickingStarted(1L)).thenReturn(true);
+
+        assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, "사유", 2L)),
+                "ORDER_IN_PICKING");
+        verify(storeOrderOutboundPort, never()).cancelFulfillment(anyLong(), anyLong());
+        verify(storeOrderRepository, never()).save(any());
+        verifyNoInteractions(statusHistoryUseCase);
+    }
+
+    @Test
+    @DisplayName("없는 발주를 취소하면 404 STORE_ORDER_NOT_FOUND")
+    void cancelStoreOrder_notFound() {
+        when(storeOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.empty());
+
+        assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(9L, "사유", 2L)),
+                "STORE_ORDER_NOT_FOUND");
     }
 }
