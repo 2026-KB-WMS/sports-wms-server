@@ -26,7 +26,7 @@ public class StoreAvailabilityAdapter implements StoreAvailabilityPort {
     @Override
     public void requireActive(Long storeId) {
         if (!storeUseCase.getStore(storeId).isActive()) {
-            throw new BusinessException(ErrorCode.CONFLICT, "비활성 지점은 발주를 등록할 수 없습니다.");
+            throw new BusinessException(ErrorCode.CONFLICT, "비활성 지점의 발주는 등록하거나 승인할 수 없습니다.");
         }
     }
 }
