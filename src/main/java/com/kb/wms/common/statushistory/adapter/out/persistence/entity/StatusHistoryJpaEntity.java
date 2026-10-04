@@ -44,16 +44,16 @@ public class StatusHistoryJpaEntity {
     @Column(name = "entity_id", nullable = false)
     private Long entityId;
 
-    @Column(name = "from_status", length = 30)
+    @Column(name = "from_status", length = 20)
     private String fromStatus;
 
-    @Column(name = "to_status", nullable = false, length = 30)
+    @Column(name = "to_status", nullable = false, length = 20)
     private String toStatus;
 
     @Column(name = "reason", length = 500)
     private String reason;
 
-    @Column(name = "changed_by")
+    @Column(name = "changed_by", nullable = false)
     private Long changedBy;
 
     @Column(name = "changed_at", nullable = false)

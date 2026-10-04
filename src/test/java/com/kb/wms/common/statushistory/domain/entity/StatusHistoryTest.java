@@ -43,9 +43,9 @@ class StatusHistoryTest {
     @DisplayName("빈 사유는 null로, 앞뒤 공백은 제거해 저장한다")
     void record_normalizesReason() {
         StatusHistory blank = StatusHistory.record(
-                StatusHistoryEntityType.INBOUND, 1L, "ARRIVED", "CANCELED", "   ", null, NOW);
+                StatusHistoryEntityType.INBOUND, 1L, "ARRIVED", "CANCELED", "   ", 1L, NOW);
         StatusHistory padded = StatusHistory.record(
-                StatusHistoryEntityType.INBOUND, 1L, "ARRIVED", "CANCELED", "  파손  ", null, NOW);
+                StatusHistoryEntityType.INBOUND, 1L, "ARRIVED", "CANCELED", "  파손  ", 1L, NOW);
 
         assertThat(blank.getReason()).isNull();
         assertThat(padded.getReason()).isEqualTo("파손");
@@ -57,7 +57,7 @@ class StatusHistoryTest {
         String tooLong = "가".repeat(StatusHistory.MAX_REASON_LENGTH + 1);
 
         assertThatThrownBy(() -> StatusHistory.record(
-                StatusHistoryEntityType.INBOUND, 1L, "ARRIVED", "CANCELED", tooLong, null, NOW))
+                StatusHistoryEntityType.INBOUND, 1L, "ARRIVED", "CANCELED", tooLong, 1L, NOW))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -67,7 +67,7 @@ class StatusHistoryTest {
         String max = "가".repeat(StatusHistory.MAX_REASON_LENGTH);
 
         StatusHistory history = StatusHistory.record(
-                StatusHistoryEntityType.INBOUND, 1L, "ARRIVED", "CANCELED", max, null, NOW);
+                StatusHistoryEntityType.INBOUND, 1L, "ARRIVED", "CANCELED", max, 1L, NOW);
 
         assertThat(history.getReason()).hasSize(StatusHistory.MAX_REASON_LENGTH);
     }
@@ -75,13 +75,21 @@ class StatusHistoryTest {
     @Test
     @DisplayName("entityType, entityId, toStatus가 없으면 예외를 던진다")
     void record_requiredFields() {
-        assertThatThrownBy(() -> StatusHistory.record(null, 1L, null, "A", null, null, NOW))
+        assertThatThrownBy(() -> StatusHistory.record(null, 1L, null, "A", null, 1L, NOW))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> StatusHistory.record(StatusHistoryEntityType.OUTBOUND, null, null, "A", null, null, NOW))
+        assertThatThrownBy(() -> StatusHistory.record(StatusHistoryEntityType.OUTBOUND, null, null, "A", null, 1L, NOW))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> StatusHistory.record(StatusHistoryEntityType.OUTBOUND, 1L, null, " ", null, null, NOW))
+        assertThatThrownBy(() -> StatusHistory.record(StatusHistoryEntityType.OUTBOUND, 1L, null, " ", null, 1L, NOW))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> StatusHistory.record(StatusHistoryEntityType.OUTBOUND, 1L, null, null, null, null, NOW))
+        assertThatThrownBy(() -> StatusHistory.record(StatusHistoryEntityType.OUTBOUND, 1L, null, null, null, 1L, NOW))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("처리자가 없으면 예외를 던진다 (시스템 자동 전이도 트리거한 사용자가 필요하다)")
+    void record_requiresChangedBy() {
+        assertThatThrownBy(() -> StatusHistory.record(
+                StatusHistoryEntityType.STORE_ORDER, 1L, "REQUESTED", "APPROVED", null, null, NOW))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

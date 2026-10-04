@@ -44,7 +44,7 @@ public class StatusHistory {
     }
 
     /**
-     * 상태 변경 이력 생성. 최초 생성이면 fromStatus에 null을 넣는다. 빈 사유는 null로 정리한다.
+     * 상태 변경 이력 생성. 최초 생성이면 fromStatus에 null을 넣는다. 처리자(changedBy)는 필수이고, 시스템 자동 전이는 트리거한 사용자를 넣는다. 빈 사유는 null로 정리한다.
      */
     public static StatusHistory record(StatusHistoryEntityType entityType, Long entityId,
                                        String fromStatus, String toStatus, String reason,
@@ -57,6 +57,9 @@ public class StatusHistory {
         }
         if (toStatus == null || toStatus.isBlank()) {
             throw new IllegalArgumentException("toStatus는 필수입니다.");
+        }
+        if (changedBy == null) {
+            throw new IllegalArgumentException("changedBy는 필수입니다.");
         }
         String normalizedReason = reason == null || reason.isBlank() ? null : reason.strip();
         if (normalizedReason != null && normalizedReason.length() > MAX_REASON_LENGTH) {
