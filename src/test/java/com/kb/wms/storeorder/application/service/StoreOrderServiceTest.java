@@ -48,7 +48,7 @@ import com.kb.wms.storeorder.application.port.out.StoreAvailabilityPort;
 import com.kb.wms.storeorder.application.port.out.StoreOrderOutboundPort;
 import com.kb.wms.storeorder.application.port.out.StoreOrderQueryRepository;
 import com.kb.wms.storeorder.application.port.out.StoreOrderRepository;
-import com.kb.wms.storeorder.application.port.out.WarehouseExistencePort;
+import com.kb.wms.storeorder.application.port.out.WarehouseAvailabilityPort;
 import com.kb.wms.storeorder.domain.entity.StoreOrder;
 import com.kb.wms.storeorder.domain.entity.StoreOrderLine;
 import com.kb.wms.storeorder.domain.enums.StoreOrderLineStatus;
@@ -73,7 +73,7 @@ class StoreOrderServiceTest {
     private StoreAvailabilityPort storeAvailabilityPort;
 
     @Mock
-    private WarehouseExistencePort warehouseExistencePort;
+    private WarehouseAvailabilityPort warehouseAvailabilityPort;
 
     @Mock
     private SkuSupplyPricePort skuSupplyPricePort;
@@ -255,7 +255,7 @@ class StoreOrderServiceTest {
         assertError(() -> storeOrderService.getStoreOrders(condition(99L, null, null, null)), "STORE_NOT_FOUND");
 
         doThrow(new BusinessException(com.kb.wms.common.exception.ErrorCode.NOT_FOUND, "창고 없음"))
-                .when(warehouseExistencePort).requireExists(88L);
+                .when(warehouseAvailabilityPort).requireExists(88L);
         assertError(() -> storeOrderService.getStoreOrders(condition(null, 88L, null, null)), "NOT_FOUND");
     }
 
@@ -626,5 +626,306 @@ class StoreOrderServiceTest {
 
         assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(9L, "사유", 2L)),
                 "STORE_ORDER_NOT_FOUND");
+    }
+
+    // ---------- assignStoreOrder ----------
+
+    private static StoreOrderLine shippedLine(Long storeOrderId, Long skuId, long requested, long shipped) {
+        return StoreOrderLine.builder().storeOrderId(storeOrderId).skuId(skuId)
+                .requestedQuantity(requested).shippedQuantity(shipped)
+                .requestedUnitSupplyPrice(new BigDecimal("1500.00")).status(StoreOrderLineStatus.REQUESTED).build();
+    }
+
+    private void givenAssignedView(Long id, Long warehouseId, String warehouseName, StoreOrderStatus status,
+                                   LocalDateTime updatedAt) {
+        when(storeOrderQueryRepository.findView(id)).thenReturn(Optional.of(
+                new StoreOrderView(id, "SO-20261004-0001", 1L, "강남점", warehouseId, warehouseName, status,
+                        updatedAt, null, null, 1L, new BigDecimal("4500.00"), 1L, 5L, updatedAt, updatedAt)));
+    }
+
+    @Test
+    @DisplayName("승인된 발주를 배정하면 ASSIGNED가 되고 창고가 채워지며 이력을 남긴다")
+    void assignStoreOrder_firstAssignment() {
+        givenLockedOrder(1L, StoreOrderStatus.APPROVED);
+        LocalDateTime updatedAt = LocalDateTime.of(2026, 10, 4, 11, 0);
+        givenAssignedView(1L, 3L, "서울 물류센터", StoreOrderStatus.ASSIGNED, updatedAt);
+
+        var result = storeOrderService.assignStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderAssignCommand(1L, 3L, null, 2L));
+
+        assertThat(result.status()).isEqualTo(StoreOrderStatus.ASSIGNED);
+        assertThat(result.warehouseId()).isEqualTo(3L);
+        assertThat(result.warehouseName()).isEqualTo("서울 물류센터");
+        assertThat(result.updatedAt()).isEqualTo(updatedAt);
+        verify(warehouseAvailabilityPort).requireActive(3L);
+        verify(storeOrderOutboundPort, never()).existsActiveFulfillment(anyLong());
+        verify(statusHistoryUseCase).record(
+                StatusHistoryEntityType.STORE_ORDER, 1L, "APPROVED", "ASSIGNED", null, 2L);
+    }
+
+    @Test
+    @DisplayName("ASSIGNED 발주를 다른 창고로 재배정하면 사유에 이전·이후 창고를 남기고 ASSIGNED → ASSIGNED로 기록한다")
+    void assignStoreOrder_reassign() {
+        givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
+        when(storeOrderOutboundPort.existsActiveFulfillment(1L)).thenReturn(false);
+
+        var result = storeOrderService.assignStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderAssignCommand(1L, 4L, "재고 부족", 2L));
+
+        assertThat(result.status()).isEqualTo(StoreOrderStatus.ASSIGNED);
+        assertThat(result.warehouseId()).isEqualTo(4L);
+        verify(statusHistoryUseCase).record(StatusHistoryEntityType.STORE_ORDER, 1L, "ASSIGNED", "ASSIGNED",
+                "창고 변경 3 → 4: 재고 부족", 2L);
+    }
+
+    @Test
+    @DisplayName("재배정 이력 사유가 500자를 넘으면 사용자 사유 끝을 줄여 500자 안에 맞춘다")
+    void assignStoreOrder_reassignReasonFitsHistoryLimit() {
+        givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
+
+        storeOrderService.assignStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderAssignCommand(
+                        1L, 4L, "가".repeat(500), 2L));
+
+        ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
+        verify(statusHistoryUseCase).record(any(), anyLong(), any(), any(), reasonCaptor.capture(), anyLong());
+        assertThat(reasonCaptor.getValue()).hasSize(500).startsWith("창고 변경 3 → 4: ").endsWith("…");
+    }
+
+    @Test
+    @DisplayName("재배정에 사유가 없으면 400 VALIDATION_ERROR")
+    void assignStoreOrder_reassignRequiresReason() {
+        givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
+
+        assertError(() -> storeOrderService.assignStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderAssignCommand(1L, 4L, " ", 2L)),
+                "VALIDATION_ERROR");
+        verify(storeOrderRepository, never()).save(any());
+        verifyNoInteractions(statusHistoryUseCase);
+    }
+
+    @Test
+    @DisplayName("현재와 같은 창고로 재배정하면 409 CONFLICT")
+    void assignStoreOrder_sameWarehouse() {
+        givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
+
+        assertError(() -> storeOrderService.assignStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderAssignCommand(1L, 3L, "사유", 2L)),
+                "CONFLICT");
+        verify(storeOrderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("재고 할당이나 출고가 남아 있으면 재배정할 수 없다 (409 ORDER_IN_FULFILLMENT)")
+    void assignStoreOrder_orderInFulfillment() {
+        givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
+        when(storeOrderOutboundPort.existsActiveFulfillment(1L)).thenReturn(true);
+
+        assertError(() -> storeOrderService.assignStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderAssignCommand(1L, 4L, "사유", 2L)),
+                "ORDER_IN_FULFILLMENT");
+        verify(storeOrderRepository, never()).save(any());
+        verifyNoInteractions(statusHistoryUseCase);
+    }
+
+    @Test
+    @DisplayName("APPROVED·ASSIGNED가 아닌 발주(ON_HOLD 포함)는 배정할 수 없다 (409 CONFLICT)")
+    void assignStoreOrder_invalidStatus() {
+        for (StoreOrderStatus status : List.of(StoreOrderStatus.REQUESTED, StoreOrderStatus.ON_HOLD,
+                StoreOrderStatus.COMPLETED, StoreOrderStatus.CANCELED, StoreOrderStatus.REJECTED)) {
+            when(storeOrderRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(orderIn(1L, status)));
+
+            assertError(() -> storeOrderService.assignStoreOrder(
+                    new com.kb.wms.storeorder.application.port.in.command.StoreOrderAssignCommand(1L, 4L, "사유", 2L)),
+                    "CONFLICT");
+        }
+        verifyNoInteractions(warehouseAvailabilityPort, statusHistoryUseCase);
+    }
+
+    @Test
+    @DisplayName("창고가 없거나 비활성이면 창고 포트의 예외가 전파되고 저장하지 않는다")
+    void assignStoreOrder_warehouseNotAvailable() {
+        givenLockedOrder(1L, StoreOrderStatus.APPROVED);
+        doThrow(new BusinessException(com.kb.wms.common.exception.ErrorCode.CONFLICT, "비활성 창고"))
+                .when(warehouseAvailabilityPort).requireActive(3L);
+
+        assertError(() -> storeOrderService.assignStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderAssignCommand(1L, 3L, null, 2L)),
+                "CONFLICT");
+        verify(storeOrderRepository, never()).save(any());
+        verifyNoInteractions(statusHistoryUseCase);
+    }
+
+    @Test
+    @DisplayName("없는 발주를 배정하면 404, 발주·창고 ID가 없으면 400")
+    void assignStoreOrder_notFoundAndValidation() {
+        when(storeOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.empty());
+        assertError(() -> storeOrderService.assignStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderAssignCommand(9L, 3L, null, 2L)),
+                "STORE_ORDER_NOT_FOUND");
+        assertError(() -> storeOrderService.assignStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderAssignCommand(null, 3L, null, 2L)),
+                "VALIDATION_ERROR");
+        assertError(() -> storeOrderService.assignStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderAssignCommand(1L, null, null, 2L)),
+                "VALIDATION_ERROR");
+    }
+
+    // ---------- holdStoreOrder ----------
+
+    @Test
+    @DisplayName("ASSIGNED 발주를 보류하면 ON_HOLD가 되고 사유를 이력과 응답에 남긴다")
+    void holdStoreOrder_success() {
+        givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
+        when(storeOrderOutboundPort.existsPickingStarted(1L)).thenReturn(false);
+
+        StoreOrderStatusChange result = storeOrderService.holdStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand(1L, "재고 부족", 7L));
+
+        assertThat(result.status()).isEqualTo(StoreOrderStatus.ON_HOLD);
+        assertThat(result.statusReason()).isEqualTo("재고 부족");
+        verify(statusHistoryUseCase).record(
+                StatusHistoryEntityType.STORE_ORDER, 1L, "ASSIGNED", "ON_HOLD", "재고 부족", 7L);
+    }
+
+    @Test
+    @DisplayName("보류 사유가 없으면 400, ASSIGNED가 아니면 409 CONFLICT, 피킹이 시작됐으면 409 ORDER_IN_PICKING")
+    void holdStoreOrder_failures() {
+        assertError(() -> storeOrderService.holdStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand(1L, null, 7L)),
+                "VALIDATION_ERROR");
+
+        when(storeOrderRepository.findByIdForUpdate(1L))
+                .thenReturn(Optional.of(orderIn(1L, StoreOrderStatus.ON_HOLD)));
+        assertError(() -> storeOrderService.holdStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand(1L, "사유", 7L)),
+                "CONFLICT");
+
+        when(storeOrderRepository.findByIdForUpdate(2L))
+                .thenReturn(Optional.of(orderIn(2L, StoreOrderStatus.ASSIGNED)));
+        when(storeOrderOutboundPort.existsPickingStarted(2L)).thenReturn(true);
+        assertError(() -> storeOrderService.holdStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand(2L, "사유", 7L)),
+                "ORDER_IN_PICKING");
+
+        verify(storeOrderRepository, never()).save(any());
+        verifyNoInteractions(statusHistoryUseCase);
+    }
+
+    // ---------- resumeStoreOrder ----------
+
+    @Test
+    @DisplayName("ON_HOLD 발주를 재개하면 ASSIGNED가 되고 statusReason은 null이다")
+    void resumeStoreOrder_success() {
+        givenLockedOrder(1L, StoreOrderStatus.ON_HOLD);
+
+        StoreOrderStatusChange result = storeOrderService.resumeStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand(1L, "재고 입고", 7L));
+
+        assertThat(result.status()).isEqualTo(StoreOrderStatus.ASSIGNED);
+        assertThat(result.statusReason()).isNull();
+        verify(warehouseAvailabilityPort).requireActive(3L);
+        verify(statusHistoryUseCase).record(
+                StatusHistoryEntityType.STORE_ORDER, 1L, "ON_HOLD", "ASSIGNED", "재고 입고", 7L);
+    }
+
+    @Test
+    @DisplayName("재개 사유가 없으면 400, ON_HOLD가 아니면(보류 중 취소 포함) 409 CONFLICT")
+    void resumeStoreOrder_failures() {
+        assertError(() -> storeOrderService.resumeStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand(1L, " ", 7L)),
+                "VALIDATION_ERROR");
+
+        for (StoreOrderStatus status : List.of(StoreOrderStatus.ASSIGNED, StoreOrderStatus.CANCELED)) {
+            when(storeOrderRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(orderIn(1L, status)));
+            assertError(() -> storeOrderService.resumeStoreOrder(
+                    new com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand(1L, "사유", 7L)),
+                    "CONFLICT");
+        }
+        verifyNoInteractions(warehouseAvailabilityPort, statusHistoryUseCase);
+    }
+
+    @Test
+    @DisplayName("배정 창고가 비활성이면 재개할 수 없다")
+    void resumeStoreOrder_inactiveWarehouse() {
+        givenLockedOrder(1L, StoreOrderStatus.ON_HOLD);
+        doThrow(new BusinessException(com.kb.wms.common.exception.ErrorCode.CONFLICT, "비활성 창고"))
+                .when(warehouseAvailabilityPort).requireActive(3L);
+
+        assertError(() -> storeOrderService.resumeStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand(1L, "사유", 7L)),
+                "CONFLICT");
+        verify(storeOrderRepository, never()).save(any());
+        verifyNoInteractions(statusHistoryUseCase);
+    }
+
+    // ---------- completePartialStoreOrder ----------
+
+    @Test
+    @DisplayName("부족한 항목이 있으면 COMPLETED로 종결하고 항목 상태는 건드리지 않은 채 부족 수량을 계산해 돌려준다")
+    void completePartialStoreOrder_success() {
+        givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
+        givenLines(1L, shippedLine(1L, 10L, 10, 4), shippedLine(1L, 11L, 5, 5));
+        when(storeOrderOutboundPort.existsInProgressOutbound(1L)).thenReturn(false);
+        when(storeOrderQueryRepository.findLineViews(1L)).thenReturn(List.of(
+                new StoreOrderLineView(100L, 10L, "SKU-10", "러닝화", "EA", 10L, 0L, 4L,
+                        new BigDecimal("1500.00"), StoreOrderLineStatus.PARTIALLY_SHIPPED),
+                new StoreOrderLineView(101L, 11L, "SKU-11", "양말", "EA", 5L, 0L, 5L,
+                        new BigDecimal("200.00"), StoreOrderLineStatus.COMPLETED)));
+
+        var result = storeOrderService.completePartialStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
+                        1L, "공급 중단", 7L));
+
+        assertThat(result.status()).isEqualTo(StoreOrderStatus.COMPLETED);
+        assertThat(result.statusReason()).isEqualTo("공급 중단");
+        assertThat(result.items()).extracting(
+                        com.kb.wms.storeorder.application.port.in.result.StoreOrderCompletePartialResult.Item::skuCode,
+                        com.kb.wms.storeorder.application.port.in.result.StoreOrderCompletePartialResult.Item::shortageQuantity)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("SKU-10", 6L),
+                        org.assertj.core.groups.Tuple.tuple("SKU-11", 0L));
+        verify(storeOrderRepository, never()).saveLines(any());
+        verify(statusHistoryUseCase).record(
+                StatusHistoryEntityType.STORE_ORDER, 1L, "ASSIGNED", "COMPLETED", "공급 중단", 7L);
+    }
+
+    @Test
+    @DisplayName("진행 중 출고가 있으면 409 OUTBOUND_IN_PROGRESS, 모두 출고됐으면 409 NO_SHORTAGE")
+    void completePartialStoreOrder_guards() {
+        givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
+        when(storeOrderOutboundPort.existsInProgressOutbound(1L)).thenReturn(true);
+        assertError(() -> storeOrderService.completePartialStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
+                        1L, "사유", 7L)), "OUTBOUND_IN_PROGRESS");
+
+        when(storeOrderOutboundPort.existsInProgressOutbound(1L)).thenReturn(false);
+        givenLines(1L, shippedLine(1L, 10L, 10, 10), shippedLine(1L, 11L, 5, 6));
+        assertError(() -> storeOrderService.completePartialStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
+                        1L, "사유", 7L)), "NO_SHORTAGE");
+
+        verify(storeOrderRepository, never()).save(any());
+        verifyNoInteractions(statusHistoryUseCase);
+    }
+
+    @Test
+    @DisplayName("종결 사유가 없으면 400, ASSIGNED가 아니면 409 CONFLICT, 없는 발주는 404")
+    void completePartialStoreOrder_otherFailures() {
+        assertError(() -> storeOrderService.completePartialStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
+                        1L, null, 7L)), "VALIDATION_ERROR");
+
+        when(storeOrderRepository.findByIdForUpdate(1L))
+                .thenReturn(Optional.of(orderIn(1L, StoreOrderStatus.ON_HOLD)));
+        assertError(() -> storeOrderService.completePartialStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
+                        1L, "사유", 7L)), "CONFLICT");
+
+        when(storeOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.empty());
+        assertError(() -> storeOrderService.completePartialStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
+                        9L, "사유", 7L)), "STORE_ORDER_NOT_FOUND");
+        verifyNoInteractions(statusHistoryUseCase);
     }
 }

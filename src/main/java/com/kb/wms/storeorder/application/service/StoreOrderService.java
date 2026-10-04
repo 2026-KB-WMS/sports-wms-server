@@ -18,11 +18,17 @@ import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.storeorder.application.port.in.StoreOrderUseCase;
+import com.kb.wms.storeorder.application.port.in.command.StoreOrderAssignCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderCancelCommand;
+import com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand;
+import com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderRegisterCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderRejectCommand;
+import com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand;
 import com.kb.wms.storeorder.application.port.in.query.StoreOrderSearchCondition;
+import com.kb.wms.storeorder.application.port.in.result.StoreOrderAssignResult;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderCancelResult;
+import com.kb.wms.storeorder.application.port.in.result.StoreOrderCompletePartialResult;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderDetail;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderDetails;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderFulfillmentCancelResult;
@@ -37,7 +43,7 @@ import com.kb.wms.storeorder.application.port.out.StoreAvailabilityPort;
 import com.kb.wms.storeorder.application.port.out.StoreOrderOutboundPort;
 import com.kb.wms.storeorder.application.port.out.StoreOrderQueryRepository;
 import com.kb.wms.storeorder.application.port.out.StoreOrderRepository;
-import com.kb.wms.storeorder.application.port.out.WarehouseExistencePort;
+import com.kb.wms.storeorder.application.port.out.WarehouseAvailabilityPort;
 import com.kb.wms.storeorder.domain.entity.StoreOrder;
 import com.kb.wms.storeorder.domain.entity.StoreOrderLine;
 import com.kb.wms.storeorder.domain.enums.StoreOrderOutboundStatus;
@@ -72,7 +78,7 @@ public class StoreOrderService implements StoreOrderUseCase {
     private final StoreOrderQueryRepository storeOrderQueryRepository;
     private final StoreOrderOutboundPort storeOrderOutboundPort;
     private final StoreAvailabilityPort storeAvailabilityPort;
-    private final WarehouseExistencePort warehouseExistencePort;
+    private final WarehouseAvailabilityPort warehouseAvailabilityPort;
     private final SkuSupplyPricePort skuSupplyPricePort;
     private final SkuAvailabilityPort skuAvailabilityPort;
     private final StatusHistoryUseCase statusHistoryUseCase;
@@ -118,7 +124,7 @@ public class StoreOrderService implements StoreOrderUseCase {
             storeAvailabilityPort.requireExists(condition.storeId());
         }
         if (condition.warehouseId() != null) {
-            warehouseExistencePort.requireExists(condition.warehouseId());
+            warehouseAvailabilityPort.requireExists(condition.warehouseId());
         }
 
         List<StoreOrderSummary> summaries = storeOrderQueryRepository.search(condition);
@@ -253,6 +259,168 @@ public class StoreOrderService implements StoreOrderUseCase {
 
         return new StoreOrderCancelResult(command.storeOrderId(), saved.getOrderNo(), saved.getStatus(), reason,
                 fulfillment.releasedAllocationCount(), fulfillment.canceledOutboundCount(), updatedAtOf(saved));
+    }
+
+    /**
+     * 최초 배정(APPROVED → ASSIGNED)과 재배정(ASSIGNED의 창고 변경)을 한 API로 처리한다.
+     * 재배정은 사유가 필수이고, 재고 할당·취소되지 않은 출고가 남아 있으면 막는다(ON_HOLD는 재배정 불가).
+     * 재배정 이력의 사유에는 이전·이후 창고를 함께 남긴다.
+     */
+    @Override
+    @Transactional
+    public StoreOrderAssignResult assignStoreOrder(StoreOrderAssignCommand command) {
+        requireChangedBy(command.changedBy());
+        if (command.storeOrderId() == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "배정할 발주를 선택해주세요.");
+        }
+        if (command.warehouseId() == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "배정할 창고를 선택해주세요.");
+        }
+        String reason = normalizeReason(command.reason());
+
+        StoreOrder order = findForUpdateOrThrow(command.storeOrderId());
+        StoreOrderStatus from = order.getStatus();
+        if (from != StoreOrderStatus.APPROVED && from != StoreOrderStatus.ASSIGNED) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "승인 또는 창고 배정 상태의 발주만 창고를 배정할 수 있습니다. 현재 상태: " + from);
+        }
+        warehouseAvailabilityPort.requireActive(command.warehouseId());
+
+        String historyReason;
+        if (from == StoreOrderStatus.APPROVED) {
+            order.assign(command.warehouseId());
+            historyReason = reason;
+        } else {
+            if (reason == null) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "창고를 재배정할 때는 사유를 입력해야 합니다.");
+            }
+            if (command.warehouseId().equals(order.getWarehouseId())) {
+                throw new BusinessException(ErrorCode.CONFLICT, "현재 배정된 창고와 다른 창고를 지정해야 합니다.");
+            }
+            if (storeOrderOutboundPort.existsActiveFulfillment(command.storeOrderId())) {
+                throw new BusinessException(StoreOrderErrorCode.ORDER_IN_FULFILLMENT);
+            }
+            Long previousWarehouseId = order.getWarehouseId();
+            order.reassign(command.warehouseId());
+            historyReason = reassignReason(previousWarehouseId, command.warehouseId(), reason);
+        }
+
+        StoreOrder saved = storeOrderRepository.save(order);
+        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, command.storeOrderId(),
+                from.name(), saved.getStatus().name(), historyReason, command.changedBy());
+
+        StoreOrderView view = storeOrderQueryRepository.findView(command.storeOrderId()).orElse(null);
+        return new StoreOrderAssignResult(command.storeOrderId(), saved.getOrderNo(), saved.getStatus(),
+                saved.getWarehouseId(), view == null ? null : view.warehouseName(),
+                view == null ? saved.getUpdatedAt() : view.updatedAt());
+    }
+
+    /** 피킹이 시작된 출고가 있으면 막는다. READY 출고나 재고 할당이 있어도 보류할 수 있고 재고·수량은 바뀌지 않는다. */
+    @Override
+    @Transactional
+    public StoreOrderStatusChange holdStoreOrder(StoreOrderHoldCommand command) {
+        requireChangedBy(command.changedBy());
+        String reason = requireReason(command.reason(), "보류 사유를 입력해주세요.");
+
+        StoreOrder order = findForUpdateOrThrow(command.storeOrderId());
+        if (order.getStatus() != StoreOrderStatus.ASSIGNED) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "창고 배정 상태의 발주만 출고를 보류할 수 있습니다. 현재 상태: " + order.getStatus());
+        }
+        if (storeOrderOutboundPort.existsPickingStarted(command.storeOrderId())) {
+            throw new BusinessException(StoreOrderErrorCode.ORDER_IN_PICKING);
+        }
+
+        StoreOrderStatus from = order.getStatus();
+        order.hold();
+        StoreOrder saved = storeOrderRepository.save(order);
+        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, command.storeOrderId(),
+                from.name(), saved.getStatus().name(), reason, command.changedBy());
+
+        return new StoreOrderStatusChange(command.storeOrderId(), saved.getOrderNo(), saved.getStatus(), reason,
+                updatedAtOf(saved));
+    }
+
+    /** 재고 충분 여부는 검증하지 않는다. 배정 창고가 비활성이면 재개할 수 없다. 재개 후 statusReason은 null이다. */
+    @Override
+    @Transactional
+    public StoreOrderStatusChange resumeStoreOrder(StoreOrderResumeCommand command) {
+        requireChangedBy(command.changedBy());
+        String reason = requireReason(command.reason(), "재개 사유를 입력해주세요.");
+
+        StoreOrder order = findForUpdateOrThrow(command.storeOrderId());
+        if (order.getStatus() != StoreOrderStatus.ON_HOLD) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "출고 보류 상태의 발주만 재개할 수 있습니다. 현재 상태: " + order.getStatus());
+        }
+        warehouseAvailabilityPort.requireActive(order.getWarehouseId());
+
+        StoreOrderStatus from = order.getStatus();
+        order.resume();
+        StoreOrder saved = storeOrderRepository.save(order);
+        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, command.storeOrderId(),
+                from.name(), saved.getStatus().name(), reason, command.changedBy());
+
+        return new StoreOrderStatusChange(command.storeOrderId(), saved.getOrderNo(), saved.getStatus(), null,
+                updatedAtOf(saved));
+    }
+
+    /**
+     * 진행 중 출고가 없고 부족한 항목이 있을 때만 ASSIGNED → COMPLETED로 종결한다.
+     * 재고·할당·항목 상태는 바꾸지 않고 부족 수량만 계산해 돌려준다. 남은 수량은 자동 재발주하지 않는다.
+     */
+    @Override
+    @Transactional
+    public StoreOrderCompletePartialResult completePartialStoreOrder(StoreOrderCompletePartialCommand command) {
+        requireChangedBy(command.changedBy());
+        String reason = requireReason(command.reason(), "종결 사유를 입력해주세요.");
+
+        StoreOrder order = findForUpdateOrThrow(command.storeOrderId());
+        if (order.getStatus() != StoreOrderStatus.ASSIGNED) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "창고 배정 상태의 발주만 부분 출고로 종결할 수 있습니다. 현재 상태: " + order.getStatus());
+        }
+        if (storeOrderOutboundPort.existsInProgressOutbound(command.storeOrderId())) {
+            throw new BusinessException(StoreOrderErrorCode.OUTBOUND_IN_PROGRESS);
+        }
+        List<StoreOrderLine> lines = storeOrderRepository.findLinesByStoreOrderIdForUpdate(command.storeOrderId());
+        if (lines.stream().allMatch(StoreOrderLine::isFulfilled)) {
+            throw new BusinessException(StoreOrderErrorCode.NO_SHORTAGE);
+        }
+
+        StoreOrderStatus from = order.getStatus();
+        order.complete();
+        StoreOrder saved = storeOrderRepository.save(order);
+        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, command.storeOrderId(),
+                from.name(), saved.getStatus().name(), reason, command.changedBy());
+
+        List<StoreOrderCompletePartialResult.Item> items = storeOrderQueryRepository
+                .findLineViews(command.storeOrderId()).stream()
+                .map(line -> new StoreOrderCompletePartialResult.Item(line.storeOrderLineId(), line.skuCode(),
+                        line.requestedQuantity(), line.shippedQuantity(), line.remainingQuantity()))
+                .toList();
+        return new StoreOrderCompletePartialResult(command.storeOrderId(), saved.getOrderNo(), saved.getStatus(),
+                reason, items, updatedAtOf(saved));
+    }
+
+    /**
+     * 재배정 이력의 사유. 이전·이후 창고를 앞에 붙이고, StatusHistory 사유 길이 제한(500자)을 넘으면
+     * 사용자 사유 끝을 줄인다.
+     */
+    private String reassignReason(Long previousWarehouseId, Long newWarehouseId, String reason) {
+        String prefix = "창고 변경 " + previousWarehouseId + " → " + newWarehouseId + ": ";
+        int available = REASON_MAX_LENGTH - prefix.length();
+        String body = reason.length() <= available ? reason : reason.substring(0, available - 1) + "…";
+        return prefix + body;
+    }
+
+    /** 사유가 필수인 전이용. 비어 있으면 400 VALIDATION_ERROR. */
+    private String requireReason(String reason, String message) {
+        String normalized = normalizeReason(reason);
+        if (normalized == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, message);
+        }
+        return normalized;
     }
 
     private void requireChangedBy(Long changedBy) {
