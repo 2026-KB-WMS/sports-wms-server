@@ -19,6 +19,10 @@
 - 모든 상태 변경과 사유는 `StatusHistory`에 기록한다. 응답의 `statusReason`과 `details.statusHistory`는 이 이력에서 읽는다(선행 이슈 #116).
 - 출고·할당 의존 동작은 출고 도메인이 생길 때 완성한다. 지점 발주 쪽은 연동 포트만 정의하고 임시 구현을 둔다. 임시 구현 동안 `latestOutboundStatus`는 `null`, `outbounds`는 빈 배열이고, 진행 중 출고·피킹 시작 검사(`ORDER_IN_PICKING`, `OUTBOUND_IN_PROGRESS`, `ORDER_IN_FULFILLMENT`)는 "없음"으로 통과하며, 승인 후 취소 시 할당 해제·`READY` 출고 취소는 수행하지 않는다(`releasedAllocationCount`, `canceledOutboundCount`는 0).
 - 2026-10-03에 명세에 반영한 결정: 발주 항목 상태 4개(`REQUESTED`/`PARTIALLY_SHIPPED`/`COMPLETED`/`CANCELED`), 점주용 진행 단계 `progressStage`(목록·단건·상세 응답).
+- 구현(#120, 등록·조회 서비스)에서 정한 것: 주문 번호는 `SO-yyyyMMdd-NNNN`(당일 발주 수 + 1, 동시 등록으로 겹치면 409 `DUPLICATE_STORE_ORDER_NO`). 404는 `STORE_ORDER_NOT_FOUND`, 공급 단가 없음은 409 `SUPPLY_PRICE_MISSING`. 비활성 지점·SKU는 409 `CONFLICT`. SKU는 상품 비활성 시 하위 SKU도 함께 비활성화되므로 SKU 상태만 확인한다.
+- 응답의 `statusReason`은 현재 상태가 `REJECTED`·`CANCELED`·`ON_HOLD`일 때만 이력에서 읽고, 그 외 상태(재개 후 `ASSIGNED` 포함)는 `null`이다.
+- 회원(User) 도메인이 없어 `createdByName`, `statusHistory[].changedByName`은 서비스 결과에 없다. 웹 어댑터(#123)에서는 이름을 `null`로 내려주고 회원 도메인 구현 때 채운다.
+- `GET /orders/my`(소속 지점·창고 범위 제한, 창고 관리자에게 미배정 발주 숨김)는 인증 연동이 필요해 서비스에는 아직 없다. 인증 연동 때 웹 어댑터가 소속 지점·창고를 판별해 `GET /orders` 조회의 `storeId`·`warehouseId` 조건으로 좁혀 처리한다.
 - 확정 필요(미결): 주문 번호 형식(예시 `SO-YYYYMMDD-일련번호`), "주문 단위 검증"(화면 설계 ST-04)의 단위 기준(현재는 1 이상 정수만 검증), 요청 배송 일시의 최소 리드타임, 배송 실패·수령 거부 처리.
 
 ## 엔드포인트 목록 (12)
