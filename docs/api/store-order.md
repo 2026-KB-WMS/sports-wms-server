@@ -23,6 +23,7 @@
 - 응답의 `statusReason`은 현재 상태가 `REJECTED`·`CANCELED`·`ON_HOLD`일 때만 이력에서 읽고, 그 외 상태(재개 후 `ASSIGNED` 포함)는 `null`이다.
 - 구현(#121, 승인·반려·취소 서비스)에서 정한 것: 취소 사유 필수 여부는 호출자 역할이 아니라 발주 상태로 판단한다(`REQUESTED`는 선택, 승인 이후는 필수이며 400). 역할·작성자 검사(점주 작성자/본사)는 인증 연동 때 웹 어댑터에서 한다. 승인은 지점과 모든 항목의 SKU 활성만 확인하며(공급 단가 재확인 없음) 비활성이면 409 `CONFLICT`다. `ORDER_IN_PICKING`은 `StoreOrderErrorCode`에 둔다. 출고 연동 전에는 취소 응답의 `releasedAllocationCount`·`canceledOutboundCount`가 항상 0이다.
 - 회원(User) 도메인이 없어 `createdByName`, `statusHistory[].changedByName`은 서비스 결과에 없다. 웹 어댑터(#123)에서는 이름을 `null`로 내려주고 회원 도메인 구현 때 채운다.
+- 구현(#122, 배정·보류·재개·부분 출고 종결 서비스)에서 정한 것: 배정 API는 발주 상태로 최초 배정(`APPROVED`)과 재배정(`ASSIGNED`)을 구분한다. 최초 배정의 `reason`은 선택이며 있으면 이력에 남긴다. 재배정 이력의 사유는 `창고 변경 {이전 창고ID} → {이후 창고ID}: {사유}` 형식이고, `StatusHistory.reason` 500자 제한을 넘으면 사용자 사유 끝을 줄인다(`…`). 창고가 없으면 창고 도메인의 404, 비활성이면 409 `CONFLICT`이며 발주 상태 검사가 먼저다. 409 코드 `ORDER_IN_FULFILLMENT`, `OUTBOUND_IN_PROGRESS`, `NO_SHORTAGE`는 `StoreOrderErrorCode`에 둔다. 보류의 `ORDER_IN_PICKING` 검사는 취소와 같은 포트 메서드(`existsPickingStarted`)를 쓴다. 부분 출고 종결 응답의 항목은 SKU 코드 순이다. 출고 연동 전에는 `ORDER_IN_FULFILLMENT`, `ORDER_IN_PICKING`, `OUTBOUND_IN_PROGRESS`가 항상 통과한다.
 - `GET /orders/my`(소속 지점·창고 범위 제한, 창고 관리자에게 미배정 발주 숨김)는 인증 연동이 필요해 서비스에는 아직 없다. 인증 연동 때 웹 어댑터가 소속 지점·창고를 판별해 `GET /orders` 조회의 `storeId`·`warehouseId` 조건으로 좁혀 처리한다.
 - 확정 필요(미결): 주문 번호 형식(예시 `SO-YYYYMMDD-일련번호`), "주문 단위 검증"(화면 설계 ST-04)의 단위 기준(현재는 1 이상 정수만 검증), 요청 배송 일시의 최소 리드타임, 배송 실패·수령 거부 처리.
 
