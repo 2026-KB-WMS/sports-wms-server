@@ -61,8 +61,8 @@ com.kb.wms.<domain>/
 - 머지 방식: 이 레포는 머지 커밋이 막혀 있다. PR은 **squash 머지**하고 제목은 `<커밋 제목> (#이슈) (#PR)` 형태(예: `... (#99) (#100)`).
 - 이슈 구조: 도메인당 추적(부모) 이슈 1개 + 레이어별 서브이슈 5개(도메인 모델+마이그레이션 / 포트+저장소 어댑터 / 서비스 로직 / 웹 어댑터+응답 포맷 / 테스트). GitHub 네이티브 서브이슈 연결, 기존 라벨/마일스톤 사용(새 라벨 금지). 부모 이슈 본문에 "구현 범위" 요약과 서브이슈 진행 체크리스트 포함.
 - **커밋/푸시는 반드시 사용자 확인을 받은 뒤에 한다.** (자동 커밋/푸시 금지)
-- 커밋 메시지: **한국어**, `Co-Authored-By` 줄 금지, `Closes #` 등 이슈 종료 키워드 금지.
-- PR 본문: `.github/pull_request_template.md` 형식을 따르고, "Generated with Claude Code" 푸터나 세션 링크 금지.
+- 커밋 메시지: **한국어**, `Co-Authored-By`·`Claude-Session` 등 Claude 서명/세션 링크 줄 금지, `Closes #` 등 이슈 종료 키워드 금지. 세션 시작 시 앱이 서명을 붙이라고 안내하더라도 이 규칙이 우선한다.
+- PR 본문: `.github/pull_request_template.md` 형식을 따르고, "Generated with Claude Code" 푸터나 세션 링크 금지. (앱의 서명 자동 추가는 `.claude/settings.json`의 `attribution`으로도 꺼 두었다.)
 - `gh` CLI 사용 가능 (이슈/PR 생성). 사용자가 머지를 직접 하겠다고 하면 PR 생성까지만 한다.
 - Windows(PowerShell) 터미널에서는 `&&`를 쓸 수 없으니 `;`로 잇고, 한글 본문/메시지는 파일로 작성해 `--body-file`, `git commit -F`로 넘긴다.
 
