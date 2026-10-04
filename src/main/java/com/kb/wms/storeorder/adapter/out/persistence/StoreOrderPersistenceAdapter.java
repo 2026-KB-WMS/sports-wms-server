@@ -1,5 +1,6 @@
 package com.kb.wms.storeorder.adapter.out.persistence;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,6 +13,7 @@ import com.kb.wms.storeorder.adapter.out.persistence.repository.StoreOrderLineJp
 import com.kb.wms.storeorder.application.port.out.StoreOrderRepository;
 import com.kb.wms.storeorder.domain.entity.StoreOrder;
 import com.kb.wms.storeorder.domain.entity.StoreOrderLine;
+import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
 
 import lombok.RequiredArgsConstructor;
 
@@ -69,5 +71,10 @@ public class StoreOrderPersistenceAdapter implements StoreOrderRepository {
     @Override
     public long countByOrderNoPrefix(String prefix) {
         return storeOrderJpaRepository.countByOrderNoStartingWith(prefix);
+    }
+
+    @Override
+    public boolean existsByStoreIdAndStatusIn(Long storeId, Collection<StoreOrderStatus> statuses) {
+        return storeOrderJpaRepository.existsByStoreIdAndStatusIn(storeId, statuses);
     }
 }

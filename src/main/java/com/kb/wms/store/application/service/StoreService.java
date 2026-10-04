@@ -13,6 +13,7 @@ import com.kb.wms.store.application.port.in.command.StoreUpdateCommand;
 import com.kb.wms.store.application.port.in.query.StoreSearchCondition;
 import com.kb.wms.store.application.port.in.result.StoreMembershipSummary;
 import com.kb.wms.store.application.port.out.StoreMemberRepository;
+import com.kb.wms.store.application.port.out.StoreOrderPresencePort;
 import com.kb.wms.store.application.port.out.StoreRepository;
 import com.kb.wms.store.domain.entity.Store;
 import com.kb.wms.store.domain.entity.StoreMember;
@@ -27,6 +28,7 @@ public class StoreService implements StoreUseCase {
 
     private final StoreRepository storeRepository;
     private final StoreMemberRepository storeMemberRepository;
+    private final StoreOrderPresencePort storeOrderPresencePort;
 
     @Override
     @Transactional
@@ -78,8 +80,8 @@ public class StoreService implements StoreUseCase {
     }
 
     /**
-     * 진행 중인 지점 발주(REQUESTED·APPROVED·ASSIGNED·ON_HOLD) 검사(409 STORE_IN_USE)는
-     * 지점 발주(storeorder) 도메인이 구현되면 추가한다.
+     * 진행 중인 지점 발주(REQUESTED·APPROVED·ASSIGNED·ON_HOLD)가 있으면 비활성화할 수 없다(409 STORE_IN_USE).
+     * 종결된 발주(COMPLETED·CANCELED·REJECTED)는 막지 않는다.
      */
     @Override
     @Transactional
@@ -88,6 +90,9 @@ public class StoreService implements StoreUseCase {
                 .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
         if (!store.isActive()) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 비활성화된 지점입니다.");
+        }
+        if (storeOrderPresencePort.hasInProgressOrders(storeId)) {
+            throw new BusinessException(StoreErrorCode.STORE_IN_USE);
         }
         store.deactivate();
         return storeRepository.save(store);

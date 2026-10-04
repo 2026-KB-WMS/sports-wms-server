@@ -1,10 +1,12 @@
 package com.kb.wms.storeorder.application.port.out;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 import com.kb.wms.storeorder.domain.entity.StoreOrder;
 import com.kb.wms.storeorder.domain.entity.StoreOrderLine;
+import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
 
 /**
  * 지점 발주(헤더 + 항목) 영속성 아웃바운드 포트. 헤더와 항목은 한 트랜잭션에서 함께 저장한다.
@@ -35,4 +37,7 @@ public interface StoreOrderRepository {
 
     /** 해당 접두사(예: SO-20261004-)로 시작하는 주문 번호 개수. 일련번호 채번에 쓴다. */
     long countByOrderNoPrefix(String prefix);
+
+    /** 지점의 발주 중 주어진 상태에 해당하는 것이 하나라도 있는지 확인한다. */
+    boolean existsByStoreIdAndStatusIn(Long storeId, Collection<StoreOrderStatus> statuses);
 }

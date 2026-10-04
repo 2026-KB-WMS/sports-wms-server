@@ -1,6 +1,7 @@
 package com.kb.wms.storeorder.adapter.out.persistence.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +22,8 @@ public interface StoreOrderJpaRepository extends JpaRepository<StoreOrderJpaEnti
     boolean existsByOrderNo(String orderNo);
 
     long countByOrderNoStartingWith(String prefix);
+
+    boolean existsByStoreIdAndStatusIn(Long storeId, Collection<StoreOrderStatus> statuses);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from StoreOrderJpaEntity o where o.storeOrderId = :storeOrderId")
