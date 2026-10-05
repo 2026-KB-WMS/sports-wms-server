@@ -14,7 +14,7 @@ public record PurchaseOrderCancelRequest(
         String reason
 ) {
 
-    public PurchaseOrderCancelCommand toCommand() {
-        return new PurchaseOrderCancelCommand(reason);
+    public PurchaseOrderCancelCommand toCommand(Long userId) {
+        return new PurchaseOrderCancelCommand(reason, userId);
     }
 }

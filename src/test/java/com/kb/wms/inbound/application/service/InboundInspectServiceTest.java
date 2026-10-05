@@ -30,6 +30,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
+import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.inbound.application.port.in.command.InboundInspectCommand;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
 import com.kb.wms.inbound.application.port.out.InboundSectionPort;
@@ -63,6 +65,9 @@ class InboundInspectServiceTest {
 
     @Mock
     private InboundSectionPort inboundSectionPort;
+
+    @Mock
+    private StatusHistoryUseCase statusHistoryUseCase;
 
     @InjectMocks
     private InboundInspectService inboundInspectService;
@@ -216,6 +221,23 @@ class InboundInspectServiceTest {
         assertThat(saved.getLineAmount()).isEqualByComparingTo("3600000");
         assertThat(saved.getReceivedBy()).isEqualTo(USER);
         assertThat(saved.getReceivedAt()).isNotNull();
+        verify(statusHistoryUseCase).record(
+                StatusHistoryEntityType.INBOUND, 7L, "ARRIVED", "INSPECTING", null, USER);
+    }
+
+    @Test
+    @DisplayName("이미 검수 중인 입고를 다시 검수해도 상태가 바뀌지 않으므로 상태 이력을 남기지 않는다")
+    void inspect_reInspect_noStatusHistory() {
+        givenInbound(InboundStatus.INSPECTING);
+        givenPurchaseOrderLine(100, 0);
+        givenHappySections();
+        when(lotPort.findOrRegisterLot(1L, 3L, "LOT-A", LocalDate.of(2026, 8, 20), null, ORDERED_PRICE))
+                .thenReturn(31L);
+        stubSave();
+
+        inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)));
+
+        verifyNoInteractions(statusHistoryUseCase);
     }
 
     @Test

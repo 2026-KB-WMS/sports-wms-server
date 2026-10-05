@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
+import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.inbound.application.port.in.InboundUseCase;
 import com.kb.wms.inbound.application.port.in.command.InboundCancelCommand;
 import com.kb.wms.inbound.application.port.in.command.InboundRegisterCommand;
@@ -24,6 +26,7 @@ import com.kb.wms.inbound.application.port.out.InboundRepository;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
+import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
 
@@ -48,6 +51,7 @@ public class InboundService implements InboundUseCase {
     private final InboundRepository inboundRepository;
     private final InboundQueryRepository inboundQueryRepository;
     private final PurchaseOrderRepository purchaseOrderRepository;
+    private final StatusHistoryUseCase statusHistoryUseCase;
 
     /**
      * 확정된 발주에 대해 ARRIVED 입고를 등록한다. 입고 대상 창고는 발주의 창고를 따른다.
@@ -58,6 +62,9 @@ public class InboundService implements InboundUseCase {
     public Long registerInbound(InboundRegisterCommand command) {
         if (command.purchaseOrderId() == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "발주 ID는 필수입니다.");
+        }
+        if (command.userId() == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "처리 사용자는 필수입니다.");
         }
         LocalDateTime now = LocalDateTime.now();
         if (command.arrivedAt() != null && command.arrivedAt().isAfter(now)) {
@@ -81,6 +88,8 @@ public class InboundService implements InboundUseCase {
         Inbound saved = inboundRepository.save(Inbound.register(
                 nextInboundNo(LocalDate.now()), purchaseOrder.getPurchaseOrderId(), purchaseOrder.getWarehouseId(),
                 command.arrivedAt() == null ? now : command.arrivedAt(), command.note()));
+        statusHistoryUseCase.record(StatusHistoryEntityType.INBOUND, saved.getInboundId(),
+                null, InboundStatus.ARRIVED.name(), null, command.userId());
         return saved.getInboundId();
     }
 
@@ -95,7 +104,14 @@ public class InboundService implements InboundUseCase {
 
     @Override
     public InboundView getInbound(Long inboundId) {
-        return inboundQueryRepository.findView(inboundId).orElseThrow(InboundService::notFound);
+        InboundView view = inboundQueryRepository.findView(inboundId).orElseThrow(InboundService::notFound);
+        if (view.status() != InboundStatus.CANCELED) {
+            return view;
+        }
+        // 취소 사유는 CANCELED로 바뀔 때의 상태 이력에서 읽는다.
+        return view.withCancelReason(statusHistoryUseCase
+                .findStatusReason(StatusHistoryEntityType.INBOUND, inboundId, InboundStatus.CANCELED.name())
+                .orElse(null));
     }
 
     @Override
@@ -108,12 +124,15 @@ public class InboundService implements InboundUseCase {
 
     /**
      * 완료 전(ARRIVED·INSPECTING) 입고를 취소한다. 검수 항목은 재고에 반영되기 전이라 그대로 두고,
-     * 취소 사유 저장(StatusHistory)은 StatusHistory 도메인이 구현되면 추가한다.
+     * 취소 사유와 처리자는 CANCELED 전이 이력(StatusHistory)에 남긴다. 응답의 cancelReason은 이 이력에서 읽는다.
      */
     @Override
     @Transactional
     public Inbound cancelInbound(Long inboundId, InboundCancelCommand command) {
         String reason = command == null ? null : command.reason();
+        if (command == null || command.userId() == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "처리 사용자는 필수입니다.");
+        }
         if (reason == null || reason.isBlank()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "입고를 취소할 때는 사유를 입력해야 합니다.");
         }
@@ -127,8 +146,12 @@ public class InboundService implements InboundUseCase {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "도착 또는 검수 중 상태의 입고만 취소할 수 있습니다. 현재 상태: " + inbound.getStatus());
         }
+        InboundStatus from = inbound.getStatus();
         inbound.cancel();
-        return inboundRepository.save(inbound);
+        Inbound saved = inboundRepository.save(inbound);
+        statusHistoryUseCase.record(StatusHistoryEntityType.INBOUND, inboundId,
+                from.name(), saved.getStatus().name(), reason, command.userId());
+        return saved;
     }
 
     @Override

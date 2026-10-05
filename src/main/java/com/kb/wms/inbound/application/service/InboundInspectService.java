@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
+import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.inbound.application.port.in.InboundInspectUseCase;
 import com.kb.wms.inbound.application.port.in.command.InboundInspectCommand;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
@@ -26,6 +28,7 @@ import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.InboundLine;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.entity.PurchaseOrderLine;
+import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
 
@@ -51,6 +54,7 @@ public class InboundInspectService implements InboundInspectUseCase {
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final LotPort lotPort;
     private final InboundSectionPort inboundSectionPort;
+    private final StatusHistoryUseCase statusHistoryUseCase;
 
     @Override
     @Transactional
@@ -87,10 +91,16 @@ public class InboundInspectService implements InboundInspectUseCase {
                     now, command.userId()));
         }
 
+        InboundStatus from = inbound.getStatus();
         inbound.inspect();
         Inbound saved = inboundRepository.save(inbound);
         inboundRepository.deleteLinesByInboundId(saved.getInboundId());
         inboundRepository.saveLines(lines);
+        // 검수 중 상태에서 항목을 다시 저장하는 호출은 상태가 바뀌지 않으므로 이력을 남기지 않는다.
+        if (from != saved.getStatus()) {
+            statusHistoryUseCase.record(StatusHistoryEntityType.INBOUND, saved.getInboundId(),
+                    from.name(), saved.getStatus().name(), null, command.userId());
+        }
         return saved;
     }
 
