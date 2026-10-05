@@ -57,7 +57,7 @@
 점주가 "지금 어느 단계인지"를 한 값으로 보도록 응답에 내려주는 읽기 전용 파생값이다. DB에 저장하지 않고 발주 상태 + 가장 최근 출고 상태 + 부족 수량 여부로 계산한다(순수 함수, 도메인에 둔다). 매핑 표는 [`api/store-order.md`](../api/store-order.md) "공통 정의"에 있다.
 
 - 창고 내부 단계(할당·`READY`·`PICKING`·`PICKED`)는 점주에게 `PREPARING`("상품 준비 중")으로 묶는다. 창고 쪽 화면은 `latestOutboundStatus`를 그대로 쓴다.
-- 출고 도메인 구현 전에는 최근 출고 상태가 항상 없으므로 `ASSIGNED`는 `PREPARING`으로만 나온다. 출고 연동 후에는 입력 값만 채워지면 되고 계산 코드는 바뀌지 않는다.
+- 출고 도메인 구현 전에는 최근 출고 상태가 항상 없어 `ASSIGNED`가 `PREPARING`으로만 나왔다. 출고 연동 뒤에는 실제 출고 상태로 `PREPARING`·`IN_TRANSIT`·`PARTIALLY_DELIVERED`가 나오며 계산 코드는 바뀌지 않았다.
 - 대안으로 검토한 것: DB 상태를 늘리는 방법(출고 상태와 동기화 부담), 클라이언트에서 계산하는 방법(클라이언트 두 곳과 백엔드가 규칙을 따로 가짐). 결정은 [ADR-010](../adr/010-store-order-progress-stage-derived.md)에 기록했다.
 
 ## 재고·부수 효과
@@ -71,11 +71,11 @@
 
 ## 구현 현황 (2026-10-04)
 
-트래킹 이슈 #117, 하위 이슈 #118 도메인 모델 + 마이그레이션(완료), #119 포트 + 어댑터(완료: 영속성 어댑터·조회 쿼리·출고 임시 어댑터·`StoreOrderProgressStage`), #120 서비스(등록·조회, 구현 완료: `StoreOrderService`), #121 서비스(승인·반려·취소, 구현 완료: `StoreOrderService`), #122 서비스(배정·보류·재개·부분 출고 종결, 구현 완료: `StoreOrderService`), #123 웹 어댑터(11개 엔드포인트 구현 완료: `StoreOrderController`, `GET /orders/my`는 인증 연동 때 추가), #124 테스트. 선행 #116 StatusHistory 공통 도메인(완료).
+트래킹 이슈 #117, 하위 이슈 #118 도메인 모델 + 마이그레이션(완료), #119 포트 + 어댑터(완료: 영속성 어댑터·조회 쿼리·출고 임시 어댑터(출고 도메인 구현 때 실제 어댑터로 교체)·`StoreOrderProgressStage`), #120 서비스(등록·조회, 구현 완료: `StoreOrderService`), #121 서비스(승인·반려·취소, 구현 완료: `StoreOrderService`), #122 서비스(배정·보류·재개·부분 출고 종결, 구현 완료: `StoreOrderService`), #123 웹 어댑터(11개 엔드포인트 구현 완료: `StoreOrderController`, `GET /orders/my`는 인증 연동 때 추가), #124 테스트. 선행 #116 StatusHistory 공통 도메인(완료).
 
 ### 설계 결정 (구현 시 따를 것)
 
-- 출고·할당 의존 동작(승인 후 취소 시 할당 해제·`READY` 출고 취소, `ORDER_IN_PICKING`·`OUTBOUND_IN_PROGRESS`·`ORDER_IN_FULFILLMENT` 검사, `latestOutboundStatus`·`outbounds` 조회)은 출고 연동 포트만 정의하고 출고 도메인 구현 때 완성한다. 그 전에는 임시 구현이 "출고 없음"을 돌려준다. 보류 항목은 Notion "[보류]" 페이지에 기록한다.
+- 출고·할당 의존 동작(승인 후 취소 시 할당 해제·`READY` 출고 취소, `ORDER_IN_PICKING`·`OUTBOUND_IN_PROGRESS`·`ORDER_IN_FULFILLMENT` 검사, `latestOutboundStatus`·`outbounds` 조회)은 출고 연동 포트로 정의했고 출고 도메인 구현(#143)에서 실제 어댑터로 완성했다(`OutboundFlowIntegrationTest`로 검증). 보류 항목은 Notion "[보류]" 페이지에 기록한다.
 - 인증은 입고와 같은 방식이다. 처리 사용자 `userId`는 `@RequestParam`으로 받고 역할·소속 지점/창고·작성자 검사는 인증 연동 때 처리한다.
 - 다른 도메인 데이터(지점명·창고명·SKU 정보)는 조회 쿼리에서 ID 기준 읽기 전용 조인으로 가져온다(ADR-007 방식).
 - 지점 도메인의 `STORE_IN_USE`(진행 중 발주가 있으면 비활성화 금지)는 연결했다(#141). 지점 도메인은 `StoreOrderPresencePort`로 확인하고, 이 도메인의 읽기 전용 `StoreOrderPresenceUseCase`에 연결한다. 발주 등록·상태 전이 유스케이스와 분리해 지점 ↔ 발주 순환 의존을 피한다.

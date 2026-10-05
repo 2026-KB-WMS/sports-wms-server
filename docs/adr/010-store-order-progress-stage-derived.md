@@ -19,5 +19,5 @@
 - 클라이언트에서 계산: 규칙이 클라이언트마다 중복·불일치할 수 있어 제외.
 
 ## 영향
-- 목록/상세 조회 시 출고 최신 상태를 `StoreOrderOutboundPort`로 조회해야 한다. 출고 도메인 구현 전에는 임시 어댑터가 빈 값을 반환하므로 ASSIGNED 발주는 PREPARING으로 표시된다.
+- 목록/상세 조회 시 출고 최신 상태를 `StoreOrderOutboundPort`로 조회해야 한다. 출고 도메인 구현 전에는 임시 어댑터가 빈 값을 반환해 ASSIGNED 발주가 PREPARING으로만 표시됐고, 구현(#143) 뒤에는 실제 출고 상태로 PREPARING·IN_TRANSIT·PARTIALLY_DELIVERED가 계산된다.
 - 진행 단계로 검색하는 조건은 제공하지 않는다(상태 `status`로만 필터).

@@ -17,7 +17,7 @@
 - Notion 명세의 `pageInfo`(`page`·`size`)와 일반 `NOT_FOUND`는 현재 구현 기준과 다름 → conventions.md 기준을 따른다. 목록 API는 `data.items`만 반환하고 `page`·`size`는 지원하지 않는다(페이지네이션 보류). 404는 도메인 전용 코드를 쓴다(`STORE_ORDER_NOT_FOUND` 등, 이름은 구현 시 확정. 지점·창고·SKU는 각 도메인 코드).
 - 인증·인가는 입고와 같은 방식으로 보류한다. 처리 사용자는 쿼리 파라미터 `userId`로 받고, 401/403과 역할·소속 지점/창고·작성자 검사는 인증 연동 때 적용한다. `GET /orders/my`의 소속 판별도 인증 연동 때 처리한다.
 - 모든 상태 변경과 사유는 `StatusHistory`에 기록한다. 응답의 `statusReason`과 `details.statusHistory`는 이 이력에서 읽는다(선행 이슈 #116).
-- 출고·할당 의존 동작은 출고 도메인이 생길 때 완성한다. 지점 발주 쪽은 연동 포트만 정의하고 임시 구현을 둔다. 임시 구현 동안 `latestOutboundStatus`는 `null`, `outbounds`는 빈 배열이고, 진행 중 출고·피킹 시작 검사(`ORDER_IN_PICKING`, `OUTBOUND_IN_PROGRESS`, `ORDER_IN_FULFILLMENT`)는 "없음"으로 통과하며, 승인 후 취소 시 할당 해제·`READY` 출고 취소는 수행하지 않는다(`releasedAllocationCount`, `canceledOutboundCount`는 0).
+- 출고·할당 의존 동작은 출고 연동 포트(`StoreOrderOutboundPort`)로 정의했고 출고 도메인 구현(#143)에서 실제 어댑터로 완성했다. 출고 도메인 구현 전에는 `latestOutboundStatus`가 `null`, `outbounds`가 빈 배열이었고 진행 중 출고·피킹 시작 검사가 "없음"으로 통과했지만, 지금은 실제 출고 상태를 보여 주고 `ORDER_IN_PICKING`·`OUTBOUND_IN_PROGRESS`·`ORDER_IN_FULFILLMENT` 검사가 동작하며 승인 후 취소는 할당 해제·`READY` 출고 취소를 수행한다(`releasedAllocationCount`, `canceledOutboundCount`).
 - 2026-10-03에 명세에 반영한 결정: 발주 항목 상태 4개(`REQUESTED`/`PARTIALLY_SHIPPED`/`COMPLETED`/`CANCELED`), 점주용 진행 단계 `progressStage`(목록·단건·상세 응답).
 - 구현(#120, 등록·조회 서비스)에서 정한 것: 주문 번호는 `SO-yyyyMMdd-NNNN`(당일 발주 수 + 1, 동시 등록으로 겹치면 409 `DUPLICATE_STORE_ORDER_NO`). 404는 `STORE_ORDER_NOT_FOUND`, 공급 단가 없음은 409 `SUPPLY_PRICE_MISSING`. 비활성 지점·SKU는 409 `CONFLICT`. SKU는 상품 비활성 시 하위 SKU도 함께 비활성화되므로 SKU 상태만 확인한다.
 - 응답의 `statusReason`은 현재 상태가 `REJECTED`·`CANCELED`·`ON_HOLD`일 때만 이력에서 읽고, 그 외 상태(재개 후 `ASSIGNED` 포함)는 `null`이다.
