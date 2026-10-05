@@ -9,6 +9,7 @@ import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
  * 부분 출고 종결 처리 결과 (PATCH /api/v1/orders/{orderId}/complete-partial 응답).
  *
  * @param items 항목별 요청·출고·부족 수량 (SKU 코드 순)
+ * @param releasedAllocationCount 종결하며 해제한 남은 ALLOCATED 재고 할당 건수
  */
 public record StoreOrderCompletePartialResult(
         Long storeOrderId,
@@ -16,6 +17,7 @@ public record StoreOrderCompletePartialResult(
         StoreOrderStatus status,
         String statusReason,
         List<Item> items,
+        int releasedAllocationCount,
         LocalDateTime updatedAt
 ) {
 

@@ -180,4 +180,45 @@ class StoreOrderOutboundAdapterTest {
         verify(outboundRepository, never()).save(any());
         verify(stockAllocationRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("부분 종결 시 남은 ALLOCATED 할당을 해제하고 출고는 건드리지 않으며 종결용 사유를 남긴다")
+    void releaseUnlinkedAllocations() {
+        StockAllocation a1 = allocation(20L, 100L, 5L, 6);
+        StockAllocation a2 = allocation(22L, 101L, 7L, 3);
+        when(stockAllocationRepository.findByStoreOrderIdAndStatusForUpdate(1L, AllocationStatus.ALLOCATED))
+                .thenReturn(List.of(a1, a2));
+
+        int released = adapter.releaseUnlinkedAllocations(1L, 9L);
+
+        assertThat(released).isEqualTo(2);
+        assertThat(List.of(a1, a2)).allSatisfy(a -> {
+            assertThat(a.getStatus()).isEqualTo(AllocationStatus.RELEASED);
+            assertThat(a.getReleasedAt()).isNotNull();
+        });
+        ArgumentCaptor<List<StockQuantity>> stock = ArgumentCaptor.forClass(List.class);
+        verify(outboundStockPort).release(stock.capture());
+        assertThat(stock.getValue()).containsExactly(new StockQuantity(5L, 6), new StockQuantity(7L, 3));
+        ArgumentCaptor<List<StoreOrderLineQuantityCommand>> lines = ArgumentCaptor.forClass(List.class);
+        verify(storeOrderFulfillmentUseCase).decreaseAllocated(lines.capture());
+        assertThat(lines.getValue()).containsExactly(
+                new StoreOrderLineQuantityCommand(100L, 6), new StoreOrderLineQuantityCommand(101L, 3));
+        verify(statusHistoryUseCase).record(StatusHistoryEntityType.STOCK_ALLOCATION, 20L, "ALLOCATED", "RELEASED",
+                "발주 부분 종결로 인한 자동 해제", 9L);
+        verify(statusHistoryUseCase).record(StatusHistoryEntityType.STOCK_ALLOCATION, 22L, "ALLOCATED", "RELEASED",
+                "발주 부분 종결로 인한 자동 해제", 9L);
+        verifyNoInteractions(outboundRepository);
+    }
+
+    @Test
+    @DisplayName("부분 종결 시 해제할 할당이 없으면 0건이고 재고·발주 항목을 건드리지 않는다")
+    void releaseUnlinkedAllocationsNothing() {
+        when(stockAllocationRepository.findByStoreOrderIdAndStatusForUpdate(1L, AllocationStatus.ALLOCATED))
+                .thenReturn(List.of());
+
+        assertThat(adapter.releaseUnlinkedAllocations(1L, 9L)).isZero();
+
+        verifyNoInteractions(outboundStockPort, storeOrderFulfillmentUseCase, statusHistoryUseCase);
+        verify(stockAllocationRepository, never()).save(any());
+    }
 }

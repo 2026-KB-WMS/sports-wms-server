@@ -15,6 +15,7 @@ public record StoreOrderCompletePartialResponse(
         StoreOrderStatus status,
         String statusReason,
         List<Item> items,
+        int releasedAllocationCount,
         LocalDateTime updatedAt
 ) {
 
@@ -34,6 +35,6 @@ public record StoreOrderCompletePartialResponse(
                         .map(i -> new Item(i.storeOrderLineId(), i.skuCode(), i.requestedQuantity(),
                                 i.shippedQuantity(), i.shortageQuantity()))
                         .toList(),
-                result.updatedAt());
+                result.releasedAllocationCount(), result.updatedAt());
     }
 }

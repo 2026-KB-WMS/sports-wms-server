@@ -55,8 +55,9 @@
 4. **배송 시작·배송 완료**는 재고·할당을 바꾸지 않는다. 배송 완료는 조건이 맞으면 발주를 `COMPLETED`로 자동 전환한다.
 5. **출고 취소**는 재고·할당·발주를 바꾸지 않는다.
 6. **발주 취소(승인 이후)**: 지점 발주 서비스가 `StoreOrderOutboundPort.cancelFulfillment`로 `READY` 출고를 `CANCELED`, `ALLOCATED` 할당을 `RELEASED`로 바꾸고 `allocated_quantity`를 줄인다. 이력 사유는 "발주 취소로 인한 자동 처리"다.
-7. 모든 상태 변경은 `StatusHistory`에 기록한다(`entity_type`은 `OUTBOUND`, `STOCK_ALLOCATION`, 시스템 자동 전이는 트리거한 사용자가 처리자). 출고 취소 사유와 할당 해제 사유는 `reason`에 저장하고 응답의 `cancelReason`은 이 이력에서 읽는다.
-8. 상태 확인과 변경은 한 트랜잭션에서 대상 행을 잠그고 처리한다. 알림 전송은 이 도메인의 범위가 아니다.
+7. **부분 출고 종결(`complete-partial`)**: 지점 발주 서비스가 `StoreOrderOutboundPort.releaseUnlinkedAllocations`로 출고에 묶이지 않고 남은 `ALLOCATED` 할당(출고를 만들지 않은 것, 취소된 `READY` 출고의 것, 배송 완료 뒤 추가로 할당한 것)을 `RELEASED`로 바꾸고 `allocated_quantity`를 줄인다. 출고는 취소하지 않는다(진행 중 출고가 없는 것은 서비스 가드가 보장). 이력 사유는 "발주 부분 종결로 인한 자동 해제"다. 취소 연쇄와 같은 내부 해제 로직을 쓴다.
+8. 모든 상태 변경은 `StatusHistory`에 기록한다(`entity_type`은 `OUTBOUND`, `STOCK_ALLOCATION`, 시스템 자동 전이는 트리거한 사용자가 처리자). 출고 취소 사유와 할당 해제 사유는 `reason`에 저장하고 응답의 `cancelReason`은 이 이력에서 읽는다.
+9. 상태 확인과 변경은 한 트랜잭션에서 대상 행을 잠그고 처리한다. 알림 전송은 이 도메인의 범위가 아니다.
 
 ## 지점 발주 연동 교체
 
@@ -70,6 +71,7 @@
 | `existsInProgressOutbound` | `READY`·`PICKING`·`PICKED`·`SHIPPED` 출고 존재 | 부분 종결 가드 `OUTBOUND_IN_PROGRESS` |
 | `existsActiveFulfillment` | `ALLOCATED` 할당 또는 취소되지 않은 출고 존재 | 재배정 가드 `ORDER_IN_FULFILLMENT` |
 | `cancelFulfillment` | READY 출고 취소 + ALLOCATED 할당 해제 + 수량 감소 | 승인 이후 취소(`releasedAllocationCount`, `canceledOutboundCount`) |
+| `releaseUnlinkedAllocations` | 남은 ALLOCATED 할당 해제 + 수량 감소(출고는 그대로) | 부분 종결(`releasedAllocationCount`) |
 
 - 포트가 `storeorder`에 있고 어댑터가 `outbound`에 있는 방향(의존성 역전)을 유지한다. 두 도메인은 서로의 엔티티를 참조하지 않고 ID로만 연결한다([ADR-005](../adr/005-entity-reference-by-id.md)).
 - 반대 방향도 필요하다. 할당은 발주 항목의 요청·할당·출고 수량을, 피킹 완료·해제·배송 완료는 발주 항목 수량과 발주 상태를 바꿔야 한다. 이 변경은 `storeorder`가 소유하므로 출고 쪽이 쓸 인바운드 유스케이스(발주·항목 조회, 수량 갱신, `COMPLETED` 전환)를 `storeorder`에 추가해야 한다. 시그니처는 포트·어댑터 이슈에서 정한다.
