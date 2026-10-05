@@ -21,6 +21,7 @@ public enum OutboundErrorCode implements DomainErrorCode {
     ORDER_NOT_ASSIGNED(ErrorCode.CONFLICT, "배정 상태가 아닌 발주입니다."),
     ALLOCATION_NOT_ACTIVE(ErrorCode.CONFLICT, "할당 상태가 아닌 재고 할당이 포함되어 있습니다."),
     NO_ALLOCATION(ErrorCode.CONFLICT, "출고에 묶을 재고 할당이 없습니다."),
+    DUPLICATE_OUTBOUND_NO(ErrorCode.CONFLICT, "이미 사용 중인 출고 번호입니다. 다시 시도해주세요."),
     NOTHING_PICKED(ErrorCode.CONFLICT, "피킹한 수량이 없어 피킹을 완료할 수 없습니다."),
     SUPPLY_PRICE_MISSING(ErrorCode.CONFLICT, "발주 항목과 SKU 모두 공급 단가가 없어 금액을 확정할 수 없습니다.");
 
