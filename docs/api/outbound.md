@@ -14,13 +14,16 @@
 이전 시점에 확인한 Notion 명세와의 차이와, 구현하면서 정하는 규칙을 적는다. 달라진 점은 이 목록에 추가한다.
 
 - Notion 상태 컬럼은 "시작 전"이다.
-- Notion 명세의 `pageInfo`(`page`·`size`·`sort`)와 일반 `NOT_FOUND`는 현재 구현 기준과 다름 → conventions.md 기준을 따른다. 목록 API는 `data.items`만 반환하고 `page`·`size`는 지원하지 않는다(페이지네이션 보류). 404는 도메인 전용 코드를 쓴다(`OUTBOUND_NOT_FOUND`, `ALLOCATION_NOT_FOUND`, 이름은 구현 시 확정. 발주·창고·지점·SKU는 각 도메인 코드).
+- Notion 명세의 `pageInfo`(`page`·`size`·`sort`)와 일반 `NOT_FOUND`는 현재 구현 기준과 다름 → conventions.md 기준을 따른다. 목록 API는 `data.items`만 반환하고 `page`·`size`는 지원하지 않는다(페이지네이션 보류). 404는 도메인 전용 코드를 쓴다(`OUTBOUND_NOT_FOUND`, `ALLOCATION_NOT_FOUND`로 확정. 발주·창고·지점·SKU는 각 도메인 코드).
 - 인증·인가는 입고·지점 발주와 같은 방식으로 보류한다. 처리 사용자는 쿼리 파라미터 `userId`로 받고, 401/403과 역할·소속 창고 검사, `GET` 목록의 담당 창고 범위 제한은 인증 연동 때 적용한다.
 - 모든 상태 변경과 사유는 `StatusHistory`에 기록한다(`entity_type`은 `OUTBOUND`, `STOCK_ALLOCATION`). 응답의 `cancelReason`은 이 이력에서 읽는다.
 - 출고에는 창고 컬럼이 없다. 창고 기준 조회·권한은 지점 발주의 `warehouse_id`를 쓴다.
 - 발주 항목 `shipped_quantity`는 피킹 완료에서 누적하고, 항목 상태(`PARTIALLY_SHIPPED`·`COMPLETED`)는 배송 완료에서 전환한다(2026-10-05 결정, [domain/outbound.md](../domain/outbound.md) "결정·미결" 1번). Notion은 이 시점을 문서마다 다르게 적고 있다.
 - 락 순서와 할당·해제의 구역 잠금은 성능 개선 때 정한다(보류, [domain/outbound.md](../domain/outbound.md) "결정·미결" 2번).
-- 확정 필요(미결): 출고 번호 형식(예시 `OB-YYYYMMDD-일련번호`), 배송 담당자·차량·운송장 기록 여부(ERD `Outbound`에는 `note`뿐), 배송 실패·수령 거부 처리, 부족 사유를 기록할 위치(ERD에 컬럼 없음), 취소한 출고를 다시 여는 방법(현재는 새 출고 생성), 재고 부족 시 부분 할당 허용 여부(현재 전체 실패), 세트 상품 구성품 동시 예약.
+- 출고 번호는 서버가 `OB-YYYYMMDD-일련번호(4자리)`로 채번한다(당일 출고 개수 + 1, 요청으로 받지 않음). 동시 생성으로 번호가 겹치면 UNIQUE 제약이 409 `DUPLICATE_OUTBOUND_NO`로 응답한다.
+- 400 `errors`(필드별 사유)는 요청 바디 검증 실패에만 채워진다. 피킹 완료의 개수·ID 불일치·중복·할당 수량 초과와 `INSUFFICIENT_STOCK`의 SKU별 요청·가용 수량은 공통 `BusinessException`이 `errors`를 지원하지 않아 메시지로만 내려간다. 배열로 노출할지는 공통 예외 개선 때 정한다.
+- 목록의 존재하지 않는 `storeOrderId`·`warehouseId`·`skuId` 필터는 404가 아니라 빈 목록을 돌려준다(보류).
+- 확정 필요(미결): 배송 담당자·차량·운송장 기록 여부(ERD `Outbound`에는 `note`뿐), 배송 실패·수령 거부 처리, 부족 사유를 기록할 위치(ERD에 컬럼 없음), 취소한 출고를 다시 여는 방법(현재는 새 출고 생성), 재고 부족 시 부분 할당 허용 여부(현재 전체 실패), 세트 상품 구성품 동시 예약.
 
 ## 엔드포인트 목록 (12)
 
