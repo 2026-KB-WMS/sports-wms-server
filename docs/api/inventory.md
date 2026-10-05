@@ -49,7 +49,7 @@
 - 규칙:
   - `quantityDelta = after - before`(서버 계산, 0이면 400).
   - 수량 변경 + 구역 `current_capacity` 증감 + `InventoryTransaction` 기록은 단일 트랜잭션. 이력의 `transaction_type`=`reference_type`=`ADJUSTMENT`, `reference_id`=null.
-  - 동시성: 재고 행을 비관적 락으로 잠근 뒤 `beforeQuantity` 비교. 잠금 순서 구역(section_id 오름차순) → 재고 행(inventory_lot_id 오름차순) — 입고·출고와 동일(ADR-006).
+  - 동시성: 재고 행을 비관적 락으로 잠근 뒤 `beforeQuantity` 비교. 잠금 순서 구역(section_id 오름차순) → 재고 행(inventory_lot_id 오름차순) — 입고·출고 차감(`ship`)과 동일(ADR-006). 출고 할당·해제(`allocate`/`release`)는 재고 행만 잠근다(전역 락 순서는 [domain/outbound.md](../domain/outbound.md) "결정·미결" 2번, 성능 개선 때 확정).
   - 본사 승인 없이 창고 관리자가 즉시 반영. 성공 시 `last_counted_at`을 조정 시각으로 갱신(같은 트랜잭션).
 
 ## GET /inventory/by-lot — 로트 단위 재고
