@@ -90,7 +90,7 @@
 ## POST /outbounds (P1)
 
 - 권한: WAREHOUSE_MANAGER만, 본인 담당 창고에 배정된 발주. 출고 창고는 발주의 `warehouse_id`다.
-- Body: `storeOrderId`(필수), `note`(선택, ≤1000)
+- Body: `storeOrderId`(필수), `note`(선택, ≤500)
 - 응답 201: `outboundId, outboundNo, storeOrderId, orderNo, status=READY, note, lineCount, items[], createdAt`. `items[]`: `outboundLineId, allocationId, skuId, skuCode, lotNumber, sectionCode, allocatedQuantity, shippedQuantity(0)`
 - 에러: 400, 403, 404(발주 없음), 409 `CONFLICT`(발주 상태가 `ASSIGNED`가 아님), 409 `NO_ALLOCATION`(취소되지 않은 출고에 연결되지 않은 `ALLOCATED` 할당이 없음)
 - 규칙:
