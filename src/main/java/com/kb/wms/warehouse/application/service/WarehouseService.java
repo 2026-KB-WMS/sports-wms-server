@@ -17,6 +17,7 @@ import com.kb.wms.warehouse.application.port.out.StockPresencePort;
 import com.kb.wms.warehouse.application.port.out.WarehouseMemberRepository;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
 import com.kb.wms.warehouse.application.port.out.WarehouseSectionRepository;
+import com.kb.wms.warehouse.application.port.out.WarehouseUsagePort;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
 import com.kb.wms.warehouse.domain.entity.WarehouseMember;
 import com.kb.wms.warehouse.domain.entity.WarehouseSection;
@@ -34,6 +35,7 @@ public class WarehouseService implements WarehouseUseCase {
     private final WarehouseSectionRepository warehouseSectionRepository;
     private final WarehouseSectionCapacityUseCase warehouseSectionCapacityUseCase;
     private final StockPresencePort stockPresencePort;
+    private final WarehouseUsagePort warehouseUsagePort;
 
     @Override
     @Transactional
@@ -86,7 +88,8 @@ public class WarehouseService implements WarehouseUseCase {
 
     /**
      * 창고의 구역 행을 모두 잠근 뒤(section_id 오름차순, 입고 적치와 같은 잠금 순서) 재고 잔량을 확인한다.
-     * 진행 중인 입고·출고·발주 배정 검사는 해당 도메인이 구현되면 추가한다.
+     * 진행 중 업무(입고 ARRIVED·INSPECTING, 발주 REQUESTED·CONFIRMED, 출고 READY·PICKING·PICKED·SHIPPED,
+     * 배정된 지점 발주 REQUESTED·APPROVED·ASSIGNED·ON_HOLD)가 하나라도 있으면 409 WAREHOUSE_IN_USE.
      */
     @Override
     @Transactional
@@ -99,7 +102,11 @@ public class WarehouseService implements WarehouseUseCase {
         warehouseSectionCapacityUseCase.lock(warehouseSectionRepository.findAllByWarehouseId(warehouseId).stream()
                 .map(WarehouseSection::getSectionId)
                 .toList());
-        if (stockPresencePort.hasStockInWarehouse(warehouseId)) {
+        if (stockPresencePort.hasStockInWarehouse(warehouseId)
+                || warehouseUsagePort.hasInProgressInbounds(warehouseId)
+                || warehouseUsagePort.hasInProgressPurchaseOrders(warehouseId)
+                || warehouseUsagePort.hasInProgressOutbounds(warehouseId)
+                || warehouseUsagePort.hasInProgressStoreOrders(warehouseId)) {
             throw new BusinessException(WarehouseErrorCode.WAREHOUSE_IN_USE);
         }
         warehouse.deactivate();
