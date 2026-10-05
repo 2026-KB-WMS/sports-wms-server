@@ -11,7 +11,7 @@
 - `도메인`은 인증 / 상품 / 창고 / 입고 / 재고 / 출고 / 발주 / 지점 중 하나로 API 명세 속성과 동일하게 맞춘다.
 - `인증`은 `없음`(가입·로그인) / `Bearer 토큰`(일반 인증 필요) / `관리자 권한`(`HQ_ADMIN` 전용) 중 하나를 기재한다.
 - 리소스 경로는 복수형 명사를 사용하고(`/purchase-orders`), 상태 전이는 `PATCH /{resource}/{id}/{action}` 형식을 따른다 (예: `PATCH /purchase-orders/{id}/confirm`).
-- 날짜·시각은 ISO-8601 형식이지만 **오프셋(`Z`, `+09:00`)을 붙이지 않는다.** `YYYY-MM-DDTHH:mm:ss`(예: `2026-10-05T14:30:00`)로 주고받고, 소수 초는 값이 있을 때만 붙는다(예: `2026-10-05T14:30:00.123456`). DTO가 `LocalDateTime`이고 `spring.jackson.*`·`@JsonFormat` 설정이 따로 없어 Spring Boot 기본 직렬화(숫자 타임스탬프 아님)를 그대로 쓰기 때문이다. 값은 서버(JVM 기본 시간대)의 로컬 시각이며(개발 DB 연결은 `serverTimezone=Asia/Seoul`), 클라이언트가 시간대를 변환해 주지 않는다. 날짜만 있는 값(`expiryDate`, `manufacturedDate`)은 `YYYY-MM-DD`다. 요청 본문·쿼리 파라미터(`createdFrom`, `arrivedTo` 등)도 같은 오프셋 없는 형식을 쓴다. UTC 저장·시간대 정책은 확정 필요 항목이다.
+- 날짜·시각은 ISO-8601 형식이지만 **오프셋(`Z`, `+09:00`)을 붙이지 않는다.** `YYYY-MM-DDTHH:mm:ss`(예: `2026-10-05T14:30:00`)로 주고받고, 소수 초는 값이 있을 때만 붙는다(예: `2026-10-05T14:30:00.123456`). DTO가 `LocalDateTime`이고 `@JsonFormat` 설정이 따로 없어 Spring Boot 기본 직렬화(숫자 타임스탬프 아님)를 그대로 쓰기 때문이다. 값은 서버 시간대 KST(Asia/Seoul) 기준 시각이며(컨테이너 `TZ`, `-Duser.timezone`, `spring.jackson.time-zone`, `hibernate.jdbc.time_zone`, JDBC `serverTimezone` 모두 Asia/Seoul), 클라이언트가 시간대를 변환해 주지 않는다. 날짜만 있는 값(`expiryDate`, `manufacturedDate`)은 `YYYY-MM-DD`다. 요청 본문·쿼리 파라미터(`createdFrom`, `arrivedTo` 등)도 같은 오프셋 없는 형식을 쓴다. **서버 시간대는 KST(Asia/Seoul)로 고정**이며, 오프셋 없는 `yyyy-MM-dd'T'HH:mm:ss`로 직렬화한다.
 
 ## 요청 공통 규칙
 
@@ -81,5 +81,4 @@
 ## 확정 필요 항목
 - [ ] 액세스·리프레시 토큰 발급/만료/갱신 정책
 - [ ] Rate limiting 적용 여부
-- [ ] 시간대 정책(현재는 오프셋 없는 서버 로컬 시각, UTC 저장·오프셋 포함 직렬화 여부)
 - [ ] 도메인 특수 오류 코드 전체 목록을 API 명세 각 엔드포인트에 반영
