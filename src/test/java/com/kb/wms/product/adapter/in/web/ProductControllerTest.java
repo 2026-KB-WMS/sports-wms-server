@@ -2,6 +2,8 @@ package com.kb.wms.product.adapter.in.web;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -157,5 +159,17 @@ class ProductControllerTest {
                                 new TestUpdateRequest(null, null, null, null, null))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    @DisplayName("productCode를 포함해 수정을 요청하면 400 VALIDATION_ERROR를 반환하고 수정하지 않는다")
+    void updateProduct_productCode_returnsValidationError() throws Exception {
+        mockMvc.perform(patch("/api/v1/products/{productId}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productName\":\"새 이름\",\"productCode\":\"P-9999\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+
+        verify(productUseCase, never()).updateProduct(any(ProductUpdateCommand.class));
     }
 }
