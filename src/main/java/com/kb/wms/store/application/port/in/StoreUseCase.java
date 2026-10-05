@@ -22,7 +22,11 @@ public interface StoreUseCase {
 
     Store updateStore(Long storeId, StoreUpdateCommand command);
 
-    Store deactivateStore(Long storeId);
+    /**
+     * 지점을 비활성화하고 상태 이력(StatusHistory)에 기록한다. reason은 선택이며 최대 500자.
+     * userId는 처리자(changed_by)이다.
+     */
+    Store deactivateStore(Long storeId, String reason, Long userId);
 
     /**
      * 로그인한 점주가 배정된 지점을 모두 조회한다.

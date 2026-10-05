@@ -154,10 +154,36 @@ class StoreControllerTest {
     void deactivateStore_success() throws Exception {
         Store store = Store.register("ST-GANGNAM", "강남점", "서울시 강남구", "김점주", "02-333-1234");
         store.deactivate();
-        when(storeUseCase.deactivateStore(1L)).thenReturn(store);
+        when(storeUseCase.deactivateStore(1L, null, 10L)).thenReturn(store);
 
-        mockMvc.perform(patch("/api/v1/stores/{storeId}/deactivate", 1L))
+        mockMvc.perform(patch("/api/v1/stores/{storeId}/deactivate", 1L).param("userId", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.isActive").value(false));
+    }
+
+    @Test
+    @DisplayName("비활성화 요청 바디의 reason이 유스케이스에 전달된다")
+    void deactivateStore_withReason() throws Exception {
+        Store store = Store.register("ST-GANGNAM", "강남점", "서울시 강남구", "김점주", "02-333-1234");
+        store.deactivate();
+        when(storeUseCase.deactivateStore(1L, "폐점", 10L)).thenReturn(store);
+
+        mockMvc.perform(patch("/api/v1/stores/{storeId}/deactivate", 1L)
+                        .param("userId", "10")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"폐점\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isActive").value(false));
+    }
+
+    @Test
+    @DisplayName("비활성화 사유가 500자를 넘으면 400 VALIDATION_ERROR를 반환한다")
+    void deactivateStore_reasonTooLong() throws Exception {
+        mockMvc.perform(patch("/api/v1/stores/{storeId}/deactivate", 1L)
+                        .param("userId", "10")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(java.util.Map.of("reason", "가".repeat(501)))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 }

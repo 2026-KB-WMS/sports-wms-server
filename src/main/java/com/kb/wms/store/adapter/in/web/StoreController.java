@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.store.adapter.in.web.dto.request.StoreDeactivateRequest;
 import com.kb.wms.store.adapter.in.web.dto.request.StoreRegisterRequest;
 import com.kb.wms.store.adapter.in.web.dto.request.StoreUpdateRequest;
 import com.kb.wms.store.adapter.in.web.dto.response.StoreMembershipResponse;
@@ -80,8 +81,12 @@ public class StoreController {
     }
 
     @PatchMapping("/{storeId}/deactivate")
-    public ApiResponse<StoreResponse> deactivateStore(@PathVariable Long storeId) {
-        Store store = storeUseCase.deactivateStore(storeId);
+    public ApiResponse<StoreResponse> deactivateStore(
+            @PathVariable Long storeId,
+            @RequestParam Long userId,
+            @Valid @RequestBody(required = false) StoreDeactivateRequest request) {
+        String reason = request == null ? null : request.reason();
+        Store store = storeUseCase.deactivateStore(storeId, reason, userId);
         return ApiResponse.ok(StoreResponse.from(store));
     }
 }

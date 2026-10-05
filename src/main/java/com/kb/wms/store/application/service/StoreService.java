@@ -7,6 +7,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
+import com.kb.wms.common.statushistory.domain.entity.StatusHistory;
+import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.store.application.port.in.StoreUseCase;
 import com.kb.wms.store.application.port.in.command.StoreRegisterCommand;
 import com.kb.wms.store.application.port.in.command.StoreUpdateCommand;
@@ -17,6 +20,7 @@ import com.kb.wms.store.application.port.out.StoreOrderPresencePort;
 import com.kb.wms.store.application.port.out.StoreRepository;
 import com.kb.wms.store.domain.entity.Store;
 import com.kb.wms.store.domain.entity.StoreMember;
+import com.kb.wms.store.domain.enums.StoreStatus;
 import com.kb.wms.store.exception.StoreErrorCode;
 
 import lombok.RequiredArgsConstructor;
@@ -29,6 +33,7 @@ public class StoreService implements StoreUseCase {
     private final StoreRepository storeRepository;
     private final StoreMemberRepository storeMemberRepository;
     private final StoreOrderPresencePort storeOrderPresencePort;
+    private final StatusHistoryUseCase statusHistoryUseCase;
 
     @Override
     @Transactional
@@ -82,10 +87,18 @@ public class StoreService implements StoreUseCase {
     /**
      * 진행 중인 지점 발주(REQUESTED·APPROVED·ASSIGNED·ON_HOLD)가 있으면 비활성화할 수 없다(409 STORE_IN_USE).
      * 종결된 발주(COMPLETED·CANCELED·REJECTED)는 막지 않는다.
+     * 비활성화 사유(선택, 최대 500자)는 StatusHistory.reason에 기록한다.
      */
     @Override
     @Transactional
-    public Store deactivateStore(Long storeId) {
+    public Store deactivateStore(Long storeId, String reason, Long userId) {
+        if (userId == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "요청 사용자는 필수입니다.");
+        }
+        if (reason != null && reason.strip().length() > StatusHistory.MAX_REASON_LENGTH) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "사유는 " + StatusHistory.MAX_REASON_LENGTH + "자 이하여야 합니다.");
+        }
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
         if (!store.isActive()) {
@@ -95,7 +108,10 @@ public class StoreService implements StoreUseCase {
             throw new BusinessException(StoreErrorCode.STORE_IN_USE);
         }
         store.deactivate();
-        return storeRepository.save(store);
+        Store saved = storeRepository.save(store);
+        statusHistoryUseCase.record(StatusHistoryEntityType.STORE, storeId,
+                StoreStatus.ACTIVE.name(), StoreStatus.INACTIVE.name(), reason, userId);
+        return saved;
     }
 
     @Override
