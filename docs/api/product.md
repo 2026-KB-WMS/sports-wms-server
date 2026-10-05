@@ -5,7 +5,9 @@
 
 ## 구현 대비 메모
 
-- 코드에만 있고 Notion 명세가 없는 엔드포인트: `PATCH /api/v1/products/skus/{skuId}/status` (SKU 활성/비활성). 명세 보강 필요.
+- 코드에만 있고 Notion 명세가 없던 엔드포인트: `PATCH /api/v1/products/skus/{skuId}/status` (SKU 활성/비활성). 아래 "PATCH /products/skus/{skuId}/status" 절에 코드 기준으로 명세를 보강했다.
+- 상품 비활성화(`PATCH /products/{productId}`의 `isActive=false`)는 같은 트랜잭션에서 하위 ACTIVE SKU를 모두 비활성화한다(구현됨). 상품을 다시 활성화해도 SKU는 자동으로 활성화되지 않는다(SKU 상태 변경 API로 개별 복구).
+- 목록 API(상품·브랜드·카테고리·SKU)는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고).
 - Notion 명세의 `pageInfo`, 일반 `NOT_FOUND`는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
 - 미결: 카테고리 최대 depth, SKU 옵션 조합 중복 허용 규칙.
 
@@ -28,7 +30,7 @@
 | POST | /products/skus | HQ_ADMIN | SKU 등록 |
 | GET | /products/skus/{skuId} | 전체 | SKU 상세 |
 | POST | /products/skus/{skuId}/options | HQ_ADMIN | SKU 옵션 연결 |
-| PATCH | /products/skus/{skuId}/status | (코드 전용) | SKU 상태 변경 — 명세 없음 |
+| PATCH | /products/skus/{skuId}/status | HQ_ADMIN | SKU 활성/비활성 변경 (코드 전용, Notion 명세 없음) |
 
 공통 에러: 400 검증 실패, 401 미인증, 403 권한 없음.
 
@@ -42,9 +44,10 @@
 ## GET /products — 상품 목록
 
 - 권한: 전체. STORE_OWNER는 활성 상품만 조회.
-- Query: `page`, `size`, `sort`, `categoryId`, `brandId`, `keyword`, `isActive`
+- Query: `categoryId`, `brandId`, `keyword`, `isActive`. `page`·`size`·`sort`는 받지 않는다(페이지네이션 보류).
+- 정렬은 고정(등록 일시 `createdAt` 내림차순, 같으면 `productId` 내림차순).
 - 응답: `data.items[]`
-- 에러: 400, 401
+- 에러: 400, 401, 404 `BRAND_NOT_FOUND`(존재하지 않는 `brandId` 필터), 404 `CATEGORY_NOT_FOUND`(존재하지 않는 `categoryId` 필터)
 
 ## GET /products/{productId} — 상품 상세
 
@@ -56,20 +59,21 @@
 - Body(부분 수정, 최소 1개 필드): `productName`, `description`, `brandId`, `categoryId`, `isActive`
 - `productCode`는 수정 불가(포함 시 400).
 - 변경 대상 brand/category는 활성이어야 함, 아니면 409(`BRAND_INACTIVE`/`CATEGORY_INACTIVE`).
-- 멱등. 상품 비활성화 시 SKU 연쇄 비활성화는 보류.
+- 멱등. 상품 비활성화(`isActive=false`) 시 하위 ACTIVE SKU를 같은 트랜잭션에서 함께 비활성화한다(재고 도메인은 SKU 상태만 보기 때문). 이미 비활성인 SKU는 그대로 두며, 상품을 다시 활성화(`isActive=true`)해도 SKU는 자동으로 활성화되지 않는다.
 - 에러: `PRODUCT_NOT_FOUND`, `BRAND_NOT_FOUND`, `CATEGORY_NOT_FOUND` 404
 
 ## GET /products/brands, POST /products/brands
 
 - POST(HQ_ADMIN): `brandName`(≤100, unique), `description`(≤500). 에러 `DUPLICATE_BRAND_NAME` 409. 201.
-- GET: query `keyword`, `isActive`, `sort`(기본 `brandName,asc`). 응답 `data.items[]`.
+- GET: query `keyword`, `isActive`. 정렬은 고정(`brandName` 오름차순, 같으면 `brandId` 오름차순). 응답 `data.items[]`.
 
 ## GET /products/categories, POST /products/categories
 
 - POST(HQ_ADMIN): `parentCategoryId`(선택), `categoryCode`(≤50, unique), `categoryName`(≤100), `sortOrder`(기본 0). `depth`는 서버가 계산.
+- 201. 응답(POST·GET 공통 항목): `categoryId, parentCategoryId, categoryCode, categoryName, depth, sortOrder, isActive, createdAt`
 - 에러: `PARENT_CATEGORY_NOT_FOUND` 404, `DUPLICATE_CATEGORY_CODE` 409, `PARENT_CATEGORY_INACTIVE` 409
 - 미결: 카테고리 최대 depth 제한.
-- GET: query `parentCategoryId`, `depth`, `keyword`, `isActive`.
+- GET: query `parentCategoryId`, `depth`, `keyword`, `isActive`. 정렬은 고정(`sortOrder` 오름차순, 같으면 `categoryId` 오름차순). 에러: 404 `CATEGORY_NOT_FOUND`(존재하지 않는 `parentCategoryId` 필터).
 
 ## POST /products/option-groups
 
@@ -94,6 +98,8 @@
 ## GET /products/skus — SKU 목록
 
 - STORE_OWNER에게는 매입가(`currentPurchasePrice`)와 안전재고(`safetyStockQuantity`) 미노출.
+- Query: `productId`, `brandId`, `categoryId`, `keyword`, `isActive`. 정렬은 고정(등록 일시 `createdAt` 내림차순, 같으면 `skuId` 내림차순).
+- 에러: 404 `PRODUCT_NOT_FOUND`(존재하지 않는 `productId` 필터), 404 `BRAND_NOT_FOUND`(`brandId`), 404 `CATEGORY_NOT_FOUND`(`categoryId`)
 - 응답 항목에 `optionValues[]` 포함. 응답 `data.items[]`.
 
 ## GET /products/skus/{skuId} — SKU 상세
@@ -104,3 +110,11 @@
 
 - Body: `optionValueIds[]`. 옵션 그룹당 값 1개만 허용. All-or-nothing. 연결 해제 API 없음.
 - 에러: `SKU_NOT_FOUND` 404, `OPTION_VALUE_NOT_FOUND` 404, `DUPLICATE_OPTION_VALUE` 409, `OPTION_VALUE_INACTIVE` 409, `OPTION_GROUP_CONFLICT` 409
+
+## PATCH /products/skus/{skuId}/status — SKU 상태 변경 (코드 전용)
+
+- 권한: HQ_ADMIN(마스터 데이터, [ADR-003](../adr/003-master-data-owned-by-hq.md))
+- Body: `isActive`(필수, boolean)
+- 200. 응답: `skuId, isActive`
+- 에러: `SKU_NOT_FOUND` 404, `PRODUCT_INACTIVE` 409(활성화(`isActive=true`)하려는 SKU의 상품이 비활성)
+- 규칙: 비활성화는 상품 상태와 무관하게 가능하다. 활성화는 상품이 활성일 때만 가능하다.

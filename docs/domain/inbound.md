@@ -45,7 +45,7 @@ Inbound 완료 시점마다 InboundLine의 `accepted_quantity`/`defective_quanti
 2. Lot은 `PATCH /inbounds/{inboundId}/inspect` 시점에 find-or-create.
 3. 모든 재고 수량 변경은 `InventoryTransaction`을 함께 기록 (수행자, 시각, 원인 문서, 이전·이후 수량).
 4. PurchaseOrderLine 상태/수량 갱신 → 전 항목 완료 시 PurchaseOrder 자동 COMPLETED.
-5. 모든 상태 변경은 `StatusHistory`에 기록 (취소는 사유 필수). **미구현**: `StatusHistory` 도메인이 없어 현재는 취소 사유를 검증(필수, 500자 이하)만 하고 저장하지 않는다.
+5. 모든 상태 변경은 `StatusHistory`에 기록 (취소는 사유 필수, 500자 이하). 발주(`PURCHASE_ORDER`)와 입고(`INBOUND`) 모두 `StatusHistory`에 연결됨: 취소 사유는 `StatusHistory.reason`에 저장하고 응답의 `cancelReason`은 이 이력에서 읽는다.
 6. 적치 구역 수용량 초과 시 409 `SECTION_CAPACITY_EXCEEDED` (다른 구역 지정 후 재시도).
 7. 재고 수량 변경은 비관적 락.
 
@@ -65,7 +65,7 @@ Inbound 완료 시점마다 InboundLine의 `accepted_quantity`/`defective_quanti
 ### 명세와 다른 점·보류 (자세한 내용은 [`api/inbound.md`](../api/inbound.md) "구현 대비 메모")
 
 - 인증·인가 없음: 처리 사용자 `userId`를 검수·완료의 쿼리 파라미터로 받고, 역할·소속 창고·작성자 검사를 적용하지 않는다.
-- `StatusHistory` 없음: 취소 사유를 저장하지 않으며 응답에 `cancelReason`이 없다. 회원 도메인 연동 전이라 `receivedByName`도 없다.
+- `StatusHistory` 연결됨: 취소 사유를 `StatusHistory.reason`에 저장하고 응답(발주 단건·취소, 입고 단건·취소)의 `cancelReason`은 이력에서 읽는다. 회원 도메인 연동 전이라 `receivedByName`은 없다.
 - 목록 페이지네이션 없음, 목록 필터의 존재하지 않는 ID 404 미적용.
 - 완료 후 취소·정정 API 없음(재고 조정으로 처리). 초과 입고는 거절, 상위 구역 적치 허용 여부는 미확정.
 - 재고 로트 상세·목록 응답의 `supplierName`, 로트 상세의 `inbounds`는 아직 채우지 않았다.

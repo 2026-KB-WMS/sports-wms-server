@@ -7,6 +7,7 @@
 
 - `DELETE /warehouses/sections/{sectionId}`는 Notion 명세(상태 "시작 전")만 있고 **코드에는 미구현**. 구현 시 아래 명세 참고(구역 비활성화 `deactivate`로 대체 가능 여부 재검토).
 - Notion 명세의 `pageInfo`와 일반 `NOT_FOUND`/`CONFLICT` 코드는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
+- 목록 API는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고). 창고 관리자 배정 목록은 `keyword`를 지원하지 않고 응답에 `userName`·`loginId`도 없다(회원 도메인 구현 전). 인증 연동 전이라 `GET /warehouses/my`는 쿼리 파라미터 `userId`(필수)로 사용자를 받는다.
 - 확정 필요(미결): 창고/구역 재활성화 방법, `memberRole` 허용 값(예시 `MANAGER`), `sectionType` 허용 값(`DEFECT` 확정, `ZONE`/`RACK` 예시), 하위 구역 수용량 합 ↔ 상위 구역/창고 `totalCapacity` 관계 검증, 토큰의 소속 정보 갱신 시점, 관리자 0명이 되는 회수 허용 여부, "진행 중 업무" 범위.
 
 ## 엔드포인트 목록 (18)
@@ -40,12 +41,13 @@
 ### POST /warehouses (P0)
 
 - Body: `warehouseCode`(≤30, unique), `warehouseName`(≤100), `address`(≤500), `contactNumber`(선택, ≤30), `totalCapacity`(선택, ≥0, 소수 3자리, 기본 0)
-- 201. 응답: `warehouseId, warehouseCode, warehouseName, address, contactNumber, totalCapacity, isActive, createdAt`
+- 201. 응답: `warehouseId, warehouseCode, warehouseName, address, contactNumber, totalCapacity, isActive, createdAt, updatedAt`
 - 에러: `DUPLICATE_WAREHOUSE_CODE` 409 (DB unique 위반도 동일 매핑). 등록 시 status ACTIVE.
 
 ### GET /warehouses
 
-- HQ_ADMIN 전용. Query: `keyword`(창고명·코드), `isActive`(생략 시 전체), `sort`(기본 `createdAt,desc`), page/size(보류)
+- HQ_ADMIN 전용. Query: `keyword`(창고명·코드), `isActive`(생략 시 전체). `page`·`size`·`sort`는 받지 않는다(페이지네이션 보류).
+- 정렬은 고정(등록 일시 `createdAt` 내림차순, 같으면 `warehouseId` 내림차순).
 - 응답 항목: `warehouseId, warehouseCode, warehouseName, address, contactNumber, totalCapacity, isActive`. 구역별 수용량은 미포함.
 
 ### GET /warehouses/{warehouseId}
@@ -61,7 +63,7 @@
 
 ### PATCH /warehouses/{warehouseId}/deactivate
 
-- 응답: `warehouseId, warehouseCode, warehouseName, isActive=false, updatedAt`
+- 응답: `warehouseId, warehouseCode, warehouseName, isActive=false, updatedAt`. 실제로는 창고 상세와 같은 전체 필드(`address, contactNumber, totalCapacity, createdAt`도 포함)를 내려준다(위 필드의 상위 집합).
 - 에러: 이미 INACTIVE 409 `CONFLICT`, 재고 잔량(보유·할당) 또는 진행 중 입고·출고·발주 배정 존재 시 409 `WAREHOUSE_IN_USE`
 - 비활성화 후 신규 구역 등록·관리자 배정·발주 배정 차단, 기존 이력 보존. 조건 확인과 상태 변경은 같은 트랜잭션.
 
@@ -78,14 +80,15 @@
 
 ### GET /warehouses/managers (P2)
 
-- HQ_ADMIN. Query: `warehouseId`, `userId`, `keyword`(사용자 이름·로그인 ID), `sort`(기본 `assignedAt,desc`)
-- 응답 항목: `warehouseMemberId, warehouseId, warehouseName, userId, userName, loginId, memberRole, assignedAt` (password 등 민감 정보 제외)
+- HQ_ADMIN. Query: `warehouseId`, `userId`. `keyword`(사용자 이름·로그인 ID)는 회원 도메인 구현 후 추가한다(현재 미지원).
+- 정렬은 명시하지 않는다(현재 코드에 정렬 지정 없음).
+- 응답 항목: `warehouseMemberId, warehouseId, warehouseName, userId, memberRole, assignedAt`. `userName`, `loginId`는 회원 도메인 구현 후 추가한다(현재 미제공, password 등 민감 정보는 제외).
 - 같은 `userId`가 여러 창고로 여러 행 가능(UNIQUE는 warehouse_id+user_id). 에러: 존재하지 않는 필터 값 404
 
 ### POST /warehouses/managers (P2)
 
 - Body: `warehouseId`, `userId`(role `WAREHOUSE_MANAGER`), `memberRole`(management-types의 code)
-- 201. 응답: `warehouseMemberId, warehouseId, warehouseName, userId, userName, memberRole, assignedAt`
+- 201. 응답: `warehouseMemberId, warehouseId, warehouseName, userId, memberRole, assignedAt`(`userName`은 회원 도메인 구현 후 추가)
 - 에러: 400(필수 누락/허용되지 않은 `memberRole`/대상이 WAREHOUSE_MANAGER 아님), 404(창고·사용자 없음), 409 `ALREADY_ASSIGNED`(같은 창고 중복, DB 제약도 동일 매핑), 409 `CONFLICT`(비활성 창고 또는 INACTIVE 사용자)
 - PENDING 계정도 배정 가능(소속 배정 후 `PATCH /users/{userId}`로 ACTIVE 승인). 서로 다른 창고 배정은 허용. `assignedAt`은 서버 시각.
 
@@ -109,7 +112,8 @@
 
 ### GET /warehouses/sections
 
-- HQ_ADMIN. Query: `warehouseId`, `parentSectionId`(직속 하위), `sectionType`, `keyword`(구역명·코드), `isActive`, `sort`(기본 `sectionCode,asc`)
+- HQ_ADMIN. Query: `warehouseId`, `parentSectionId`(직속 하위), `sectionType`, `keyword`(구역명·코드), `isActive`. `sort`는 받지 않는다.
+- 정렬은 고정(`sectionCode` 오름차순, 같으면 `sectionId` 오름차순).
 - 평면 목록(트리는 `parentSectionId`로 구성). 응답 항목: `sectionId, warehouseId, warehouseName, parentSectionId, sectionCode, sectionName, sectionType, capacity, currentCapacity, availableCapacity, isActive`
 
 ### GET /warehouses/{warehouseId}/sections

@@ -7,7 +7,7 @@
 ## 범위
 
 - 출고 8개 + 재고 할당 4개 = 12개. 지점 발주 도메인이 "출고 구현 때 함께 하기로" 미룬 `/allocations`를 포함한다([store-order.md](store-order.md) 범위 참고).
-- Notion 개발 일정의 "[구현] 출고 도메인" 페이지에는 7개(`/outbounds` 생성·목록, `details`, `picking/start`, `picking/complete`, `ship`, `deliver`)만 적혀 있고 `PATCH /outbounds/{id}/cancel`과 `/allocations` 4개가 빠져 있다. 구현 범위는 이 문서의 12개다(일정 페이지는 구현 시작 때 갱신).
+- Notion 개발 일정의 "[구현] 출고 도메인" 페이지는 처음에 7개(`/outbounds` 생성·목록, `details`, `picking/start`, `picking/complete`, `ship`, `deliver`)만 적고 있어 `PATCH /outbounds/{id}/cancel`과 `/allocations` 4개가 빠져 있었다. 지금은 이 문서와 같은 12개로 갱신되어 있다. 구현 범위도 이 문서의 12개다.
 
 ## 구현 대비 메모
 
@@ -20,7 +20,7 @@
 - 출고에는 창고 컬럼이 없다. 창고 기준 조회·권한은 지점 발주의 `warehouse_id`를 쓴다.
 - 발주 항목 `shipped_quantity`는 피킹 완료에서 누적하고, 항목 상태(`PARTIALLY_SHIPPED`·`COMPLETED`)는 배송 완료에서 전환한다(2026-10-05 결정, [domain/outbound.md](../domain/outbound.md) "결정·미결" 1번). Notion은 이 시점을 문서마다 다르게 적고 있다.
 - 락 순서와 할당·해제의 구역 잠금은 성능 개선 때 정한다(보류, [domain/outbound.md](../domain/outbound.md) "결정·미결" 2번).
-- 출고 번호는 서버가 `OB-YYYYMMDD-일련번호(4자리)`로 채번한다(당일 출고 개수 + 1, 요청으로 받지 않음). 동시 생성으로 번호가 겹치면 UNIQUE 제약이 409 `DUPLICATE_OUTBOUND_NO`로 응답한다.
+- 출고 번호는 서버가 `OB-YYYYMMDD-일련번호(4자리)`로 채번한다(당일 출고 개수 + 1, 요청으로 받지 않음). 컬럼은 `outbound_no VARCHAR(30)`(UNIQUE)이고 출고 `note`는 `VARCHAR(500)`이다. 동시 생성으로 번호가 겹치면 UNIQUE 제약이 409 `DUPLICATE_OUTBOUND_NO`로 응답한다.
 - 400 `errors`(필드별 사유)는 요청 바디 검증 실패에만 채워진다. 피킹 완료의 개수·ID 불일치·중복·할당 수량 초과와 `INSUFFICIENT_STOCK`의 SKU별 요청·가용 수량은 공통 `BusinessException`이 `errors`를 지원하지 않아 메시지로만 내려간다. 배열로 노출할지는 공통 예외 개선 때 정한다.
 - 목록의 존재하지 않는 `storeOrderId`·`warehouseId`·`skuId` 필터는 404가 아니라 빈 목록을 돌려준다(보류).
 - 확정 필요(미결): 배송 담당자·차량·운송장 기록 여부(ERD `Outbound`에는 `note`뿐), 배송 실패·수령 거부 처리, 부족 사유를 기록할 위치(ERD에 컬럼 없음), 취소한 출고를 다시 여는 방법(현재는 새 출고 생성), 재고 부족 시 부분 할당 허용 여부(현재 전체 실패), 세트 상품 구성품 동시 예약.
@@ -56,7 +56,7 @@
 
 - 권한: WAREHOUSE_MANAGER만, 본인 담당 창고에 배정된 발주. 대상 창고는 발주의 `warehouse_id`이며 요청으로 받지 않는다.
 - Body: `storeOrderId`(필수)
-- 응답 201: `storeOrderId, orderNo, items[]`. `items[]`: `allocationId, storeOrderLineId, skuId, skuCode, inventoryLotId, lotId, lotNumber, expiryDate, sectionId, sectionCode, allocatedQuantity, pickedQuantity, status`
+- 응답 201: `storeOrderId, orderNo, items[]`. `items[]`는 `GET /allocations`의 `data.items[]`와 같은 형식이다: `allocationId, storeOrderId, orderNo, storeOrderLineId, warehouseId, skuId, skuCode, skuName, inventoryLotId, lotId, lotNumber, expiryDate, sectionId, sectionCode, allocatedQuantity, pickedQuantity, status, allocatedAt, releasedAt(null)`
 - 에러: 400, 403, 404(발주 없음), 409 `CONFLICT`(발주 상태가 `ASSIGNED`가 아님: 보류·취소·미배정), 409 `ALREADY_ALLOCATED`(할당할 잔여 수량 없음), 409 `INSUFFICIENT_STOCK`(한 항목이라도 가용 재고 부족, `errors`에 SKU별 요청·가용 수량), 409 `LOT_NOT_AVAILABLE`, 409 `SKU_NOT_ACTIVE`(재고 도메인이 거절)
 - 규칙:
   - 발주 상태가 `ASSIGNED`일 때만. 보류(`ON_HOLD`) 중에는 재개 후 할당한다.
@@ -70,7 +70,7 @@
 ## GET /allocations (P1)
 
 - 권한: HQ_ADMIN, WAREHOUSE_MANAGER(담당 창고 발주의 할당만)
-- Query: `storeOrderId`, `warehouseId`, `skuId`, `status`(`ALLOCATED`/`PICKED`/`RELEASED`), `keyword`(발주 번호·SKU 코드·로트 번호 부분 일치). `page`·`size`·`sort`는 페이지네이션 도입 때 적용(구현 대비 메모). 기본 정렬은 `allocatedAt` 내림차순.
+- Query: `storeOrderId`, `warehouseId`, `skuId`, `status`(`ALLOCATED`/`PICKED`/`RELEASED`), `keyword`(발주 번호·SKU 코드·로트 번호 부분 일치). `page`·`size`·`sort`는 페이지네이션 도입 때 적용(구현 대비 메모). 정렬은 고정(`allocatedAt` 내림차순, 같으면 `allocationId` 내림차순).
 - 응답: `data.items[]`: `allocationId, storeOrderId, orderNo, storeOrderLineId, warehouseId, skuId, skuCode, skuName, inventoryLotId, lotId, lotNumber, expiryDate, sectionId, sectionCode, allocatedQuantity, pickedQuantity, status, allocatedAt, releasedAt`
 - 에러: 400(`status` 값·필터 형식 오류), 403(점주, 또는 담당하지 않는 창고를 `warehouseId`로 지정), 404(존재하지 않는 `storeOrderId`·`warehouseId`·`skuId`로 필터링)
 - 규칙: 조회 전용. 재고 행·로트·구역 정보는 `InventoryLot`·`Lot`·`WarehouseSection`을 ID 기준 읽기 전용 조인으로 가져온다(ADR-007). `warehouseId`를 생략한 창고 관리자는 담당 창고들의 할당을 받는다.
@@ -106,7 +106,7 @@
 ## GET /outbounds (P1)
 
 - 권한: HQ_ADMIN, WAREHOUSE_MANAGER(담당 창고 발주의 출고만)
-- Query: `status`(`READY`/`PICKING`/`PICKED`/`SHIPPED`/`DELIVERED`/`CANCELED`), `warehouseId`(발주에 배정된 창고 기준), `storeId`, `storeOrderId`, `keyword`(출고 번호·발주 번호 부분 일치), `createdFrom`, `createdTo`(ISO-8601). 기본 정렬은 `createdAt` 내림차순. 페이지네이션은 보류.
+- Query: `status`(`READY`/`PICKING`/`PICKED`/`SHIPPED`/`DELIVERED`/`CANCELED`), `warehouseId`(발주에 배정된 창고 기준), `storeId`, `storeOrderId`, `keyword`(출고 번호·발주 번호 부분 일치), `createdFrom`, `createdTo`(ISO-8601, 양 끝 포함: `>= createdFrom`, `<= createdTo`). 정렬은 고정(`createdAt` 내림차순, 같으면 `outboundId` 내림차순). 페이지네이션은 보류.
 - 응답: `data.items[]`: `outboundId, outboundNo, storeOrderId, orderNo, storeId, storeName, warehouseId, warehouseName, status, lineCount, shippedAt, shippedBy, createdAt`
 - 에러: 400(`status` 값·일시 형식 오류, `createdFrom`이 `createdTo`보다 늦음), 403, 404(존재하지 않는 필터 대상)
 - 규칙: 목록에는 헤더 정보와 `lineCount`만 담는다. `shippedAt`·`shippedBy`는 배송 시작 전 `null`이다. 조회 전용.

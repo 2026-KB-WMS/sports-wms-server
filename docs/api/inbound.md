@@ -12,13 +12,13 @@
 
 - Notion 상태 컬럼은 "시작 전"이지만 코드는 구현됨(상태 컬럼이 오래됨, 코드 기준).
 - Notion 명세의 `pageInfo`와 일반 `NOT_FOUND`는 현재 구현 기준과 다름 → conventions.md 기준 따름. 단 Supplier/PurchaseOrder 404는 도메인 코드(`SUPPLIER_NOT_FOUND`, `PURCHASE_ORDER_NOT_FOUND`).
-- 확정 필요(미결): 공급처 재활성화 방법, 발주 번호 형식(예시 `PO-YYYYMMDD-일련번호`), 같은 공급처 중복 발주 허용 범위, 확정 단계에서 항목 조정 가능 여부, 취소 발주의 항목 상태 처리, `REQUESTED` 발주 반려는 MVP 이후.
+- 확정 필요(미결): 공급처 재활성화 방법, 같은 공급처 중복 발주 허용 범위, 확정 단계에서 항목 조정 가능 여부, 취소 발주의 항목 상태 처리, `REQUESTED` 발주 반려는 MVP 이후. 발주 번호는 `PO-yyyyMMdd-NNNN`으로 구현했다.
 - **입고** 구현 대비 차이 (2026-10-02 이전 시점):
   - 입고 목록·구역 후보 조회는 `page`·`size`·`sort`와 `pageInfo`를 지원하지 않고 `data.items` 전체를 돌려준다(페이지네이션 보류). 구역 후보 응답의 가용 용량 필드명은 `availableCapacity`다(Notion의 `requiredQuantity` 설명에 적힌 `availableQuantity`와 다름).
   - 인증·인가가 없어 401/403과 역할·소속 창고 검사를 적용하지 않는다. 검수·완료의 처리 사용자는 쿼리 파라미터 `userId`(필수)로 받는다. 인증 연동 시 토큰의 사용자로 대체한다.
   - 404는 도메인 코드를 쓴다: `INBOUND_NOT_FOUND`(입고), `PURCHASE_ORDER_NOT_FOUND`(발주), `SECTION_NOT_FOUND`(구역). 발주 항목이 없을 때만 일반 `NOT_FOUND`다.
-  - 입고 목록 필터의 존재하지 않는 `warehouseId`·`purchaseOrderId` 404는 적용하지 않는다(발주 목록과 동일).
-  - 응답의 `cancelReason`(단건)과 `receivedByName`(단건)은 내려주지 않고, 취소 응답에도 `cancelReason`이 없다. 취소 사유는 검증(필수, 500자 이하)만 하고 저장하지 않는다. `StatusHistory`·회원 도메인 구현 후 반영한다.
+  - 목록 필터의 존재하지 않는 값(발주 목록의 `warehouseId`·`supplierId`, 입고 목록의 `warehouseId`·`purchaseOrderId`)은 404가 아니라 빈 목록을 돌려준다(보류). 공급처 목록에는 대상 ID 필터가 없다.
+  - 응답의 `receivedByName`(단건)은 내려주지 않는다(회원 도메인 구현 후 반영). 입고 취소 사유(필수, 500자 이하)는 `StatusHistory`(`entity_type` `INBOUND`)에 저장하고, 입고 단건 응답과 취소 응답의 `cancelReason`은 이 이력에서 읽는다.
   - 입고 번호는 `IB-yyyyMMdd-NNNN`(일자별 일련번호)로 구현했다.
   - 명세에 없이 서비스에 넣은 규칙: 같은 입고 안에서 (발주 항목, 로트) 중복은 400, 입고 완료 시 발주가 `CONFIRMED`가 아니거나 발주 항목별 입고 수량이 남은 수량을 넘으면 409 `CONFLICT`.
   - 확정 필요(미결): 발주 수량 초과 입고 허용 여부(현재 거절), 하위 구역이 있는 상위 구역에도 적치할 수 있는지, 취소된 입고를 다시 여는 방법(현재는 새 입고 등록), 같은 발주에 진행 중 입고를 여러 건 허용할지(현재 1건만).
@@ -57,12 +57,13 @@
 ### POST /suppliers (P0)
 
 - Body: `supplierCode`(≤30, unique), `supplierName`(≤200), `managerName`(≤100), `contactNumber`(≤30), `email`(선택, ≤255, 형식 검증), `address`(선택, ≤500)
-- 201. 응답: `supplierId, supplierCode, supplierName, managerName, contactNumber, email, address, isActive, createdAt`
+- 201. 응답: `supplierId, supplierCode, supplierName, managerName, contactNumber, email, address, isActive, createdAt, updatedAt`
 - 에러: `DUPLICATE_SUPPLIER_CODE` 409 (DB unique 위반도 동일 매핑). 등록 시 status ACTIVE.
 
 ### GET /suppliers (P0)
 
-- Query: `keyword`(공급처명·코드·담당자명), `isActive`, `sort`(기본 `supplierName,asc`)
+- Query: `keyword`(공급처명·코드·담당자명), `isActive`. `sort`는 받지 않는다.
+- 정렬은 고정(`supplierName` 오름차순, 같으면 `supplierId` 오름차순).
 - WAREHOUSE_MANAGER는 `isActive`와 무관하게 항상 활성 공급처만 조회(발주 등록 시 선택용). HQ_ADMIN은 `isActive`로 비활성도 조회. 소속 범위 없음(전체 조회).
 - 응답 항목: `supplierId, supplierCode, supplierName, managerName, contactNumber, email, address, isActive`
 
@@ -102,9 +103,10 @@
 
 ### GET /purchase-orders (P1)
 
-- Query: `status`(REQUESTED/CONFIRMED/COMPLETED/CANCELED), `warehouseId`, `supplierId`, `keyword`(발주 번호), `createdFrom`, `createdTo`(ISO-8601), `sort`(기본 `createdAt,desc`)
+- Query: `status`(REQUESTED/CONFIRMED/COMPLETED/CANCELED), `warehouseId`, `supplierId`, `keyword`(발주 번호), `createdFrom`, `createdTo`(ISO-8601, 양 끝 포함: `>= createdFrom`, `<= createdTo`). `sort`는 받지 않는다.
+- 정렬은 고정(등록 일시 `createdAt` 내림차순, 같으면 `purchaseOrderId` 내림차순).
 - 응답 항목: `purchaseOrderId, purchaseOrderNo, warehouseId, warehouseName, supplierId, supplierName, status, expectedAt, lineCount, totalAmount, createdBy, createdByName, createdAt` (항목별 수량·단가는 `/details`)
-- 에러: 400(status 값/일시 형식/from>to), 403(비담당 창고), 404(필터 대상 없음)
+- 에러: 400(status 값/일시 형식/from>to), 403(비담당 창고). 존재하지 않는 `warehouseId`·`supplierId` 필터는 404가 아니라 빈 목록을 돌려준다.
 
 ### GET /purchase-orders/{purchaseOrderId} (P1)
 
@@ -157,7 +159,7 @@
 
 ### GET /inbounds/{inboundId} (P1)
 
-- 응답: 목록 항목 + `note, createdAt, updatedAt`
+- 응답: 목록 항목 + `note, cancelReason(취소된 입고의 사유, 아니면 null), createdAt, updatedAt`
 - 에러: 400(`inboundId` 형식), 403, `INBOUND_NOT_FOUND` 404
 - 검수 완료 전이나 취소된 입고는 `receivedAt`, `receivedBy`가 `null`이다.
 
@@ -202,7 +204,7 @@
 - Query: `userId`(필수, 처리 사용자. 인증 연동 전 임시). Body 없음.
 - 200. 응답: `inboundId, inboundNo, status=COMPLETED, receivedAt, receivedBy, inventory[]`(`inboundLineId, acceptedInventoryLotId, acceptedQuantity, defectiveInventoryLotId, defectiveQuantity`), `purchaseOrder`(`purchaseOrderId, status`), `purchaseOrderLines[]`(`purchaseOrderLineId, expectedQuantity, receivedQuantity, status`)
 - 에러: 400(`inboundId`·`userId` 형식·누락), 403, `INBOUND_NOT_FOUND` 404, `PURCHASE_ORDER_NOT_FOUND` 404
-  - 409 `CONFLICT`(입고가 `INSPECTING`이 아님: 이미 완료·취소·검수 전, 발주가 `CONFIRMED`가 아님, 항목별 입고 수량이 발주 잔여 수량 초과, 재고 상태가 기존 행과 달라 충돌), 409 `INBOUND_HAS_NO_LINES`(저장된 검수 항목 없음), 409 `SECTION_NOT_ASSIGNED`(합격 수량이 있는데 합격 구역이, 불량 수량이 있는데 불량 구역이 없음), 409 `SECTION_CAPACITY_EXCEEDED`(적치하면 구역 수용량 초과), 409 `LOT_NOT_AVAILABLE`(검수 이후 로트가 `AVAILABLE`이 아님), 409 `SKU_NOT_ACTIVE`(비활성 SKU)
+  - 409 `CONFLICT`(입고가 `INSPECTING`이 아님: 이미 완료·취소·검수 전, 발주가 `CONFIRMED`가 아님, 항목별 입고 수량이 발주 잔여 수량 초과, 재고 상태가 기존 행과 달라 충돌), 409 `INBOUND_HAS_NO_LINES`(저장된 검수 항목 없음), 409 `SECTION_NOT_ASSIGNED`(합격 수량이 있는데 합격 구역이, 불량 수량이 있는데 불량 구역이 없음), 409 `SECTION_CAPACITY_EXCEEDED`(적치하면 구역 수용량 초과), 409 `SECTION_INACTIVE`(검수 이후 적치 구역이 비활성이 됨), 409 `WAREHOUSE_INACTIVE`(적치 구역의 창고가 비활성), 409 `LOT_NOT_AVAILABLE`(검수 이후 로트가 `AVAILABLE`이 아님), 409 `SKU_NOT_ACTIVE`(비활성 SKU). `SECTION_CAPACITY_EXCEEDED`·`SECTION_INACTIVE`·`WAREHOUSE_INACTIVE`는 창고 도메인의 `WarehouseErrorCode`로, 일반 `CONFLICT`가 아니다.
 - 규칙(한 트랜잭션, 하나라도 실패하면 아무것도 반영하지 않음):
   - 검수 항목마다 합격 수량은 합격 구역의 `InventoryLot`(구역 + 로트, `UNIQUE(section_id, lot_id)`, `AVAILABLE`)에, 불량 수량은 불량 구역의 `InventoryLot`(`DEFECTIVE`)에 `on_hand_quantity`를 더한다(없으면 생성). 구역 `current_capacity`를 반영 수량만큼 늘리고, 반영한 행마다 `InventoryTransaction`(`INBOUND`, `reference_id`=입고 ID, +수량)을 남긴다. 재고 처리는 재고 도메인의 `receive`를 재사용한다.
   - 발주 항목의 `received_quantity`에 이 입고의 입고 수량 합계(합격+불량)를 더하고 합계가 `expected_quantity` 미만이면 `PARTIALLY_RECEIVED`, 이상이면 `COMPLETED`로 바꾼다. 발주의 모든 항목이 `COMPLETED`가 되면 발주도 `COMPLETED`, 아니면 `CONFIRMED` 유지.
@@ -213,6 +215,6 @@
 
 - 권한: WAREHOUSE_MANAGER만, 본인 담당 창고(본사 관리자 불가).
 - Body: `reason`(필수, ≤500)
-- 200. 응답: `inboundId, inboundNo, status=CANCELED, purchaseOrder`(`purchaseOrderId, status`), `updatedAt`. 취소 사유(`cancelReason`)는 `StatusHistory` 구현 후 추가한다.
+- 200. 응답: `inboundId, inboundNo, status=CANCELED, cancelReason, purchaseOrder`(`purchaseOrderId, status`), `updatedAt`. 취소 사유는 `StatusHistory.reason`에 저장하고 응답의 `cancelReason`은 이력에서 읽는다.
 - 에러: 400(`reason` 누락·빈 값·길이 초과, `inboundId` 형식), 403, `INBOUND_NOT_FOUND` 404, 409 `CONFLICT`(입고가 `ARRIVED`·`INSPECTING`이 아님: 이미 완료·취소)
 - 규칙: 허용 전이는 `ARRIVED` → `CANCELED`, `INSPECTING` → `CANCELED`뿐이다. 재고·구역 사용량·발주 항목 상태·재고 이력을 바꾸지 않고, 저장된 검수 항목과 새로 만든 로트는 기록으로 남는다. 취소하면 같은 발주에 새 입고를 등록할 수 있고 발주는 `CONFIRMED`로 유지되며, 취소되지 않은 입고가 없으면 발주 취소도 다시 할 수 있다. 취소와 완료가 동시에 들어오면 입고 행을 잠가 한쪽만 성공한다.

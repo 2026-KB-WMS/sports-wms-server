@@ -80,8 +80,8 @@
 
 1. **발주 항목 `shipped_quantity` 누적 시점 (확정).** 문서마다 달랐다. API 명세 `picking/complete`는 피킹 완료 때 발주 항목의 `allocated_quantity`를 줄이고 `shipped_quantity`를 늘린다고 했고, 업무 상태 전이도와 `store-order.md`는 배송 완료 처리에서 갱신한다고 했다. 잔여 수량 `requested - allocated - shipped`로 다음 할당 수량을 계산하므로 `allocated`가 줄 때 `shipped`도 같이 늘어야 그 사이 같은 수량이 다시 할당되지 않는다. **결정**: 수량(`allocated`·`shipped`)은 피킹 완료에서 갱신하고, 항목 상태(`PARTIALLY_SHIPPED`·`COMPLETED`)와 발주 `COMPLETED` 전환은 배송 완료에서 처리한다. 배송 완료 때는 이 출고가 다룬 발주 항목의 상태를 `shipped_quantity`로 다시 계산한다. `store-order.md`·`api/store-order.md`의 해당 문구는 이에 맞춰 고쳤다.
 2. **락 순서와 할당의 구역 잠금 (보류, 성능 개선 때 다룬다).** `POST /allocations` 명세의 락 순서는 구역 → 재고 행이지만 `InventoryStockService.allocate`·`release`는 재고 행만 잠그고(`receive`·`ship`은 구역부터 잠근다), 발주 행의 위치는 정해지지 않았다. 지금은 확정하지 않고 기존 재고 서비스 동작을 그대로 쓴다. 출고 서비스는 상태 확인과 변경을 출고·발주 행 잠금 아래에서 하고, 재고 행 잠금은 재고 서비스에 맡긴다. 전역 락 순서 확정과 할당·해제의 구역 잠금 추가 여부는 성능 개선 단계에서 판단하며 Notion "[보류]"에 기록한다.
-3. **Notion 개발 일정 페이지의 범위가 12개 중 7개다.** `PATCH /outbounds/{id}/cancel`과 `/allocations` 4개가 빠져 있다. 구현 시작 때 일정 페이지를 12개로 갱신한다.
-4. 배송 실패·수령 거부, 배송 담당자·운송장 기록, 부족 사유 기록 위치, 취소한 출고 재개, 부분 할당, 세트 상품 구성품 예약, 출고 번호 형식은 [`api/outbound.md`](../api/outbound.md) "확정 필요"에 있다.
+3. **Notion 개발 일정 페이지의 범위는 12개로 갱신됐다.** 처음에는 12개 중 7개만 적혀 있어 `PATCH /outbounds/{id}/cancel`과 `/allocations` 4개가 빠져 있었다.
+4. 배송 실패·수령 거부, 배송 담당자·운송장 기록, 부족 사유 기록 위치, 취소한 출고 재개, 부분 할당, 세트 상품 구성품 예약은 [`api/outbound.md`](../api/outbound.md) "확정 필요"에 있다(출고 번호 형식은 `OB-YYYYMMDD-NNNN`으로 확정, `outbound_no VARCHAR(30)`).
 
 ## 구현 현황
 

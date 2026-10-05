@@ -6,6 +6,7 @@
 ## 구현 대비 메모
 
 - Notion 명세의 `pageInfo`와 일반 `NOT_FOUND`는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
+- 목록 API는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고).
 - 확정 필요(미결): 안전 재고를 창고별로 둘지 여부, `InventoryTransaction.reference_id`가 문서 헤더(Inbound/Outbound)인지 항목(Line)인지, 로트 상태 변경 API(격리·폐기·만료 전환) 필요 여부.
 - 수량은 BIGINT(정수). Lot은 별도 생성 API 없이 입고 검수 트랜잭션에서 find-or-create(UNIQUE(sku_id, supplier_id, lot_number), ADR-004 — Notion 원문 기준).
 
@@ -35,7 +36,8 @@
 
 ## GET /inventory — SKU 집계 재고 (P1)
 
-- Query: `skuId`, `warehouseId`, `keyword`(SKU 코드·명), `sort`(기본 `skuCode,asc`), page/size(보류)
+- Query: `skuId`, `warehouseId`, `keyword`(SKU 코드·명). `page`·`size`·`sort`는 받지 않는다(페이지네이션 보류).
+- 정렬은 고정(`skuCode` 오름차순).
 - 응답 항목: `skuId, skuCode, skuName, unit, totalQuantity, availableQuantity, allocatedQuantity, defectiveQuantity`
 - 집계: `totalQuantity`=보유 합, `allocatedQuantity`=할당 합, `defectiveQuantity`=DEFECTIVE 보유 합, `availableQuantity`=AVAILABLE 재고의 (보유−할당) 합. 재고가 없는 SKU는 목록 제외.
 - 에러: 404(존재하지 않는 skuId/warehouseId 필터)
@@ -45,7 +47,7 @@
 - 권한: WAREHOUSE_MANAGER만, 담당 창고의 재고만.
 - Body: `inventoryLotId`, `beforeQuantity`(화면에서 본 현재 수량), `afterQuantity`(≥0 정수), `reason`(≤500)
 - 201. 응답: `transactionId, inventoryLotId, transactionType=ADJUSTMENT, quantityDelta, beforeQuantity, afterQuantity, reason, createdBy, createdAt, inventory{onHandQuantity, allocatedQuantity, availableQuantity}`
-- 에러: 400(필수 누락, 음수, reason 누락/초과, before==after), 403(WAREHOUSE_MANAGER 아님/비담당 창고), 404(inventoryLot 없음), 409 `STALE_QUANTITY`(beforeQuantity ≠ 서버 현재값), 409 `BELOW_ALLOCATED_QUANTITY`(after < 할당 수량), 409 `SECTION_CAPACITY_EXCEEDED`(증량 시 구역 수용량 초과)
+- 에러: 400(필수 누락, 음수, reason 누락/초과, before==after), 403(WAREHOUSE_MANAGER 아님/비담당 창고), 404(inventoryLot 없음), 409 `STALE_QUANTITY`(beforeQuantity ≠ 서버 현재값), 409 `BELOW_ALLOCATED_QUANTITY`(after < 할당 수량), 409 `SECTION_CAPACITY_EXCEEDED`(증량 시 구역 수용량 초과), 409 `SECTION_INACTIVE`(증량 시 구역이 비활성), 409 `WAREHOUSE_INACTIVE`(증량 시 구역의 창고가 비활성). 세 코드는 창고 도메인의 `WarehouseErrorCode`로, 구역 용량 증가(`WarehouseSectionCapacityService`)에서 던진다.
 - 규칙:
   - `quantityDelta = after - before`(서버 계산, 0이면 400).
   - 수량 변경 + 구역 `current_capacity` 증감 + `InventoryTransaction` 기록은 단일 트랜잭션. 이력의 `transaction_type`=`reference_type`=`ADJUSTMENT`, `reference_id`=null.
@@ -54,20 +56,23 @@
 
 ## GET /inventory/by-lot — 로트 단위 재고
 
-- Query: `skuId`, `warehouseId`, `sectionId`, `expiringBefore`(YYYY-MM-DD, 당일 포함), `qualityStatus`, `includeEmpty`(기본 false), `sort`(기본 `expiryDate,asc`, 유통기한 없는 로트는 뒤)
+- Query: `skuId`, `warehouseId`, `sectionId`, `expiringBefore`(YYYY-MM-DD, 당일 포함), `qualityStatus`, `includeEmpty`(기본 false). `sort`는 받지 않는다.
+- 정렬은 고정(`expiryDate` 오름차순, 유통기한 없는 로트는 뒤, 같으면 `inventoryLotId` 오름차순).
 - 응답 항목: `inventoryLotId, lotId, lotNumber, skuId, skuCode, skuName, warehouseId, sectionId, sectionCode, sectionName, onHandQuantity, allocatedQuantity, availableQuantity, qualityStatus, expiryDate, lastCountedAt`
 - Lot(마스터)과 InventoryLot(원장)을 조인. SKU 합산 없음. FEFO 피킹 기준 정렬. 기본적으로 보유 0 행 제외.
 - 에러: 400(expiringBefore 형식 등), 404(필터 대상 없음)
 
 ## GET /inventory/low-stock — 안전 재고 미만 (P2)
 
-- Query: `warehouseId`, `keyword`, `sort`(기본 `shortageQuantity,desc`)
+- Query: `warehouseId`, `keyword`. `sort`는 받지 않는다.
+- 정렬은 고정(`shortageQuantity` 내림차순, 같으면 `skuCode` 오름차순).
 - 응답 항목: `skuId, skuCode, skuName, unit, safetyStockQuantity, availableQuantity, shortageQuantity`
 - 조건: `availableQuantity < safetyStockQuantity`("미만", 2026-09-24 확정). `shortage = safety - available`. 안전 재고 0(미설정) SKU와 비활성 SKU 제외. 재고가 전혀 없어도 안전 재고가 설정된 SKU는 available 0으로 포함. 데이터 범위 내 창고 합산 가용 재고와 비교. 알림 생성은 범위 밖.
 
 ## GET /inventory/transactions — 전체 재고 이력 (P2)
 
-- Query: `warehouseId`, `sectionId`, `skuId`, `lotId`, `transactionType`, `referenceType`, `referenceId`(referenceType과 함께), `createdFrom`, `createdTo`(ISO-8601), `sort`(기본 `createdAt,desc`)
+- Query: `warehouseId`, `sectionId`, `skuId`, `lotId`, `transactionType`, `referenceType`, `referenceId`(referenceType과 함께), `createdFrom`, `createdTo`(ISO-8601, 양 끝 포함: `>= createdFrom`, `<= createdTo`). `sort`는 받지 않는다.
+- 정렬은 고정(`createdAt` 내림차순, 같으면 `transactionId` 내림차순).
 - 응답 항목: `transactionId, inventoryLotId, warehouseId, sectionId, sectionCode, skuId, skuCode, lotId, lotNumber, transactionType, quantityDelta, beforeQuantity, afterQuantity, referenceType, referenceId, reason, createdBy, createdByName, createdAt`
 - 에러: 400(일시 형식, from>to, referenceId만 지정), 404(필터 대상 없음)
 - 이력은 삭제·수정 불가. 보유 수량이 바뀐 경우(입고·출고·조정)만 기록하며 할당/해제는 기록하지 않음(2026-09-24 확정, 출고 감사 요구 시 재검토). 원천 문서 없으면 `referenceId`=null.
@@ -80,13 +85,15 @@
 
 ## GET /inventory/{inventoryId}/transactions — 특정 재고 이력 (P2)
 
-- Query: `transactionType`, `createdFrom`, `createdTo`, `sort`(기본 `createdAt,desc`)
+- Query: `transactionType`, `createdFrom`, `createdTo`(양 끝 포함). `sort`는 받지 않는다.
+- 정렬은 고정(`createdAt` 내림차순, 같으면 `transactionId` 내림차순).
 - 응답: `inventoryLotId`, `items[]`(`transactionId, transactionType, quantityDelta, beforeQuantity, afterQuantity, referenceType, referenceId, reason, createdBy, createdByName, createdAt`). 항상 `before + delta == after`. 이력이 없으면 빈 배열.
 - 에러: 400(inventoryId 형식/일시 형식/from>to), 404(재고 없음), 403(비담당 창고)
 
 ## GET /lots — 로트 마스터 목록 (P2)
 
-- Query: `skuId`, `supplierId`, `expiringBefore`, `keyword`(로트 번호), `sort`(기본 `expiryDate,asc`)
+- Query: `skuId`, `supplierId`, `expiringBefore`(YYYY-MM-DD, 당일 포함), `keyword`(로트 번호). `sort`는 받지 않는다.
+- 정렬은 고정(`expiryDate` 오름차순, 유통기한 없는 로트는 뒤, 같으면 `lotId` 오름차순).
 - 응답 항목: `lotId, lotNumber, skuId, skuCode, skuName, supplierId, supplierName, manufacturedDate, expiryDate, status, unitCost` (수량 미포함)
 - 범위: HQ_ADMIN 전체. WAREHOUSE_MANAGER는 담당 창고에 재고(InventoryLot) 또는 입고 이력이 있는 로트만.
 - 에러: 400, 403(점주), 404(필터 대상 없음). 생성·수정 API 없음.

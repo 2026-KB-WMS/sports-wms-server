@@ -7,14 +7,14 @@
 ## 범위
 
 - 이 문서는 지점 발주 12개를 포함한다. 11개를 구현했고 `GET /orders/my`만 인증 연동 때까지 보류한다(트래킹 이슈 #117, 선행 #116).
-- 재고 할당(`/allocations`, 4개)은 포함하지 않는다. `StockAllocation`은 ERD 출고 섹션이라 출고 도메인 구현 시 이전한다.
+- 재고 할당(`/allocations`, 4개)은 포함하지 않는다. `StockAllocation`은 ERD 출고 섹션이라 출고 도메인으로 옮겼다([outbound.md](outbound.md)).
 
 ## 구현 대비 메모
 
 구현하면서 정한 규칙과 Notion 명세와의 알려진 차이를 적는다. 달라진 점은 이 목록에 추가한다.
 
 - Notion 상태 컬럼은 "시작 전"이다.
-- Notion 명세의 `pageInfo`(`page`·`size`)와 일반 `NOT_FOUND`는 현재 구현 기준과 다름 → conventions.md 기준을 따른다. 목록 API는 `data.items`만 반환하고 `page`·`size`는 지원하지 않는다(페이지네이션 보류). 404는 도메인 전용 코드를 쓴다(`STORE_ORDER_NOT_FOUND` 등, 이름은 구현 시 확정. 지점·창고·SKU는 각 도메인 코드).
+- Notion 명세의 `pageInfo`(`page`·`size`)와 일반 `NOT_FOUND`는 현재 구현 기준과 다름 → conventions.md 기준을 따른다. 목록 API는 `data.items`만 반환하고 `page`·`size`·`sort`는 지원하지 않는다(페이지네이션 보류, 정렬은 고정). 404는 도메인 전용 코드를 쓴다(`STORE_ORDER_NOT_FOUND`. 지점·창고·SKU는 각 도메인 코드).
 - 인증·인가는 입고와 같은 방식으로 보류한다. 처리 사용자는 쿼리 파라미터 `userId`로 받고, 401/403과 역할·소속 지점/창고·작성자 검사는 인증 연동 때 적용한다. `GET /orders/my`의 소속 판별도 인증 연동 때 처리한다.
 - 모든 상태 변경과 사유는 `StatusHistory`에 기록한다. 응답의 `statusReason`과 `details.statusHistory`는 이 이력에서 읽는다(선행 이슈 #116).
 - 출고·할당 의존 동작은 출고 연동 포트(`StoreOrderOutboundPort`)로 정의했고 출고 도메인 구현(#143)에서 실제 어댑터로 완성했다. 출고 도메인 구현 전에는 `latestOutboundStatus`가 `null`, `outbounds`가 빈 배열이었고 진행 중 출고·피킹 시작 검사가 "없음"으로 통과했지만, 지금은 실제 출고 상태를 보여 주고 `ORDER_IN_PICKING`·`OUTBOUND_IN_PROGRESS`·`ORDER_IN_FULFILLMENT` 검사가 동작하며 승인 후 취소는 할당 해제·`READY` 출고 취소를 수행한다(`releasedAllocationCount`, `canceledOutboundCount`).
@@ -26,7 +26,7 @@
 - 구현(#122, 배정·보류·재개·부분 출고 종결 서비스)에서 정한 것: 배정 API는 발주 상태로 최초 배정(`APPROVED`)과 재배정(`ASSIGNED`)을 구분한다. 최초 배정의 `reason`은 선택이며 있으면 이력에 남긴다. 재배정 이력의 사유는 `창고 변경 {이전 창고ID} → {이후 창고ID}: {사유}` 형식이고, `StatusHistory.reason` 500자 제한을 넘으면 사용자 사유 끝을 줄인다(`…`). 창고가 없으면 창고 도메인의 404, 비활성이면 409 `CONFLICT`이며 발주 상태 검사가 먼저다. 409 코드 `ORDER_IN_FULFILLMENT`, `OUTBOUND_IN_PROGRESS`, `NO_SHORTAGE`는 `StoreOrderErrorCode`에 둔다. 보류의 `ORDER_IN_PICKING` 검사는 취소와 같은 포트 메서드(`existsPickingStarted`)를 쓴다. 부분 출고 종결 응답의 항목은 SKU 코드 순이다. 출고 연동 전에는 `ORDER_IN_FULFILLMENT`, `ORDER_IN_PICKING`, `OUTBOUND_IN_PROGRESS`가 항상 통과한다.
 - 구현(#123, 웹 어댑터)에서 정한 것: 12개 중 11개를 구현했고 `GET /orders/my`는 인증 연동 때 추가한다(보류). 처리 사용자는 쿼리 파라미터 `userId`로 받아 `createdBy`·`changedBy`로 넘긴다. 반려·보류·재개·부분 종결은 같은 요청 본문(`reason` 필수, ≤500)을 쓰고 취소는 본문이 선택(`reason` ≤500)이다. `POST /orders` 응답은 방금 등록한 발주 헤더와 항목을 한 번에 담는다. 목록은 `sort` 파라미터 없이 서비스 정렬을 따르고 `createdByName`, `statusHistory[].changedByName`은 `null`이다. 잘못된 enum·날짜·경로 ID·누락된 `userId`·`@Valid` 실패는 모두 400 `VALIDATION_ERROR`다.
 - `GET /orders/my`(소속 지점·창고 범위 제한, 창고 관리자에게 미배정 발주 숨김)는 인증 연동이 필요해 서비스에는 아직 없다. 인증 연동 때 웹 어댑터가 소속 지점·창고를 판별해 `GET /orders` 조회의 `storeId`·`warehouseId` 조건으로 좁혀 처리한다.
-- 확정 필요(미결): 주문 번호 형식(예시 `SO-YYYYMMDD-일련번호`), "주문 단위 검증"(화면 설계 ST-04)의 단위 기준(현재는 1 이상 정수만 검증), 요청 배송 일시의 최소 리드타임, 배송 실패·수령 거부 처리.
+- 확정 필요(미결): "주문 단위 검증"(화면 설계 ST-04)의 단위 기준(현재는 1 이상 정수만 검증), 요청 배송 일시의 최소 리드타임, 배송 실패·수령 거부 처리. 주문 번호 형식은 `SO-yyyyMMdd-NNNN`으로 확정했다(위 메모).
 
 ## 엔드포인트 목록 (12)
 
@@ -74,7 +74,7 @@
 
 - 권한: STORE_OWNER, 본인이 배정된 지점만. 창고 관리자·본사 관리자는 대신 등록할 수 없다(ST-03).
 - Body: `storeId`(배정된 지점), `requestedDeliveryAt`(선택, ISO-8601, 현재 이후), `note`(선택, ≤1000), `lines[]`(≥1, 같은 SKU 중복 불가: `skuId`(활성 SKU), `requestedQuantity`(1 이상 정수))
-- 201. 응답: `storeOrderId, orderNo, storeId, storeName, warehouseId(null), status=REQUESTED, requestedAt, requestedDeliveryAt, note, totalAmount, createdBy, lines[], createdAt`. `lines[]`: `storeOrderLineId, skuId, skuCode, skuName, unit, requestedQuantity, allocatedQuantity(0), shippedQuantity(0), requestedUnitSupplyPrice, lineAmount, status=REQUESTED`
+- 201. 응답: `storeOrderId, orderNo, storeId, storeName, warehouseId(null), status=REQUESTED, requestedAt, requestedDeliveryAt, note, totalAmount, createdBy, lines[], createdAt`. `lines[]`: `storeOrderLineId, skuId, skuCode, skuName, unit, requestedQuantity, allocatedQuantity(0), shippedQuantity(0), remainingQuantity(요청 수량과 같음), requestedUnitSupplyPrice, lineAmount, status=REQUESTED`
 - 에러: 400(필수 누락, `lines` 비어 있음, 수량 1 미만·정수 아님, 같은 SKU 중복, `requestedDeliveryAt` 과거, 길이·형식), 403(STORE_OWNER가 아니거나 배정되지 않은 지점), 404(존재하지 않는 `storeId`·`skuId`), 409 `CONFLICT`(비활성 지점, 비활성 SKU 또는 비활성 상품의 SKU), 409 `SUPPLY_PRICE_MISSING`(SKU `current_supply_price` 없음)
 - 규칙:
   - 점주에게 노출되는 판매 가능 SKU(활성 상품의 활성 SKU)만 발주할 수 있다(ST-01). 발주(`StoreOrder`)와 항목(`StoreOrderLine`)을 단일 트랜잭션으로 만든다.
@@ -85,7 +85,8 @@
 ## GET /orders (P1)
 
 - 권한: HQ_ADMIN만. 점주·창고 관리자는 `GET /orders/my`를 쓴다(403).
-- Query: `status`(REQUESTED/APPROVED/ASSIGNED/ON_HOLD/COMPLETED/CANCELED/REJECTED), `storeId`, `warehouseId`, `keyword`(주문 번호·지점명 부분 일치), `requestedFrom`, `requestedTo`(ISO-8601), `sort`(기본 `requestedAt,desc`)
+- Query: `status`(REQUESTED/APPROVED/ASSIGNED/ON_HOLD/COMPLETED/CANCELED/REJECTED), `storeId`, `warehouseId`, `keyword`(주문 번호·지점명 부분 일치), `requestedFrom`, `requestedTo`(ISO-8601, 양 끝 포함: `>= requestedFrom`, `<= requestedTo`). `sort`는 받지 않는다.
+- 정렬은 고정(`requestedAt` 내림차순, 같으면 `storeOrderId` 내림차순).
 - 응답 항목: `storeOrderId, orderNo, storeId, storeName, warehouseId, warehouseName, status, progressStage, requestedAt, requestedDeliveryAt, lineCount, totalAmount, latestOutboundStatus`
 - 에러: 400(`status` 값·일시 형식 오류, `requestedFrom`이 `requestedTo`보다 늦음), 403, 404(존재하지 않는 `storeId`·`warehouseId` 필터)
 - 규칙: 미배정 발주(`REQUESTED`, `APPROVED`)는 `warehouseId`·`warehouseName`이 `null`. `latestOutboundStatus`는 가장 최근 출고의 상태이며 출고가 없으면 `null`. 항목별 수량은 `/details`. 조회 전용.
@@ -93,7 +94,7 @@
 ## GET /orders/my (P2)
 
 - 권한: STORE_OWNER, WAREHOUSE_MANAGER. 본사 관리자는 403(`GET /orders` 사용).
-- Query: `status`, `storeId`(점주가 여러 지점에 배정된 경우), `warehouseId`(창고 관리자가 여러 창고에 배정된 경우), `keyword`(주문 번호), `requestedFrom`, `requestedTo`, `sort`(기본 `requestedAt,desc`)
+- Query: `status`, `storeId`(점주가 여러 지점에 배정된 경우), `warehouseId`(창고 관리자가 여러 창고에 배정된 경우), `keyword`(주문 번호), `requestedFrom`, `requestedTo`(양 끝 포함). `sort`는 받지 않고 정렬은 `GET /orders`와 같이 고정(`requestedAt` 내림차순)이다.
 - 응답 항목: `GET /orders`와 같다.
 - 에러: 400, 403(본사 관리자가 호출, 배정되지 않은 지점·창고를 필터로 지정), 404(존재하지 않는 `storeId`·`warehouseId`)
 - 규칙: STORE_OWNER는 본인 지점 발주, WAREHOUSE_MANAGER는 담당 창고에 배정된 발주만. 창고 관리자에게는 창고에 배정되기 전 발주(`REQUESTED`, `APPROVED`)와 반려·취소된 미배정 발주가 보이지 않고, 배정 이후(`ASSIGNED`, `ON_HOLD`, `COMPLETED`)와 배정 뒤 취소된 발주만 보인다. 점주는 `status`·`progressStage`·`latestOutboundStatus`로 승인·배정·출고·배송 상태를 확인한다. 조회 전용.
@@ -138,7 +139,7 @@
 - 응답: `storeOrderId, orderNo, status=CANCELED, statusReason, releasedAllocationCount, canceledOutboundCount, updatedAt`
 - 에러: 400(본사 취소 시 `reason` 누락·빈 값·초과, `orderId` 형식), 403(창고 관리자 호출, 점주가 작성자·자기 지점이 아니거나 승인 이후 발주를 취소, 본사가 `REQUESTED` 취소), 404, 409 `CONFLICT`(이미 `CANCELED`·`REJECTED`·`COMPLETED`), 409 `ORDER_IN_PICKING`(피킹 시작 이후 출고 `PICKING`·`PICKED`·`SHIPPED`·`DELIVERED`가 하나라도 있음, 배송 완료된 부분 출고 포함)
 - 규칙:
-  - 승인 이후 본사 취소는 한 트랜잭션으로 `READY` 출고를 `CANCELED`로(`PATCH /outbounds/{outboundId}/cancel`과 같은 처리), `ALLOCATED` 재고 할당을 `RELEASED`로 바꾸고 해당 재고 행과 발주 항목의 `allocated_quantity`를 줄인다. 보유 수량은 바뀌지 않는다. 함께 취소·해제된 출고·할당의 이력에는 "발주 취소로 인한 자동 처리"를 사유로 남긴다. 이 정리는 출고 도메인 연동 전에는 수행하지 않는다(구현 대비 메모).
+  - 승인 이후 본사 취소는 한 트랜잭션으로 `READY` 출고를 `CANCELED`로(`PATCH /outbounds/{outboundId}/cancel`과 같은 처리), `ALLOCATED` 재고 할당을 `RELEASED`로 바꾸고 해당 재고 행과 발주 항목의 `allocated_quantity`를 줄인다. 보유 수량은 바뀌지 않는다. 함께 취소·해제된 출고·할당의 이력에는 "발주 취소로 인한 자동 처리"를 사유로 남긴다. 이 정리는 출고 도메인 연동(`StoreOrderOutboundPort.cancelFulfillment`)으로 수행한다(구현 대비 메모).
   - 취소 사유는 `StatusHistory.reason`에 저장한다. 모든 항목이 `CANCELED`가 된다. 발주 행과 재고 행을 잠근다.
   - 부분 출고 뒤 남은 수량을 더 이상 출고하지 않고 종결하는 방법은 `complete-partial`이다.
 
@@ -159,8 +160,8 @@
 - 권한: WAREHOUSE_MANAGER만, 본인 담당 창고에 배정된 발주(본사 관리자 불가).
 - Body: `reason`(필수, ≤500)
 - 응답: `storeOrderId, orderNo, status=ON_HOLD, statusReason, updatedAt`
-- 에러: 400, 403, 404, 409 `CONFLICT`(`ASSIGNED`가 아님), 409 `ORDER_IN_PICKING`(피킹이 시작된 출고 `PICKING`·`PICKED`·`SHIPPED`가 진행 중)
-- 규칙: 전이는 `ASSIGNED` → `ON_HOLD`만. `READY` 출고나 재고 할당이 있어도 보류할 수 있으며 예약과 출고는 유지된다. 보류 중에는 새 재고 할당(`POST /allocations`)·출고 생성(`POST /outbounds`)·피킹 시작이 막힌다(발주가 `ASSIGNED`가 아니므로 409). 재고·수량은 바뀌지 않는다. 필요한 재고 보충은 창고 발주(`POST /purchase-orders`)로 별도 요청한다(WH-07). 사유는 `StatusHistory.reason`에 저장한다.
+- 에러: 400, 403, 404, 409 `CONFLICT`(`ASSIGNED`가 아님), 409 `ORDER_IN_PICKING`(피킹이 시작된 출고 `PICKING`·`PICKED`·`SHIPPED`·`DELIVERED`가 하나라도 있음, 배송 완료된 부분 출고 포함. 취소의 `ORDER_IN_PICKING`과 같은 검사)
+- 규칙: 전이는 `ASSIGNED` → `ON_HOLD`만. `READY` 출고나 재고 할당이 있어도 보류할 수 있으며 예약과 출고는 유지된다. 피킹이 시작된 출고가 한 건이라도 있으면(배송 완료된 부분 출고 포함) 보류할 수 없으므로, 부분 출고 뒤 남은 수량은 다시 할당·출고하거나 `complete-partial`로 종결한다. 보류 중에는 새 재고 할당(`POST /allocations`)·출고 생성(`POST /outbounds`)·피킹 시작이 막힌다(발주가 `ASSIGNED`가 아니므로 409). 재고·수량은 바뀌지 않는다. 필요한 재고 보충은 창고 발주(`POST /purchase-orders`)로 별도 요청한다(WH-07). 사유는 `StatusHistory.reason`에 저장한다.
 
 ## PATCH /orders/{orderId}/resume (P2)
 
