@@ -92,6 +92,62 @@ public class StoreOrderLine {
         return Math.max(0L, this.requestedQuantity - this.shippedQuantity);
     }
 
+    /** 새로 할당할 수 있는 수량. 요청 - 할당 중 - 출고 완료이며 음수가 되지 않는다. */
+    public long unallocatedQuantity() {
+        return Math.max(0L, this.requestedQuantity - this.allocatedQuantity - this.shippedQuantity);
+    }
+
+    /** 재고 할당에 따른 할당 수량 증가. 새로 할당할 수 있는 수량을 넘길 수 없다. */
+    public void increaseAllocated(long quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("할당 수량은 1 이상이어야 합니다.");
+        }
+        if (quantity > unallocatedQuantity()) {
+            throw new IllegalArgumentException("할당 수량이 잔여 수량을 넘습니다. 잔여: " + unallocatedQuantity());
+        }
+        this.allocatedQuantity += quantity;
+    }
+
+    /** 할당 해제에 따른 할당 수량 감소. 현재 할당 수량을 넘길 수 없다. */
+    public void decreaseAllocated(long quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("해제 수량은 1 이상이어야 합니다.");
+        }
+        if (quantity > this.allocatedQuantity) {
+            throw new IllegalArgumentException("해제 수량이 할당 수량을 넘습니다. 할당: " + this.allocatedQuantity);
+        }
+        this.allocatedQuantity -= quantity;
+    }
+
+    /**
+     * 피킹 완료 반영. 할당 수량을 할당했던 수량만큼 줄이고 출고 수량을 실제 피킹 수량만큼 늘린다.
+     * 부족분(할당 - 피킹)은 미출고 수량으로 남아 다시 할당할 수 있다.
+     */
+    public void applyPicked(long allocatedQuantity, long pickedQuantity) {
+        if (pickedQuantity < 0 || pickedQuantity > allocatedQuantity) {
+            throw new IllegalArgumentException("피킹 수량은 0 이상, 할당 수량 이하여야 합니다.");
+        }
+        if (allocatedQuantity > this.allocatedQuantity) {
+            throw new IllegalArgumentException("할당 수량이 항목의 할당 수량을 넘습니다. 할당: " + this.allocatedQuantity);
+        }
+        this.allocatedQuantity -= allocatedQuantity;
+        this.shippedQuantity += pickedQuantity;
+    }
+
+    /**
+     * 배송 완료 후 출고 수량 기준으로 항목 상태를 다시 계산한다.
+     * 전량 출고면 COMPLETED, 일부면 PARTIALLY_SHIPPED, 출고가 없으면 그대로 둔다. 취소·완료된 항목은 바꾸지 않는다.
+     */
+    public void refreshStatusByShipped() {
+        if (this.status == StoreOrderLineStatus.CANCELED || this.status == StoreOrderLineStatus.COMPLETED) {
+            return;
+        }
+        if (isFulfilled()) {
+            this.status = StoreOrderLineStatus.COMPLETED;
+        } else if (this.shippedQuantity > 0) {
+            this.status = StoreOrderLineStatus.PARTIALLY_SHIPPED;
+        }
+    }
     /** 발주 총액. 항목 금액의 합계다. */
     public static BigDecimal totalAmount(List<StoreOrderLine> lines) {
         return lines.stream()

@@ -1,5 +1,6 @@
 package com.kb.wms.storeorder.adapter.out.persistence.repository;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,6 +24,14 @@ public interface StoreOrderLineJpaRepository extends JpaRepository<StoreOrderLin
             order by l.storeOrderLineId asc
             """)
     List<StoreOrderLineJpaEntity> findByStoreOrderIdForUpdate(@Param("storeOrderId") Long storeOrderId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select l from StoreOrderLineJpaEntity l
+            where l.storeOrderLineId in :storeOrderLineIds
+            order by l.storeOrderLineId asc
+            """)
+    List<StoreOrderLineJpaEntity> findByIdsForUpdate(@Param("storeOrderLineIds") Collection<Long> storeOrderLineIds);
 
     /** 조회 전용: SKU 코드·이름·단위를 product_sku에서 ID로 조인해 가져온다(ADR-007). */
     @Query("""

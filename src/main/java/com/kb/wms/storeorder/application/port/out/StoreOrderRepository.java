@@ -33,6 +33,9 @@ public interface StoreOrderRepository {
     /** 발주 항목을 비관적 쓰기 락으로 조회한다(항목 ID 오름차순). 취소·반려에서 항목 상태를 바꿀 때 쓴다. */
     List<StoreOrderLine> findLinesByStoreOrderIdForUpdate(Long storeOrderId);
 
+    /** 발주 항목을 ID로 비관적 쓰기 락 조회한다(항목 ID 오름차순). 출고 연동에서 수량을 바꿀 때 쓴다. 빈 컬렉션이면 빈 목록. */
+    List<StoreOrderLine> findLinesByIdsForUpdate(Collection<Long> storeOrderLineIds);
+
     boolean existsByOrderNo(String orderNo);
 
     /** 해당 접두사(예: SO-20261004-)로 시작하는 주문 번호 개수. 일련번호 채번에 쓴다. */

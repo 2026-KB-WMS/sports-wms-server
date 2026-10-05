@@ -64,6 +64,16 @@ public class StoreOrderPersistenceAdapter implements StoreOrderRepository {
     }
 
     @Override
+    public List<StoreOrderLine> findLinesByIdsForUpdate(Collection<Long> storeOrderLineIds) {
+        if (storeOrderLineIds.isEmpty()) {
+            return List.of();
+        }
+        return storeOrderLineJpaRepository.findByIdsForUpdate(storeOrderLineIds).stream()
+                .map(StoreOrderLineJpaEntity::toDomain)
+                .toList();
+    }
+
+    @Override
     public boolean existsByOrderNo(String orderNo) {
         return storeOrderJpaRepository.existsByOrderNo(orderNo);
     }
