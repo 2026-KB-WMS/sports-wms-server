@@ -16,9 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
-import com.kb.wms.inventory.application.port.in.InventoryStockUseCase;
-import com.kb.wms.inventory.application.port.in.command.StockQuantityCommand;
+
+
 import com.kb.wms.outbound.application.port.out.OutboundRepository;
+import com.kb.wms.outbound.application.port.out.OutboundStockPort;
+import com.kb.wms.outbound.application.port.out.OutboundStockPort.StockQuantity;
 import com.kb.wms.outbound.application.port.out.StockAllocationRepository;
 import com.kb.wms.outbound.domain.entity.Outbound;
 import com.kb.wms.outbound.domain.entity.StockAllocation;
@@ -51,7 +53,7 @@ public class StoreOrderOutboundAdapter implements StoreOrderOutboundPort {
 
     private final OutboundRepository outboundRepository;
     private final StockAllocationRepository stockAllocationRepository;
-    private final InventoryStockUseCase inventoryStockUseCase;
+    private final OutboundStockPort outboundStockPort;
     private final StoreOrderFulfillmentUseCase storeOrderFulfillmentUseCase;
     private final StatusHistoryUseCase statusHistoryUseCase;
 
@@ -137,8 +139,8 @@ public class StoreOrderOutboundAdapter implements StoreOrderOutboundPort {
                 quantityByLot.merge(allocation.getInventoryLotId(), allocation.getAllocatedQuantity(), Long::sum);
                 quantityByLine.merge(allocation.getStoreOrderLineId(), allocation.getAllocatedQuantity(), Long::sum);
             }
-            inventoryStockUseCase.release(quantityByLot.entrySet().stream()
-                    .map(e -> new StockQuantityCommand(e.getKey(), e.getValue()))
+            outboundStockPort.release(quantityByLot.entrySet().stream()
+                    .map(e -> new StockQuantity(e.getKey(), e.getValue()))
                     .toList());
             storeOrderFulfillmentUseCase.decreaseAllocated(quantityByLine.entrySet().stream()
                     .map(e -> new StoreOrderLineQuantityCommand(e.getKey(), e.getValue()))
