@@ -10,8 +10,8 @@ import com.kb.wms.storeorder.application.port.in.result.StoreOrderOutboundView;
 import com.kb.wms.storeorder.domain.enums.StoreOrderOutboundStatus;
 
 /**
- * 출고·재고 할당 도메인 연동 아웃바운드 포트. 지점 발주 쪽은 정의만 하고, 출고 도메인이 구현되면 어댑터를 교체한다.
- * 그 전에는 "출고 없음"을 돌려주는 임시 어댑터가 쓰인다(TemporaryStoreOrderOutboundAdapter).
+ * 출고·재고 할당 도메인 연동 아웃바운드 포트. 지점 발주 쪽이 정의하고, 구현은 출고 도메인의 어댑터가 맡는다
+ * (outbound.adapter.out.storeorder.StoreOrderOutboundAdapter). 발주와 출고는 서로의 엔티티를 참조하지 않고 ID로만 연결한다.
  */
 public interface StoreOrderOutboundPort {
 

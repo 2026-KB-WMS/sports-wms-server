@@ -25,7 +25,7 @@ public class Outbound {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    @Builder(access = AccessLevel.PRIVATE)
+    @Builder
     private Outbound(Long outboundId, String outboundNo, Long storeOrderId, OutboundStatus status,
                      LocalDateTime shippedAt, Long shippedBy, LocalDateTime deliveredAt, String note,
                      LocalDateTime createdAt, LocalDateTime updatedAt) {

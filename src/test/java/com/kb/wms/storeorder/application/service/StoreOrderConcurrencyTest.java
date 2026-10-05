@@ -152,7 +152,8 @@ class StoreOrderConcurrencyTest {
 
         StoreOrderStatus expected = switch (winners.get(0)) {
             case 0 -> StoreOrderStatus.APPROVED;
-            case 1, 2 -> StoreOrderStatus.CANCELED;
+            case 1 -> StoreOrderStatus.REJECTED;
+            case 2 -> StoreOrderStatus.CANCELED;
             default -> throw new IllegalStateException();
         };
         assertThat(statusOf(orderId)).isEqualTo(expected);

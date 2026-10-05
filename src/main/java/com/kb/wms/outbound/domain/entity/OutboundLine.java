@@ -22,7 +22,7 @@ public class OutboundLine {
     private BigDecimal confirmedUnitSupplyPrice;
     private LocalDateTime createdAt;
 
-    @Builder(access = AccessLevel.PRIVATE)
+    @Builder
     private OutboundLine(Long outboundLineId, Long outboundId, Long allocationId,
                          long shippedQuantity, BigDecimal confirmedUnitSupplyPrice,
                          LocalDateTime createdAt) {

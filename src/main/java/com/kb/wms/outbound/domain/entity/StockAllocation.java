@@ -26,7 +26,7 @@ public class StockAllocation {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    @Builder(access = AccessLevel.PRIVATE)
+    @Builder
     private StockAllocation(Long allocationId, Long storeOrderLineId, Long inventoryLotId,
                             long allocatedQuantity, long pickedQuantity, AllocationStatus status,
                             LocalDateTime allocatedAt, LocalDateTime releasedAt, Long allocatedBy,
