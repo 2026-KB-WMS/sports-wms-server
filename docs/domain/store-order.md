@@ -47,7 +47,7 @@
 | COMPLETED | `shipped_quantity ≥ requested_quantity` |
 | CANCELED | 발주 취소·반려로 종결 |
 
-- `REQUESTED` → `PARTIALLY_SHIPPED` → `COMPLETED`는 출고 배송 완료 처리에서 `shipped_quantity`를 누적하며 갱신한다(출고 도메인 몫. 지점 발주 쪽은 초기값과 가드만 만든다).
+- `REQUESTED` → `PARTIALLY_SHIPPED` → `COMPLETED`는 출고 도메인이 갱신한다(지점 발주 쪽은 초기값과 가드만 만든다). `shipped_quantity` 누적은 출고 피킹 완료 처리에서, 항목 상태 전환은 배송 완료 처리에서 한다(2026-10-05 결정, [`outbound.md`](outbound.md)).
 - 발주가 취소·반려되면 모든 항목이 `CANCELED`가 된다. 피킹 시작 이후에는 발주를 취소할 수 없으므로 취소되는 항목은 항상 `REQUESTED`에서 전이한다(`PARTIALLY_SHIPPED` → `CANCELED`는 없다).
 - 할당·피킹 단계(`ALLOCATED`, `PICKED` 등)는 항목 상태가 아니다. `allocated_quantity`와 `StockAllocation`·`Outbound` 상태로 확인한다(같은 정보를 상태에 중복해 맞추지 않는다).
 - 부분 출고 종결(`complete-partial`)은 항목 상태를 바꾸지 않고 부족분은 `remainingQuantity`·`shortageQuantity`로 계산한다. 출고가 0건인 항목은 종결 후에도 `REQUESTED`로 남을 수 있어 항목 상태만 보지 말고 발주 상태·수량을 함께 읽는다.

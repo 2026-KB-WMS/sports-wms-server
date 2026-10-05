@@ -51,7 +51,7 @@
 
 - **데이터 범위**(인증 연동 후): HQ_ADMIN 전체, STORE_OWNER는 본인이 배정된 지점(`StoreMember`)의 발주, WAREHOUSE_MANAGER는 본인이 배정된 창고(`WarehouseMember`)에 배정된 발주. 범위 밖은 403.
 - 발주 `status`: `REQUESTED`(승인 대기) → `APPROVED`(승인) → `ASSIGNED`(창고 배정) ↔ `ON_HOLD`(출고 보류). 종결은 `COMPLETED`(전량 또는 부분 출고 종결) / `CANCELED` / `REJECTED`. `warehouse_id`는 요청 시점엔 NULL이고 `ASSIGNED`가 되며 채워진다.
-- 항목(`StoreOrderLine`) `status`: `REQUESTED`(출고 전) → `PARTIALLY_SHIPPED`(`0 < shipped < requested`) → `COMPLETED`(`shipped ≥ requested`). 발주가 취소·반려되면 모든 항목이 `CANCELED`. `shipped_quantity` 누적과 `PARTIALLY_SHIPPED`·`COMPLETED` 전환은 출고 배송 완료 처리에서 갱신한다. 할당·피킹 단계는 항목 상태가 아니라 `allocated_quantity`와 `StockAllocation`·`Outbound` 상태로 확인한다.
+- 항목(`StoreOrderLine`) `status`: `REQUESTED`(출고 전) → `PARTIALLY_SHIPPED`(`0 < shipped < requested`) → `COMPLETED`(`shipped ≥ requested`). 발주가 취소·반려되면 모든 항목이 `CANCELED`. `shipped_quantity` 누적은 출고 피킹 완료 처리에서, `PARTIALLY_SHIPPED`·`COMPLETED` 전환은 출고 배송 완료 처리에서 갱신한다(2026-10-05 결정). 할당·피킹 단계는 항목 상태가 아니라 `allocated_quantity`와 `StockAllocation`·`Outbound` 상태로 확인한다.
 - `statusReason`: 현재 상태(`REJECTED`, `CANCELED`, `ON_HOLD`)로 바뀔 때 `StatusHistory.reason`에 기록된 사유. 사유가 필요 없는 상태(재개 후 `ASSIGNED` 포함)는 `null`.
 - `progressStage`: 점주용 진행 단계. DB에 저장하지 않는 읽기 전용 파생값으로, 발주 상태 + 가장 최근 출고 상태(`latestOutboundStatus`) + 부족 수량 여부로 계산한다. 목록·단건·상세 응답에 포함한다.
 
