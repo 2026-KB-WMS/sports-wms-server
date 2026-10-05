@@ -29,6 +29,7 @@ import com.kb.wms.inventory.application.port.in.result.InventorySkuSummary;
 import com.kb.wms.inventory.application.port.out.InventoryLotRepository;
 import com.kb.wms.inventory.application.port.out.InventoryQueryRepository;
 import com.kb.wms.inventory.application.port.out.LotRepository;
+import com.kb.wms.inventory.exception.InventoryErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class InventoryQueryServiceTest {
@@ -58,7 +59,7 @@ class InventoryQueryServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 skuId로 필터링하면 NOT_FOUND 예외를 던진다")
+    @DisplayName("존재하지 않는 skuId로 필터링하면 SKU_NOT_FOUND 예외를 던진다")
     void getInventories_skuNotFound() {
         InventorySearchCondition condition = new InventorySearchCondition(999L, null, null);
         when(inventoryQueryRepository.existsSku(999L)).thenReturn(false);
@@ -66,12 +67,12 @@ class InventoryQueryServiceTest {
         assertThatThrownBy(() -> inventoryQueryService.getInventories(condition))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ErrorCode.NOT_FOUND.name());
+                .isEqualTo(InventoryErrorCode.SKU_NOT_FOUND.name());
         verify(inventoryQueryRepository, never()).findSkuSummaries(condition);
     }
 
     @Test
-    @DisplayName("존재하지 않는 warehouseId로 필터링하면 NOT_FOUND 예외를 던진다")
+    @DisplayName("존재하지 않는 warehouseId로 필터링하면 WAREHOUSE_NOT_FOUND 예외를 던진다")
     void getInventories_warehouseNotFound() {
         InventorySearchCondition condition = new InventorySearchCondition(null, 999L, null);
         when(inventoryQueryRepository.existsWarehouse(999L)).thenReturn(false);
@@ -79,7 +80,7 @@ class InventoryQueryServiceTest {
         assertThatThrownBy(() -> inventoryQueryService.getInventories(condition))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ErrorCode.NOT_FOUND.name());
+                .isEqualTo(InventoryErrorCode.WAREHOUSE_NOT_FOUND.name());
     }
 
     @Test
@@ -94,7 +95,7 @@ class InventoryQueryServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 sectionId로 로트별 재고를 조회하면 NOT_FOUND 예외를 던진다")
+    @DisplayName("존재하지 않는 sectionId로 로트별 재고를 조회하면 SECTION_NOT_FOUND 예외를 던진다")
     void getInventoriesByLot_sectionNotFound() {
         InventoryLotSearchCondition condition =
                 new InventoryLotSearchCondition(null, null, 999L, null, null, null, null);
@@ -103,14 +104,14 @@ class InventoryQueryServiceTest {
         assertThatThrownBy(() -> inventoryQueryService.getInventoriesByLot(condition))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ErrorCode.NOT_FOUND.name());
+                .isEqualTo(InventoryErrorCode.SECTION_NOT_FOUND.name());
     }
 
     @Test
     @DisplayName("존재하는 재고를 조회하면 상세를 반환한다")
     void getInventory_success() {
         InventoryDetail detail = new InventoryDetail(1L, 1L, "서울센터", 1L, "A-01", "1구역", 1L, "SKU-001", "상품",
-                "EA", 1L, "LOT-001", null, null, null, null, null, 100L, 20L, 80L, null, null, null, null);
+                "EA", 1L, "LOT-001", null, "한빛식품", null, null, null, null, 100L, 20L, 80L, null, null, null, null);
         when(inventoryQueryRepository.findDetail(1L)).thenReturn(Optional.of(detail));
 
         InventoryDetail result = inventoryQueryService.getInventory(1L);
@@ -119,18 +120,18 @@ class InventoryQueryServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 재고를 조회하면 NOT_FOUND 예외를 던진다")
+    @DisplayName("존재하지 않는 재고를 조회하면 INVENTORY_NOT_FOUND 예외를 던진다")
     void getInventory_notFound() {
         when(inventoryQueryRepository.findDetail(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> inventoryQueryService.getInventory(999L))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ErrorCode.NOT_FOUND.name());
+                .isEqualTo(InventoryErrorCode.INVENTORY_NOT_FOUND.name());
     }
 
     @Test
-    @DisplayName("존재하지 않는 warehouseId로 저재고를 조회하면 NOT_FOUND 예외를 던진다")
+    @DisplayName("존재하지 않는 warehouseId로 저재고를 조회하면 WAREHOUSE_NOT_FOUND 예외를 던진다")
     void getLowStock_warehouseNotFound() {
         LowStockSearchCondition condition = new LowStockSearchCondition(999L, null);
         when(inventoryQueryRepository.existsWarehouse(999L)).thenReturn(false);
@@ -138,7 +139,7 @@ class InventoryQueryServiceTest {
         assertThatThrownBy(() -> inventoryQueryService.getLowStock(condition))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ErrorCode.NOT_FOUND.name());
+                .isEqualTo(InventoryErrorCode.WAREHOUSE_NOT_FOUND.name());
     }
 
     @Test
@@ -167,7 +168,7 @@ class InventoryQueryServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 lotId로 이력을 조회하면 NOT_FOUND 예외를 던진다")
+    @DisplayName("존재하지 않는 lotId로 이력을 조회하면 LOT_NOT_FOUND 예외를 던진다")
     void getTransactions_lotNotFound() {
         InventoryTransactionSearchCondition condition = new InventoryTransactionSearchCondition(
                 null, null, null, null, 999L, null, null, null, null, null);
@@ -176,11 +177,11 @@ class InventoryQueryServiceTest {
         assertThatThrownBy(() -> inventoryQueryService.getTransactions(condition))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ErrorCode.NOT_FOUND.name());
+                .isEqualTo(InventoryErrorCode.LOT_NOT_FOUND.name());
     }
 
     @Test
-    @DisplayName("존재하지 않는 재고의 이력을 조회하면 NOT_FOUND 예외를 던진다")
+    @DisplayName("존재하지 않는 재고의 이력을 조회하면 INVENTORY_NOT_FOUND 예외를 던진다")
     void getTransactionsOf_notFound() {
         when(inventoryLotRepository.existsById(999L)).thenReturn(false);
         InventoryTransactionSearchCondition condition = new InventoryTransactionSearchCondition(
@@ -189,6 +190,6 @@ class InventoryQueryServiceTest {
         assertThatThrownBy(() -> inventoryQueryService.getTransactionsOf(999L, condition))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ErrorCode.NOT_FOUND.name());
+                .isEqualTo(InventoryErrorCode.INVENTORY_NOT_FOUND.name());
     }
 }

@@ -57,6 +57,9 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
     @Query("select count(ws) > 0 from WarehouseSectionJpaEntity ws where ws.sectionId = :sectionId")
     boolean existsSectionId(@Param("sectionId") Long sectionId);
 
+    @Query("select count(su) > 0 from SupplierJpaEntity su where su.supplierId = :supplierId")
+    boolean existsSupplierId(@Param("supplierId") Long supplierId);
+
     @Query("""
             select count(il) > 0 from InventoryLotJpaEntity il
             where il.sectionId = :sectionId
@@ -132,7 +135,7 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
             select new com.kb.wms.inventory.application.port.in.result.InventoryDetail(
                 il.inventoryLotId, w.warehouseId, w.name, ws.sectionId, ws.sectionCode, ws.name,
                 s.skuId, s.skuCode, s.name, s.unit,
-                l.lotId, l.lotNumber, l.supplierId, l.manufacturedDate, l.expiryDate, l.status, l.unitCost,
+                l.lotId, l.lotNumber, l.supplierId, su.name, l.manufacturedDate, l.expiryDate, l.status, l.unitCost,
                 il.onHandQuantity, il.allocatedQuantity,
                 case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.AVAILABLE
                       and l.status = com.kb.wms.inventory.domain.enums.LotStatus.AVAILABLE
@@ -143,6 +146,7 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
             join ProductSkuJpaEntity s on s.skuId = l.skuId
             join WarehouseSectionJpaEntity ws on ws.sectionId = il.sectionId
             join WarehouseJpaEntity w on w.warehouseId = ws.warehouseId
+            left join SupplierJpaEntity su on su.supplierId = l.supplierId
             where il.inventoryLotId = :id
             """)
     Optional<InventoryDetail> findDetail(@Param("id") Long inventoryLotId);

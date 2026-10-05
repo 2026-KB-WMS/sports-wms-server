@@ -11,6 +11,7 @@ import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inventory.application.port.in.LotUseCase;
 import com.kb.wms.inventory.application.port.in.command.LotRegisterCommand;
 import com.kb.wms.inventory.application.port.in.query.LotSearchCondition;
+import com.kb.wms.inventory.application.port.in.result.LotInboundView;
 import com.kb.wms.inventory.application.port.in.result.LotSummary;
 import com.kb.wms.inventory.application.port.out.InventoryQueryRepository;
 import com.kb.wms.inventory.application.port.out.LotRepository;
@@ -24,19 +25,20 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class LotService implements LotUseCase {
 
-    static final String LOT_NOT_FOUND_MESSAGE = "로트를 찾을 수 없습니다.";
-
     private final LotRepository lotRepository;
     private final InventoryQueryRepository inventoryQueryRepository;
 
     /**
-     * supplierId는 Supplier(입고 도메인) 테이블이 아직 없어 존재 검증을 하지 않는다.
-     * 테이블이 생기면 skuId와 같은 방식으로 404 검증을 추가한다.
+     * 필터로 준 skuId·supplierId가 존재하지 않으면 404(SKU_NOT_FOUND·SUPPLIER_NOT_FOUND)로 응답한다.
+     * 존재 확인은 조회 전용 포트(InventoryQueryRepository)의 읽기 쿼리로 하며 다른 도메인 서비스를 거치지 않는다.
      */
     @Override
     public List<LotSummary> getLots(LotSearchCondition condition) {
         if (condition.skuId() != null && !inventoryQueryRepository.existsSku(condition.skuId())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "SKU를 찾을 수 없습니다.");
+            throw new BusinessException(InventoryErrorCode.SKU_NOT_FOUND);
+        }
+        if (condition.supplierId() != null && !inventoryQueryRepository.existsSupplier(condition.supplierId())) {
+            throw new BusinessException(InventoryErrorCode.SUPPLIER_NOT_FOUND);
         }
         return inventoryQueryRepository.findLots(condition);
     }
@@ -44,7 +46,15 @@ public class LotService implements LotUseCase {
     @Override
     public LotSummary getLot(Long lotId) {
         return inventoryQueryRepository.findLot(lotId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, LOT_NOT_FOUND_MESSAGE));
+                .orElseThrow(() -> new BusinessException(InventoryErrorCode.LOT_NOT_FOUND));
+    }
+
+    @Override
+    public List<LotInboundView> getLotInbounds(Long lotId) {
+        if (!lotRepository.existsById(lotId)) {
+            throw new BusinessException(InventoryErrorCode.LOT_NOT_FOUND);
+        }
+        return inventoryQueryRepository.findLotInbounds(lotId);
     }
 
     /**

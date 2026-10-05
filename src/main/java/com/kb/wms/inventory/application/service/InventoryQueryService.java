@@ -20,6 +20,7 @@ import com.kb.wms.inventory.application.port.in.result.LowStockItem;
 import com.kb.wms.inventory.application.port.out.InventoryLotRepository;
 import com.kb.wms.inventory.application.port.out.InventoryQueryRepository;
 import com.kb.wms.inventory.application.port.out.LotRepository;
+import com.kb.wms.inventory.exception.InventoryErrorCode;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,11 +29,8 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class InventoryQueryService implements InventoryQueryUseCase {
 
-    static final String INVENTORY_NOT_FOUND_MESSAGE = "재고를 찾을 수 없습니다.";
-    private static final String SKU_NOT_FOUND_MESSAGE = "SKU를 찾을 수 없습니다.";
-    private static final String WAREHOUSE_NOT_FOUND_MESSAGE = "창고를 찾을 수 없습니다.";
-    private static final String SECTION_NOT_FOUND_MESSAGE = "구역을 찾을 수 없습니다.";
-    private static final String LOT_NOT_FOUND_MESSAGE = "로트를 찾을 수 없습니다.";
+    /** 출고·조정 등 다른 재고 서비스가 같은 문구를 쓰는 재고 미존재 메시지. */
+    static final String INVENTORY_NOT_FOUND_MESSAGE = InventoryErrorCode.INVENTORY_NOT_FOUND.getDefaultMessage();
 
     private final InventoryQueryRepository inventoryQueryRepository;
     private final InventoryLotRepository inventoryLotRepository;
@@ -56,7 +54,7 @@ public class InventoryQueryService implements InventoryQueryUseCase {
     @Override
     public InventoryDetail getInventory(Long inventoryLotId) {
         return inventoryQueryRepository.findDetail(inventoryLotId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, INVENTORY_NOT_FOUND_MESSAGE));
+                .orElseThrow(() -> new BusinessException(InventoryErrorCode.INVENTORY_NOT_FOUND));
     }
 
     @Override
@@ -83,7 +81,7 @@ public class InventoryQueryService implements InventoryQueryUseCase {
                                                             InventoryTransactionSearchCondition condition) {
         validatePeriod(condition);
         if (!inventoryLotRepository.existsById(inventoryLotId)) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, INVENTORY_NOT_FOUND_MESSAGE);
+            throw new BusinessException(InventoryErrorCode.INVENTORY_NOT_FOUND);
         }
         return inventoryQueryRepository.findTransactions(new InventoryTransactionSearchCondition(
                 inventoryLotId, null, null, null, null, condition.transactionType(), null, null,
@@ -114,25 +112,25 @@ public class InventoryQueryService implements InventoryQueryUseCase {
 
     private void validateSkuId(Long skuId) {
         if (skuId != null && !inventoryQueryRepository.existsSku(skuId)) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, SKU_NOT_FOUND_MESSAGE);
+            throw new BusinessException(InventoryErrorCode.SKU_NOT_FOUND);
         }
     }
 
     private void validateWarehouseId(Long warehouseId) {
         if (warehouseId != null && !inventoryQueryRepository.existsWarehouse(warehouseId)) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, WAREHOUSE_NOT_FOUND_MESSAGE);
+            throw new BusinessException(InventoryErrorCode.WAREHOUSE_NOT_FOUND);
         }
     }
 
     private void validateSectionId(Long sectionId) {
         if (sectionId != null && !inventoryQueryRepository.existsSection(sectionId)) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, SECTION_NOT_FOUND_MESSAGE);
+            throw new BusinessException(InventoryErrorCode.SECTION_NOT_FOUND);
         }
     }
 
     private void validateLotId(Long lotId) {
         if (lotId != null && !lotRepository.existsById(lotId)) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, LOT_NOT_FOUND_MESSAGE);
+            throw new BusinessException(InventoryErrorCode.LOT_NOT_FOUND);
         }
     }
 }

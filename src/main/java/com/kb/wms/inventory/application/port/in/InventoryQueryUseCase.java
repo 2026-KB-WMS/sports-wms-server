@@ -30,7 +30,7 @@ public interface InventoryQueryUseCase {
     List<InventoryTransactionView> getTransactions(InventoryTransactionSearchCondition condition);
 
     /**
-     * 특정 재고 행의 이력. 재고가 없으면 NOT_FOUND.
+     * 특정 재고 행의 이력. 재고가 없으면 404 INVENTORY_NOT_FOUND.
      */
     List<InventoryTransactionView> getTransactionsOf(Long inventoryLotId,
                                                      InventoryTransactionSearchCondition condition);

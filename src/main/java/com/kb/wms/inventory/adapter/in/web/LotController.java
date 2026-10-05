@@ -59,7 +59,10 @@ public class LotController {
                 .getInventoriesByLot(InventoryLotSearchCondition.ofLot(lotId)).stream()
                 .map(view -> toInventoryItem(view, warehouseNames))
                 .toList();
-        return ApiResponse.ok(LotDetailResponse.of(summary, inventory));
+        List<LotDetailResponse.InboundItem> inbounds = lotUseCase.getLotInbounds(lotId).stream()
+                .map(LotDetailResponse.InboundItem::from)
+                .toList();
+        return ApiResponse.ok(LotDetailResponse.of(summary, inventory, inbounds));
     }
 
     private LotDetailResponse.InventoryItem toInventoryItem(InventoryLotView view, Map<Long, String> warehouseNames) {

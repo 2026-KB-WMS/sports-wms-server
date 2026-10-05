@@ -8,11 +8,18 @@ import lombok.Getter;
 /**
  * 재고 도메인 특수 오류 코드.
  * WMS API 명세(Notion)의 각 엔드포인트 오류 표에 정의된 도메인 전용 error_code 값을 담는다.
- * 재고·로트 미존재는 명세상 공통 NOT_FOUND를 쓰므로 여기에 두지 않는다.
+ * 재고·로트 미존재(404)는 이 도메인 전용 코드를 쓴다. 조회 필터 대상(SKU·창고·구역·공급처) 미존재 404는
+ * 다른 도메인 에러 코드 enum을 import하지 않기 위해(ADR-005) 해당 도메인과 같은 코드명으로 여기에 둔다.
  */
 @Getter
 public enum InventoryErrorCode implements DomainErrorCode {
 
+    INVENTORY_NOT_FOUND(ErrorCode.NOT_FOUND, "재고를 찾을 수 없습니다."),
+    LOT_NOT_FOUND(ErrorCode.NOT_FOUND, "로트를 찾을 수 없습니다."),
+    SKU_NOT_FOUND(ErrorCode.NOT_FOUND, "SKU를 찾을 수 없습니다."),
+    WAREHOUSE_NOT_FOUND(ErrorCode.NOT_FOUND, "창고를 찾을 수 없습니다."),
+    SECTION_NOT_FOUND(ErrorCode.NOT_FOUND, "구역을 찾을 수 없습니다."),
+    SUPPLIER_NOT_FOUND(ErrorCode.NOT_FOUND, "공급처를 찾을 수 없습니다."),
     STALE_QUANTITY(ErrorCode.CONFLICT, "조회 이후 재고 수량이 변경되었습니다. 현재 수량을 다시 확인해주세요."),
     BELOW_ALLOCATED_QUANTITY(ErrorCode.CONFLICT, "보유 수량은 할당 수량보다 작게 조정할 수 없습니다."),
     INSUFFICIENT_STOCK(ErrorCode.CONFLICT, "가용 재고가 부족합니다."),

@@ -85,7 +85,7 @@ class InventoryAdjustmentServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 재고를 조정하면 NOT_FOUND 예외를 던진다")
+    @DisplayName("존재하지 않는 재고를 조정하면 INVENTORY_NOT_FOUND 예외를 던진다")
     void adjust_inventoryNotFound() {
         InventoryAdjustCommand command = new InventoryAdjustCommand(999L, 100L, 120L, "사유", 99L);
         when(inventoryLotRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
@@ -93,7 +93,7 @@ class InventoryAdjustmentServiceTest {
         assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ErrorCode.NOT_FOUND.name());
+                .isEqualTo(InventoryErrorCode.INVENTORY_NOT_FOUND.name());
     }
 
     @Test

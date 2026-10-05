@@ -117,7 +117,7 @@ class InventoryStockServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 로트로 입고하면 NOT_FOUND 예외를 던진다")
+    @DisplayName("존재하지 않는 로트로 입고하면 LOT_NOT_FOUND 예외를 던진다")
     void receive_lotNotFound() {
         StockReceiveCommand command = new StockReceiveCommand(10L, 999L, QualityStatus.AVAILABLE, 50L, 1L, 9L);
         when(lotRepository.findById(999L)).thenReturn(Optional.empty());
@@ -125,7 +125,7 @@ class InventoryStockServiceTest {
         assertThatThrownBy(() -> inventoryStockService.receive(List.of(command)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ErrorCode.NOT_FOUND.name());
+                .isEqualTo(InventoryErrorCode.LOT_NOT_FOUND.name());
     }
 
     @Test
@@ -175,7 +175,7 @@ class InventoryStockServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 재고 행을 할당하려 하면 NOT_FOUND 예외를 던진다")
+    @DisplayName("존재하지 않는 재고 행을 할당하려 하면 INVENTORY_NOT_FOUND 예외를 던진다")
     void allocate_inventoryNotFound() {
         StockQuantityCommand command = new StockQuantityCommand(999L, 30L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(999L))).thenReturn(List.of());
@@ -183,7 +183,7 @@ class InventoryStockServiceTest {
         assertThatThrownBy(() -> inventoryStockService.allocate(List.of(command)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ErrorCode.NOT_FOUND.name());
+                .isEqualTo(InventoryErrorCode.INVENTORY_NOT_FOUND.name());
     }
 
     @Test

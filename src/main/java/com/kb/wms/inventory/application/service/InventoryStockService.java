@@ -65,7 +65,7 @@ public class InventoryStockService implements InventoryStockUseCase {
         for (StockReceiveCommand command : ordered) {
             requirePositive(command.quantity(), "입고 수량");
             Lot lot = lotRepository.findById(command.lotId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, LotService.LOT_NOT_FOUND_MESSAGE));
+                    .orElseThrow(() -> new BusinessException(InventoryErrorCode.LOT_NOT_FOUND));
             if (!lot.isAvailable()) {
                 throw new BusinessException(InventoryErrorCode.LOT_NOT_AVAILABLE);
             }
@@ -103,7 +103,7 @@ public class InventoryStockService implements InventoryStockUseCase {
             requirePositive(command.quantity(), "할당 수량");
             InventoryLot inventoryLot = locked.get(command.inventoryLotId());
             Lot lot = lotRepository.findById(inventoryLot.getLotId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, LotService.LOT_NOT_FOUND_MESSAGE));
+                    .orElseThrow(() -> new BusinessException(InventoryErrorCode.LOT_NOT_FOUND));
             if (!lot.isAvailable()) {
                 throw new BusinessException(InventoryErrorCode.LOT_NOT_AVAILABLE);
             }
@@ -144,8 +144,8 @@ public class InventoryStockService implements InventoryStockUseCase {
         sectionCapacityPort.lock(commands.stream()
                 .map(StockShipCommand::inventoryLotId).distinct()
                 .map(id -> inventoryLotRepository.findById(id)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                                InventoryQueryService.INVENTORY_NOT_FOUND_MESSAGE + " (재고 " + id + ")")))
+                        .orElseThrow(() -> new BusinessException(InventoryErrorCode.INVENTORY_NOT_FOUND,
+                                InventoryErrorCode.INVENTORY_NOT_FOUND.getDefaultMessage() + " (재고 " + id + ")")))
                 .map(InventoryLot::getSectionId)
                 .toList());
         Map<Long, InventoryLot> locked = lockAll(commands.stream().map(StockShipCommand::inventoryLotId).toList());
@@ -188,8 +188,8 @@ public class InventoryStockService implements InventoryStockUseCase {
                 .filter(id -> !locked.containsKey(id))
                 .findFirst()
                 .ifPresent(id -> {
-                    throw new BusinessException(ErrorCode.NOT_FOUND,
-                            InventoryQueryService.INVENTORY_NOT_FOUND_MESSAGE + " (재고 " + id + ")");
+                    throw new BusinessException(InventoryErrorCode.INVENTORY_NOT_FOUND,
+                            InventoryErrorCode.INVENTORY_NOT_FOUND.getDefaultMessage() + " (재고 " + id + ")");
                 });
         return locked;
     }

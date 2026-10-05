@@ -9,7 +9,7 @@ import com.kb.wms.inventory.domain.enums.QualityStatus;
 
 /**
  * 재고 한 건 상세 (GET /api/v1/inventory/{inventoryId}).
- * 공급처명은 Supplier(입고 도메인) 테이블이 생기면 추가한다.
+ * 공급처명(supplierName)은 supplier 테이블을 ID로 조인해 읽는다(ADR-007).
  */
 public record InventoryDetail(
         Long inventoryLotId,
@@ -25,6 +25,7 @@ public record InventoryDetail(
         Long lotId,
         String lotNumber,
         Long supplierId,
+        String supplierName,
         LocalDate manufacturedDate,
         LocalDate expiryDate,
         LotStatus lotStatus,
