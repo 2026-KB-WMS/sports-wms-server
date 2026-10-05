@@ -10,7 +10,6 @@ import com.kb.wms.inventory.domain.enums.QualityStatus;
 
 /**
  * GET /api/v1/inventory/{inventoryId} 응답.
- * supplierName은 Supplier(입고 도메인) 테이블이 생기면 채운다. 지금은 supplierId만 내려준다.
  */
 public record InventoryDetailResponse(
         Long inventoryLotId,
@@ -26,6 +25,7 @@ public record InventoryDetailResponse(
         Long lotId,
         String lotNumber,
         Long supplierId,
+        String supplierName,
         LocalDate manufacturedDate,
         LocalDate expiryDate,
         LotStatus lotStatus,
@@ -54,6 +54,7 @@ public record InventoryDetailResponse(
                 detail.lotId(),
                 detail.lotNumber(),
                 detail.supplierId(),
+                detail.supplierName(),
                 detail.manufacturedDate(),
                 detail.expiryDate(),
                 detail.lotStatus(),

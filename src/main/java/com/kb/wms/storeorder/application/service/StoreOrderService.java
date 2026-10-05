@@ -367,7 +367,9 @@ public class StoreOrderService implements StoreOrderUseCase {
 
     /**
      * 진행 중 출고가 없고 부족한 항목이 있을 때만 ASSIGNED → COMPLETED로 종결한다.
-     * 재고·할당·항목 상태는 바꾸지 않고 부족 수량만 계산해 돌려준다. 남은 수량은 자동 재발주하지 않는다.
+     * 출고에 묶이지 않고 남은 ALLOCATED 재고 할당은 출고 연동 포트로 같은 트랜잭션에서 모두 해제하고
+     * (재고 행·발주 항목의 allocated_quantity 감소), 부족 수량을 계산해 돌려준다. 출고·항목 상태는 바꾸지 않는다.
+     * 남은 수량은 자동 재발주하지 않는다.
      */
     @Override
     @Transactional
@@ -383,10 +385,13 @@ public class StoreOrderService implements StoreOrderUseCase {
         if (storeOrderOutboundPort.existsInProgressOutbound(command.storeOrderId())) {
             throw new BusinessException(StoreOrderErrorCode.OUTBOUND_IN_PROGRESS);
         }
-        List<StoreOrderLine> lines = storeOrderRepository.findLinesByStoreOrderIdForUpdate(command.storeOrderId());
+        // 락 순서(할당 → 발주 항목)를 지키려고 항목은 잠그지 않고 읽는다. 헤더 잠금과 진행 중 출고 없음으로 수량은 고정이다.
+        List<StoreOrderLine> lines = storeOrderRepository.findLinesByStoreOrderId(command.storeOrderId());
         if (lines.stream().allMatch(StoreOrderLine::isFulfilled)) {
             throw new BusinessException(StoreOrderErrorCode.NO_SHORTAGE);
         }
+        int releasedAllocationCount = storeOrderOutboundPort
+                .releaseUnlinkedAllocations(command.storeOrderId(), command.changedBy());
 
         StoreOrderStatus from = order.getStatus();
         order.complete();
@@ -400,7 +405,7 @@ public class StoreOrderService implements StoreOrderUseCase {
                         line.requestedQuantity(), line.shippedQuantity(), line.remainingQuantity()))
                 .toList();
         return new StoreOrderCompletePartialResult(command.storeOrderId(), saved.getOrderNo(), saved.getStatus(),
-                reason, items, updatedAtOf(saved));
+                reason, items, releasedAllocationCount, updatedAtOf(saved));
     }
 
     /**

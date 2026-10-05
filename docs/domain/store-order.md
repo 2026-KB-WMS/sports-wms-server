@@ -1,6 +1,6 @@
 # 지점 발주(StoreOrder) 도메인 요약
 
-> **기준은 레포다.** 지점 발주 구현을 시작하면서 2026-10-03 Notion "업무 상태 전이도"의 지점 발주 부분을 이 문서로 옮겼다. 지점 발주 관련 상태 전이·권한·부수 효과는 이 문서를 고치고, Notion 전이도의 지점 발주 부분은 참고용으로만 둔다(출고·재고 할당·반품 부분은 계속 Notion이 기준).
+> **기준은 레포다.** 지점 발주 구현을 시작하면서 2026-10-03 Notion "업무 상태 전이도"의 지점 발주 부분을 이 문서로 옮겼다. 지점 발주 관련 상태 전이·권한·부수 효과는 이 문서를 고치고, Notion 전이도의 지점 발주 부분은 참고용으로만 둔다(출고·재고 할당 부분은 2026-10-05 [`outbound.md`](outbound.md)로 이전했고, 반품 부분은 계속 Notion이 기준).
 > - API 명세: [`docs/api/store-order.md`](../api/store-order.md) (`/api/v1/orders` 12개)
 > - 구현 일정: WMS 개발 일정 DB의 "[구현] 발주 도메인", 추적 이슈 #117 (하위 #118~#124, 선행 #116 StatusHistory)
 
@@ -27,15 +27,15 @@
 | REQUESTED | 반려 | REJECTED | 본사 관리자 | 반려 사유 필수 |
 | APPROVED | 창고 배정 | ASSIGNED | 본사 관리자 | 활성 창고 확정, `warehouse_id` 반영 |
 | ASSIGNED | 창고 재배정 | ASSIGNED | 본사 관리자 | 재고 할당·출고가 없을 때만, 사유 기록, `warehouse_id` 변경 |
-| ASSIGNED | 출고 보류 | ON_HOLD | 창고 관리자 | 재고 부족·운영 예외 사유 기록, 피킹 시작 전 |
+| ASSIGNED | 출고 보류 | ON_HOLD | 창고 관리자 | 재고 부족·운영 예외 사유 기록, 피킹이 시작된 출고(`PICKING`·`PICKED`·`SHIPPED`·`DELIVERED`)가 없을 때만 |
 | ON_HOLD | 출고 재개 | ASSIGNED | 창고 관리자 | 재고 확보·재개 사유 기록 |
 | APPROVED, ASSIGNED, ON_HOLD | 승인 후 취소 | CANCELED | 본사 관리자 | 사유 필수, 할당 재고 해제(`RELEASED`), 피킹 시작 전, `READY` 출고는 함께 취소 |
 | ASSIGNED | 전량 출고 완료 | COMPLETED | 시스템(배송 완료 시 자동) | 모든 항목 `shipped ≥ requested`이고 진행 중 출고 없음 |
-| ASSIGNED | 부분 출고 종결 | COMPLETED | 창고 관리자 | 진행 중 출고 없음, 일부 항목 미충족, 사유 필수. 남은 수량은 자동 재발주하지 않음 |
+| ASSIGNED | 부분 출고 종결 | COMPLETED | 창고 관리자 | 진행 중 출고 없음, 일부 항목 미충족, 사유 필수. 남은 `ALLOCATED` 할당은 함께 해제(`RELEASED`). 남은 수량은 자동 재발주하지 않음 |
 
 - `warehouse_id`는 요청 시점엔 NULL이고 `ASSIGNED`가 될 때 채워진다. 승인 시점에는 창고를 정하지 않는다.
 - 취소·반려·`COMPLETED`는 종결 상태다. 같은 전이를 다시 요청하면 409 `CONFLICT`이며 부작용을 다시 실행하지 않는다.
-- 피킹이 시작된 출고(`PICKING`·`PICKED`·`SHIPPED`·`DELIVERED`)가 있으면 취소할 수 없다(409 `ORDER_IN_PICKING`).
+- 피킹이 시작된 출고(`PICKING`·`PICKED`·`SHIPPED`·`DELIVERED`)가 있으면 발주를 취소하거나 보류할 수 없다(409 `ORDER_IN_PICKING`, 취소·보류가 같은 검사를 쓴다). 배송 완료된 부분 출고(`DELIVERED`)도 해당하므로, 부분 출고 뒤 남은 수량은 보류 대신 다시 할당·출고하거나 부분 출고 종결(`complete-partial`)로 처리한다.
 - 배송 실패·수령 거부 처리는 미결이다.
 
 ## 발주 항목(StoreOrderLine) 상태
@@ -50,7 +50,7 @@
 - `REQUESTED` → `PARTIALLY_SHIPPED` → `COMPLETED`는 출고 도메인이 갱신한다(지점 발주 쪽은 초기값과 가드만 만든다). `shipped_quantity` 누적은 출고 피킹 완료 처리에서, 항목 상태 전환은 배송 완료 처리에서 한다(2026-10-05 결정, [`outbound.md`](outbound.md)).
 - 발주가 취소·반려되면 모든 항목이 `CANCELED`가 된다. 피킹 시작 이후에는 발주를 취소할 수 없으므로 취소되는 항목은 항상 `REQUESTED`에서 전이한다(`PARTIALLY_SHIPPED` → `CANCELED`는 없다).
 - 할당·피킹 단계(`ALLOCATED`, `PICKED` 등)는 항목 상태가 아니다. `allocated_quantity`와 `StockAllocation`·`Outbound` 상태로 확인한다(같은 정보를 상태에 중복해 맞추지 않는다).
-- 부분 출고 종결(`complete-partial`)은 항목 상태를 바꾸지 않고 부족분은 `remainingQuantity`·`shortageQuantity`로 계산한다. 출고가 0건인 항목은 종결 후에도 `REQUESTED`로 남을 수 있어 항목 상태만 보지 말고 발주 상태·수량을 함께 읽는다.
+- 부분 출고 종결(`complete-partial`)은 항목 상태를 바꾸지 않고(`allocated_quantity`는 남은 할당 해제로 줄어든다) 부족분은 `remainingQuantity`·`shortageQuantity`로 계산한다. 출고가 0건인 항목은 종결 후에도 `REQUESTED`로 남을 수 있어 항목 상태만 보지 말고 발주 상태·수량을 함께 읽는다.
 
 ## 점주용 진행 단계 (`progressStage`)
 
@@ -65,13 +65,14 @@
 1. 등록은 발주와 항목을 한 트랜잭션으로 저장하고, 공급 단가(`requested_unit_supply_price`)는 등록 시점 `ProductSKU.current_supply_price` 스냅샷이다(없으면 409 `SUPPLY_PRICE_MISSING`).
 2. 모든 상태 변경은 `StatusHistory`에 기록한다(`entity_type = STORE_ORDER`, 처리자·시각, 사유가 필요한 전이는 사유 포함). 응답의 `statusReason`은 이 이력에서 읽는다. 재배정은 `ASSIGNED` → `ASSIGNED`에 사유와 이전·이후 창고를 남긴다.
 3. 승인 이후 취소는 한 트랜잭션으로 `READY` 출고를 `CANCELED`로, `ALLOCATED` 재고 할당을 `RELEASED`로 바꾸고 재고 행과 발주 항목의 `allocated_quantity`를 줄인다(보유 수량은 불변). 함께 처리된 출고·할당 이력에는 "발주 취소로 인한 자동 처리"를 사유로 남긴다.
-4. 보류 중에는 새 재고 할당·출고 생성·피킹 시작이 막힌다. 보류는 재고·수량을 바꾸지 않으며 재고 보충은 창고 발주(`POST /purchase-orders`)로 별도 요청한다.
-5. 상태 확인과 변경은 한 트랜잭션에서 발주 행을 잠그고(필요하면 재고 행도) 처리해 같은 발주에 대한 동시 승인·반려·취소 중 하나만 성공하게 한다.
-6. 알림 전송은 이 도메인의 범위가 아니다.
+4. 부분 출고 종결(`complete-partial`)은 한 트랜잭션으로 출고에 묶이지 않고 남은 `ALLOCATED` 재고 할당을 `RELEASED`로 바꾸고 재고 행과 발주 항목의 `allocated_quantity`를 줄인다(보유 수량·출고·항목 상태는 불변). 할당 이력에는 "발주 부분 종결로 인한 자동 해제"를 사유로, 종결한 사용자를 처리자로 남기고 응답의 `releasedAllocationCount`로 건수를 알린다. 출고 연동 포트 `releaseUnlinkedAllocations`로 수행한다.
+5. 보류 중에는 새 재고 할당·출고 생성·피킹 시작이 막힌다. 보류는 재고·수량을 바꾸지 않으며 재고 보충은 창고 발주(`POST /purchase-orders`)로 별도 요청한다. 피킹이 시작된 출고가 있으면 보류 자체가 막힌다(위 `ORDER_IN_PICKING`).
+6. 상태 확인과 변경은 한 트랜잭션에서 발주 행을 잠그고(필요하면 재고 행도) 처리해 같은 발주에 대한 동시 승인·반려·취소 중 하나만 성공하게 한다.
+7. 알림 전송은 이 도메인의 범위가 아니다.
 
 ## 구현 현황 (2026-10-04)
 
-트래킹 이슈 #117, 하위 이슈 #118 도메인 모델 + 마이그레이션(완료), #119 포트 + 어댑터(완료: 영속성 어댑터·조회 쿼리·출고 임시 어댑터(출고 도메인 구현 때 실제 어댑터로 교체)·`StoreOrderProgressStage`), #120 서비스(등록·조회, 구현 완료: `StoreOrderService`), #121 서비스(승인·반려·취소, 구현 완료: `StoreOrderService`), #122 서비스(배정·보류·재개·부분 출고 종결, 구현 완료: `StoreOrderService`), #123 웹 어댑터(11개 엔드포인트 구현 완료: `StoreOrderController`, `GET /orders/my`는 인증 연동 때 추가), #124 테스트. 선행 #116 StatusHistory 공통 도메인(완료).
+트래킹 이슈 #117, 하위 이슈 #118 도메인 모델 + 마이그레이션(완료), #119 포트 + 어댑터(완료: 영속성 어댑터·조회 쿼리·출고 임시 어댑터·`StoreOrderProgressStage`. 임시 어댑터는 출고 도메인 구현(#143)에서 `StoreOrderOutboundAdapter`로 교체했다), #120 서비스(등록·조회, 구현 완료: `StoreOrderService`), #121 서비스(승인·반려·취소, 구현 완료: `StoreOrderService`), #122 서비스(배정·보류·재개·부분 출고 종결, 구현 완료: `StoreOrderService`), #123 웹 어댑터(11개 엔드포인트 구현 완료: `StoreOrderController`, `GET /orders/my`는 인증 연동 때 추가), #124 테스트. 선행 #116 StatusHistory 공통 도메인(완료).
 
 ### 설계 결정 (구현 시 따를 것)
 
@@ -87,6 +88,6 @@
 - 승인·반려·취소가 발주 행 잠금 아래에서 상태 확인과 변경을 같은 트랜잭션으로 처리하는가
 - 사유가 필요한 전이(반려, 승인 후 취소, 재배정, 보류, 재개, 부분 종결)에서 사유 필수 검증과 `StatusHistory` 기록
 - 권한: 승인·반려·배정은 본사, 보류·재개·부분 종결은 담당 창고, 승인 전 취소는 작성자 점주
-- 취소·반려 시 항목이 모두 `CANCELED`로 바뀌는가, `complete-partial`은 항목 상태를 건드리지 않는가
+- 취소·반려 시 항목이 모두 `CANCELED`로 바뀌는가, `complete-partial`은 항목 상태를 건드리지 않고 남은 `ALLOCATED` 할당만 해제하는가(재고·항목 `allocated_quantity` 복원, 락 순서 할당 → 항목)
 - 공급 단가가 등록 시점 스냅샷인가(이후 SKU 단가 변경과 무관), `lineAmount`·`totalAmount` 계산
 - 존재하지 않는 발주는 도메인 전용 404 코드(generic `NOT_FOUND` 아님)

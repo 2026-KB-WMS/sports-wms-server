@@ -12,6 +12,7 @@ import com.kb.wms.inventory.application.port.in.result.InventoryDetail;
 import com.kb.wms.inventory.application.port.in.result.InventoryLotView;
 import com.kb.wms.inventory.application.port.in.result.InventorySkuSummary;
 import com.kb.wms.inventory.application.port.in.result.InventoryTransactionView;
+import com.kb.wms.inventory.application.port.in.result.LotInboundView;
 import com.kb.wms.inventory.application.port.in.result.LotSummary;
 import com.kb.wms.inventory.application.port.in.result.LowStockItem;
 
@@ -43,6 +44,9 @@ public interface InventoryQueryRepository {
 
     Optional<LotSummary> findLot(Long lotId);
 
+    /** 로트가 입고된 이력(InboundLine.lot_id, 입고 완료 건만). 입고 완료 일시 내림차순, inbound_id 내림차순. */
+    List<LotInboundView> findLotInbounds(Long lotId);
+
     /**
      * 할당 후보: 창고·SKU의 품질·로트 AVAILABLE, 활성 구역, 가용 수량 > 0인 행을 FEFO 순서로
      * (유통기한 빠른 순 → 로트 생성 순 → inventory_lot_id 순).
@@ -62,4 +66,7 @@ public interface InventoryQueryRepository {
     boolean existsWarehouse(Long warehouseId);
 
     boolean existsSection(Long sectionId);
+
+    /** 공급처(입고 도메인 supplier 테이블) 존재 여부. 읽기 전용 확인이며 입고 서비스를 거치지 않는다. */
+    boolean existsSupplier(Long supplierId);
 }

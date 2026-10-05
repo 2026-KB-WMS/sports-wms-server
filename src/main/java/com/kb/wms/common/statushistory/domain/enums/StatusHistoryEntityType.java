@@ -9,5 +9,6 @@ public enum StatusHistoryEntityType {
     INBOUND,
     STORE_ORDER,
     STOCK_ALLOCATION,
-    OUTBOUND
+    OUTBOUND,
+    STORE
 }

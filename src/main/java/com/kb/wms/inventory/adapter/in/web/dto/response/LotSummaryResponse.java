@@ -8,7 +8,6 @@ import com.kb.wms.inventory.domain.enums.LotStatus;
 
 /**
  * GET /api/v1/lots 목록 항목.
- * supplierName은 Supplier(입고 도메인) 테이블이 생기면 채운다. 지금은 supplierId만 내려준다.
  */
 public record LotSummaryResponse(
         Long lotId,
@@ -17,6 +16,7 @@ public record LotSummaryResponse(
         String skuCode,
         String skuName,
         Long supplierId,
+        String supplierName,
         LocalDate manufacturedDate,
         LocalDate expiryDate,
         LotStatus status,
@@ -31,6 +31,7 @@ public record LotSummaryResponse(
                 summary.skuCode(),
                 summary.skuName(),
                 summary.supplierId(),
+                summary.supplierName(),
                 summary.manufacturedDate(),
                 summary.expiryDate(),
                 summary.status(),

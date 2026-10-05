@@ -138,6 +138,7 @@ class InboundControllerTest {
         when(inboundUseCase.getInbound(7L)).thenReturn(view(InboundStatus.ARRIVED));
 
         mockMvc.perform(post("/api/v1/inbounds")
+                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "purchaseOrderId": 4, "arrivedAt": "2026-09-25T09:10:00", "note": "1차 입고" }
@@ -165,12 +166,14 @@ class InboundControllerTest {
     @DisplayName("발주 ID가 없거나 비고가 1000자를 넘으면 400 VALIDATION_ERROR이고 서비스를 호출하지 않는다")
     void register_validation() throws Exception {
         mockMvc.perform(post("/api/v1/inbounds")
+                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"note\": \"비고\" }"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
 
         mockMvc.perform(post("/api/v1/inbounds")
+                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"purchaseOrderId\": 4, \"note\": \"" + "가".repeat(1001) + "\" }"))
                 .andExpect(status().isBadRequest())
@@ -186,6 +189,7 @@ class InboundControllerTest {
                 .thenThrow(new BusinessException(InboundErrorCode.INBOUND_IN_PROGRESS));
 
         mockMvc.perform(post("/api/v1/inbounds")
+                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"purchaseOrderId\": 4 }"))
                 .andExpect(status().isConflict())
@@ -459,9 +463,11 @@ class InboundControllerTest {
     void cancel_success() throws Exception {
         when(inboundUseCase.cancelInbound(eq(7L), any(InboundCancelCommand.class)))
                 .thenReturn(inbound(InboundStatus.CANCELED));
-        when(inboundUseCase.getInbound(7L)).thenReturn(view(InboundStatus.CANCELED));
+        when(inboundUseCase.getInbound(7L))
+                .thenReturn(view(InboundStatus.CANCELED).withCancelReason("발주와 다른 상품이 도착해 전량 반송"));
 
         mockMvc.perform(patch("/api/v1/inbounds/7/cancel")
+                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"reason\": \"발주와 다른 상품이 도착해 전량 반송\" }"))
                 .andExpect(status().isOk())
@@ -470,11 +476,47 @@ class InboundControllerTest {
                 .andExpect(jsonPath("$.data.status").value("CANCELED"))
                 .andExpect(jsonPath("$.data.purchaseOrder.purchaseOrderId").value(4))
                 .andExpect(jsonPath("$.data.purchaseOrder.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.data.cancelReason").value("발주와 다른 상품이 도착해 전량 반송"))
                 .andExpect(jsonPath("$.data.updatedAt").exists());
 
         ArgumentCaptor<InboundCancelCommand> captor = ArgumentCaptor.forClass(InboundCancelCommand.class);
         verify(inboundUseCase).cancelInbound(eq(7L), captor.capture());
         assertThat(captor.getValue().reason()).isEqualTo("발주와 다른 상품이 도착해 전량 반송");
+        assertThat(captor.getValue().userId()).isEqualTo(5L);
+    }
+
+    @Test
+    @DisplayName("취소 처리 사용자 파라미터가 없으면 400을 반환하고 유스케이스를 호출하지 않는다")
+    void cancel_missingUserId() throws Exception {
+        mockMvc.perform(patch("/api/v1/inbounds/7/cancel")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"reason\": \"사유\" }"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(inboundUseCase);
+    }
+
+    @Test
+    @DisplayName("등록 처리 사용자 파라미터가 없으면 400을 반환하고 유스케이스를 호출하지 않는다")
+    void register_missingUserId() throws Exception {
+        mockMvc.perform(post("/api/v1/inbounds")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"purchaseOrderId\": 4 }"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(inboundUseCase);
+    }
+
+    @Test
+    @DisplayName("취소된 입고 단건을 조회하면 cancelReason을 반환한다")
+    void getInbound_canceled_returnsCancelReason() throws Exception {
+        when(inboundUseCase.getInbound(7L))
+                .thenReturn(view(InboundStatus.CANCELED).withCancelReason("잘못된 발주에 등록"));
+
+        mockMvc.perform(get("/api/v1/inbounds/7"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELED"))
+                .andExpect(jsonPath("$.data.cancelReason").value("잘못된 발주에 등록"));
     }
 
     @Test
@@ -483,6 +525,7 @@ class InboundControllerTest {
         for (String body : List.of("{ }", "{ \"reason\": \"  \" }",
                 "{ \"reason\": \"" + "가".repeat(501) + "\" }")) {
             mockMvc.perform(patch("/api/v1/inbounds/7/cancel")
+                        .param("userId", "5")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
                     .andExpect(status().isBadRequest())
@@ -498,6 +541,7 @@ class InboundControllerTest {
                 .thenThrow(new BusinessException(ErrorCode.CONFLICT, "완료된 입고는 취소할 수 없습니다."));
 
         mockMvc.perform(patch("/api/v1/inbounds/7/cancel")
+                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"reason\": \"사유\" }"))
                 .andExpect(status().isConflict())

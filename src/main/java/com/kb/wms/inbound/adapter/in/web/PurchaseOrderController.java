@@ -28,6 +28,7 @@ import com.kb.wms.inbound.application.port.in.PurchaseOrderUseCase;
 import com.kb.wms.inbound.application.port.in.query.PurchaseOrderSearchCondition;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderLineView;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderView;
+import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
 
 import jakarta.validation.Valid;
@@ -38,8 +39,8 @@ import lombok.RequiredArgsConstructor;
  * POST, GET /api/v1/purchase-orders, GET .../{id}, GET .../{id}/details, PATCH .../{id}/confirm, PATCH .../{id}/cancel
  *
  * <p>인증/인가가 아직 구현되지 않아 역할별 규칙(등록은 담당 창고 관리자, 확정은 본사 관리자, 취소는 상태별 권한자,
- * 창고 관리자의 담당 창고 범위 조회)은 적용하지 않는다. 등록의 요청 사용자(userId)는 쿼리 파라미터로 받으며,
- * 인증 연동 시 토큰의 사용자로 대체하고 이 컨트롤러에서 역할 검사를 추가한다.
+ * 창고 관리자의 담당 창고 범위 조회)은 적용하지 않는다. 등록·확정·취소의 처리 사용자(userId)는 쿼리 파라미터로 받으며
+ * (상태 이력의 처리자로 기록), 인증 연동 시 토큰의 사용자로 대체하고 이 컨트롤러에서 역할 검사를 추가한다.
  * 목록은 페이지네이션 없이 전체를 반환한다(공통 페이징 도입 시 추가).
  */
 @RestController
@@ -89,17 +90,21 @@ public class PurchaseOrderController {
     }
 
     @PatchMapping("/{purchaseOrderId}/confirm")
-    public ApiResponse<PurchaseOrderStatusResponse> confirmPurchaseOrder(@PathVariable Long purchaseOrderId) {
+    public ApiResponse<PurchaseOrderStatusResponse> confirmPurchaseOrder(
+            @PathVariable Long purchaseOrderId,
+            @RequestParam Long userId) {
         return ApiResponse.ok(PurchaseOrderStatusResponse.from(
-                purchaseOrderUseCase.confirmPurchaseOrder(purchaseOrderId)));
+                purchaseOrderUseCase.confirmPurchaseOrder(purchaseOrderId, userId)));
     }
 
     @PatchMapping("/{purchaseOrderId}/cancel")
     public ApiResponse<PurchaseOrderStatusResponse> cancelPurchaseOrder(
             @PathVariable Long purchaseOrderId,
+            @RequestParam Long userId,
             @Valid @RequestBody(required = false) PurchaseOrderCancelRequest request) {
         PurchaseOrderCancelRequest body = request != null ? request : new PurchaseOrderCancelRequest(null);
-        return ApiResponse.ok(PurchaseOrderStatusResponse.from(
-                purchaseOrderUseCase.cancelPurchaseOrder(purchaseOrderId, body.toCommand())));
+        PurchaseOrder canceled = purchaseOrderUseCase.cancelPurchaseOrder(purchaseOrderId, body.toCommand(userId));
+        String cancelReason = purchaseOrderUseCase.getPurchaseOrder(purchaseOrderId).cancelReason();
+        return ApiResponse.ok(PurchaseOrderStatusResponse.of(canceled, cancelReason));
     }
 }

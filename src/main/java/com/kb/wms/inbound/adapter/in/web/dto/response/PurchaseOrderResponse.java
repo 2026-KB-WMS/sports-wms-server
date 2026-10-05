@@ -8,7 +8,8 @@ import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
 
 /**
  * GET /api/v1/purchase-orders/{purchaseOrderId} (발주 헤더 조회) 응답.
- * 취소 사유(cancelReason)와 작성자 이름(createdByName)은 StatusHistory·회원 도메인 연동 후 추가한다.
+ * 취소 사유(cancelReason)는 취소 상태일 때 StatusHistory에서 읽은 값(사유 없이 취소했거나 취소가 아니면 null)이다.
+ * 작성자 이름(createdByName)은 회원 도메인 연동 후 추가한다.
  */
 public record PurchaseOrderResponse(
         Long purchaseOrderId,
@@ -24,7 +25,8 @@ public record PurchaseOrderResponse(
         BigDecimal totalAmount,
         Long createdBy,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        String cancelReason
 ) {
 
     public static PurchaseOrderResponse from(PurchaseOrderView view) {
@@ -42,6 +44,7 @@ public record PurchaseOrderResponse(
                 view.totalAmount(),
                 view.createdBy(),
                 view.createdAt(),
-                view.updatedAt());
+                view.updatedAt(),
+                view.cancelReason());
     }
 }

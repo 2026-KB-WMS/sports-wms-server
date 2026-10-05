@@ -19,6 +19,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
+import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.store.application.port.in.command.StoreRegisterCommand;
 import com.kb.wms.store.application.port.in.command.StoreUpdateCommand;
 import com.kb.wms.store.application.port.in.query.StoreSearchCondition;
@@ -39,6 +41,8 @@ class StoreServiceTest {
     private StoreMemberRepository storeMemberRepository;
     @Mock
     private StoreOrderPresencePort storeOrderPresencePort;
+    @Mock
+    private StatusHistoryUseCase statusHistoryUseCase;
 
     @InjectMocks
     private StoreService storeService;
@@ -138,7 +142,7 @@ class StoreServiceTest {
     void deactivateStore_notFound() {
         when(storeRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> storeService.deactivateStore(999L))
+        assertThatThrownBy(() -> storeService.deactivateStore(999L, null, 1L))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(StoreErrorCode.STORE_NOT_FOUND.name());
@@ -151,12 +155,13 @@ class StoreServiceTest {
         when(storeRepository.findById(1L)).thenReturn(Optional.of(active));
         when(storeOrderPresencePort.hasInProgressOrders(1L)).thenReturn(true);
 
-        assertThatThrownBy(() -> storeService.deactivateStore(1L))
+        assertThatThrownBy(() -> storeService.deactivateStore(1L, null, 1L))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(StoreErrorCode.STORE_IN_USE.name());
         assertThat(active.isActive()).isTrue();
         verify(storeRepository, never()).save(any());
+        verify(statusHistoryUseCase, never()).record(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -166,7 +171,7 @@ class StoreServiceTest {
         inactive.deactivate();
         when(storeRepository.findById(1L)).thenReturn(Optional.of(inactive));
 
-        assertThatThrownBy(() -> storeService.deactivateStore(1L))
+        assertThatThrownBy(() -> storeService.deactivateStore(1L, null, 1L))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ErrorCode.CONFLICT.name());
@@ -180,9 +185,20 @@ class StoreServiceTest {
         when(storeRepository.findById(1L)).thenReturn(Optional.of(active));
         when(storeRepository.save(any(Store.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Store result = storeService.deactivateStore(1L);
+        Store result = storeService.deactivateStore(1L, "폐점", 5L);
 
         assertThat(result.isActive()).isFalse();
+        verify(statusHistoryUseCase).record(StatusHistoryEntityType.STORE, 1L, "ACTIVE", "INACTIVE", "폐점", 5L);
+    }
+
+    @Test
+    @DisplayName("500자를 넘는 사유로 비활성화하면 VALIDATION_ERROR 예외를 던진다")
+    void deactivateStore_reasonTooLong() {
+        assertThatThrownBy(() -> storeService.deactivateStore(1L, "가".repeat(501), 5L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
+        verify(storeRepository, never()).save(any());
     }
 
     @Test

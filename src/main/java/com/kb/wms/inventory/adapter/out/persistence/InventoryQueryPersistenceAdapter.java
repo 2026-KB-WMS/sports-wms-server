@@ -18,6 +18,7 @@ import com.kb.wms.inventory.application.port.in.result.InventoryDetail;
 import com.kb.wms.inventory.application.port.in.result.InventoryLotView;
 import com.kb.wms.inventory.application.port.in.result.InventorySkuSummary;
 import com.kb.wms.inventory.application.port.in.result.InventoryTransactionView;
+import com.kb.wms.inventory.application.port.in.result.LotInboundView;
 import com.kb.wms.inventory.application.port.in.result.LotSummary;
 import com.kb.wms.inventory.application.port.in.result.LowStockItem;
 import com.kb.wms.inventory.application.port.out.InventoryQueryRepository;
@@ -77,6 +78,11 @@ public class InventoryQueryPersistenceAdapter implements InventoryQueryRepositor
     }
 
     @Override
+    public List<LotInboundView> findLotInbounds(Long lotId) {
+        return lotJpaRepository.findInbounds(lotId);
+    }
+
+    @Override
     public List<InventoryLotView> findAllocatableStocks(Long warehouseId, Long skuId) {
         return inventoryLotJpaRepository.findAllocatableStocks(warehouseId, skuId);
     }
@@ -104,6 +110,11 @@ public class InventoryQueryPersistenceAdapter implements InventoryQueryRepositor
     @Override
     public boolean existsSection(Long sectionId) {
         return inventoryLotJpaRepository.existsSectionId(sectionId);
+    }
+
+    @Override
+    public boolean existsSupplier(Long supplierId) {
+        return inventoryLotJpaRepository.existsSupplierId(supplierId);
     }
 
     /** 빈 문자열·공백 검색어는 조건 없음으로 본다. */

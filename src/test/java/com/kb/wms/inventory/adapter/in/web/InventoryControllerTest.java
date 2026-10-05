@@ -22,7 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kb.wms.common.exception.BusinessException;
-import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.inventory.exception.InventoryErrorCode;
 import com.kb.wms.inventory.application.port.in.InventoryAdjustmentUseCase;
 import com.kb.wms.inventory.application.port.in.InventoryQueryUseCase;
 import com.kb.wms.inventory.application.port.in.command.InventoryAdjustCommand;
@@ -106,26 +106,27 @@ class InventoryControllerTest {
     @DisplayName("GET /api/v1/inventory/{inventoryId}: 재고 상세를 반환한다")
     void getInventory_success() throws Exception {
         InventoryDetail detail = new InventoryDetail(1L, 1L, "서울센터", 1L, "A-01", "1구역", 1L, "SKU-001", "상품A",
-                "EA", 1L, "LOT-001", null, null, null, null, null, 100L, 20L, 80L, QualityStatus.AVAILABLE,
+                "EA", 1L, "LOT-001", 3L, "한빛식품", null, null, null, null, 100L, 20L, 80L, QualityStatus.AVAILABLE,
                 null, null, null);
         when(inventoryQueryUseCase.getInventory(1L)).thenReturn(detail);
 
         mockMvc.perform(get("/api/v1/inventory/{inventoryId}", 1L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.skuCode").value("SKU-001"))
+                .andExpect(jsonPath("$.data.supplierName").value("한빛식품"))
                 .andExpect(jsonPath("$.data.onHandQuantity").value(100))
                 .andExpect(jsonPath("$.data.availableQuantity").value(80));
     }
 
     @Test
-    @DisplayName("GET /api/v1/inventory/{inventoryId}: 존재하지 않으면 404 NOT_FOUND를 반환한다")
+    @DisplayName("GET /api/v1/inventory/{inventoryId}: 존재하지 않으면 404 INVENTORY_NOT_FOUND를 반환한다")
     void getInventory_notFound() throws Exception {
         when(inventoryQueryUseCase.getInventory(999L))
-                .thenThrow(new BusinessException(ErrorCode.NOT_FOUND, "재고를 찾을 수 없습니다."));
+                .thenThrow(new BusinessException(InventoryErrorCode.INVENTORY_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/inventory/{inventoryId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("INVENTORY_NOT_FOUND"));
     }
 
     @Test

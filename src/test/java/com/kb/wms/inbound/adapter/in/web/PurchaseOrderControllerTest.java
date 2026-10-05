@@ -406,9 +406,10 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("발주를 확정하면 200과 CONFIRMED 상태 응답을 반환한다")
     void confirm_success() throws Exception {
-        when(purchaseOrderUseCase.confirmPurchaseOrder(4L)).thenReturn(purchaseOrder(PurchaseOrderStatus.CONFIRMED));
+        when(purchaseOrderUseCase.confirmPurchaseOrder(4L, 5L)).thenReturn(purchaseOrder(PurchaseOrderStatus.CONFIRMED));
 
-        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L))
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L)
+                        .param("userId", "5"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.purchaseOrderId").value(4))
                 .andExpect(jsonPath("$.data.purchaseOrderNo").value("PO-20261002-0001"))
@@ -420,10 +421,11 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("확정 대기 상태가 아닌 발주를 확정하면 409 CONFLICT를 반환한다")
     void confirm_conflict() throws Exception {
-        when(purchaseOrderUseCase.confirmPurchaseOrder(4L))
+        when(purchaseOrderUseCase.confirmPurchaseOrder(4L, 5L))
                 .thenThrow(new BusinessException(ErrorCode.CONFLICT, "확정 대기 상태의 발주만 확정할 수 있습니다."));
 
-        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L))
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L)
+                        .param("userId", "5"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("CONFLICT"));
     }
@@ -431,10 +433,11 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("공급처가 비활성이면 409 SUPPLIER_INACTIVE를 반환한다")
     void confirm_supplierInactive() throws Exception {
-        when(purchaseOrderUseCase.confirmPurchaseOrder(4L))
+        when(purchaseOrderUseCase.confirmPurchaseOrder(4L, 5L))
                 .thenThrow(new BusinessException(PurchaseOrderErrorCode.SUPPLIER_INACTIVE));
 
-        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L))
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L)
+                        .param("userId", "5"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("SUPPLIER_INACTIVE"));
     }
@@ -442,10 +445,11 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("없는 발주를 확정하면 404 PURCHASE_ORDER_NOT_FOUND를 반환한다")
     void confirm_notFound() throws Exception {
-        when(purchaseOrderUseCase.confirmPurchaseOrder(999L))
+        when(purchaseOrderUseCase.confirmPurchaseOrder(999L, 5L))
                 .thenThrow(new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND));
 
-        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 999L))
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 999L)
+                        .param("userId", "5"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("PURCHASE_ORDER_NOT_FOUND"));
     }
@@ -457,17 +461,21 @@ class PurchaseOrderControllerTest {
     void cancel_success() throws Exception {
         when(purchaseOrderUseCase.cancelPurchaseOrder(eq(4L), any(PurchaseOrderCancelCommand.class)))
                 .thenReturn(purchaseOrder(PurchaseOrderStatus.CANCELED));
+        when(purchaseOrderUseCase.getPurchaseOrder(4L))
+                .thenReturn(view(PurchaseOrderStatus.CANCELED).withCancelReason("공급업체 재고 부족으로 납품 불가"));
 
         mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 4L)
+                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "reason": "공급업체 재고 부족으로 납품 불가" }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.purchaseOrderId").value(4))
-                .andExpect(jsonPath("$.data.status").value("CANCELED"));
+                .andExpect(jsonPath("$.data.status").value("CANCELED"))
+                .andExpect(jsonPath("$.data.cancelReason").value("공급업체 재고 부족으로 납품 불가"));
 
-        verify(purchaseOrderUseCase).cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand("공급업체 재고 부족으로 납품 불가"));
+        verify(purchaseOrderUseCase).cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand("공급업체 재고 부족으로 납품 불가", 5L));
     }
 
     @Test
@@ -475,18 +483,22 @@ class PurchaseOrderControllerTest {
     void cancel_withoutBody() throws Exception {
         when(purchaseOrderUseCase.cancelPurchaseOrder(eq(4L), any(PurchaseOrderCancelCommand.class)))
                 .thenReturn(purchaseOrder(PurchaseOrderStatus.CANCELED));
+        when(purchaseOrderUseCase.getPurchaseOrder(4L)).thenReturn(view(PurchaseOrderStatus.CANCELED));
 
-        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 4L))
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 4L)
+                        .param("userId", "5"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("CANCELED"));
+                .andExpect(jsonPath("$.data.status").value("CANCELED"))
+                .andExpect(jsonPath("$.data.cancelReason").doesNotExist());
 
-        verify(purchaseOrderUseCase).cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand(null));
+        verify(purchaseOrderUseCase).cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand(null, 5L));
     }
 
     @Test
     @DisplayName("취소 사유가 500자를 넘으면 400 VALIDATION_ERROR를 반환한다")
     void cancel_reasonTooLong() throws Exception {
         mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 4L)
+                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "reason": "%s" }
@@ -503,10 +515,41 @@ class PurchaseOrderControllerTest {
                 .thenThrow(new BusinessException(ErrorCode.VALIDATION_ERROR, "확정된 발주를 취소할 때는 사유를 입력해야 합니다."));
 
         mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 4L)
+                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    @DisplayName("취소 처리 사용자 파라미터가 없으면 400을 반환하고 유스케이스를 호출하지 않는다")
+    void cancel_missingUserId() throws Exception {
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 4L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"reason\": \"사유\" }"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(purchaseOrderUseCase);
+    }
+
+    @Test
+    @DisplayName("확정 처리 사용자 파라미터가 없으면 400을 반환하고 유스케이스를 호출하지 않는다")
+    void confirm_missingUserId() throws Exception {
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(purchaseOrderUseCase);
+    }
+
+    @Test
+    @DisplayName("취소된 발주 헤더를 조회하면 cancelReason을 반환한다")
+    void getPurchaseOrder_canceled_returnsCancelReason() throws Exception {
+        when(purchaseOrderUseCase.getPurchaseOrder(4L))
+                .thenReturn(view(PurchaseOrderStatus.CANCELED).withCancelReason("입고 전 취소"));
+
+        mockMvc.perform(get("/api/v1/purchase-orders/{purchaseOrderId}", 4L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELED"))
+                .andExpect(jsonPath("$.data.cancelReason").value("입고 전 취소"));
     }
 
     @Test
@@ -516,6 +559,7 @@ class PurchaseOrderControllerTest {
                 .thenThrow(new BusinessException(ErrorCode.CONFLICT, "요청 또는 확정 상태의 발주만 취소할 수 있습니다."));
 
         mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 4L)
+                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "reason": "사유" }
@@ -530,7 +574,8 @@ class PurchaseOrderControllerTest {
         when(purchaseOrderUseCase.cancelPurchaseOrder(eq(999L), any(PurchaseOrderCancelCommand.class)))
                 .thenThrow(new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND));
 
-        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 999L))
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 999L)
+                        .param("userId", "5"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("PURCHASE_ORDER_NOT_FOUND"));
     }

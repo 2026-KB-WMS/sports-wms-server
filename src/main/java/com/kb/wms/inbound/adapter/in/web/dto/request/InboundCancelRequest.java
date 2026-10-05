@@ -14,7 +14,7 @@ public record InboundCancelRequest(
         String reason
 ) {
 
-    public InboundCancelCommand toCommand() {
-        return new InboundCancelCommand(reason);
+    public InboundCancelCommand toCommand(Long userId) {
+        return new InboundCancelCommand(reason, userId);
     }
 }

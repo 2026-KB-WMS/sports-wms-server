@@ -41,8 +41,7 @@ public class InventoryAdjustmentService implements InventoryAdjustmentUseCase {
         validate(command);
 
         InventoryLot inventoryLot = inventoryLotRepository.findByIdForUpdate(command.inventoryLotId())
-                .orElseThrow(() -> new BusinessException(
-                        ErrorCode.NOT_FOUND, InventoryQueryService.INVENTORY_NOT_FOUND_MESSAGE));
+                .orElseThrow(() -> new BusinessException(InventoryErrorCode.INVENTORY_NOT_FOUND));
 
         long before = inventoryLot.getOnHandQuantity();
         long after = command.afterQuantity();

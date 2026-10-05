@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.kb.wms.inventory.application.port.in.command.LotRegisterCommand;
 import com.kb.wms.inventory.application.port.in.query.LotSearchCondition;
+import com.kb.wms.inventory.application.port.in.result.LotInboundView;
 import com.kb.wms.inventory.application.port.in.result.LotSummary;
 import com.kb.wms.inventory.domain.entity.Lot;
 
@@ -13,9 +14,14 @@ import com.kb.wms.inventory.domain.entity.Lot;
  */
 public interface LotUseCase {
 
+    /** 로트 목록. skuId·supplierId 필터 대상이 없으면 404(SKU_NOT_FOUND·SUPPLIER_NOT_FOUND). */
     List<LotSummary> getLots(LotSearchCondition condition);
 
+    /** 로트 한 건. 없으면 404 LOT_NOT_FOUND. */
     LotSummary getLot(Long lotId);
+
+    /** 로트가 입고된 이력(입고 완료 건). 로트가 없으면 404 LOT_NOT_FOUND. */
+    List<LotInboundView> getLotInbounds(Long lotId);
 
     /**
      * SKU + 공급처 + 로트 번호로 로트를 찾고, 없으면 AVAILABLE 상태로 새로 만든다.

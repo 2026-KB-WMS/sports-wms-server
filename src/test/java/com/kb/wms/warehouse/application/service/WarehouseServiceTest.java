@@ -30,6 +30,7 @@ import com.kb.wms.warehouse.application.port.out.StockPresencePort;
 import com.kb.wms.warehouse.application.port.out.WarehouseMemberRepository;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
 import com.kb.wms.warehouse.application.port.out.WarehouseSectionRepository;
+import com.kb.wms.warehouse.application.port.out.WarehouseUsagePort;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
 import com.kb.wms.warehouse.domain.entity.WarehouseMember;
 import com.kb.wms.warehouse.domain.entity.WarehouseSection;
@@ -48,6 +49,8 @@ class WarehouseServiceTest {
     private WarehouseSectionCapacityUseCase warehouseSectionCapacityUseCase;
     @Mock
     private StockPresencePort stockPresencePort;
+    @Mock
+    private WarehouseUsagePort warehouseUsagePort;
 
     @InjectMocks
     private WarehouseService warehouseService;
@@ -194,6 +197,44 @@ class WarehouseServiceTest {
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(WarehouseErrorCode.WAREHOUSE_IN_USE.name());
         verify(warehouseSectionCapacityUseCase).lock(List.of(7L));
+        verify(warehouseRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("진행 중 입고가 있으면 WAREHOUSE_IN_USE 예외를 던진다")
+    void deactivateWarehouse_inProgressInbound() {
+        assertBlockedBy(() -> when(warehouseUsagePort.hasInProgressInbounds(1L)).thenReturn(true));
+    }
+
+    @Test
+    @DisplayName("진행 중 창고 발주가 있으면 WAREHOUSE_IN_USE 예외를 던진다")
+    void deactivateWarehouse_inProgressPurchaseOrder() {
+        assertBlockedBy(() -> when(warehouseUsagePort.hasInProgressPurchaseOrders(1L)).thenReturn(true));
+    }
+
+    @Test
+    @DisplayName("진행 중 출고가 있으면 WAREHOUSE_IN_USE 예외를 던진다")
+    void deactivateWarehouse_inProgressOutbound() {
+        assertBlockedBy(() -> when(warehouseUsagePort.hasInProgressOutbounds(1L)).thenReturn(true));
+    }
+
+    @Test
+    @DisplayName("배정된 진행 중 지점 발주가 있으면 WAREHOUSE_IN_USE 예외를 던진다")
+    void deactivateWarehouse_inProgressStoreOrder() {
+        assertBlockedBy(() -> when(warehouseUsagePort.hasInProgressStoreOrders(1L)).thenReturn(true));
+    }
+
+    private void assertBlockedBy(Runnable stubbing) {
+        Warehouse active = Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.TEN);
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(active));
+        when(warehouseSectionRepository.findAllByWarehouseId(1L)).thenReturn(List.of());
+        stubbing.run();
+
+        assertThatThrownBy(() -> warehouseService.deactivateWarehouse(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.WAREHOUSE_IN_USE.name());
+        assertThat(active.isActive()).isTrue();
         verify(warehouseRepository, never()).save(any());
     }
 

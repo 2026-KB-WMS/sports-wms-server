@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
+import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.inbound.application.port.in.PurchaseOrderUseCase;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderCancelCommand;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderRegisterCommand;
@@ -58,6 +60,7 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
     private final SupplierRepository supplierRepository;
     private final WarehouseAvailabilityPort warehouseAvailabilityPort;
     private final SkuPurchasePricePort skuPurchasePricePort;
+    private final StatusHistoryUseCase statusHistoryUseCase;
 
     @Override
     @Transactional
@@ -89,6 +92,9 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         }
         purchaseOrderRepository.saveLines(lines);
 
+        statusHistoryUseCase.record(StatusHistoryEntityType.PURCHASE_ORDER, saved.getPurchaseOrderId(),
+                null, PurchaseOrderStatus.REQUESTED.name(), null, command.createdBy());
+
         return saved.getPurchaseOrderId();
     }
 
@@ -103,8 +109,16 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
 
     @Override
     public PurchaseOrderView getPurchaseOrder(Long purchaseOrderId) {
-        return purchaseOrderQueryRepository.findView(purchaseOrderId)
+        PurchaseOrderView view = purchaseOrderQueryRepository.findView(purchaseOrderId)
                 .orElseThrow(PurchaseOrderService::notFound);
+        if (view.status() != PurchaseOrderStatus.CANCELED) {
+            return view;
+        }
+        // 취소 사유는 CANCELED로 바뀔 때의 상태 이력에서 읽는다. 사유 없이 취소했으면 null.
+        return view.withCancelReason(statusHistoryUseCase
+                .findStatusReason(StatusHistoryEntityType.PURCHASE_ORDER, purchaseOrderId,
+                        PurchaseOrderStatus.CANCELED.name())
+                .orElse(null));
     }
 
     @Override
@@ -117,7 +131,8 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
 
     @Override
     @Transactional
-    public PurchaseOrder confirmPurchaseOrder(Long purchaseOrderId) {
+    public PurchaseOrder confirmPurchaseOrder(Long purchaseOrderId, Long userId) {
+        requireUser(userId);
         PurchaseOrder purchaseOrder = findOrThrow(purchaseOrderId);
         if (!purchaseOrder.isRequested()) {
             throw new BusinessException(ErrorCode.CONFLICT, "확정 대기 상태의 발주만 확정할 수 있습니다.");
@@ -128,17 +143,21 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
             throw new BusinessException(PurchaseOrderErrorCode.SUPPLIER_INACTIVE);
         }
         purchaseOrder.confirm();
-        return purchaseOrderRepository.save(purchaseOrder);
+        PurchaseOrder saved = purchaseOrderRepository.save(purchaseOrder);
+        statusHistoryUseCase.record(StatusHistoryEntityType.PURCHASE_ORDER, purchaseOrderId,
+                PurchaseOrderStatus.REQUESTED.name(), saved.getStatus().name(), null, userId);
+        return saved;
     }
 
     /**
      * 발주 헤더를 락으로 잡은 뒤 취소되지 않은 입고가 있으면 409 PURCHASE_ORDER_HAS_INBOUND로 막는다.
      * 입고 등록도 같은 발주 행을 락으로 잡으므로 취소와 입고 등록이 동시에 통과하지 못한다.
-     * 취소 사유 저장(StatusHistory)은 StatusHistory 도메인이 구현되면 추가한다.
+     * 취소 사유와 처리자는 CANCELED 전이 이력(StatusHistory)에 남기고, 응답의 cancelReason은 이 이력에서 읽는다.
      */
     @Override
     @Transactional
     public PurchaseOrder cancelPurchaseOrder(Long purchaseOrderId, PurchaseOrderCancelCommand command) {
+        requireUser(command == null ? null : command.userId());
         PurchaseOrder purchaseOrder = purchaseOrderRepository.findByIdForUpdate(purchaseOrderId)
                 .orElseThrow(PurchaseOrderService::notFound);
         if (!purchaseOrder.isInProgress()) {
@@ -157,11 +176,24 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         if (inboundRepository.existsNotCanceledByPurchaseOrderId(purchaseOrderId)) {
             throw new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_HAS_INBOUND);
         }
+        PurchaseOrderStatus from = purchaseOrder.getStatus();
         purchaseOrder.cancel();
-        return purchaseOrderRepository.save(purchaseOrder);
+        PurchaseOrder saved = purchaseOrderRepository.save(purchaseOrder);
+        statusHistoryUseCase.record(StatusHistoryEntityType.PURCHASE_ORDER, purchaseOrderId,
+                from.name(), saved.getStatus().name(), hasReason ? reason : null, command.userId());
+        return saved;
+    }
+
+    private static void requireUser(Long userId) {
+        if (userId == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "처리 사용자는 필수입니다.");
+        }
     }
 
     private void validateRegister(PurchaseOrderRegisterCommand command) {
+        if (command.createdBy() == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "요청 사용자는 필수입니다.");
+        }
         if (command.lines() == null || command.lines().isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "발주 항목을 1개 이상 입력해주세요.");
         }

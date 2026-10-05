@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -25,6 +26,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
+import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.inbound.application.port.in.result.InboundCompleteResult;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
 import com.kb.wms.inbound.application.port.out.InboundStockPort;
@@ -55,6 +58,9 @@ class InboundCompleteServiceTest {
 
     @Mock
     private InboundStockPort inboundStockPort;
+
+    @Mock
+    private StatusHistoryUseCase statusHistoryUseCase;
 
     @InjectMocks
     private InboundCompleteService inboundCompleteService;
@@ -246,6 +252,43 @@ class InboundCompleteServiceTest {
     }
 
     // ---------- 실패 ----------
+
+    @Test
+    @DisplayName("부분 입고 완료는 입고 상태 이력(INSPECTING → COMPLETED)만 남기고 발주 이력은 남기지 않는다")
+    void complete_partial_recordsInboundHistoryOnly() {
+        givenInspectingInbound(inboundLine(21L, 11L, 31L, 58, 2, 2L, 9L));
+        givenPurchaseOrder(PurchaseOrderStatus.CONFIRMED,
+                purchaseOrderLine(11L, 100, 0, PurchaseOrderLineStatus.REQUESTED));
+        when(inboundStockPort.receive(anyLong(), anyLong(), anyList())).thenReturn(List.of(
+                new ReceivedStock(2L, 31L, false, 101L), new ReceivedStock(9L, 31L, true, 105L)));
+        stubSaves();
+
+        inboundCompleteService.completeInbound(7L, USER);
+
+        verify(statusHistoryUseCase).record(
+                StatusHistoryEntityType.INBOUND, 7L, "INSPECTING", "COMPLETED", null, USER);
+        verify(statusHistoryUseCase, never()).record(
+                eq(StatusHistoryEntityType.PURCHASE_ORDER), anyLong(), any(), any(), any(), anyLong());
+    }
+
+    @Test
+    @DisplayName("마지막 입고로 발주가 자동 완료되면 발주 상태 이력(CONFIRMED → COMPLETED)도 남긴다")
+    void complete_final_recordsPurchaseOrderHistory() {
+        givenInspectingInbound(inboundLine(21L, 11L, 31L, 58, 2, 2L, 9L));
+        givenPurchaseOrder(PurchaseOrderStatus.CONFIRMED,
+                purchaseOrderLine(11L, 60, 0, PurchaseOrderLineStatus.REQUESTED));
+        when(inboundStockPort.receive(anyLong(), anyLong(), anyList())).thenReturn(List.of(
+                new ReceivedStock(2L, 31L, false, 101L), new ReceivedStock(9L, 31L, true, 105L)));
+        stubSaves();
+        when(purchaseOrderRepository.save(any(PurchaseOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        inboundCompleteService.completeInbound(7L, USER);
+
+        verify(statusHistoryUseCase).record(
+                StatusHistoryEntityType.PURCHASE_ORDER, 4L, "CONFIRMED", "COMPLETED", null, USER);
+        verify(statusHistoryUseCase).record(
+                StatusHistoryEntityType.INBOUND, 7L, "INSPECTING", "COMPLETED", null, USER);
+    }
 
     @Test
     @DisplayName("처리 사용자가 없으면 VALIDATION_ERROR를 던진다")

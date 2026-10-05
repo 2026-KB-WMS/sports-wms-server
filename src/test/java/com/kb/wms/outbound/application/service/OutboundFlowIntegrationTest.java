@@ -22,6 +22,7 @@ import com.kb.wms.inventory.adapter.out.persistence.repository.InventoryTransact
 import com.kb.wms.outbound.application.port.in.OutboundFulfillmentUseCase;
 import com.kb.wms.outbound.application.port.in.OutboundUseCase;
 import com.kb.wms.outbound.application.port.in.StockAllocationUseCase;
+import com.kb.wms.outbound.application.port.in.command.OutboundCancelCommand;
 import com.kb.wms.outbound.application.port.in.command.OutboundCreateCommand;
 import com.kb.wms.outbound.application.port.in.command.OutboundPickingCompleteCommand;
 import com.kb.wms.outbound.application.port.in.command.OutboundPickingCompleteCommand.PickedLine;
@@ -39,6 +40,7 @@ import com.kb.wms.storeorder.application.port.in.StoreOrderUseCase;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderCancelCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderCancelResult;
+import com.kb.wms.storeorder.application.port.in.result.StoreOrderCompletePartialResult;
 import com.kb.wms.storeorder.domain.enums.StoreOrderLineStatus;
 import com.kb.wms.storeorder.domain.enums.StoreOrderProgressStage;
 import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
@@ -203,6 +205,96 @@ class OutboundFlowIntegrationTest {
         assertThatThrownBy(() -> storeOrderUseCase.completePartialStoreOrder(
                 new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER)))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("OUTBOUND_IN_PROGRESS"));
+    }
+
+    @Test
+    @DisplayName("부분 종결: 출고를 만들지 않은 ALLOCATED 할당을 해제하고 재고·항목 할당 수량을 되돌린다")
+    void completePartialReleasesAllocationWithoutOutbound() {
+        Scenario s = fixture.create(50, 8);
+        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER));
+        assertThat(inventory(s.inventoryLotId()).allocated()).isEqualTo(8);
+        assertThat(orderLine(s).getAllocatedQuantity()).isEqualTo(8L);
+        Long allocationId = allocationRepository.findByStoreOrderId(s.orderId()).get(0).getAllocationId();
+
+        StoreOrderCompletePartialResult result = storeOrderUseCase.completePartialStoreOrder(
+                new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER));
+
+        assertThat(result.status()).isEqualTo(StoreOrderStatus.COMPLETED);
+        assertThat(result.releasedAllocationCount()).isEqualTo(1);
+        assertThat(allocationRepository.findByStoreOrderId(s.orderId()))
+                .allSatisfy(a -> {
+                    assertThat(a.getStatus()).isEqualTo(AllocationStatus.RELEASED);
+                    assertThat(a.getReleasedAt()).isNotNull();
+                });
+        assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(50, 0));
+        assertThat(orderLine(s).getAllocatedQuantity()).isZero();
+
+        var history = statusHistoryUseCase.findHistory(StatusHistoryEntityType.STOCK_ALLOCATION, allocationId);
+        assertThat(history).hasSize(2);
+        var released = history.get(1);
+        assertThat(released.getFromStatus()).isEqualTo("ALLOCATED");
+        assertThat(released.getToStatus()).isEqualTo("RELEASED");
+        assertThat(released.getReason()).isEqualTo("발주 부분 종결로 인한 자동 해제");
+        assertThat(released.getChangedBy()).isEqualTo(USER);
+    }
+
+    @Test
+    @DisplayName("부분 종결: 취소한 READY 출고의 할당(ALLOCATED로 남아 있음)도 해제한다")
+    void completePartialReleasesAllocationOfCanceledOutbound() {
+        Scenario s = fixture.create(50, 8);
+        Long outboundId = createOutbound(s);
+        outboundUseCase.cancel(new OutboundCancelCommand(outboundId, "취소", USER));
+        assertThat(inventory(s.inventoryLotId()).allocated()).isEqualTo(8);
+
+        StoreOrderCompletePartialResult result = storeOrderUseCase.completePartialStoreOrder(
+                new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER));
+
+        assertThat(result.releasedAllocationCount()).isEqualTo(1);
+        assertThat(outboundRepository.findById(outboundId).orElseThrow().getStatus())
+                .isEqualTo(OutboundStatus.CANCELED);
+        assertThat(allocationRepository.findByStoreOrderId(s.orderId()))
+                .allSatisfy(a -> assertThat(a.getStatus()).isEqualTo(AllocationStatus.RELEASED));
+        assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(50, 0));
+        assertThat(orderLine(s).getAllocatedQuantity()).isZero();
+    }
+
+    @Test
+    @DisplayName("부분 종결: 첫 출고를 배송 완료한 뒤 추가로 할당만 한 경우 그 할당만 해제하고 출고된 수량은 그대로다")
+    void completePartialReleasesExtraAllocationAfterDelivery() {
+        Scenario s = fixture.create(50, 8);
+        Long outboundId = createOutbound(s);
+        outboundUseCase.startPicking(outboundId, USER);
+        Long lineId = outboundUseCase.getOutbound(outboundId).items().get(0).outboundLineId();
+        fulfillmentUseCase.completePicking(new OutboundPickingCompleteCommand(outboundId,
+                List.of(new PickedLine(lineId, 6L)), USER));
+        fulfillmentUseCase.ship(outboundId, USER);
+        fulfillmentUseCase.deliver(outboundId, USER);
+        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER));
+        assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(44, 2));
+
+        StoreOrderCompletePartialResult result = storeOrderUseCase.completePartialStoreOrder(
+                new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER));
+
+        assertThat(result.releasedAllocationCount()).isEqualTo(1);
+        assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(44, 0));
+        assertThat(orderLine(s).getAllocatedQuantity()).isZero();
+        assertThat(orderLine(s).getShippedQuantity()).isEqualTo(6L);
+        assertThat(allocationRepository.findByStoreOrderId(s.orderId()))
+                .extracting(a -> a.getStatus())
+                .containsExactlyInAnyOrder(AllocationStatus.PICKED, AllocationStatus.RELEASED);
+    }
+
+    @Test
+    @DisplayName("부분 종결: 남은 ALLOCATED 할당이 없으면 releasedAllocationCount는 0이고 재고는 그대로다")
+    void completePartialWithNoLeftoverAllocations() {
+        Scenario s = fixture.create(50, 8);
+
+        StoreOrderCompletePartialResult result = storeOrderUseCase.completePartialStoreOrder(
+                new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER));
+
+        assertThat(result.status()).isEqualTo(StoreOrderStatus.COMPLETED);
+        assertThat(result.releasedAllocationCount()).isZero();
+        assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(50, 0));
     }
 
     @Test

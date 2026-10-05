@@ -47,8 +47,8 @@ import lombok.RequiredArgsConstructor;
  * PATCH .../{id}/cancel, GET .../{id}/assignable-sections, GET .../{id}/defect-sections
  *
  * <p>인증/인가가 아직 구현되지 않아 역할별 규칙(등록·검수·완료·취소는 담당 창고 관리자, 조회는 본사 관리자 또는
- * 담당 창고 관리자)은 적용하지 않는다. 검수·완료의 처리 사용자(userId)는 쿼리 파라미터로 받으며, 인증 연동 시
- * 토큰의 사용자로 대체하고 이 컨트롤러에서 역할·소속 창고 검사를 추가한다.
+ * 담당 창고 관리자)은 적용하지 않는다. 등록·검수·완료·취소의 처리 사용자(userId)는 쿼리 파라미터로 받으며
+ * (상태 이력의 처리자로 기록), 인증 연동 시 토큰의 사용자로 대체하고 이 컨트롤러에서 역할·소속 창고 검사를 추가한다.
  * 목록은 페이지네이션 없이 전체를 반환한다(공통 페이징 도입 시 추가).
  */
 @RestController
@@ -62,8 +62,10 @@ public class InboundController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<InboundRegisterResponse> registerInbound(@Valid @RequestBody InboundRegisterRequest request) {
-        Long inboundId = inboundUseCase.registerInbound(request.toCommand());
+    public ApiResponse<InboundRegisterResponse> registerInbound(
+            @RequestParam Long userId,
+            @Valid @RequestBody InboundRegisterRequest request) {
+        Long inboundId = inboundUseCase.registerInbound(request.toCommand(userId));
         return ApiResponse.created(InboundRegisterResponse.from(inboundUseCase.getInbound(inboundId)));
     }
 
@@ -115,8 +117,9 @@ public class InboundController {
     @PatchMapping("/{inboundId}/cancel")
     public ApiResponse<InboundCancelResponse> cancelInbound(
             @PathVariable Long inboundId,
+            @RequestParam Long userId,
             @Valid @RequestBody InboundCancelRequest request) {
-        Inbound inbound = inboundUseCase.cancelInbound(inboundId, request.toCommand());
+        Inbound inbound = inboundUseCase.cancelInbound(inboundId, request.toCommand(userId));
         return ApiResponse.ok(InboundCancelResponse.of(inbound, inboundUseCase.getInbound(inboundId)));
     }
 

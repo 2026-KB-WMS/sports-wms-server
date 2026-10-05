@@ -11,7 +11,7 @@
 - `도메인`은 인증 / 상품 / 창고 / 입고 / 재고 / 출고 / 발주 / 지점 중 하나로 API 명세 속성과 동일하게 맞춘다.
 - `인증`은 `없음`(가입·로그인) / `Bearer 토큰`(일반 인증 필요) / `관리자 권한`(`HQ_ADMIN` 전용) 중 하나를 기재한다.
 - 리소스 경로는 복수형 명사를 사용하고(`/purchase-orders`), 상태 전이는 `PATCH /{resource}/{id}/{action}` 형식을 따른다 (예: `PATCH /purchase-orders/{id}/confirm`).
-- 날짜·시각은 ISO-8601(`YYYY-MM-DDTHH:mm:ssZ`)을 사용하고 저장은 UTC를 원칙으로 한다.
+- 날짜·시각은 ISO-8601 형식이지만 **오프셋(`Z`, `+09:00`)을 붙이지 않는다.** `YYYY-MM-DDTHH:mm:ss`(예: `2026-10-05T14:30:00`)로 주고받고, 소수 초는 값이 있을 때만 붙는다(예: `2026-10-05T14:30:00.123456`). DTO가 `LocalDateTime`이고 `@JsonFormat` 설정이 따로 없어 Spring Boot 기본 직렬화(숫자 타임스탬프 아님)를 그대로 쓰기 때문이다. 값은 서버 시간대 KST(Asia/Seoul) 기준 시각이며(컨테이너 `TZ`, `-Duser.timezone`, `spring.jackson.time-zone`, `hibernate.jdbc.time_zone`, JDBC `serverTimezone` 모두 Asia/Seoul), 클라이언트가 시간대를 변환해 주지 않는다. 날짜만 있는 값(`expiryDate`, `manufacturedDate`)은 `YYYY-MM-DD`다. 요청 본문·쿼리 파라미터(`createdFrom`, `arrivedTo` 등)도 같은 오프셋 없는 형식을 쓴다. **서버 시간대는 KST(Asia/Seoul)로 고정**이며, 오프셋 없는 `yyyy-MM-dd'T'HH:mm:ss`로 직렬화한다.
 
 ## 요청 공통 규칙
 
@@ -25,7 +25,8 @@
 - 액세스·리프레시 토큰 발급 방식과 만료 시간은 TBD — 확정 시 이 문서에 반영한다.
 
 ### Query Parameters (목록 조회 공통)
-- `page`(1부터 시작, 기본 1), `size`(기본 20, 최대 100), `sort`(예: `createdAt,desc`) — **페이지네이션 도입 시 적용** (위 구현 기준 메모 참고)
+- `page`(1부터 시작, 기본 1), `size`(기본 20, 최대 100), `sort`(예: `createdAt,desc`) — **페이지네이션 도입 시 적용** (위 구현 기준 메모 참고). 현재는 어떤 목록 API도 `page`·`size`·`sort`를 받지 않고(보내도 무시된다) 엔드포인트마다 고정된 정렬을 쓴다. 기본 정렬은 각 명세의 "정렬" 항목에 적는다.
+- 일시 범위 필터(`createdFrom`/`createdTo`, `arrivedFrom`/`arrivedTo`, `requestedFrom`/`requestedTo`)는 양 끝을 모두 포함한다(`>= from`, `<= to`). `expiringBefore`도 당일을 포함한다(`<=`).
 - 도메인별 필터 파라미터(예: `skuId`, `sectionId`, `expiringBefore`)는 각 엔드포인트 명세의 "Query Parameters"에서 개별 정의하고, 여기서 정한 페이지네이션 파라미터 이름은 그대로 재사용한다.
 
 ## 응답 공통 규칙
@@ -40,6 +41,7 @@
 }
 ```
 - 목록 조회 API는 `data.items`(배열)를 포함한다. 페이지네이션 도입 후에는 `data.pageInfo`(`page`, `size`, `totalElements`, `totalPages`)도 포함한다.
+- 생성(201) 응답은 `statusCode`가 `201`, `message`가 `"생성되었습니다."`이고 나머지 구조는 같다.
 - JSON 필드명은 요청·응답 모두 camelCase로 통일한다(`statusCode`, `errorCode`, `pageInfo`, `totalElements`, `totalPages` 등). 스네이크 케이스 필드는 쓰지 않는다. (2026-09-24 결정)
 
 ### 오류
@@ -55,7 +57,7 @@
 }
 ```
 - `errors`는 필드 단위 검증 오류가 있을 때만 채우고, 없으면 빈 배열로 둔다.
-- 오류 코드는 아래 5종을 기본 세트로 모든 엔드포인트에 적용한다. 도메인 특수 오류가 필요하면 이 표를 확장하지 않고, 해당 엔드포인트 명세의 "검증 및 비즈니스 규칙"에 개별 `errorCode`를 추가한다.
+- 오류 코드는 아래 6종을 기본 세트로 모든 엔드포인트에 적용한다. 도메인 특수 오류가 필요하면 이 표를 확장하지 않고, 해당 엔드포인트 명세의 "검증 및 비즈니스 규칙"에 개별 `errorCode`를 추가한다.
 
 | HTTP 상태 | 오류 코드 | 조건 | 처리 방법 |
 |---|---|---|---|
@@ -64,6 +66,7 @@
 | 403 | FORBIDDEN | 권한·소속 범위 부족 (예: 창고 관리자가 마스터 데이터 수정 시도) | 역할·소속 범위 확인 |
 | 404 | NOT_FOUND | 대상 리소스 없음 | 식별자 확인 |
 | 409 | CONFLICT | 중복 요청·동시성 충돌·상태 전이 조건 불충족 (예: `CONFIRMED`가 아닌 발주에 입고 등록 시도) | 현재 상태 재조회 후 재시도 |
+| 500 | INTERNAL_ERROR | 처리되지 않은 서버 오류(메시지 "서버 내부 오류가 발생했습니다.") | 잠시 후 재시도, 계속되면 서버 로그 확인 |
 
 ## 권한 검증 공통 규칙
 - 모든 API는 JWT에서 역할(`HQ_ADMIN`/`WAREHOUSE_MANAGER`/`STORE_OWNER`)과 소속(창고/지점 ID)을 추출해 (1) 역할이 해당 API를 호출할 수 있는지, (2) 리소스가 요청자의 소속 범위 안에 있는지를 검증한다. 위반 시 403 `FORBIDDEN`.

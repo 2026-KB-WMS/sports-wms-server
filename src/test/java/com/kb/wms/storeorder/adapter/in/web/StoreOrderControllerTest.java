@@ -604,7 +604,7 @@ class StoreOrderControllerTest {
         when(storeOrderUseCase.completePartialStoreOrder(any(StoreOrderCompletePartialCommand.class)))
                 .thenReturn(new StoreOrderCompletePartialResult(7L, "SO-20261002-0001", StoreOrderStatus.COMPLETED,
                         "no more stock",
-                        List.of(new StoreOrderCompletePartialResult.Item(70L, "SKU-1", 10L, 4L, 6L)), T1));
+                        List.of(new StoreOrderCompletePartialResult.Item(70L, "SKU-1", 10L, 4L, 6L)), 2, T1));
 
         mockMvc.perform(patch("/api/v1/orders/{orderId}/complete-partial", 7L)
                         .param("userId", "9")
@@ -613,7 +613,8 @@ class StoreOrderControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.data.items[0].skuCode").value("SKU-1"))
-                .andExpect(jsonPath("$.data.items[0].shortageQuantity").value(6));
+                .andExpect(jsonPath("$.data.items[0].shortageQuantity").value(6))
+                .andExpect(jsonPath("$.data.releasedAllocationCount").value(2));
     }
 
     @Test

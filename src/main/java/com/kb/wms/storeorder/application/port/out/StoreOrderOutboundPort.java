@@ -41,4 +41,14 @@ public interface StoreOrderOutboundPort {
      * @param changedBy 취소를 요청한 사용자(이력의 처리자)
      */
     StoreOrderFulfillmentCancelResult cancelFulfillment(Long storeOrderId, Long changedBy);
+
+    /**
+     * 부분 출고 종결 때 출고에 묶이지 않고 남은 ALLOCATED 재고 할당을 RELEASED로 바꾸고 재고 행과 발주 항목의
+     * allocated_quantity를 줄인다. 출고는 취소하지 않으며, 호출한 서비스의 트랜잭션에 참여한다.
+     * 이력 사유에는 "발주 부분 종결로 인한 자동 해제"를 남긴다.
+     *
+     * @param changedBy 종결을 요청한 사용자(이력의 처리자)
+     * @return 해제한 할당 건수
+     */
+    int releaseUnlinkedAllocations(Long storeOrderId, Long changedBy);
 }

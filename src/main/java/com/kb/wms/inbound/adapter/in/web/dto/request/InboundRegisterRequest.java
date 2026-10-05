@@ -20,7 +20,7 @@ public record InboundRegisterRequest(
         String note
 ) {
 
-    public InboundRegisterCommand toCommand() {
-        return new InboundRegisterCommand(purchaseOrderId, arrivedAt, note);
+    public InboundRegisterCommand toCommand(Long userId) {
+        return new InboundRegisterCommand(purchaseOrderId, arrivedAt, note, userId);
     }
 }

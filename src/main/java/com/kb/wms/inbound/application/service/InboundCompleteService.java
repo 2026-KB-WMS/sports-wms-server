@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
+import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.inbound.application.port.in.InboundCompleteUseCase;
 import com.kb.wms.inbound.application.port.in.result.InboundCompleteResult;
 import com.kb.wms.inbound.application.port.in.result.InboundCompleteResult.PurchaseOrderLineProgress;
@@ -25,6 +27,8 @@ import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.InboundLine;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.entity.PurchaseOrderLine;
+import com.kb.wms.inbound.domain.enums.InboundStatus;
+import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
 
@@ -44,6 +48,7 @@ public class InboundCompleteService implements InboundCompleteUseCase {
     private final InboundRepository inboundRepository;
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final InboundStockPort inboundStockPort;
+    private final StatusHistoryUseCase statusHistoryUseCase;
 
     @Override
     @Transactional
@@ -80,12 +85,18 @@ public class InboundCompleteService implements InboundCompleteUseCase {
         List<PurchaseOrderLineProgress> progress = accumulateReceived(lines, purchaseOrderLines);
 
         if (purchaseOrderLines.stream().allMatch(PurchaseOrderLine::isCompleted)) {
+            PurchaseOrderStatus purchaseOrderFrom = purchaseOrder.getStatus();
             purchaseOrder.complete();
             purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
+            // 마지막 입고 완료로 발주가 자동 완료되는 전이도 이력에 남기고, 처리자는 입고를 완료한 사용자로 한다.
+            statusHistoryUseCase.record(StatusHistoryEntityType.PURCHASE_ORDER, purchaseOrder.getPurchaseOrderId(),
+                    purchaseOrderFrom.name(), purchaseOrder.getStatus().name(), null, userId);
         }
 
         inbound.complete(userId, LocalDateTime.now());
         Inbound saved = inboundRepository.save(inbound);
+        statusHistoryUseCase.record(StatusHistoryEntityType.INBOUND, inboundId,
+                InboundStatus.INSPECTING.name(), saved.getStatus().name(), null, userId);
 
         return new InboundCompleteResult(
                 saved, inventory, purchaseOrder.getPurchaseOrderId(), purchaseOrder.getStatus(), progress);

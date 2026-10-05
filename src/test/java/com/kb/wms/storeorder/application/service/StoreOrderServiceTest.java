@@ -360,6 +360,11 @@ class StoreOrderServiceTest {
         return StoreOrderLine.register(storeOrderId, skuId, 3, new BigDecimal("1500.00"));
     }
 
+    /** 부분 종결은 락 순서(할당 → 항목)를 지키려고 항목을 잠그지 않고 읽는다. */
+    private void givenLinesUnlocked(Long storeOrderId, StoreOrderLine... lines) {
+        when(storeOrderRepository.findLinesByStoreOrderId(storeOrderId)).thenReturn(List.of(lines));
+    }
+
     private void givenLockedOrder(Long id, StoreOrderStatus status) {
         when(storeOrderRepository.findByIdForUpdate(id)).thenReturn(Optional.of(orderIn(id, status)));
         org.mockito.Mockito.lenient().when(storeOrderRepository.save(any(StoreOrder.class)))
@@ -865,8 +870,9 @@ class StoreOrderServiceTest {
     @DisplayName("부족한 항목이 있으면 COMPLETED로 종결하고 항목 상태는 건드리지 않은 채 부족 수량을 계산해 돌려준다")
     void completePartialStoreOrder_success() {
         givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
-        givenLines(1L, shippedLine(1L, 10L, 10, 4), shippedLine(1L, 11L, 5, 5));
+        givenLinesUnlocked(1L, shippedLine(1L, 10L, 10, 4), shippedLine(1L, 11L, 5, 5));
         when(storeOrderOutboundPort.existsInProgressOutbound(1L)).thenReturn(false);
+        when(storeOrderOutboundPort.releaseUnlinkedAllocations(1L, 7L)).thenReturn(2);
         when(storeOrderQueryRepository.findLineViews(1L)).thenReturn(List.of(
                 new StoreOrderLineView(100L, 10L, "SKU-10", "러닝화", "EA", 10L, 0L, 4L,
                         new BigDecimal("1500.00"), StoreOrderLineStatus.PARTIALLY_SHIPPED),
@@ -879,6 +885,7 @@ class StoreOrderServiceTest {
 
         assertThat(result.status()).isEqualTo(StoreOrderStatus.COMPLETED);
         assertThat(result.statusReason()).isEqualTo("공급 중단");
+        assertThat(result.releasedAllocationCount()).isEqualTo(2);
         assertThat(result.items()).extracting(
                         com.kb.wms.storeorder.application.port.in.result.StoreOrderCompletePartialResult.Item::skuCode,
                         com.kb.wms.storeorder.application.port.in.result.StoreOrderCompletePartialResult.Item::shortageQuantity)
@@ -886,8 +893,28 @@ class StoreOrderServiceTest {
                         org.assertj.core.groups.Tuple.tuple("SKU-10", 6L),
                         org.assertj.core.groups.Tuple.tuple("SKU-11", 0L));
         verify(storeOrderRepository, never()).saveLines(any());
+        verify(storeOrderOutboundPort).releaseUnlinkedAllocations(1L, 7L);
         verify(statusHistoryUseCase).record(
                 StatusHistoryEntityType.STORE_ORDER, 1L, "ASSIGNED", "COMPLETED", "공급 중단", 7L);
+    }
+
+    @Test
+    @DisplayName("해제할 남은 할당이 없으면 releasedAllocationCount는 0이다")
+    void completePartialStoreOrder_noLeftovers() {
+        givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
+        givenLinesUnlocked(1L, shippedLine(1L, 10L, 10, 4));
+        when(storeOrderOutboundPort.existsInProgressOutbound(1L)).thenReturn(false);
+        when(storeOrderOutboundPort.releaseUnlinkedAllocations(1L, 7L)).thenReturn(0);
+        when(storeOrderQueryRepository.findLineViews(1L)).thenReturn(List.of(
+                new StoreOrderLineView(100L, 10L, "SKU-10", "러닝화", "EA", 10L, 0L, 4L,
+                        new BigDecimal("1500.00"), StoreOrderLineStatus.PARTIALLY_SHIPPED)));
+
+        var result = storeOrderService.completePartialStoreOrder(
+                new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
+                        1L, "공급 중단", 7L));
+
+        assertThat(result.releasedAllocationCount()).isZero();
+        assertThat(result.status()).isEqualTo(StoreOrderStatus.COMPLETED);
     }
 
     @Test
@@ -900,12 +927,13 @@ class StoreOrderServiceTest {
                         1L, "사유", 7L)), "OUTBOUND_IN_PROGRESS");
 
         when(storeOrderOutboundPort.existsInProgressOutbound(1L)).thenReturn(false);
-        givenLines(1L, shippedLine(1L, 10L, 10, 10), shippedLine(1L, 11L, 5, 6));
+        givenLinesUnlocked(1L, shippedLine(1L, 10L, 10, 10), shippedLine(1L, 11L, 5, 6));
         assertError(() -> storeOrderService.completePartialStoreOrder(
                 new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
                         1L, "사유", 7L)), "NO_SHORTAGE");
 
         verify(storeOrderRepository, never()).save(any());
+        verify(storeOrderOutboundPort, never()).releaseUnlinkedAllocations(any(), any());
         verifyNoInteractions(statusHistoryUseCase);
     }
 

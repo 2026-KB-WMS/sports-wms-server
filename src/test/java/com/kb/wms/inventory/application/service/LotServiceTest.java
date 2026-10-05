@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,6 +24,7 @@ import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inventory.application.port.in.command.LotRegisterCommand;
 import com.kb.wms.inventory.application.port.in.query.LotSearchCondition;
+import com.kb.wms.inventory.application.port.in.result.LotInboundView;
 import com.kb.wms.inventory.application.port.in.result.LotSummary;
 import com.kb.wms.inventory.application.port.out.InventoryQueryRepository;
 import com.kb.wms.inventory.application.port.out.LotRepository;
@@ -54,7 +56,7 @@ class LotServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 skuId로 필터링하면 NOT_FOUND 예외를 던진다")
+    @DisplayName("존재하지 않는 skuId로 필터링하면 SKU_NOT_FOUND 예외를 던진다")
     void getLots_skuNotFound() {
         LotSearchCondition condition = new LotSearchCondition(999L, null, null, null);
         when(inventoryQueryRepository.existsSku(999L)).thenReturn(false);
@@ -62,19 +64,67 @@ class LotServiceTest {
         assertThatThrownBy(() -> lotService.getLots(condition))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ErrorCode.NOT_FOUND.name());
+                .isEqualTo(InventoryErrorCode.SKU_NOT_FOUND.name());
         verify(inventoryQueryRepository, never()).findLots(condition);
     }
 
     @Test
-    @DisplayName("존재하지 않는 로트를 조회하면 NOT_FOUND 예외를 던진다")
+    @DisplayName("존재하지 않는 supplierId로 필터링하면 SUPPLIER_NOT_FOUND 예외를 던진다")
+    void getLots_supplierNotFound() {
+        LotSearchCondition condition = new LotSearchCondition(null, 999L, null, null);
+        when(inventoryQueryRepository.existsSupplier(999L)).thenReturn(false);
+
+        assertThatThrownBy(() -> lotService.getLots(condition))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(InventoryErrorCode.SUPPLIER_NOT_FOUND.name());
+        verify(inventoryQueryRepository, never()).findLots(condition);
+    }
+
+    @Test
+    @DisplayName("존재하는 supplierId로 필터링하면 로트 목록을 조회한다")
+    void getLots_supplierExists() {
+        LotSearchCondition condition = new LotSearchCondition(null, 3L, null, null);
+        when(inventoryQueryRepository.existsSupplier(3L)).thenReturn(true);
+        List<LotSummary> expected = List.of();
+        when(inventoryQueryRepository.findLots(condition)).thenReturn(expected);
+
+        assertThat(lotService.getLots(condition)).isSameAs(expected);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 로트를 조회하면 LOT_NOT_FOUND 예외를 던진다")
     void getLot_notFound() {
         when(inventoryQueryRepository.findLot(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> lotService.getLot(999L))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ErrorCode.NOT_FOUND.name());
+                .isEqualTo(InventoryErrorCode.LOT_NOT_FOUND.name());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 로트의 입고 이력을 조회하면 LOT_NOT_FOUND 예외를 던진다")
+    void getLotInbounds_lotNotFound() {
+        when(lotRepository.existsById(999L)).thenReturn(false);
+
+        assertThatThrownBy(() -> lotService.getLotInbounds(999L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(InventoryErrorCode.LOT_NOT_FOUND.name());
+        verify(inventoryQueryRepository, never()).findLotInbounds(999L);
+    }
+
+    @Test
+    @DisplayName("존재하는 로트의 입고 이력을 조회하면 쿼리 결과를 그대로 반환한다")
+    void getLotInbounds_success() {
+        when(lotRepository.existsById(1L)).thenReturn(true);
+        List<LotInboundView> expected = List.of(new LotInboundView(
+                7L, "IB-20261001-0001", 4L, LocalDateTime.of(2026, 10, 1, 14, 30),
+                100L, 95L, 5L, BigDecimal.valueOf(1200)));
+        when(inventoryQueryRepository.findLotInbounds(1L)).thenReturn(expected);
+
+        assertThat(lotService.getLotInbounds(1L)).isSameAs(expected);
     }
 
     @Test

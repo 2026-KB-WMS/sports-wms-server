@@ -25,7 +25,9 @@ public interface PurchaseOrderUseCase {
 
     PurchaseOrderDetails getPurchaseOrderDetails(Long purchaseOrderId);
 
-    PurchaseOrder confirmPurchaseOrder(Long purchaseOrderId);
+    /** 확정 대기(REQUESTED) 발주를 확정한다. userId는 상태 이력의 처리자다. */
+    PurchaseOrder confirmPurchaseOrder(Long purchaseOrderId, Long userId);
 
+    /** 요청·확정 발주를 취소한다. 사유와 처리자는 상태 이력에 남기고 조회 시 cancelReason으로 돌려준다. */
     PurchaseOrder cancelPurchaseOrder(Long purchaseOrderId, PurchaseOrderCancelCommand command);
 }
