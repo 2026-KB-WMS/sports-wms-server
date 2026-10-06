@@ -15,6 +15,7 @@ public record StockAllocationView(
         Long pickedQuantity,
         LocalDateTime allocatedAt,
         Long allocatedBy,
+        String allocatedByName,
         LocalDateTime releasedAt,
         Long storeOrderId,
         String orderNo,

@@ -1,5 +1,10 @@
 package com.kb.wms.outbound.adapter.out.persistence;
 
+import com.kb.wms.auth.application.port.out.UserRepository;
+import com.kb.wms.auth.domain.entity.User;
+import com.kb.wms.auth.domain.enums.UserRole;
+import jakarta.persistence.EntityManager;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
@@ -69,6 +74,8 @@ class OutboundQueryPersistenceAdapterTest {
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 5, 9, 0);
 
+    @Autowired UserRepository userRepository;
+    @Autowired EntityManager entityManager;
     @Autowired OutboundQueryRepository queryRepository;
     @Autowired OutboundRepository outboundRepository;
     @Autowired StockAllocationRepository allocationRepository;
@@ -404,5 +411,25 @@ class OutboundQueryPersistenceAdapterTest {
 
         assertThat(view.shippedQuantity()).isEqualTo(4);
         assertThat(view.lineAmount()).isEqualByComparingTo("6000.00");
+    }
+
+    @Test
+    @DisplayName("할당 상세에 처리자 이름을 사용자 테이블 조인으로 담고, 사용자가 없으면 이름만 null이다")
+    void allocationView_allocatedByName() {
+        User picker = userRepository.save(User.signUp("al_picker", "hashed", "이할당", "al_picker@example.com",
+                "010-1234-5678", UserRole.WAREHOUSE_MANAGER));
+        StockAllocation named = allocation(lineA, lotEarly, 5, NOW);
+        StockAllocation unnamed = allocation(lineA, lotLate, 3, NOW);
+        entityManager.createQuery(
+                        "update StockAllocationJpaEntity a set a.allocatedBy = :userId where a.allocationId = :id")
+                .setParameter("userId", picker.getUserId()).setParameter("id", named.getAllocationId())
+                .executeUpdate();
+        entityManager.clear();
+
+        assertThat(queryRepository.findAllocationView(named.getAllocationId()).orElseThrow().allocatedByName())
+                .isEqualTo("이할당");
+        StockAllocationView other = queryRepository.findAllocationView(unnamed.getAllocationId()).orElseThrow();
+        assertThat(other.allocatedBy()).isEqualTo(1L);
+        assertThat(other.allocatedByName()).isNull();
     }
 }
