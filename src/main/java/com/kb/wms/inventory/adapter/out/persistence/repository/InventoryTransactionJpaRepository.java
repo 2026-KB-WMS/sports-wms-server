@@ -19,12 +19,13 @@ public interface InventoryTransactionJpaRepository extends JpaRepository<Invento
                 t.transactionId, t.inventoryLotId, ws.warehouseId, ws.sectionId, ws.sectionCode,
                 s.skuId, s.skuCode, l.lotId, l.lotNumber,
                 t.transactionType, t.quantityDelta, t.beforeQuantity, t.afterQuantity,
-                t.referenceType, t.referenceId, t.reason, t.createdBy, t.createdAt)
+                t.referenceType, t.referenceId, t.reason, t.createdBy, cu.name, t.createdAt)
             from InventoryTransactionJpaEntity t
             join InventoryLotJpaEntity il on il.inventoryLotId = t.inventoryLotId
             join LotJpaEntity l on l.lotId = il.lotId
             join ProductSkuJpaEntity s on s.skuId = l.skuId
             join WarehouseSectionJpaEntity ws on ws.sectionId = il.sectionId
+            left join UserJpaEntity cu on cu.userId = t.createdBy
             where (:inventoryLotId is null or t.inventoryLotId = :inventoryLotId)
               and (:warehouseId is null or ws.warehouseId = :warehouseId)
               and (:sectionId is null or il.sectionId = :sectionId)
