@@ -197,6 +197,21 @@ class UserTest {
     }
 
     @Test
+    @DisplayName("상태 변경 가능 여부는 changeStatus가 허용하는 전이와 같다")
+    void canChangeStatusTo() {
+        assertThat(pending().canChangeStatusTo(UserStatus.ACTIVE)).isTrue();
+        assertThat(pending().canChangeStatusTo(UserStatus.INACTIVE)).isTrue();
+        assertThat(active().canChangeStatusTo(UserStatus.INACTIVE)).isTrue();
+        assertThat(inactive().canChangeStatusTo(UserStatus.ACTIVE)).isTrue();
+
+        assertThat(pending().canChangeStatusTo(UserStatus.PENDING)).isFalse();
+        assertThat(active().canChangeStatusTo(UserStatus.ACTIVE)).isFalse();
+        assertThat(active().canChangeStatusTo(UserStatus.PENDING)).isFalse();
+        assertThat(inactive().canChangeStatusTo(UserStatus.INACTIVE)).isFalse();
+        assertThat(active().canChangeStatusTo(null)).isFalse();
+    }
+
+    @Test
     @DisplayName("로그인 시각 기록")
     void recordLogin() {
         User u = active();
