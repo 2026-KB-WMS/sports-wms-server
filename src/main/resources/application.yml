@@ -26,6 +26,12 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
+# 액세스 토큰(HS256) 서명 키는 32바이트 이상이어야 한다. 아래 값은 로컬 개발용이다.
+wms:
+  jwt:
+    secret: local-dev-only-jwt-secret-key-change-me-0123456789
+    access-token-validity-seconds: 3600
+
 ---
 spring:
   config:
@@ -37,3 +43,7 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+wms:
+  jwt:
+    secret: ${JWT_SECRET}
