@@ -8,11 +8,16 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.kb.wms.common.security.JwtAuthenticationFilter;
+import com.kb.wms.common.security.JwtProvider;
+import com.kb.wms.common.security.RestSecurityExceptionHandler;
 
 /**
- * 임시 Security 설정.
- * JWT 인증 필터가 붙기 전까지 기본 로그인 폼을 끄고 전체 요청을 허용한다.
- * TODO: JWT 인증 필터 체인 구성 후 authorizeHttpRequests에서 인증이 필요한 경로를 제한할 것.
+ * Security 설정.
+ * 토큰이 있으면 JwtAuthenticationFilter가 파싱해 인증 주체를 올리지만, 아직 모든 요청을 허용한다.
+ * TODO: 기존 도메인에 인증·인가를 적용하는 마지막 단계(#170)에서 authorizeHttpRequests를 인증 필수로 전환할 것.
  */
 @Configuration
 public class SecurityConfig {
@@ -23,12 +28,17 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtProvider jwtProvider,
+                                           RestSecurityExceptionHandler exceptionHandler) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(exceptionHandler)
+                        .accessDeniedHandler(exceptionHandler))
+                .addFilterBefore(new JwtAuthenticationFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
 
         return http.build();
