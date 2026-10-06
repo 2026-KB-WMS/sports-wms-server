@@ -2,6 +2,7 @@ package com.kb.wms.warehouse.adapter.in.web;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -28,7 +29,7 @@ import com.kb.wms.warehouse.application.port.in.WarehouseMemberUseCase;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseMemberAssignCommand;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
-import com.kb.wms.warehouse.domain.entity.WarehouseMember;
+import com.kb.wms.warehouse.application.port.in.result.WarehouseMemberView;
 import com.kb.wms.warehouse.exception.WarehouseErrorCode;
 
 @WebMvcTest(WarehouseMemberController.class)
@@ -53,7 +54,7 @@ class WarehouseMemberControllerTest {
     @Test
     @DisplayName("관리자 배정에 성공하면 201과 창고명이 채워진 배정 정보를 반환한다")
     void assignManager_success() throws Exception {
-        WarehouseMember member = WarehouseMember.assign(1L, 10L, "MANAGER", null);
+        WarehouseMemberView member = new WarehouseMemberView(5L, 1L, 10L, "김담당", "member01", "MANAGER", null);
         when(warehouseMemberUseCase.assignManager(any(WarehouseMemberAssignCommand.class))).thenReturn(member);
         when(warehouseUseCase.getWarehouse(1L)).thenReturn(warehouse);
 
@@ -62,6 +63,8 @@ class WarehouseMemberControllerTest {
                         .content(objectMapper.writeValueAsString(new TestAssignRequest(1L, 10L, "MANAGER"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.userId").value(10L))
+                .andExpect(jsonPath("$.data.userName").value("김담당"))
+                .andExpect(jsonPath("$.data.loginId").value("member01"))
                 .andExpect(jsonPath("$.data.warehouseName").value("서울 물류센터"));
     }
 
@@ -81,27 +84,43 @@ class WarehouseMemberControllerTest {
     @Test
     @DisplayName("warehouseId·userId 필터로 관리자 목록을 조회하면 해당 조건이 그대로 전달된다")
     void getManagers_withFilters_success() throws Exception {
-        WarehouseMember member = WarehouseMember.assign(1L, 10L, "MANAGER", null);
-        when(warehouseMemberUseCase.getManagers(eq(1L), eq(10L))).thenReturn(List.of(member));
+        WarehouseMemberView member = new WarehouseMemberView(5L, 1L, 10L, "김담당", "member01", "MANAGER", null);
+        when(warehouseMemberUseCase.getManagers(eq(1L), eq(10L), isNull())).thenReturn(List.of(member));
         when(warehouseUseCase.getWarehouse(1L)).thenReturn(warehouse);
 
         mockMvc.perform(get("/api/v1/warehouses/managers").param("warehouseId", "1").param("userId", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].userId").value(10L));
 
-        verify(warehouseMemberUseCase).getManagers(eq(1L), eq(10L));
+        verify(warehouseMemberUseCase).getManagers(eq(1L), eq(10L), isNull());
     }
 
     @Test
     @DisplayName("필터 없이 관리자 목록을 조회하면 전체 배정을 조회한다")
     void getManagers_withoutFilters_returnsAll() throws Exception {
-        WarehouseMember member = WarehouseMember.assign(1L, 10L, "MANAGER", null);
-        when(warehouseMemberUseCase.getManagers(null, null)).thenReturn(List.of(member));
+        WarehouseMemberView member = new WarehouseMemberView(5L, 1L, 10L, "김담당", "member01", "MANAGER", null);
+        when(warehouseMemberUseCase.getManagers(null, null, null)).thenReturn(List.of(member));
         when(warehouseUseCase.getWarehouse(1L)).thenReturn(warehouse);
 
         mockMvc.perform(get("/api/v1/warehouses/managers"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].userId").value(10L));
+                .andExpect(jsonPath("$.data.items[0].userId").value(10L))
+                .andExpect(jsonPath("$.data.items[0].userName").value("김담당"))
+                .andExpect(jsonPath("$.data.items[0].loginId").value("member01"));
+    }
+
+    @Test
+    @DisplayName("keyword로 관리자 목록을 조회하면 검색어가 그대로 전달된다")
+    void getManagers_withKeyword() throws Exception {
+        WarehouseMemberView member = new WarehouseMemberView(5L, 1L, 10L, "김담당", "member01", "MANAGER", null);
+        when(warehouseMemberUseCase.getManagers(null, null, "김담당")).thenReturn(List.of(member));
+        when(warehouseUseCase.getWarehouse(1L)).thenReturn(warehouse);
+
+        mockMvc.perform(get("/api/v1/warehouses/managers").param("keyword", "김담당"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].userName").value("김담당"));
+
+        verify(warehouseMemberUseCase).getManagers(null, null, "김담당");
     }
 
     @Test
