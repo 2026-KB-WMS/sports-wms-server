@@ -41,11 +41,12 @@ public interface PurchaseOrderJpaRepository extends JpaRepository<PurchaseOrderJ
     @Query("""
             select new com.kb.wms.inbound.application.port.in.result.PurchaseOrderSummary(
                 po.purchaseOrderId, po.purchaseOrderNo, po.warehouseId, w.name, po.supplierId, s.name,
-                po.status, po.expectedAt, count(l), sum(l.lineAmount), po.createdBy, po.createdAt)
+                po.status, po.expectedAt, count(l), sum(l.lineAmount), po.createdBy, cu.name, po.createdAt)
             from PurchaseOrderJpaEntity po
             join WarehouseJpaEntity w on w.warehouseId = po.warehouseId
             join SupplierJpaEntity s on s.supplierId = po.supplierId
             join PurchaseOrderLineJpaEntity l on l.purchaseOrderId = po.purchaseOrderId
+            left join UserJpaEntity cu on cu.userId = po.createdBy
             where (:status is null or po.status = :status)
               and (:warehouseId is null or po.warehouseId = :warehouseId)
               and (:supplierId is null or po.supplierId = :supplierId)
@@ -53,7 +54,7 @@ public interface PurchaseOrderJpaRepository extends JpaRepository<PurchaseOrderJ
               and (:createdFrom is null or po.createdAt >= :createdFrom)
               and (:createdTo is null or po.createdAt <= :createdTo)
             group by po.purchaseOrderId, po.purchaseOrderNo, po.warehouseId, w.name, po.supplierId, s.name,
-                     po.status, po.expectedAt, po.createdBy, po.createdAt
+                     po.status, po.expectedAt, po.createdBy, cu.name, po.createdAt
             order by po.createdAt desc, po.purchaseOrderId desc
             """)
     List<PurchaseOrderSummary> search(@Param("status") PurchaseOrderStatus status,
@@ -66,15 +67,16 @@ public interface PurchaseOrderJpaRepository extends JpaRepository<PurchaseOrderJ
     @Query("""
             select new com.kb.wms.inbound.application.port.in.result.PurchaseOrderView(
                 po.purchaseOrderId, po.purchaseOrderNo, po.warehouseId, w.name, po.supplierId, s.name,
-                po.status, po.expectedAt, po.note, count(l), sum(l.lineAmount), po.createdBy,
+                po.status, po.expectedAt, po.note, count(l), sum(l.lineAmount), po.createdBy, cu.name,
                 po.createdAt, po.updatedAt)
             from PurchaseOrderJpaEntity po
             join WarehouseJpaEntity w on w.warehouseId = po.warehouseId
             join SupplierJpaEntity s on s.supplierId = po.supplierId
             join PurchaseOrderLineJpaEntity l on l.purchaseOrderId = po.purchaseOrderId
+            left join UserJpaEntity cu on cu.userId = po.createdBy
             where po.purchaseOrderId = :purchaseOrderId
             group by po.purchaseOrderId, po.purchaseOrderNo, po.warehouseId, w.name, po.supplierId, s.name,
-                     po.status, po.expectedAt, po.note, po.createdBy, po.createdAt, po.updatedAt
+                     po.status, po.expectedAt, po.note, po.createdBy, cu.name, po.createdAt, po.updatedAt
             """)
     Optional<PurchaseOrderView> findView(@Param("purchaseOrderId") Long purchaseOrderId);
 }

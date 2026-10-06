@@ -92,7 +92,7 @@ class InboundControllerTest {
         return new InboundView(
                 7L, "IB-20260925-0001", 4L, "PO-20260921-0001", PurchaseOrderStatus.CONFIRMED, 3L, "공급처 A",
                 1L, "서울 물류센터", status, LocalDateTime.of(2026, 9, 25, 9, 10),
-                null, null, "1차 입고", 1L, LocalDateTime.of(2026, 9, 25, 9, 12),
+                null, null, null, "1차 입고", 1L, LocalDateTime.of(2026, 9, 25, 9, 12),
                 LocalDateTime.of(2026, 9, 25, 11, 0));
     }
 

@@ -1,5 +1,10 @@
 package com.kb.wms.inbound.adapter.out.persistence;
 
+import com.kb.wms.auth.application.port.out.UserRepository;
+import com.kb.wms.auth.domain.entity.User;
+import com.kb.wms.auth.domain.enums.UserRole;
+import jakarta.persistence.EntityManager;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -50,6 +55,8 @@ import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class PurchaseOrderPersistenceAdapterTest {
 
+    @Autowired UserRepository userRepository;
+    @Autowired EntityManager entityManager;
     @Autowired PurchaseOrderRepository purchaseOrderRepository;
     @Autowired PurchaseOrderQueryRepository queryRepository;
     @Autowired SupplierRepository supplierRepository;
@@ -360,5 +367,23 @@ class PurchaseOrderPersistenceAdapterTest {
                 .toList();
         purchaseOrderRepository.saveLines(withId);
         return id;
+    }
+
+    @Test
+    @DisplayName("작성자 이름을 사용자 테이블 조인으로 상세·목록에 담고, 사용자가 없으면 이름만 null이다")
+    void createdByName() {
+        User writer = userRepository.save(User.signUp("po_writer", "hashed", "김작성", "po_writer@example.com",
+                "010-1234-5678", UserRole.WAREHOUSE_MANAGER));
+        entityManager.createQuery(
+                        "update PurchaseOrderJpaEntity po set po.createdBy = :userId where po.purchaseOrderId = :id")
+                .setParameter("userId", writer.getUserId()).setParameter("id", po1).executeUpdate();
+        entityManager.clear();
+
+        assertThat(queryRepository.findView(po1).orElseThrow().createdByName()).isEqualTo("김작성");
+        List<PurchaseOrderSummary> result = queryRepository.search(condition(null, null, null, null, null, null));
+        assertThat(byId(result, po1).createdByName()).isEqualTo("김작성");
+        assertThat(byId(result, po2).createdBy()).isEqualTo(1L);
+        assertThat(byId(result, po2).createdByName()).isNull();
+        assertThat(queryRepository.findView(po2).orElseThrow().createdByName()).isNull();
     }
 }

@@ -27,6 +27,7 @@ public record PurchaseOrderView(
         Long lineCount,
         BigDecimal totalAmount,
         Long createdBy,
+        String createdByName,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         String cancelReason
@@ -36,14 +37,15 @@ public record PurchaseOrderView(
     public PurchaseOrderView(Long purchaseOrderId, String purchaseOrderNo, Long warehouseId, String warehouseName,
                              Long supplierId, String supplierName, PurchaseOrderStatus status,
                              LocalDateTime expectedAt, String note, Long lineCount, BigDecimal totalAmount,
-                             Long createdBy, LocalDateTime createdAt, LocalDateTime updatedAt) {
+                             Long createdBy, String createdByName, LocalDateTime createdAt,
+                             LocalDateTime updatedAt) {
         this(purchaseOrderId, purchaseOrderNo, warehouseId, warehouseName, supplierId, supplierName, status,
-                expectedAt, note, lineCount, totalAmount, createdBy, createdAt, updatedAt, null);
+                expectedAt, note, lineCount, totalAmount, createdBy, createdByName, createdAt, updatedAt, null);
     }
 
     public PurchaseOrderView withCancelReason(String cancelReason) {
         return new PurchaseOrderView(purchaseOrderId, purchaseOrderNo, warehouseId, warehouseName, supplierId,
-                supplierName, status, expectedAt, note, lineCount, totalAmount, createdBy, createdAt, updatedAt,
-                cancelReason);
+                supplierName, status, expectedAt, note, lineCount, totalAmount, createdBy, createdByName,
+                createdAt, updatedAt, cancelReason);
     }
 }

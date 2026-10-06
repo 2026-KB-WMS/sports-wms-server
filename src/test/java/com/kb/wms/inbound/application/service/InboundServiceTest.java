@@ -93,7 +93,7 @@ class InboundServiceTest {
         return new InboundView(
                 7L, "IB-20261002-0001", 4L, "PO-20261002-0001", PurchaseOrderStatus.CONFIRMED, 3L, "공급처 A",
                 1L, "서울 물류센터", status, LocalDateTime.of(2026, 10, 2, 9, 0),
-                null, null, null, 0L, LocalDateTime.of(2026, 10, 2, 9, 5), LocalDateTime.of(2026, 10, 2, 10, 0));
+                null, null, null, null, 0L, LocalDateTime.of(2026, 10, 2, 9, 5), LocalDateTime.of(2026, 10, 2, 10, 0));
     }
 
     private static void assertError(ThrowingCallable call, String errorCodeName) {
@@ -359,7 +359,7 @@ class InboundServiceTest {
         InboundView view = new InboundView(
                 7L, "IB-20261002-0001", 4L, "PO-20261002-0001", PurchaseOrderStatus.CONFIRMED, 3L, "공급처 A",
                 1L, "서울 물류센터", InboundStatus.INSPECTING, LocalDateTime.of(2026, 10, 2, 9, 0),
-                null, null, null, 1L, LocalDateTime.of(2026, 10, 2, 9, 5), LocalDateTime.of(2026, 10, 2, 10, 0));
+                null, null, null, null, 1L, LocalDateTime.of(2026, 10, 2, 9, 5), LocalDateTime.of(2026, 10, 2, 10, 0));
         InboundLineView lineView = new InboundLineView(
                 21L, 11L, 1L, "SKU-0001", "배드민턴 라켓", 1L, "LOT-A", null, null,
                 60L, 58L, 2L, 2L, "A-01", 9L, "D-01",

@@ -70,7 +70,7 @@ class PurchaseOrderControllerTest {
         return new PurchaseOrderView(
                 4L, "PO-20261002-0001", 1L, "서울 물류센터", 3L, "공급처 A", status,
                 LocalDateTime.of(2030, 9, 25, 9, 0), "정기 보충 발주", 1L, BigDecimal.valueOf(6000000), 5L,
-                LocalDateTime.of(2026, 10, 2, 12, 0), LocalDateTime.of(2026, 10, 2, 13, 0));
+                "김작성", LocalDateTime.of(2026, 10, 2, 12, 0), LocalDateTime.of(2026, 10, 2, 13, 0));
     }
 
     private static PurchaseOrderLineView lineView() {
@@ -248,13 +248,15 @@ class PurchaseOrderControllerTest {
         when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class)))
                 .thenReturn(List.of(new PurchaseOrderSummary(
                         4L, "PO-20261002-0001", 1L, "서울 물류센터", 3L, "공급처 A", PurchaseOrderStatus.REQUESTED,
-                        null, 2L, BigDecimal.valueOf(6050000), 5L, LocalDateTime.of(2026, 10, 2, 12, 0))));
+                        null, 2L, BigDecimal.valueOf(6050000), 5L, "김작성",
+                        LocalDateTime.of(2026, 10, 2, 12, 0))));
 
         mockMvc.perform(get("/api/v1/purchase-orders"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.items[0].purchaseOrderId").value(4))
                 .andExpect(jsonPath("$.data.items[0].purchaseOrderNo").value("PO-20261002-0001"))
+                .andExpect(jsonPath("$.data.items[0].createdByName").value("김작성"))
                 .andExpect(jsonPath("$.data.items[0].warehouseName").value("서울 물류센터"))
                 .andExpect(jsonPath("$.data.items[0].supplierName").value("공급처 A"))
                 .andExpect(jsonPath("$.data.items[0].status").value("REQUESTED"))
@@ -347,6 +349,7 @@ class PurchaseOrderControllerTest {
                 .andExpect(jsonPath("$.data.lineCount").value(1))
                 .andExpect(jsonPath("$.data.totalAmount").value(6000000.0))
                 .andExpect(jsonPath("$.data.createdBy").value(5))
+                .andExpect(jsonPath("$.data.createdByName").value("김작성"))
                 .andExpect(jsonPath("$.data.lines").doesNotExist());
     }
 
