@@ -16,7 +16,8 @@ import com.kb.wms.common.security.RestSecurityExceptionHandler;
 
 /**
  * Security 설정.
- * 토큰이 있으면 JwtAuthenticationFilter가 파싱해 인증 주체를 올리지만, 아직 모든 요청을 허용한다.
+ * 토큰이 있으면 JwtAuthenticationFilter가 파싱해 인증 주체를 올린다. 인증 도메인 API(/auth/me, /users)만 인증·역할을 요구하고,
+ * 나머지 요청은 아직 모두 허용한다.
  * TODO: 기존 도메인에 인증·인가를 적용하는 마지막 단계(#170)에서 authorizeHttpRequests를 인증 필수로 전환할 것.
  */
 @Configuration
@@ -39,7 +40,10 @@ public class SecurityConfig {
                         .authenticationEntryPoint(exceptionHandler)
                         .accessDeniedHandler(exceptionHandler))
                 .addFilterBefore(new JwtAuthenticationFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class)
-                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/v1/auth/me").authenticated()
+                        .requestMatchers("/api/v1/users/**").hasRole("HQ_ADMIN")
+                        .anyRequest().permitAll());
 
         return http.build();
     }
