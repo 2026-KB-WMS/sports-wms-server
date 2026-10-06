@@ -170,6 +170,11 @@ public class User {
         }
     }
 
+    /** {@link #changeStatus}가 성공하는 전이인가. 같은 상태로의 변경과 PENDING으로 되돌리기는 불가. */
+    public boolean canChangeStatusTo(UserStatus target) {
+        return target != null && target != UserStatus.PENDING && target != this.status;
+    }
+
     /** 로그인 성공 시각을 기록한다. */
     public void recordLogin(LocalDateTime loggedInAt) {
         this.lastLoginAt = loggedInAt;
