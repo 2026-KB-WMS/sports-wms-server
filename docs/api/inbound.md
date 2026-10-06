@@ -18,7 +18,7 @@
   - 인증·인가가 없어 401/403과 역할·소속 창고 검사를 적용하지 않는다. 검수·완료의 처리 사용자는 쿼리 파라미터 `userId`(필수)로 받는다. 인증 연동 시 토큰의 사용자로 대체한다.
   - 404는 도메인 코드를 쓴다: `INBOUND_NOT_FOUND`(입고), `PURCHASE_ORDER_NOT_FOUND`(발주), `SECTION_NOT_FOUND`(구역). 발주 항목이 없을 때만 일반 `NOT_FOUND`다.
   - 목록 필터의 존재하지 않는 값(발주 목록의 `warehouseId`·`supplierId`, 입고 목록의 `warehouseId`·`purchaseOrderId`)은 404가 아니라 빈 목록을 돌려준다(보류). 공급처 목록에는 대상 ID 필터가 없다.
-  - 응답의 `receivedByName`(단건)은 내려주지 않는다(회원 도메인 구현 후 반영). 입고 취소 사유(필수, 500자 이하)는 `StatusHistory`(`entity_type` `INBOUND`)에 저장하고, 입고 단건 응답과 취소 응답의 `cancelReason`은 이 이력에서 읽는다.
+  - 응답의 `receivedByName`(단건)은 처리자(`receivedBy`)의 이름이다. 사용자 테이블을 ID로 조인해 채우며, 검수 전·취소처럼 처리자가 없으면 `null`이다. 발주의 `createdByName`(목록·단건)도 같은 방식이다. 입고 취소 사유(필수, 500자 이하)는 `StatusHistory`(`entity_type` `INBOUND`)에 저장하고, 입고 단건 응답과 취소 응답의 `cancelReason`은 이 이력에서 읽는다.
   - 입고 번호는 `IB-yyyyMMdd-NNNN`(일자별 일련번호)로 구현했다.
   - 명세에 없이 서비스에 넣은 규칙: 같은 입고 안에서 (발주 항목, 로트) 중복은 400, 입고 완료 시 발주가 `CONFIRMED`가 아니거나 발주 항목별 입고 수량이 남은 수량을 넘으면 409 `CONFLICT`.
   - 확정 필요(미결): 발주 수량 초과 입고 허용 여부(현재 거절), 하위 구역이 있는 상위 구역에도 적치할 수 있는지, 취소된 입고를 다시 여는 방법(현재는 새 입고 등록), 같은 발주에 진행 중 입고를 여러 건 허용할지(현재 1건만).
