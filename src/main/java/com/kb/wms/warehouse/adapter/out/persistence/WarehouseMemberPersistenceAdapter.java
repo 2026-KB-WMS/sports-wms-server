@@ -5,8 +5,10 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.kb.wms.common.persistence.SearchKeyword;
 import com.kb.wms.warehouse.adapter.out.persistence.entity.WarehouseMemberJpaEntity;
 import com.kb.wms.warehouse.adapter.out.persistence.repository.WarehouseMemberJpaRepository;
+import com.kb.wms.warehouse.application.port.in.result.WarehouseMemberView;
 import com.kb.wms.warehouse.application.port.out.WarehouseMemberRepository;
 import com.kb.wms.warehouse.domain.entity.WarehouseMember;
 
@@ -31,10 +33,8 @@ public class WarehouseMemberPersistenceAdapter implements WarehouseMemberReposit
     }
 
     @Override
-    public List<WarehouseMember> findAll(Long warehouseId, Long userId) {
-        return warehouseMemberJpaRepository.findAllByFilter(warehouseId, userId).stream()
-                .map(WarehouseMemberJpaEntity::toDomain)
-                .toList();
+    public List<WarehouseMemberView> search(Long warehouseId, Long userId, String keyword) {
+        return warehouseMemberJpaRepository.search(warehouseId, userId, SearchKeyword.normalize(keyword));
     }
 
     @Override
