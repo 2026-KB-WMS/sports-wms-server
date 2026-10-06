@@ -85,7 +85,7 @@ class StoreOrderControllerTest {
         return new StoreOrderView(
                 7L, "SO-20261002-0001", 2L, "Store A", 1L, "Warehouse 1", status,
                 T0, LocalDateTime.of(2030, 10, 5, 9, 0), "weekly order", 2L,
-                BigDecimal.valueOf(15000), 0L, 5L, T0, T1);
+                BigDecimal.valueOf(15000), 0L, 5L, "Kim", T0, T1);
     }
 
     private static List<StoreOrderLineView> lines() {
@@ -293,7 +293,8 @@ class StoreOrderControllerTest {
                 .andExpect(jsonPath("$.data.storeOrderId").value(7))
                 .andExpect(jsonPath("$.data.status").value("CANCELED"))
                 .andExpect(jsonPath("$.data.statusReason").value("changed mind"))
-                .andExpect(jsonPath("$.data.progressStage").value("CANCELED"));
+                .andExpect(jsonPath("$.data.progressStage").value("CANCELED"))
+                .andExpect(jsonPath("$.data.createdByName").value("Kim"));
     }
 
     @Test

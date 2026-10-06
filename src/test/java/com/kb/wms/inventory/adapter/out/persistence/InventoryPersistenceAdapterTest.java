@@ -1,5 +1,9 @@
 package com.kb.wms.inventory.adapter.out.persistence;
 
+import com.kb.wms.auth.application.port.out.UserRepository;
+import com.kb.wms.auth.domain.entity.User;
+import com.kb.wms.auth.domain.enums.UserRole;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -60,6 +64,7 @@ import jakarta.persistence.EntityManager;
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class InventoryPersistenceAdapterTest {
 
+    @Autowired private UserRepository userRepository;
     @Autowired private InventoryQueryRepository inventoryQueryRepository;
     @Autowired private InventoryLotRepository inventoryLotRepository;
     @Autowired private InventoryTransactionRepository inventoryTransactionRepository;
@@ -326,5 +331,26 @@ class InventoryPersistenceAdapterTest {
             il.allocate(allocated);
         }
         return inventoryLotRepository.save(il).getInventoryLotId();
+    }
+
+    @Test
+    @DisplayName("이력: 처리자 이름을 사용자 테이블 조인으로 담고, 사용자가 없으면 이름만 null이다")
+    void transactions_createdByName() {
+        User writer = userRepository.save(User.signUp("tx_writer", "hashed", "김처리", "tx_writer@example.com",
+                "010-1234-5678", UserRole.WAREHOUSE_MANAGER));
+        inventoryTransactionRepository.save(InventoryTransaction.record(
+                invR1LotA, TransactionType.INBOUND, 0, 100, ReferenceType.INBOUND, 6L, null, writer.getUserId()));
+        inventoryTransactionRepository.save(InventoryTransaction.record(
+                invR1LotA, TransactionType.ADJUSTMENT, 100, 97, ReferenceType.ADJUSTMENT, null, "실사 차이", 5L));
+        entityManager.flush();
+
+        var result = inventoryQueryRepository.findTransactions(new InventoryTransactionSearchCondition(
+                invR1LotA, null, null, null, null, null, null, null, null, null));
+
+        assertThat(result).hasSize(2);
+        assertThat(result.stream().filter(t -> t.transactionType() == TransactionType.INBOUND).findFirst()
+                .orElseThrow().createdByName()).isEqualTo("김처리");
+        assertThat(result.stream().filter(t -> t.transactionType() == TransactionType.ADJUSTMENT).findFirst()
+                .orElseThrow().createdByName()).isNull();
     }
 }

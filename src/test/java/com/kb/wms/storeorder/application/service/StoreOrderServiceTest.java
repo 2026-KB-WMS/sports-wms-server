@@ -111,7 +111,7 @@ class StoreOrderServiceTest {
     private static StoreOrderView view(Long id, StoreOrderStatus status, long shortageLineCount) {
         return new StoreOrderView(id, "SO-20261004-0001", 1L, "강남점", null, null, status,
                 LocalDateTime.of(2026, 10, 4, 9, 0), null, null, 1L, new BigDecimal("1000.00"),
-                shortageLineCount, 5L, LocalDateTime.of(2026, 10, 4, 9, 0), LocalDateTime.of(2026, 10, 4, 9, 0));
+                shortageLineCount, 5L, null, LocalDateTime.of(2026, 10, 4, 9, 0), LocalDateTime.of(2026, 10, 4, 9, 0));
     }
 
     private static StoreOrderSummary summary(Long id, StoreOrderStatus status, long shortageLineCount) {
@@ -392,7 +392,7 @@ class StoreOrderServiceTest {
         LocalDateTime updatedAt = LocalDateTime.of(2026, 10, 4, 10, 0);
         when(storeOrderQueryRepository.findView(1L)).thenReturn(Optional.of(
                 new StoreOrderView(1L, "SO-20261004-0001", 1L, "강남점", null, null, StoreOrderStatus.APPROVED,
-                        updatedAt, null, null, 2L, new BigDecimal("9000.00"), 2L, 5L, updatedAt, updatedAt)));
+                        updatedAt, null, null, 2L, new BigDecimal("9000.00"), 2L, 5L, null, updatedAt, updatedAt)));
 
         StoreOrderStatusChange result = storeOrderService.approveStoreOrder(1L, 2L);
 
@@ -645,7 +645,7 @@ class StoreOrderServiceTest {
                                    LocalDateTime updatedAt) {
         when(storeOrderQueryRepository.findView(id)).thenReturn(Optional.of(
                 new StoreOrderView(id, "SO-20261004-0001", 1L, "강남점", warehouseId, warehouseName, status,
-                        updatedAt, null, null, 1L, new BigDecimal("4500.00"), 1L, 5L, updatedAt, updatedAt)));
+                        updatedAt, null, null, 1L, new BigDecimal("4500.00"), 1L, 5L, null, updatedAt, updatedAt)));
     }
 
     @Test

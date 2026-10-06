@@ -147,7 +147,7 @@ class InventoryControllerTest {
     void getTransactions_success() throws Exception {
         InventoryTransactionView view = new InventoryTransactionView(1L, 2L, 3L, 4L, "A-01", 5L, "SKU-001",
                 6L, "LOT-001", TransactionType.ADJUSTMENT, -3L, 100L, 97L, ReferenceType.ADJUSTMENT, null,
-                "실사 조정", 9L, LocalDateTime.of(2026, 1, 1, 0, 0));
+                "실사 조정", 9L, "김작성", LocalDateTime.of(2026, 1, 1, 0, 0));
         when(inventoryQueryUseCase.getTransactions(any(InventoryTransactionSearchCondition.class)))
                 .thenReturn(List.of(view));
 
@@ -155,7 +155,8 @@ class InventoryControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].transactionId").value(1))
                 .andExpect(jsonPath("$.data.items[0].transactionType").value("ADJUSTMENT"))
-                .andExpect(jsonPath("$.data.items[0].quantityDelta").value(-3));
+                .andExpect(jsonPath("$.data.items[0].quantityDelta").value(-3))
+                .andExpect(jsonPath("$.data.items[0].createdByName").value("김작성"));
     }
 
     @Test
@@ -163,14 +164,15 @@ class InventoryControllerTest {
     void getTransactionsOf_success() throws Exception {
         InventoryTransactionView view = new InventoryTransactionView(1L, 1L, 3L, 4L, "A-01", 5L, "SKU-001",
                 6L, "LOT-001", TransactionType.INBOUND, 50L, 50L, 100L, ReferenceType.INBOUND, 7L,
-                null, 9L, LocalDateTime.of(2026, 1, 1, 0, 0));
+                null, 9L, "김작성", LocalDateTime.of(2026, 1, 1, 0, 0));
         when(inventoryQueryUseCase.getTransactionsOf(eq(1L), any(InventoryTransactionSearchCondition.class)))
                 .thenReturn(List.of(view));
 
         mockMvc.perform(get("/api/v1/inventory/{inventoryId}/transactions", 1L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.inventoryLotId").value(1))
-                .andExpect(jsonPath("$.data.items[0].transactionType").value("INBOUND"));
+                .andExpect(jsonPath("$.data.items[0].transactionType").value("INBOUND"))
+                .andExpect(jsonPath("$.data.items[0].createdByName").value("김작성"));
     }
 
     @Test

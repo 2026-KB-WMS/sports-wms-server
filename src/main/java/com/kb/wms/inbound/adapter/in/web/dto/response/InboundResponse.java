@@ -8,7 +8,6 @@ import com.kb.wms.inbound.domain.enums.InboundStatus;
 /**
  * GET /api/v1/inbounds/{inboundId} (입고 단건) 응답.
  * 취소 사유(cancelReason)는 취소 상태일 때 StatusHistory에서 읽은 값(아니면 null)이다.
- * 처리자 이름(receivedByName)은 회원 도메인 연동 후 추가한다.
  */
 public record InboundResponse(
         Long inboundId,
@@ -23,6 +22,7 @@ public record InboundResponse(
         LocalDateTime arrivedAt,
         LocalDateTime receivedAt,
         Long receivedBy,
+        String receivedByName,
         String note,
         Long lineCount,
         LocalDateTime createdAt,
@@ -34,7 +34,7 @@ public record InboundResponse(
         return new InboundResponse(
                 view.inboundId(), view.inboundNo(), view.purchaseOrderId(), view.purchaseOrderNo(),
                 view.supplierId(), view.supplierName(), view.warehouseId(), view.warehouseName(),
-                view.status(), view.arrivedAt(), view.receivedAt(), view.receivedBy(), view.note(),
+                view.status(), view.arrivedAt(), view.receivedAt(), view.receivedBy(), view.receivedByName(), view.note(),
                 view.lineCount(), view.createdAt(), view.updatedAt(), view.cancelReason());
     }
 }

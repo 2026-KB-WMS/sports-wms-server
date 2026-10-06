@@ -79,16 +79,17 @@ public interface InboundJpaRepository extends JpaRepository<InboundJpaEntity, Lo
     @Query("""
             select new com.kb.wms.inbound.application.port.in.result.InboundView(
                 i.inboundId, i.inboundNo, i.purchaseOrderId, po.purchaseOrderNo, po.status, po.supplierId, s.name,
-                i.warehouseId, w.name, i.status, i.arrivedAt, i.receivedAt, i.receivedBy, i.note, count(l),
+                i.warehouseId, w.name, i.status, i.arrivedAt, i.receivedAt, i.receivedBy, ru.name, i.note, count(l),
                 i.createdAt, i.updatedAt)
             from InboundJpaEntity i
             join PurchaseOrderJpaEntity po on po.purchaseOrderId = i.purchaseOrderId
             join SupplierJpaEntity s on s.supplierId = po.supplierId
             join WarehouseJpaEntity w on w.warehouseId = i.warehouseId
             left join InboundLineJpaEntity l on l.inboundId = i.inboundId
+            left join UserJpaEntity ru on ru.userId = i.receivedBy
             where i.inboundId = :inboundId
             group by i.inboundId, i.inboundNo, i.purchaseOrderId, po.purchaseOrderNo, po.status, po.supplierId, s.name,
-                     i.warehouseId, w.name, i.status, i.arrivedAt, i.receivedAt, i.receivedBy, i.note,
+                     i.warehouseId, w.name, i.status, i.arrivedAt, i.receivedAt, i.receivedBy, ru.name, i.note,
                      i.createdAt, i.updatedAt
             """)
     Optional<InboundView> findView(@Param("inboundId") Long inboundId);

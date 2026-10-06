@@ -68,14 +68,15 @@ public interface StoreOrderJpaRepository extends JpaRepository<StoreOrderJpaEnti
                 o.status, o.requestedAt, o.requestedDeliveryAt, o.note, count(l),
                 sum(l.requestedQuantity * l.requestedUnitSupplyPrice),
                 sum(case when l.shippedQuantity < l.requestedQuantity then 1L else 0L end),
-                o.createdBy, o.createdAt, o.updatedAt)
+                o.createdBy, cu.name, o.createdAt, o.updatedAt)
             from StoreOrderJpaEntity o
             join StoreJpaEntity s on s.storeId = o.storeId
             left join WarehouseJpaEntity w on w.warehouseId = o.warehouseId
             join StoreOrderLineJpaEntity l on l.storeOrderId = o.storeOrderId
+            left join UserJpaEntity cu on cu.userId = o.createdBy
             where o.storeOrderId = :storeOrderId
             group by o.storeOrderId, o.orderNo, o.storeId, s.name, o.warehouseId, w.name,
-                     o.status, o.requestedAt, o.requestedDeliveryAt, o.note, o.createdBy,
+                     o.status, o.requestedAt, o.requestedDeliveryAt, o.note, o.createdBy, cu.name,
                      o.createdAt, o.updatedAt
             """)
     Optional<StoreOrderView> findView(@Param("storeOrderId") Long storeOrderId);

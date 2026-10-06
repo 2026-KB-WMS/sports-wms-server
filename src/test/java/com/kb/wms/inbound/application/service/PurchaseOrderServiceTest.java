@@ -119,7 +119,7 @@ class PurchaseOrderServiceTest {
     private static PurchaseOrderView viewWithStatus(PurchaseOrderStatus status) {
         return new PurchaseOrderView(
                 4L, "PO-20261002-0001", 1L, "서울 물류센터", 3L, "공급처 A", status,
-                null, null, 1L, BigDecimal.valueOf(6000000), 5L, null, null);
+                null, null, 1L, BigDecimal.valueOf(6000000), 5L, null, null, null);
     }
 
     /** 저장 시 발주 ID를 채워 돌려주는 목 동작 */
@@ -531,7 +531,7 @@ class PurchaseOrderServiceTest {
     void getPurchaseOrderDetails_success() {
         PurchaseOrderView view = new PurchaseOrderView(
                 4L, "PO-20261002-0001", 1L, "서울 물류센터", 3L, "공급처 A", PurchaseOrderStatus.CONFIRMED,
-                null, null, 1L, BigDecimal.valueOf(6000000), 5L, null, null);
+                null, null, 1L, BigDecimal.valueOf(6000000), 5L, null, null, null);
         PurchaseOrderLineView lineView = new PurchaseOrderLineView(
                 11L, 1L, "SKU-0001", "배드민턴 라켓", "EA", 100L, 60L, 40L,
                 BigDecimal.valueOf(60000), BigDecimal.valueOf(6000000), PurchaseOrderLineStatus.PARTIALLY_RECEIVED);

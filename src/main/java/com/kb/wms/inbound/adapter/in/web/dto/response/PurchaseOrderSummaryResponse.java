@@ -8,7 +8,6 @@ import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
 
 /**
  * GET /api/v1/purchase-orders (발주 목록) 응답 항목.
- * 작성자 이름(createdByName)은 회원 도메인 연동 후 추가한다.
  */
 public record PurchaseOrderSummaryResponse(
         Long purchaseOrderId,
@@ -22,6 +21,7 @@ public record PurchaseOrderSummaryResponse(
         Long lineCount,
         BigDecimal totalAmount,
         Long createdBy,
+        String createdByName,
         LocalDateTime createdAt
 ) {
 
@@ -38,6 +38,7 @@ public record PurchaseOrderSummaryResponse(
                 summary.lineCount(),
                 summary.totalAmount(),
                 summary.createdBy(),
+                summary.createdByName(),
                 summary.createdAt());
     }
 }

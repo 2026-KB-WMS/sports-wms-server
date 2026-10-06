@@ -112,10 +112,10 @@ class AllocationControllerTest {
     }
 
     @Test
-    @DisplayName("상세는 outboundId를 담고 allocatedByName은 null, 없는 할당은 404")
+    @DisplayName("상세는 outboundId와 allocatedByName을 담고, 없는 할당은 404")
     void detail() throws Exception {
         StockAllocationView view = new StockAllocationView(500L, AllocationStatus.ALLOCATED, 3L, 0L, NOW, 9L,
-                null, 3L, "SO-20261005-0001", 1L, "강남점", 2L, 31L, 5L, 5L, "SKU-A", "상품 A", 900L, 9L, "LOT-A",
+                "김작성", null, 3L, "SO-20261005-0001", 1L, "강남점", 2L, 31L, 5L, 5L, "SKU-A", "상품 A", 900L, 9L, "LOT-A",
                 LocalDate.of(2026, 12, 31), 4L, "A-01", "A-01 구역");
         when(useCase.getAllocation(500L)).thenReturn(new StockAllocationDetail(view, 7L));
         when(useCase.getAllocation(999L)).thenThrow(new BusinessException(OutboundErrorCode.ALLOCATION_NOT_FOUND));
@@ -123,7 +123,7 @@ class AllocationControllerTest {
         mockMvc.perform(get("/api/v1/allocations/500"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.outboundId").value(7))
-                .andExpect(jsonPath("$.data.allocatedByName").doesNotExist())
+                .andExpect(jsonPath("$.data.allocatedByName").value("김작성"))
                 .andExpect(jsonPath("$.data.storeName").value("강남점"));
         mockMvc.perform(get("/api/v1/allocations/999"))
                 .andExpect(status().isNotFound())

@@ -80,7 +80,7 @@
 - 권한: HQ_ADMIN, WAREHOUSE_MANAGER(담당 창고 발주의 할당만)
 - 응답: `allocationId, status, allocatedQuantity, pickedQuantity, allocatedAt, allocatedBy, allocatedByName, releasedAt, storeOrderId, orderNo, storeId, storeName, warehouseId, storeOrderLineId, requestedQuantity, skuId, skuCode, skuName, inventoryLotId, lotId, lotNumber, expiryDate, sectionId, sectionCode, sectionName, outboundId`
 - 에러: 400, 403, 404(`ALLOCATION_NOT_FOUND`)
-- 규칙: `outboundId`는 취소되지 않은 출고에 연결된 경우에만 값이 있고 아니면 `null`이다. 해제된 할당(`RELEASED`)도 조회할 수 있다. `allocatedByName`은 회원(User) 도메인이 없어 당분간 `null`이다.
+- 규칙: `outboundId`는 취소되지 않은 출고에 연결된 경우에만 값이 있고 아니면 `null`이다. 해제된 할당(`RELEASED`)도 조회할 수 있다. `allocatedByName`은 할당 처리자(`allocatedBy`)의 이름이고 사용자 테이블을 ID로 조인해 채운다. 처리자가 없으면 `null`이다.
 
 ## PATCH /allocations/{allocationId}/release (P2)
 
