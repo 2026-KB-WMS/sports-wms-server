@@ -7,8 +7,9 @@
 
 - Notion의 상태 컬럼은 이 도메인 전부 "시작 전"이지만 코드는 구현되어 있음(상태 컬럼이 오래됨, 코드 기준으로 판단).
 - Notion 명세의 `pageInfo`와 일반 `NOT_FOUND`/`CONFLICT`는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
-- 목록 API는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고). 지점 담당자 배정 목록은 `keyword`를 지원하지 않고 응답에 `userName`·`loginId`도 없다(회원 도메인 구현 전). 인증 연동 전이라 `GET /stores/my`는 쿼리 파라미터 `userId`(필수)로 사용자를 받는다.
+- 목록 API는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고). 인증 연동 전이라 `GET /stores/my`는 쿼리 파라미터 `userId`(필수)로 사용자를 받는다.
 - 지점 비활성화의 `STORE_IN_USE` 검사는 구현했다(#141). 지점 행을 잠그지 않아 같은 순간의 발주 등록과는 경합할 수 있다(그렇게 생긴 발주는 승인할 수 없고 취소·반려만 가능).
+- `GET /stores/managers`의 404는 존재하지 않는 `storeId`에만 적용한다. 존재하지 않는 `userId`는 404 없이 빈 `items`를 반환한다.
 - 확정 필요(미결): 지점 재활성화 방법, 토큰의 소속 정보 갱신 시점, 점주 0명이 되는 회수 허용 여부, 진행 중 발주가 있는 점주의 회수 차단 여부.
 
 ## 엔드포인트 목록 (10)
@@ -68,16 +69,16 @@
 
 ## GET /stores/managers (P2)
 
-- HQ_ADMIN. Query: `storeId`, `userId`. `keyword`(사용자 이름·로그인 ID)는 회원 도메인 구현 후 추가한다(현재 미지원). `sort`는 받지 않는다.
+- HQ_ADMIN. Query: `storeId`, `userId`. `keyword`(사용자 이름·로그인 ID, 부분 일치·대소문자 무시, 공백만 있으면 조건 없음)로 거른다. `sort`는 받지 않는다.
 - 정렬은 고정(배정 일시 `assignedAt` 내림차순, 같으면 `storeMemberId` 내림차순).
-- 응답 항목: `storeMemberId, storeId, storeName, userId, memberRole, assignedAt`. `userName`, `loginId`는 회원 도메인 구현 후 추가한다(현재 미제공, 민감 정보는 제외). 같은 `userId`가 여러 지점으로 여러 행 가능.
+- 응답 항목: `storeMemberId, storeId, storeName, userId, userName, loginId, memberRole, assignedAt`(비밀번호 등 민감 정보는 제외). 사용자 이름·로그인 ID는 사용자 테이블을 ID로 조인해 채운다. 같은 `userId`가 여러 지점으로 여러 행 가능.
 - 에러: 404(존재하지 않는 필터 값)
 
 ## POST /stores/assign (P2)
 
 - Body: `storeId`, `userId`(role `STORE_OWNER`), `memberRole`(management-types의 code)
-- 201. 응답: `storeMemberId, storeId, storeName, userId, memberRole, assignedAt`(`userName`은 회원 도메인 구현 후 추가)
-- 에러: 400(필수 누락/허용되지 않은 `memberRole`/대상이 STORE_OWNER 아님), 404(지점·사용자 없음), 409 `ALREADY_ASSIGNED`(같은 지점 중복, DB 제약도 동일 매핑), 409 `CONFLICT`(비활성 지점 또는 INACTIVE 사용자)
+- 201. 응답: `storeMemberId, storeId, storeName, userId, userName, loginId, memberRole, assignedAt`
+- 에러: 400(필수 누락/허용되지 않은 `memberRole`/대상이 STORE_OWNER 아님), 404(지점 없음 `STORE_NOT_FOUND`, 사용자 없음 `USER_NOT_FOUND`), 409 `ALREADY_ASSIGNED`(같은 지점 중복, DB 제약도 동일 매핑), 409 `CONFLICT`(비활성 지점 또는 INACTIVE 사용자)
 - PENDING 계정도 배정 가능(소속 배정 후 `PATCH /users/{userId}`로 ACTIVE 승인). 서로 다른 지점 배정은 허용. `assignedAt`은 서버 시각, 단일 트랜잭션.
 
 ## DELETE /stores/managers/{storeMemberId} (P2)
