@@ -2,6 +2,7 @@ package com.kb.wms.store.adapter.in.web;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -27,7 +28,7 @@ import com.kb.wms.store.application.port.in.StoreMemberUseCase;
 import com.kb.wms.store.application.port.in.StoreUseCase;
 import com.kb.wms.store.application.port.in.command.StoreMemberAssignCommand;
 import com.kb.wms.store.domain.entity.Store;
-import com.kb.wms.store.domain.entity.StoreMember;
+import com.kb.wms.store.application.port.in.result.StoreMemberView;
 import com.kb.wms.store.exception.StoreErrorCode;
 
 @WebMvcTest(StoreMemberController.class)
@@ -52,7 +53,7 @@ class StoreMemberControllerTest {
     @Test
     @DisplayName("관리자 배정에 성공하면 201과 지점명이 채워진 배정 정보를 반환한다")
     void assignManager_success() throws Exception {
-        StoreMember member = StoreMember.assign(1L, 10L, "OWNER", null);
+        StoreMemberView member = new StoreMemberView(5L, 1L, 10L, "김담당", "member01", "OWNER", null);
         when(storeMemberUseCase.assignManager(any(StoreMemberAssignCommand.class))).thenReturn(member);
         when(storeUseCase.getStore(1L)).thenReturn(store);
 
@@ -61,6 +62,8 @@ class StoreMemberControllerTest {
                         .content(objectMapper.writeValueAsString(new TestAssignRequest(1L, 10L, "OWNER"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.userId").value(10L))
+                .andExpect(jsonPath("$.data.userName").value("김담당"))
+                .andExpect(jsonPath("$.data.loginId").value("member01"))
                 .andExpect(jsonPath("$.data.storeName").value("강남점"));
     }
 
@@ -80,27 +83,43 @@ class StoreMemberControllerTest {
     @Test
     @DisplayName("storeId·userId 필터로 관리자 목록을 조회하면 해당 조건이 그대로 전달된다")
     void getManagers_withFilters_success() throws Exception {
-        StoreMember member = StoreMember.assign(1L, 10L, "OWNER", null);
-        when(storeMemberUseCase.getManagers(eq(1L), eq(10L))).thenReturn(List.of(member));
+        StoreMemberView member = new StoreMemberView(5L, 1L, 10L, "김담당", "member01", "OWNER", null);
+        when(storeMemberUseCase.getManagers(eq(1L), eq(10L), isNull())).thenReturn(List.of(member));
         when(storeUseCase.getStore(1L)).thenReturn(store);
 
         mockMvc.perform(get("/api/v1/stores/managers").param("storeId", "1").param("userId", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].userId").value(10L));
 
-        verify(storeMemberUseCase).getManagers(eq(1L), eq(10L));
+        verify(storeMemberUseCase).getManagers(eq(1L), eq(10L), isNull());
     }
 
     @Test
     @DisplayName("필터 없이 관리자 목록을 조회하면 전체 배정을 조회한다")
     void getManagers_withoutFilters_returnsAll() throws Exception {
-        StoreMember member = StoreMember.assign(1L, 10L, "OWNER", null);
-        when(storeMemberUseCase.getManagers(null, null)).thenReturn(List.of(member));
+        StoreMemberView member = new StoreMemberView(5L, 1L, 10L, "김담당", "member01", "OWNER", null);
+        when(storeMemberUseCase.getManagers(null, null, null)).thenReturn(List.of(member));
         when(storeUseCase.getStore(1L)).thenReturn(store);
 
         mockMvc.perform(get("/api/v1/stores/managers"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].userId").value(10L));
+                .andExpect(jsonPath("$.data.items[0].userId").value(10L))
+                .andExpect(jsonPath("$.data.items[0].userName").value("김담당"))
+                .andExpect(jsonPath("$.data.items[0].loginId").value("member01"));
+    }
+
+    @Test
+    @DisplayName("keyword로 관리자 목록을 조회하면 검색어가 그대로 전달된다")
+    void getManagers_withKeyword() throws Exception {
+        StoreMemberView member = new StoreMemberView(5L, 1L, 10L, "김담당", "member01", "OWNER", null);
+        when(storeMemberUseCase.getManagers(null, null, "김담당")).thenReturn(List.of(member));
+        when(storeUseCase.getStore(1L)).thenReturn(store);
+
+        mockMvc.perform(get("/api/v1/stores/managers").param("keyword", "김담당"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].userName").value("김담당"));
+
+        verify(storeMemberUseCase).getManagers(null, null, "김담당");
     }
 
     @Test

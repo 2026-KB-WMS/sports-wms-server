@@ -20,7 +20,7 @@ import com.kb.wms.store.adapter.in.web.dto.response.StoreMemberReleaseResponse;
 import com.kb.wms.store.adapter.in.web.dto.response.StoreMemberResponse;
 import com.kb.wms.store.application.port.in.StoreMemberUseCase;
 import com.kb.wms.store.application.port.in.StoreUseCase;
-import com.kb.wms.store.domain.entity.StoreMember;
+import com.kb.wms.store.application.port.in.result.StoreMemberView;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -40,15 +40,16 @@ public class StoreMemberController {
     @PostMapping("/assign")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<StoreMemberResponse> assignManager(@Valid @RequestBody StoreMemberAssignRequest request) {
-        StoreMember member = storeMemberUseCase.assignManager(request.toCommand());
+        StoreMemberView member = storeMemberUseCase.assignManager(request.toCommand());
         return ApiResponse.created(toResponse(member));
     }
 
     @GetMapping("/managers")
     public ApiResponse<ItemsResponse<StoreMemberResponse>> getManagers(
             @RequestParam(required = false) Long storeId,
-            @RequestParam(required = false) Long userId) {
-        List<StoreMemberResponse> items = storeMemberUseCase.getManagers(storeId, userId).stream()
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String keyword) {
+        List<StoreMemberResponse> items = storeMemberUseCase.getManagers(storeId, userId, keyword).stream()
                 .map(this::toResponse)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
@@ -60,8 +61,8 @@ public class StoreMemberController {
         return ApiResponse.ok(new StoreMemberReleaseResponse(storeMemberId));
     }
 
-    private StoreMemberResponse toResponse(StoreMember member) {
-        String storeName = storeUseCase.getStore(member.getStoreId()).getName();
+    private StoreMemberResponse toResponse(StoreMemberView member) {
+        String storeName = storeUseCase.getStore(member.storeId()).getName();
         return StoreMemberResponse.of(member, storeName);
     }
 }

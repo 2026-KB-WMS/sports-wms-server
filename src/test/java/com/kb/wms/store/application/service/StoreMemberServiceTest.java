@@ -18,9 +18,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.auth.application.port.in.UserUseCase;
+import com.kb.wms.auth.domain.entity.User;
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.auth.domain.enums.UserStatus;
+import com.kb.wms.auth.exception.AuthErrorCode;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.store.application.port.in.command.StoreMemberAssignCommand;
+import com.kb.wms.store.application.port.in.result.StoreMemberView;
 import com.kb.wms.store.application.port.out.StoreMemberRepository;
 import com.kb.wms.store.application.port.out.StoreRepository;
 import com.kb.wms.store.domain.entity.Store;
@@ -34,6 +40,8 @@ class StoreMemberServiceTest {
     private StoreMemberRepository storeMemberRepository;
     @Mock
     private StoreRepository storeRepository;
+    @Mock
+    private UserUseCase userUseCase;
 
     @InjectMocks
     private StoreMemberService storeMemberService;
@@ -41,20 +49,29 @@ class StoreMemberServiceTest {
     private final Store activeStore =
             Store.register("ST-GANGNAM", "강남점", "서울시 강남구", "김점주", "02-333-1234");
 
+    private User user(UserRole role, UserStatus status) {
+        return User.builder().userId(10L).loginId("member01").passwordHash("hashed")
+                .name("김담당").email("member01@example.com").phone("010-1234-5678")
+                .role(role).status(status).build();
+    }
+
     @Test
     @DisplayName("지점이 활성이고 아직 배정되지 않은 사용자면 관리자 배정에 성공한다")
     void assignManager_success() {
         StoreMemberAssignCommand command = new StoreMemberAssignCommand(1L, 10L, "OWNER");
         when(storeRepository.findById(1L)).thenReturn(Optional.of(activeStore));
+        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.STORE_OWNER, UserStatus.PENDING));
         when(storeMemberRepository.existsByStoreIdAndUserId(1L, 10L)).thenReturn(false);
         when(storeMemberRepository.save(any(StoreMember.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        StoreMember result = storeMemberService.assignManager(command);
+        StoreMemberView result = storeMemberService.assignManager(command);
 
-        assertThat(result.getStoreId()).isEqualTo(1L);
-        assertThat(result.getUserId()).isEqualTo(10L);
-        assertThat(result.getMemberRole()).isEqualTo("OWNER");
+        assertThat(result.storeId()).isEqualTo(1L);
+        assertThat(result.userId()).isEqualTo(10L);
+        assertThat(result.memberRole()).isEqualTo("OWNER");
+        assertThat(result.userName()).isEqualTo("김담당");
+        assertThat(result.loginId()).isEqualTo("member01");
     }
 
     @Test
@@ -101,6 +118,7 @@ class StoreMemberServiceTest {
     void assignManager_alreadyAssigned() {
         StoreMemberAssignCommand command = new StoreMemberAssignCommand(1L, 10L, "OWNER");
         when(storeRepository.findById(1L)).thenReturn(Optional.of(activeStore));
+        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.STORE_OWNER, UserStatus.ACTIVE));
         when(storeMemberRepository.existsByStoreIdAndUserId(1L, 10L)).thenReturn(true);
 
         assertThatThrownBy(() -> storeMemberService.assignManager(command))
@@ -111,16 +129,58 @@ class StoreMemberServiceTest {
     }
 
     @Test
-    @DisplayName("storeId·userId 필터를 그대로 리포지토리에 전달한다")
-    void getManagers_passesFilters() {
-        StoreMember member = StoreMember.assign(1L, 10L, "OWNER", null);
-        when(storeRepository.existsById(1L)).thenReturn(true);
-        when(storeMemberRepository.findAll(1L, 10L)).thenReturn(List.of(member));
+    @DisplayName("존재하지 않는 사용자면 USER_NOT_FOUND 예외를 던지고 배정하지 않는다")
+    void assignManager_userNotFound() {
+        StoreMemberAssignCommand command = new StoreMemberAssignCommand(1L, 10L, "OWNER");
+        when(storeRepository.findById(1L)).thenReturn(Optional.of(activeStore));
+        when(userUseCase.getUser(10L)).thenThrow(new BusinessException(AuthErrorCode.USER_NOT_FOUND));
 
-        List<StoreMember> result = storeMemberService.getManagers(1L, 10L);
+        assertThatThrownBy(() -> storeMemberService.assignManager(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(AuthErrorCode.USER_NOT_FOUND.name());
+        verify(storeMemberRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("대상 사용자의 역할이 STORE_OWNER이 아니면 VALIDATION_ERROR 예외를 던진다")
+    void assignManager_wrongUserRole() {
+        StoreMemberAssignCommand command = new StoreMemberAssignCommand(1L, 10L, "OWNER");
+        when(storeRepository.findById(1L)).thenReturn(Optional.of(activeStore));
+        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.HQ_ADMIN, UserStatus.ACTIVE));
+
+        assertThatThrownBy(() -> storeMemberService.assignManager(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
+        verify(storeMemberRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("INACTIVE 사용자면 CONFLICT 예외를 던진다")
+    void assignManager_inactiveUser() {
+        StoreMemberAssignCommand command = new StoreMemberAssignCommand(1L, 10L, "OWNER");
+        when(storeRepository.findById(1L)).thenReturn(Optional.of(activeStore));
+        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.STORE_OWNER, UserStatus.INACTIVE));
+
+        assertThatThrownBy(() -> storeMemberService.assignManager(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.CONFLICT.name());
+        verify(storeMemberRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("storeId·userId·keyword를 그대로 리포지토리에 전달한다")
+    void getManagers_passesFilters() {
+        StoreMemberView member = new StoreMemberView(5L, 1L, 10L, "김담당", "member01", "OWNER", null);
+        when(storeRepository.existsById(1L)).thenReturn(true);
+        when(storeMemberRepository.search(1L, 10L, "김")).thenReturn(List.of(member));
+
+        List<StoreMemberView> result = storeMemberService.getManagers(1L, 10L, "김");
 
         assertThat(result).hasSize(1);
-        verify(storeMemberRepository).findAll(eq(1L), eq(10L));
+        verify(storeMemberRepository).search(eq(1L), eq(10L), eq("김"));
     }
 
     @Test
@@ -128,20 +188,20 @@ class StoreMemberServiceTest {
     void getManagers_storeNotFound() {
         when(storeRepository.existsById(999L)).thenReturn(false);
 
-        assertThatThrownBy(() -> storeMemberService.getManagers(999L, null))
+        assertThatThrownBy(() -> storeMemberService.getManagers(999L, null, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(StoreErrorCode.STORE_NOT_FOUND.name());
-        verify(storeMemberRepository, never()).findAll(any(), any());
+        verify(storeMemberRepository, never()).search(any(), any(), any());
     }
 
     @Test
-    @DisplayName("storeId·userId가 없으면 전체 배정을 조회한다")
+    @DisplayName("storeId·userId·keyword가 없으면 전체 배정을 조회한다")
     void getManagers_withoutFilters_returnsAll() {
-        StoreMember member = StoreMember.assign(1L, 10L, "OWNER", null);
-        when(storeMemberRepository.findAll(null, null)).thenReturn(List.of(member));
+        StoreMemberView member = new StoreMemberView(5L, 1L, 10L, "김담당", "member01", "OWNER", null);
+        when(storeMemberRepository.search(null, null, null)).thenReturn(List.of(member));
 
-        List<StoreMember> result = storeMemberService.getManagers(null, null);
+        List<StoreMemberView> result = storeMemberService.getManagers(null, null, null);
 
         assertThat(result).hasSize(1);
     }
