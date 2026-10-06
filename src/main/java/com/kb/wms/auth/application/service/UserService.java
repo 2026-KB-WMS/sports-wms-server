@@ -66,6 +66,12 @@ public class UserService implements UserUseCase {
     }
 
     @Override
+    public User getUser(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.USER_NOT_FOUND));
+    }
+
+    @Override
     public List<User> getUsers(UserSearchCondition condition) {
         return userRepository.search(condition);
     }

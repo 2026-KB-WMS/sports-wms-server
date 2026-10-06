@@ -70,6 +70,18 @@ class UserPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("수정 후 save가 돌려주는 사용자의 updatedAt은 갱신된 값이다")
+    void saveReturnsRefreshedUpdatedAt() throws InterruptedException {
+        User saved = signUp("store_owner01", "김점주", "owner01@example.com", UserRole.STORE_OWNER);
+        Thread.sleep(20);
+        saved.changeName("박점주");
+
+        User updated = userRepository.save(saved);
+
+        assertThat(updated.getUpdatedAt()).isAfter(saved.getUpdatedAt());
+    }
+
+    @Test
     @DisplayName("없는 ID는 비어 있다")
     void notFound() {
         assertThat(userRepository.findById(999_999L)).isEmpty();

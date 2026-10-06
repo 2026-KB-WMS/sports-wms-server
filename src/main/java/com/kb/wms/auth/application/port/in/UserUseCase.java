@@ -9,12 +9,15 @@ import com.kb.wms.auth.domain.entity.User;
 
 /**
  * 가입·계정 관리 유스케이스.
- * POST /api/v1/auth/signup, GET /api/v1/users, PATCH /api/v1/users/{userId}
+ * POST /api/v1/auth/signup, GET /api/v1/auth/me, GET /api/v1/users, PATCH /api/v1/users/{userId}
  */
 public interface UserUseCase {
 
     /** 가입 신청. PENDING으로 생성한다. 아이디·이메일 중복은 409, HQ_ADMIN 가입과 형식 위반은 400. */
     User signUp(UserSignupCommand command);
+
+    /** 사용자 한 명 조회. 없으면 404 USER_NOT_FOUND. */
+    User getUser(Long userId);
 
     List<User> getUsers(UserSearchCondition condition);
 

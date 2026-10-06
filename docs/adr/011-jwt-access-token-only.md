@@ -12,7 +12,7 @@
 - 서명 키는 `wms.jwt.secret`(32바이트 이상)이며 prod 프로파일에서는 `JWT_SECRET` 환경변수로만 받는다. 키가 짧으면 기동이 실패한다. 기본 프로파일의 키는 로컬 개발용이다.
 - 라이브러리는 jjwt 0.12.6을 쓰고 JSON 처리는 `jjwt-gson`으로 한다. Spring Boot 4는 Jackson 3(`tools.jackson`)을 쓰는데 `jjwt-jackson`은 Jackson 2에 의존하기 때문이다.
 - `JwtAuthenticationFilter`는 유효한 Bearer 토큰이면 `AuthenticatedUser`를 SecurityContext에 올리고, 없거나 유효하지 않으면 그대로 넘긴다. 거절은 `authorizeHttpRequests` 규칙이 한다. 인증·인가 실패 응답(401/403)은 `RestSecurityExceptionHandler`가 공통 오류 포맷으로 쓴다.
-- 기존 도메인 인증 적용(#170) 전까지 `SecurityConfig`는 모든 요청을 `permitAll`로 둔다. 필터는 토큰을 파싱만 한다.
+- 기존 도메인 인증 적용(#170) 전까지 `SecurityConfig`는 기존 엔드포인트를 `permitAll`로 둔다. 필터는 토큰을 파싱만 한다. 예외로 인증 도메인 API만 #167부터 규칙을 적용한다: `/api/v1/auth/me`는 인증 필수, `/api/v1/users/**`는 `HQ_ADMIN`만 허용한다.
 - JWT 관련 클래스는 `common.security`에 두며, 역할 검사에 `auth.domain.enums.UserRole`을 직접 쓴다.
 
 ## 근거
@@ -27,6 +27,6 @@
 - `jjwt-jackson`: Jackson 2 의존이라 제외.
 
 ## 영향
-- 계정을 비활성화하거나 소속을 바꿔도 이미 발급된 토큰은 최대 1시간 유효하다. 즉시 무효화가 필요해지면 리프레시 토큰 또는 토큰 버전 관리가 필요하며 "[보류]"에 기록한다.
+- 계정을 비활성화하거나 소속·역할을 바꿔도 이미 발급된 토큰은 최대 1시간 유효하다. 관리자 API(`/users/**`)도 같다: 강등·비활성화된 관리자가 만료 전까지 호출할 수 있고, `/auth/me`는 INACTIVE로 바뀐 계정도 조회할 수 있다. 즉시 무효화가 필요해지면 리프레시 토큰 또는 토큰 버전 관리가 필요하며 "[보류]"에 기록한다.
 - 새 환경(prod)에서는 `JWT_SECRET`을 반드시 설정해야 한다. docker-compose는 기본 프로파일이라 개발용 키로 동작한다.
 - `common.security`가 `auth.domain.enums.UserRole`을 참조한다.
