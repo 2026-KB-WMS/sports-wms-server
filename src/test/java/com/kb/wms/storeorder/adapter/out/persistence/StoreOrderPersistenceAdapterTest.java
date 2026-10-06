@@ -1,5 +1,9 @@
 package com.kb.wms.storeorder.adapter.out.persistence;
 
+import com.kb.wms.auth.application.port.out.UserRepository;
+import com.kb.wms.auth.domain.entity.User;
+import com.kb.wms.auth.domain.enums.UserRole;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -55,6 +59,7 @@ import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class StoreOrderPersistenceAdapterTest {
 
+    @Autowired UserRepository userRepository;
     @Autowired StoreOrderRepository storeOrderRepository;
     @Autowired StoreOrderQueryRepository queryRepository;
     @Autowired StoreJpaRepository storeJpaRepository;
@@ -461,5 +466,20 @@ class StoreOrderPersistenceAdapterTest {
                 .toList();
         storeOrderRepository.saveLines(withId);
         return id;
+    }
+
+    @Test
+    @DisplayName("작성자 이름을 사용자 테이블 조인으로 단건 뷰에 담고, 사용자가 없으면 이름만 null이다")
+    void findView_createdByName() {
+        User writer = userRepository.save(User.signUp("so_writer", "hashed", "김점주", "so_writer@example.com",
+                "010-1234-5678", UserRole.STORE_OWNER));
+        entityManager.createQuery("update StoreOrderJpaEntity o set o.createdBy = :userId where o.storeOrderId = :id")
+                .setParameter("userId", writer.getUserId()).setParameter("id", so2).executeUpdate();
+        entityManager.clear();
+
+        assertThat(queryRepository.findView(so2).orElseThrow().createdByName()).isEqualTo("김점주");
+        StoreOrderView other = queryRepository.findView(so1).orElseThrow();
+        assertThat(other.createdBy()).isEqualTo(1L);
+        assertThat(other.createdByName()).isNull();
     }
 }

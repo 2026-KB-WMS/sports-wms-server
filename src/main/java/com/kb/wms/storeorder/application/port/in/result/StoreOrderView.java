@@ -7,7 +7,8 @@ import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
 
 /**
  * 지점 발주 헤더 단건 (GET /api/v1/orders/{orderId}).
- * 사유(statusReason)·진행 단계·작성자 이름은 서비스가 StatusHistory·출고 연동 포트·회원 도메인으로 채운다.
+ * 사유(statusReason)·진행 단계는 서비스가 StatusHistory·출고 연동 포트로 채우고, 작성자 이름(createdByName)은
+ * 조회 쿼리가 사용자 테이블을 ID로 조인해 채운다.
  *
  * @param shortageLineCount 출고 수량이 요청 수량에 못 미치는 항목 수
  */
@@ -26,6 +27,7 @@ public record StoreOrderView(
         BigDecimal totalAmount,
         Long shortageLineCount,
         Long createdBy,
+        String createdByName,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
