@@ -175,6 +175,17 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("단건 조회는 사용자를 반환하고, 없으면 USER_NOT_FOUND")
+    void getUser() {
+        User user = userWith(USER_ID, UserRole.STORE_OWNER, UserStatus.ACTIVE);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThat(userService.getUser(USER_ID)).isSameAs(user);
+        assertErrorCode(() -> userService.getUser(99L), "USER_NOT_FOUND");
+    }
+
+    @Test
     @DisplayName("목록 조회는 조건을 그대로 저장소에 넘긴다")
     void getUsers() {
         UserSearchCondition condition = new UserSearchCondition(UserRole.STORE_OWNER, UserStatus.PENDING, "김");

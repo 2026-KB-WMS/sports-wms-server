@@ -23,7 +23,8 @@ public class UserPersistenceAdapter implements UserRepository {
 
     @Override
     public User save(User user) {
-        UserJpaEntity saved = userJpaRepository.save(UserJpaEntity.fromDomain(user));
+        // flush해야 @LastModifiedDate가 채워져, 응답에 담는 updatedAt이 이번 수정 시각이 된다.
+        UserJpaEntity saved = userJpaRepository.saveAndFlush(UserJpaEntity.fromDomain(user));
         return saved.toDomain();
     }
 
