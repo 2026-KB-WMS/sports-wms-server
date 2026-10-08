@@ -68,7 +68,7 @@ public record InboundInspectRequest(
     }
 
     /**
-     * @param userId 검수 처리자. 인증이 구현되지 않아 쿼리 파라미터로 받는다(인증 연동 시 토큰의 사용자로 대체).
+     * @param userId 검수 처리자. 토큰 사용자의 ID다.
      */
     public InboundInspectCommand toCommand(Long userId) {
         List<InboundInspectCommand.Line> commandLines = lines.stream()

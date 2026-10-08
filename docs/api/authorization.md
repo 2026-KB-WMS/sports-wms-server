@@ -18,7 +18,7 @@
 
 ## 토큰 없이 호출할 수 있는 요청
 - `POST /auth/signup`, `POST /auth/login`
-- API 문서(`/v3/api-docs/**`, `/swagger-ui/**`)와 헬스 체크(`/actuator/health`)
+- API 문서(`/v3/api-docs`, `/v3/api-docs/**`, `/v3/api-docs.yaml`, `/swagger-ui/**`, `/swagger-ui.html`)와 헬스 체크(`/actuator/health`, `/actuator/health/**`)
 - 위 밖의 모든 요청은 로그인이 필요하다(토큰 없음·만료·위조는 401). 이 표에 없는 경로도 마찬가지다.
 
 ## 기호
@@ -59,14 +59,14 @@
 ## 재고 (inventory)
 | 엔드포인트 | 역할 |
 |---|---|
-| GET /inventory, /inventory/by-lot, /inventory/low-stock, /inventory/transactions, /inventory/{id}, /inventory/{id}/transactions, /lots, /lots/{id} | HQ_ADMIN, WAREHOUSE_MANAGER(담당) |
+| GET /inventory, /inventory/by-lot, /inventory/low-stock, /inventory/transactions, /inventory/{id}, /inventory/{id}/transactions, /lots, /lots/{id} | HQ_ADMIN, WAREHOUSE_MANAGER(담당). 로트는 담당 창고에 재고가 있거나 입고 완료 이력이 있는 것만 보이며, 상세 응답의 재고·입고 이력도 담당 창고 항목만 남는다 |
 | POST /inventory/adjustments | WAREHOUSE_MANAGER(담당). HQ_ADMIN 불가 |
 
 ## 입고 (inbound)
 | 엔드포인트 | 역할 |
 |---|---|
 | POST/PATCH /suppliers 계열 | HQ_ADMIN |
-| GET /suppliers, /suppliers/{id} | HQ_ADMIN, WAREHOUSE_MANAGER (소속 범위 없음. 창고 관리자에게는 활성 공급처만) |
+| GET /suppliers, /suppliers/{id} | HQ_ADMIN, WAREHOUSE_MANAGER (소속 범위 없음. 창고 관리자에게는 활성 공급처만 보이며 비활성 공급처 단건은 404) |
 | POST /purchase-orders | WAREHOUSE_MANAGER(담당) |
 | GET /purchase-orders 계열 | HQ_ADMIN, WAREHOUSE_MANAGER(담당) |
 | PATCH /purchase-orders/{id}/confirm | HQ_ADMIN |
@@ -93,5 +93,5 @@
 | POST /outbounds, PATCH /outbounds/{id}/picking/start, /picking/complete, /ship, /deliver, /cancel | WAREHOUSE_MANAGER(담당 창고). HQ_ADMIN 불가 |
 
 ## 메모
-- 처리 사용자(`createdBy`, `changedBy`, `receivedBy` 등)는 요청 파라미터가 아니라 토큰의 `userId`로 채운다. 현재의 `userId` 쿼리 파라미터는 #170에서 제거한다.
+- 처리 사용자(`createdBy`, `changedBy`, `receivedBy` 등)는 요청 파라미터가 아니라 토큰의 `userId`로 채운다. `userId` 쿼리 파라미터는 받지 않는다(#170에서 제거).
 - 토큰의 소속은 발급 시점 값이다. 소속이 바뀌어도 만료(1시간)까지 이전 값이 적용된다([ADR-011](../adr/011-jwt-access-token-only.md)).

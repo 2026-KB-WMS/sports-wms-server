@@ -45,7 +45,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 가입·로그인과 API 문서(Swagger)·헬스 체크만 토큰 없이 열어 둔다.
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/signup", "/api/v1/auth/login").permitAll()
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml", "/swagger-ui/**", "/swagger-ui.html")
+                        .permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/api/v1/auth/me").authenticated()
                         .requestMatchers("/api/v1/users/**").hasRole("HQ_ADMIN")
@@ -61,7 +62,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/warehouses/*", "/api/v1/warehouses/*/sections",
                                 "/api/v1/warehouses/sections/*").hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
                         .requestMatchers("/api/v1/warehouses/**").hasRole("HQ_ADMIN")
-                        // 재고·로트: 조정은 창고 관리자만, 조회는 본사+창고 관리자(담당 창고 범위는 컨트롤러가 적용). 점주는 불가
+                        // 재고·로트: 조정은 창고 관리자만, 조회는 본사+창고 관리자(담당 창고 범위는 서비스가 적용). 점주는 불가
                         .requestMatchers(HttpMethod.POST, "/api/v1/inventory/adjustments").hasRole("WAREHOUSE_MANAGER")
                         .requestMatchers("/api/v1/inventory/**", "/api/v1/lots/**")
                         .hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")

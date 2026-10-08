@@ -170,7 +170,7 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
                 coalesce(sum(case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.AVAILABLE
                                    and l.status = com.kb.wms.inventory.domain.enums.LotStatus.AVAILABLE
                                    and (:warehouseId is null or ws.warehouseId = :warehouseId)
-              and (:scoped = false or ws.warehouseId in :warehouseIds)
+                                   and (:scoped = false or ws.warehouseId in :warehouseIds)
                                   then il.onHandQuantity - il.allocatedQuantity else 0L end), 0L))
             from ProductSkuJpaEntity s
             left join LotJpaEntity l on l.skuId = s.skuId
@@ -185,14 +185,14 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
             having coalesce(sum(case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.AVAILABLE
                                       and l.status = com.kb.wms.inventory.domain.enums.LotStatus.AVAILABLE
                                       and (:warehouseId is null or ws.warehouseId = :warehouseId)
-              and (:scoped = false or ws.warehouseId in :warehouseIds)
+                                      and (:scoped = false or ws.warehouseId in :warehouseIds)
                                      then il.onHandQuantity - il.allocatedQuantity else 0L end), 0L)
                    < s.safetyStockQuantity
             order by s.safetyStockQuantity
                      - coalesce(sum(case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.AVAILABLE
                                           and l.status = com.kb.wms.inventory.domain.enums.LotStatus.AVAILABLE
                                           and (:warehouseId is null or ws.warehouseId = :warehouseId)
-              and (:scoped = false or ws.warehouseId in :warehouseIds)
+                                          and (:scoped = false or ws.warehouseId in :warehouseIds)
                                          then il.onHandQuantity - il.allocatedQuantity else 0L end), 0L) desc,
                      s.skuCode
             """)

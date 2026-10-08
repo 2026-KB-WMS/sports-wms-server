@@ -57,9 +57,9 @@ import lombok.RequiredArgsConstructor;
 /**
  * 지점 발주 등록·조회.
  *
- * <p>역할·소속 지점/창고·작성자 검사(등록은 배정된 지점의 점주, 목록은 본사 관리자, 단건·상세는 데이터 범위)와
- * {@code GET /orders/my}의 소속 판별은 인증 도메인 연동 시 웹 어댑터에서 적용한다.
- * 이 서비스는 입력·상태·참조 대상 규칙만 검증한다.
+ * <p>역할은 SecurityConfig가 검사하고, 담당 지점·창고 범위(등록은 요청 지점, 단건·상세는 점주의 담당 지점 또는
+ * 창고 관리자의 배정 창고, {@code GET /orders/my}는 점주의 담당 지점과 창고 관리자의 배정 창고)와
+ * 취소의 작성자·상태별 권한은 이 서비스가 검사한다(ADR-012).
  */
 @Service
 @RequiredArgsConstructor

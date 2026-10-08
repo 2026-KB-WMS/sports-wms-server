@@ -10,7 +10,7 @@ public record StockAllocateRequest(
         Long storeOrderId
 ) {
 
-    /** @param userId 처리 사용자. 인증 연동 전에는 쿼리 파라미터로 받는다. */
+    /** @param userId 처리 사용자. 토큰 사용자의 ID다. */
     public StockAllocateCommand toCommand(Long userId) {
         return new StockAllocateCommand(storeOrderId, userId);
     }
