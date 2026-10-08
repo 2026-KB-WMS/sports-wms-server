@@ -215,6 +215,19 @@ class PurchaseOrderPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("창고 범위(담당 창고 목록)로 좁히고, 빈 목록이면 비어 있다")
+    void search_byWarehouseScope() {
+        assertThat(queryRepository.search(new PurchaseOrderSearchCondition(
+                null, null, null, null, null, null, List.of(seoul))))
+                .extracting(PurchaseOrderSummary::purchaseOrderId).containsExactlyInAnyOrder(po1, po3);
+        assertThat(queryRepository.search(new PurchaseOrderSearchCondition(
+                null, null, null, null, null, null, List.of(seoul, busan)))).hasSize(
+                queryRepository.search(condition(null, null, null, null, null, null)).size());
+        assertThat(queryRepository.search(new PurchaseOrderSearchCondition(
+                null, null, null, null, null, null, List.of()))).isEmpty();
+    }
+
+    @Test
     @DisplayName("창고·공급처로 필터링한다")
     void search_byWarehouseAndSupplier() {
         assertThat(queryRepository.search(condition(null, seoul, null, null, null, null)))

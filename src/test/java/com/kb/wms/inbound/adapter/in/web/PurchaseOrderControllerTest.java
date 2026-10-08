@@ -1,5 +1,6 @@
 package com.kb.wms.inbound.adapter.in.web;
 
+import static com.kb.wms.common.security.TestAuth.signInAs;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -16,6 +17,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -26,6 +28,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inbound.application.port.in.PurchaseOrderUseCase;
@@ -60,6 +63,12 @@ class PurchaseOrderControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @BeforeEach
+    void signIn() {
+        // 처리 사용자는 토큰 주체다. 서비스는 목이라 담당 창고 범위는 서비스 테스트에서 확인한다.
+        signInAs(UserRole.WAREHOUSE_MANAGER, 5L, java.util.List.of(1L), java.util.List.of());
+    }
 
     @MockitoBean
     private PurchaseOrderUseCase purchaseOrderUseCase;
@@ -96,13 +105,12 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("발주를 등록하면 201과 명세의 등록 응답(헤더 + 항목)을 반환한다")
     void register_success() throws Exception {
-        when(purchaseOrderUseCase.registerPurchaseOrder(any(PurchaseOrderRegisterCommand.class))).thenReturn(4L);
-        when(purchaseOrderUseCase.getPurchaseOrder(4L)).thenReturn(view(PurchaseOrderStatus.REQUESTED));
-        when(purchaseOrderUseCase.getPurchaseOrderDetails(4L)).thenReturn(new PurchaseOrderDetails(
+        when(purchaseOrderUseCase.registerPurchaseOrder(any(PurchaseOrderRegisterCommand.class), any())).thenReturn(4L);
+        when(purchaseOrderUseCase.getPurchaseOrder(eq(4L), any())).thenReturn(view(PurchaseOrderStatus.REQUESTED));
+        when(purchaseOrderUseCase.getPurchaseOrderDetails(eq(4L), any())).thenReturn(new PurchaseOrderDetails(
                 4L, "PO-20261002-0001", PurchaseOrderStatus.REQUESTED, List.of(lineView())));
 
         mockMvc.perform(post("/api/v1/purchase-orders")
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(REGISTER_BODY))
                 .andExpect(status().isCreated())
@@ -125,20 +133,19 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("등록 요청의 값과 userId를 커맨드로 변환해 유스케이스에 전달한다")
     void register_passesCommand() throws Exception {
-        when(purchaseOrderUseCase.registerPurchaseOrder(any(PurchaseOrderRegisterCommand.class))).thenReturn(4L);
-        when(purchaseOrderUseCase.getPurchaseOrder(4L)).thenReturn(view(PurchaseOrderStatus.REQUESTED));
-        when(purchaseOrderUseCase.getPurchaseOrderDetails(4L)).thenReturn(new PurchaseOrderDetails(
+        when(purchaseOrderUseCase.registerPurchaseOrder(any(PurchaseOrderRegisterCommand.class), any())).thenReturn(4L);
+        when(purchaseOrderUseCase.getPurchaseOrder(eq(4L), any())).thenReturn(view(PurchaseOrderStatus.REQUESTED));
+        when(purchaseOrderUseCase.getPurchaseOrderDetails(eq(4L), any())).thenReturn(new PurchaseOrderDetails(
                 4L, "PO-20261002-0001", PurchaseOrderStatus.REQUESTED, List.of()));
 
         mockMvc.perform(post("/api/v1/purchase-orders")
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(REGISTER_BODY))
                 .andExpect(status().isCreated());
 
         ArgumentCaptor<PurchaseOrderRegisterCommand> captor =
                 ArgumentCaptor.forClass(PurchaseOrderRegisterCommand.class);
-        verify(purchaseOrderUseCase).registerPurchaseOrder(captor.capture());
+        verify(purchaseOrderUseCase).registerPurchaseOrder(captor.capture(), any());
         PurchaseOrderRegisterCommand command = captor.getValue();
         assertThat(command.warehouseId()).isEqualTo(1L);
         assertThat(command.supplierId()).isEqualTo(3L);
@@ -151,20 +158,9 @@ class PurchaseOrderControllerTest {
     }
 
     @Test
-    @DisplayName("userId가 없으면 400을 반환하고 유스케이스를 호출하지 않는다")
-    void register_missingUserId() throws Exception {
-        mockMvc.perform(post("/api/v1/purchase-orders")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(REGISTER_BODY))
-                .andExpect(status().isBadRequest());
-        verifyNoInteractions(purchaseOrderUseCase);
-    }
-
-    @Test
     @DisplayName("창고·공급처가 없거나 발주 항목이 비어 있으면 400 VALIDATION_ERROR를 반환한다")
     void register_missingRequiredFields() throws Exception {
         mockMvc.perform(post("/api/v1/purchase-orders")
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "lines": [] }
@@ -179,7 +175,6 @@ class PurchaseOrderControllerTest {
     @DisplayName("발주 수량이 0 이하이거나 SKU ID가 없으면 400 VALIDATION_ERROR를 반환한다")
     void register_invalidLine() throws Exception {
         mockMvc.perform(post("/api/v1/purchase-orders")
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -197,7 +192,6 @@ class PurchaseOrderControllerTest {
     @DisplayName("비고가 1000자를 넘으면 400 VALIDATION_ERROR를 반환한다")
     void register_noteTooLong() throws Exception {
         mockMvc.perform(post("/api/v1/purchase-orders")
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -215,11 +209,10 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("SKU에 매입 단가가 없으면 409 PURCHASE_PRICE_MISSING을 반환한다")
     void register_purchasePriceMissing() throws Exception {
-        when(purchaseOrderUseCase.registerPurchaseOrder(any(PurchaseOrderRegisterCommand.class)))
+        when(purchaseOrderUseCase.registerPurchaseOrder(any(PurchaseOrderRegisterCommand.class), any()))
                 .thenThrow(new BusinessException(PurchaseOrderErrorCode.PURCHASE_PRICE_MISSING));
 
         mockMvc.perform(post("/api/v1/purchase-orders")
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(REGISTER_BODY))
                 .andExpect(status().isConflict())
@@ -229,11 +222,10 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("비활성 창고·공급처·SKU로 등록하면 409 CONFLICT를 반환한다")
     void register_inactiveTarget() throws Exception {
-        when(purchaseOrderUseCase.registerPurchaseOrder(any(PurchaseOrderRegisterCommand.class)))
+        when(purchaseOrderUseCase.registerPurchaseOrder(any(PurchaseOrderRegisterCommand.class), any()))
                 .thenThrow(new BusinessException(ErrorCode.CONFLICT, "비활성 공급처에는 발주를 등록할 수 없습니다."));
 
         mockMvc.perform(post("/api/v1/purchase-orders")
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(REGISTER_BODY))
                 .andExpect(status().isConflict())
@@ -245,7 +237,7 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("목록 조회는 200과 data.items 형식으로 발주 헤더 요약을 반환한다")
     void getPurchaseOrders_success() throws Exception {
-        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class)))
+        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class), any()))
                 .thenReturn(List.of(new PurchaseOrderSummary(
                         4L, "PO-20261002-0001", 1L, "서울 물류센터", 3L, "공급처 A", PurchaseOrderStatus.REQUESTED,
                         null, 2L, BigDecimal.valueOf(6050000), 5L, "김작성",
@@ -268,7 +260,7 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("목록 조회의 쿼리 파라미터를 검색 조건으로 변환해 전달한다")
     void getPurchaseOrders_passesCondition() throws Exception {
-        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class))).thenReturn(List.of());
+        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class), any())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/purchase-orders")
                         .param("status", "CONFIRMED")
@@ -282,7 +274,7 @@ class PurchaseOrderControllerTest {
 
         ArgumentCaptor<PurchaseOrderSearchCondition> captor =
                 ArgumentCaptor.forClass(PurchaseOrderSearchCondition.class);
-        verify(purchaseOrderUseCase).getPurchaseOrders(captor.capture());
+        verify(purchaseOrderUseCase).getPurchaseOrders(captor.capture(), any());
         PurchaseOrderSearchCondition condition = captor.getValue();
         assertThat(condition.status()).isEqualTo(PurchaseOrderStatus.CONFIRMED);
         assertThat(condition.warehouseId()).isEqualTo(1L);
@@ -295,12 +287,11 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("파라미터를 주지 않으면 모든 조건을 null로 전달한다")
     void getPurchaseOrders_noParams() throws Exception {
-        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class))).thenReturn(List.of());
+        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class), any())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/purchase-orders")).andExpect(status().isOk());
 
-        verify(purchaseOrderUseCase).getPurchaseOrders(
-                new PurchaseOrderSearchCondition(null, null, null, null, null, null));
+        verify(purchaseOrderUseCase).getPurchaseOrders(eq(new PurchaseOrderSearchCondition(null, null, null, null, null, null)), any());
     }
 
     @Test
@@ -324,7 +315,7 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("등록 시작 일시가 종료 일시보다 늦으면 400 VALIDATION_ERROR를 반환한다")
     void getPurchaseOrders_invalidRange() throws Exception {
-        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class)))
+        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class), any()))
                 .thenThrow(new BusinessException(ErrorCode.VALIDATION_ERROR, "등록 시작 일시는 종료 일시보다 늦을 수 없습니다."));
 
         mockMvc.perform(get("/api/v1/purchase-orders")
@@ -339,7 +330,7 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("발주 헤더 조회는 200과 명세의 헤더 필드를 반환한다")
     void getPurchaseOrder_success() throws Exception {
-        when(purchaseOrderUseCase.getPurchaseOrder(4L)).thenReturn(view(PurchaseOrderStatus.CONFIRMED));
+        when(purchaseOrderUseCase.getPurchaseOrder(eq(4L), any())).thenReturn(view(PurchaseOrderStatus.CONFIRMED));
 
         mockMvc.perform(get("/api/v1/purchase-orders/{purchaseOrderId}", 4L))
                 .andExpect(status().isOk())
@@ -356,7 +347,7 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("없는 발주를 조회하면 404 PURCHASE_ORDER_NOT_FOUND를 반환한다")
     void getPurchaseOrder_notFound() throws Exception {
-        when(purchaseOrderUseCase.getPurchaseOrder(999L))
+        when(purchaseOrderUseCase.getPurchaseOrder(eq(999L), any()))
                 .thenThrow(new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/purchase-orders/{purchaseOrderId}", 999L))
@@ -376,7 +367,7 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("발주 항목 상세는 200과 SKU별 수량·남은 수량을 반환한다")
     void getPurchaseOrderDetails_success() throws Exception {
-        when(purchaseOrderUseCase.getPurchaseOrderDetails(4L)).thenReturn(new PurchaseOrderDetails(
+        when(purchaseOrderUseCase.getPurchaseOrderDetails(eq(4L), any())).thenReturn(new PurchaseOrderDetails(
                 4L, "PO-20261002-0001", PurchaseOrderStatus.CONFIRMED, List.of(lineView())));
 
         mockMvc.perform(get("/api/v1/purchase-orders/{purchaseOrderId}/details", 4L))
@@ -396,7 +387,7 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("없는 발주의 항목 상세를 조회하면 404 PURCHASE_ORDER_NOT_FOUND를 반환한다")
     void getPurchaseOrderDetails_notFound() throws Exception {
-        when(purchaseOrderUseCase.getPurchaseOrderDetails(999L))
+        when(purchaseOrderUseCase.getPurchaseOrderDetails(eq(999L), any()))
                 .thenThrow(new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/purchase-orders/{purchaseOrderId}/details", 999L))
@@ -412,7 +403,7 @@ class PurchaseOrderControllerTest {
         when(purchaseOrderUseCase.confirmPurchaseOrder(4L, 5L)).thenReturn(purchaseOrder(PurchaseOrderStatus.CONFIRMED));
 
         mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L)
-                        .param("userId", "5"))
+                        )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.purchaseOrderId").value(4))
                 .andExpect(jsonPath("$.data.purchaseOrderNo").value("PO-20261002-0001"))
@@ -428,7 +419,7 @@ class PurchaseOrderControllerTest {
                 .thenThrow(new BusinessException(ErrorCode.CONFLICT, "확정 대기 상태의 발주만 확정할 수 있습니다."));
 
         mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L)
-                        .param("userId", "5"))
+                        )
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("CONFLICT"));
     }
@@ -440,7 +431,7 @@ class PurchaseOrderControllerTest {
                 .thenThrow(new BusinessException(PurchaseOrderErrorCode.SUPPLIER_INACTIVE));
 
         mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L)
-                        .param("userId", "5"))
+                        )
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("SUPPLIER_INACTIVE"));
     }
@@ -452,7 +443,7 @@ class PurchaseOrderControllerTest {
                 .thenThrow(new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND));
 
         mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 999L)
-                        .param("userId", "5"))
+                        )
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("PURCHASE_ORDER_NOT_FOUND"));
     }
@@ -462,13 +453,12 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("사유와 함께 취소하면 200과 CANCELED 상태 응답을 반환하고 사유를 커맨드로 전달한다")
     void cancel_success() throws Exception {
-        when(purchaseOrderUseCase.cancelPurchaseOrder(eq(4L), any(PurchaseOrderCancelCommand.class)))
+        when(purchaseOrderUseCase.cancelPurchaseOrder(eq(4L), any(PurchaseOrderCancelCommand.class), any()))
                 .thenReturn(purchaseOrder(PurchaseOrderStatus.CANCELED));
-        when(purchaseOrderUseCase.getPurchaseOrder(4L))
+        when(purchaseOrderUseCase.getPurchaseOrder(eq(4L), any()))
                 .thenReturn(view(PurchaseOrderStatus.CANCELED).withCancelReason("공급업체 재고 부족으로 납품 불가"));
 
         mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 4L)
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "reason": "공급업체 재고 부족으로 납품 불가" }
@@ -478,30 +468,29 @@ class PurchaseOrderControllerTest {
                 .andExpect(jsonPath("$.data.status").value("CANCELED"))
                 .andExpect(jsonPath("$.data.cancelReason").value("공급업체 재고 부족으로 납품 불가"));
 
-        verify(purchaseOrderUseCase).cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand("공급업체 재고 부족으로 납품 불가", 5L));
+        verify(purchaseOrderUseCase).cancelPurchaseOrder(eq(4L), eq(new PurchaseOrderCancelCommand("공급업체 재고 부족으로 납품 불가", 5L)), any());
     }
 
     @Test
     @DisplayName("요청 본문 없이 취소해도 사유 null로 유스케이스에 전달한다")
     void cancel_withoutBody() throws Exception {
-        when(purchaseOrderUseCase.cancelPurchaseOrder(eq(4L), any(PurchaseOrderCancelCommand.class)))
+        when(purchaseOrderUseCase.cancelPurchaseOrder(eq(4L), any(PurchaseOrderCancelCommand.class), any()))
                 .thenReturn(purchaseOrder(PurchaseOrderStatus.CANCELED));
-        when(purchaseOrderUseCase.getPurchaseOrder(4L)).thenReturn(view(PurchaseOrderStatus.CANCELED));
+        when(purchaseOrderUseCase.getPurchaseOrder(eq(4L), any())).thenReturn(view(PurchaseOrderStatus.CANCELED));
 
         mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 4L)
-                        .param("userId", "5"))
+                        )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CANCELED"))
                 .andExpect(jsonPath("$.data.cancelReason").doesNotExist());
 
-        verify(purchaseOrderUseCase).cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand(null, 5L));
+        verify(purchaseOrderUseCase).cancelPurchaseOrder(eq(4L), eq(new PurchaseOrderCancelCommand(null, 5L)), any());
     }
 
     @Test
     @DisplayName("취소 사유가 500자를 넘으면 400 VALIDATION_ERROR를 반환한다")
     void cancel_reasonTooLong() throws Exception {
         mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 4L)
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "reason": "%s" }
@@ -514,11 +503,10 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("확정된 발주를 사유 없이 취소하면 400 VALIDATION_ERROR를 반환한다")
     void cancel_confirmedWithoutReason() throws Exception {
-        when(purchaseOrderUseCase.cancelPurchaseOrder(eq(4L), any(PurchaseOrderCancelCommand.class)))
+        when(purchaseOrderUseCase.cancelPurchaseOrder(eq(4L), any(PurchaseOrderCancelCommand.class), any()))
                 .thenThrow(new BusinessException(ErrorCode.VALIDATION_ERROR, "확정된 발주를 취소할 때는 사유를 입력해야 합니다."));
 
         mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 4L)
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
@@ -526,27 +514,9 @@ class PurchaseOrderControllerTest {
     }
 
     @Test
-    @DisplayName("취소 처리 사용자 파라미터가 없으면 400을 반환하고 유스케이스를 호출하지 않는다")
-    void cancel_missingUserId() throws Exception {
-        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 4L)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{ \"reason\": \"사유\" }"))
-                .andExpect(status().isBadRequest());
-        verifyNoInteractions(purchaseOrderUseCase);
-    }
-
-    @Test
-    @DisplayName("확정 처리 사용자 파라미터가 없으면 400을 반환하고 유스케이스를 호출하지 않는다")
-    void confirm_missingUserId() throws Exception {
-        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L))
-                .andExpect(status().isBadRequest());
-        verifyNoInteractions(purchaseOrderUseCase);
-    }
-
-    @Test
     @DisplayName("취소된 발주 헤더를 조회하면 cancelReason을 반환한다")
     void getPurchaseOrder_canceled_returnsCancelReason() throws Exception {
-        when(purchaseOrderUseCase.getPurchaseOrder(4L))
+        when(purchaseOrderUseCase.getPurchaseOrder(eq(4L), any()))
                 .thenReturn(view(PurchaseOrderStatus.CANCELED).withCancelReason("입고 전 취소"));
 
         mockMvc.perform(get("/api/v1/purchase-orders/{purchaseOrderId}", 4L))
@@ -558,11 +528,10 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("이미 취소·완료된 발주를 취소하면 409 CONFLICT를 반환한다")
     void cancel_conflict() throws Exception {
-        when(purchaseOrderUseCase.cancelPurchaseOrder(eq(4L), any(PurchaseOrderCancelCommand.class)))
+        when(purchaseOrderUseCase.cancelPurchaseOrder(eq(4L), any(PurchaseOrderCancelCommand.class), any()))
                 .thenThrow(new BusinessException(ErrorCode.CONFLICT, "요청 또는 확정 상태의 발주만 취소할 수 있습니다."));
 
         mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 4L)
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "reason": "사유" }
@@ -574,11 +543,11 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("없는 발주를 취소하면 404 PURCHASE_ORDER_NOT_FOUND를 반환한다")
     void cancel_notFound() throws Exception {
-        when(purchaseOrderUseCase.cancelPurchaseOrder(eq(999L), any(PurchaseOrderCancelCommand.class)))
+        when(purchaseOrderUseCase.cancelPurchaseOrder(eq(999L), any(PurchaseOrderCancelCommand.class), any()))
                 .thenThrow(new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND));
 
         mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 999L)
-                        .param("userId", "5"))
+                        )
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("PURCHASE_ORDER_NOT_FOUND"));
     }

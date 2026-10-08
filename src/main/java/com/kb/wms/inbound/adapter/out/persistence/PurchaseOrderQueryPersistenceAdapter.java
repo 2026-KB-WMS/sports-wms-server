@@ -23,12 +23,20 @@ public class PurchaseOrderQueryPersistenceAdapter implements PurchaseOrderQueryR
     private final PurchaseOrderJpaRepository purchaseOrderJpaRepository;
     private final PurchaseOrderLineJpaRepository purchaseOrderLineJpaRepository;
 
+    /** JPQL의 IN에 빈 목록을 넘기지 않으려는 자리 값. 범위 조건을 쓰지 않거나 담당 창고가 없을 때 쓴다. */
+    private static final List<Long> NO_WAREHOUSE = List.of(-1L);
+
+    private static List<Long> scopeIds(List<Long> warehouseIds) {
+        return warehouseIds == null || warehouseIds.isEmpty() ? NO_WAREHOUSE : warehouseIds;
+    }
+
     @Override
     public List<PurchaseOrderSummary> search(PurchaseOrderSearchCondition condition) {
         return purchaseOrderJpaRepository.search(
                 condition.status(), condition.warehouseId(), condition.supplierId(),
                 SearchKeyword.normalize(condition.keyword()),
-                condition.createdFrom(), condition.createdTo());
+                condition.createdFrom(), condition.createdTo(),
+                condition.warehouseIds() != null, scopeIds(condition.warehouseIds()));
     }
 
     @Override
