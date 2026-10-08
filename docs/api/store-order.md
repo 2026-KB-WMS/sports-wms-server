@@ -6,7 +6,7 @@
 
 ## 범위
 
-- 이 문서는 지점 발주 12개를 포함한다. 11개를 구현했고 `GET /orders/my`만 보류한다(트래킹 이슈 #117, 선행 #116). 인증·인가는 #170에서 적용했다.
+- 이 문서는 지점 발주 12개를 포함하며 모두 구현했다(트래킹 이슈 #117, 선행 #116). 인증·인가와 `GET /orders/my`는 #170에서 구현했다.
 - 재고 할당(`/allocations`, 4개)은 포함하지 않는다. `StockAllocation`은 ERD 출고 섹션이라 출고 도메인으로 옮겼다([outbound.md](outbound.md)).
 
 ## 구현 대비 메모
@@ -15,7 +15,7 @@
 
 - Notion 상태 컬럼은 "시작 전"이다.
 - Notion 명세의 `pageInfo`(`page`·`size`)와 일반 `NOT_FOUND`는 현재 구현 기준과 다름 → conventions.md 기준을 따른다. 목록 API는 `data.items`만 반환하고 `page`·`size`·`sort`는 지원하지 않는다(페이지네이션 보류, 정렬은 고정). 404는 도메인 전용 코드를 쓴다(`STORE_ORDER_NOT_FOUND`. 지점·창고·SKU는 각 도메인 코드).
-- 인증·인가는 #170에서 적용했다. 처리 사용자는 토큰 주체이며 `userId` 쿼리 파라미터는 받지 않는다. 역할은 보안 설정이, 담당 지점·창고 범위(등록은 요청 지점, 단건·상세는 점주의 담당 지점 또는 창고 관리자의 배정 창고, 보류·재개·부분 종결은 배정 창고)와 취소의 작성자·상태별 권한(승인 전은 작성자 점주만, 승인 이후는 본사만)은 서비스가 검사한다. 창고가 아직 배정되지 않은 발주는 창고 관리자에게 403이다. `GET /orders/my`는 아직 구현하지 않았다.
+- 인증·인가는 #170에서 적용했다. 처리 사용자는 토큰 주체이며 `userId` 쿼리 파라미터는 받지 않는다. 역할은 보안 설정이, 담당 지점·창고 범위(등록은 요청 지점, 단건·상세는 점주의 담당 지점 또는 창고 관리자의 배정 창고, 보류·재개·부분 종결은 배정 창고)와 취소의 작성자·상태별 권한(승인 전은 작성자 점주만, 승인 이후는 본사만)은 서비스가 검사한다. 창고가 아직 배정되지 않은 발주는 창고 관리자에게 403이다.
 - 모든 상태 변경과 사유는 `StatusHistory`에 기록한다. 응답의 `statusReason`과 `details.statusHistory`는 이 이력에서 읽는다(선행 이슈 #116).
 - 출고·할당 의존 동작은 출고 연동 포트(`StoreOrderOutboundPort`)로 정의했고 출고 도메인 구현(#143)에서 실제 어댑터로 완성했다. 출고 도메인 구현 전에는 `latestOutboundStatus`가 `null`, `outbounds`가 빈 배열이었고 진행 중 출고·피킹 시작 검사가 "없음"으로 통과했지만, 지금은 실제 출고 상태를 보여 주고 `ORDER_IN_PICKING`·`OUTBOUND_IN_PROGRESS`·`ORDER_IN_FULFILLMENT` 검사가 동작하며 승인 후 취소는 할당 해제·`READY` 출고 취소를 수행한다(`releasedAllocationCount`, `canceledOutboundCount`).
 - 2026-10-03에 명세에 반영한 결정: 발주 항목 상태 4개(`REQUESTED`/`PARTIALLY_SHIPPED`/`COMPLETED`/`CANCELED`), 점주용 진행 단계 `progressStage`(목록·단건·상세 응답).
@@ -24,8 +24,8 @@
 - 구현(#121, 승인·반려·취소 서비스)에서 정한 것: 취소 사유 필수 여부는 호출자 역할이 아니라 발주 상태로 판단한다(`REQUESTED`는 선택, 승인 이후는 필수이며 400). 역할·작성자 검사(점주 작성자/본사)는 서비스에서 한다(#170). 승인은 지점과 모든 항목의 SKU 활성만 확인하며(공급 단가 재확인 없음) 비활성이면 409 `CONFLICT`다. `ORDER_IN_PICKING`은 `StoreOrderErrorCode`에 둔다. 출고 연동 전에는 취소 응답의 `releasedAllocationCount`·`canceledOutboundCount`가 항상 0이다.
 - `createdByName`(단건)은 조회 쿼리가 사용자 테이블을 ID로 조인해 채운다(#168). `statusHistory[].changedByName`은 아직 `null`이다. 공통 상태 이력(`common.statushistory`)이 auth 엔티티를 참조해야 해서, 이력 패키지를 분리할 때 함께 채운다.
 - 구현(#122, 배정·보류·재개·부분 출고 종결 서비스)에서 정한 것: 배정 API는 발주 상태로 최초 배정(`APPROVED`)과 재배정(`ASSIGNED`)을 구분한다. 최초 배정의 `reason`은 선택이며 있으면 이력에 남긴다. 재배정 이력의 사유는 `창고 변경 {이전 창고ID} → {이후 창고ID}: {사유}` 형식이고, `StatusHistory.reason` 500자 제한을 넘으면 사용자 사유 끝을 줄인다(`…`). 창고가 없으면 창고 도메인의 404, 비활성이면 409 `CONFLICT`이며 발주 상태 검사가 먼저다. 409 코드 `ORDER_IN_FULFILLMENT`, `OUTBOUND_IN_PROGRESS`, `NO_SHORTAGE`는 `StoreOrderErrorCode`에 둔다. 보류의 `ORDER_IN_PICKING` 검사는 취소와 같은 포트 메서드(`existsPickingStarted`)를 쓴다. 부분 출고 종결 응답의 항목은 SKU 코드 순이다. 출고 연동 전에는 `ORDER_IN_FULFILLMENT`, `ORDER_IN_PICKING`, `OUTBOUND_IN_PROGRESS`가 항상 통과한다.
-- 구현(#123, 웹 어댑터)에서 정한 것: 12개 중 11개를 구현했고 `GET /orders/my`는 보류한다. 처리 사용자는 토큰 주체이며 `createdBy`·`changedBy`로 넘긴다. 반려·보류·재개·부분 종결은 같은 요청 본문(`reason` 필수, ≤500)을 쓰고 취소는 본문이 선택(`reason` ≤500)이다. `POST /orders` 응답은 방금 등록한 발주 헤더와 항목을 한 번에 담는다. 목록은 `sort` 파라미터 없이 서비스 정렬을 따른다. `statusHistory[].changedByName`은 `null`이다(위 `createdByName` 설명 참고). 잘못된 enum·날짜·경로 ID·`@Valid` 실패는 모두 400 `VALIDATION_ERROR`다.
-- `GET /orders/my`(소속 지점·창고 범위 제한, 창고 관리자에게 미배정 발주 숨김)는 서비스에는 아직 없다. 구현할 때 소속 지점·창고를 판별해 `GET /orders` 조회의 `storeId`·`warehouseId` 조건으로 좁혀 처리한다.
+- 구현(#123, 웹 어댑터)에서 정한 것: 12개 중 11개를 구현했고 `GET /orders/my`는 인증 적용(#170)에서 추가했다. 처리 사용자는 토큰 주체이며 `createdBy`·`changedBy`로 넘긴다. 반려·보류·재개·부분 종결은 같은 요청 본문(`reason` 필수, ≤500)을 쓰고 취소는 본문이 선택(`reason` ≤500)이다. `POST /orders` 응답은 방금 등록한 발주 헤더와 항목을 한 번에 담는다. 목록은 `sort` 파라미터 없이 서비스 정렬을 따른다. `statusHistory[].changedByName`은 `null`이다(위 `createdByName` 설명 참고). 잘못된 enum·날짜·경로 ID·`@Valid` 실패는 모두 400 `VALIDATION_ERROR`다.
+- `GET /orders/my`(#170): 검색 조건에 `storeIds`·`warehouseIds` 범위를 두어 서비스가 점주는 담당 지점, 창고 관리자는 담당 창고로 좁힌다. 창고 범위를 주면 `warehouse_id`가 비어 있는 발주(`REQUESTED`, `APPROVED`와 미배정 상태로 반려·취소된 발주)는 제외된다. 필터로 담당이 아닌 지점·창고를 지정하면 존재 확인(404)보다 먼저 403이다.
 - 확정 필요(미결): "주문 단위 검증"(화면 설계 ST-04)의 단위 기준(현재는 1 이상 정수만 검증), 요청 배송 일시의 최소 리드타임, 배송 실패·수령 거부 처리. 주문 번호 형식은 `SO-yyyyMMdd-NNNN`으로 확정했다(위 메모).
 
 ## 엔드포인트 목록 (12)
@@ -34,7 +34,7 @@
 |---|---|---|---|---|
 | POST | /orders | STORE_OWNER | P1 | 지점 발주 등록(REQUESTED) |
 | GET | /orders | HQ_ADMIN | P1 | 전체 발주 목록 |
-| GET | /orders/my | STORE_OWNER, WAREHOUSE_MANAGER | P2 | 내 발주 목록 (**보류**: 미구현) |
+| GET | /orders/my | STORE_OWNER, WAREHOUSE_MANAGER | P2 | 내 발주 목록 |
 | GET | /orders/{orderId} | HQ_ADMIN, STORE_OWNER, WAREHOUSE_MANAGER | P1 | 발주 헤더 조회 |
 | GET | /orders/{orderId}/details | HQ_ADMIN, STORE_OWNER, WAREHOUSE_MANAGER | P2 | 발주 항목·출고·상태 이력 조회 |
 | PATCH | /orders/{orderId}/approve | HQ_ADMIN | P1 | 승인(REQUESTED → APPROVED) |

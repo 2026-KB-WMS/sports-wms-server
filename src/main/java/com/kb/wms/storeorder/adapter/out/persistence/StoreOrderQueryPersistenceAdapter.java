@@ -28,7 +28,16 @@ public class StoreOrderQueryPersistenceAdapter implements StoreOrderQueryReposit
         return storeOrderJpaRepository.search(
                 condition.status(), condition.storeId(), condition.warehouseId(),
                 SearchKeyword.normalize(condition.keyword()),
-                condition.requestedFrom(), condition.requestedTo());
+                condition.requestedFrom(), condition.requestedTo(),
+                condition.storeIds() != null, scopeIds(condition.storeIds()),
+                condition.warehouseIds() != null, scopeIds(condition.warehouseIds()));
+    }
+
+    /** JPQL의 IN에 빈 목록을 넘기지 않으려는 자리 값. 범위 조건을 쓰지 않거나 담당 범위가 비었을 때 쓴다. */
+    private static final List<Long> NO_ID = List.of(-1L);
+
+    private static List<Long> scopeIds(List<Long> ids) {
+        return ids == null || ids.isEmpty() ? NO_ID : ids;
     }
 
     @Override

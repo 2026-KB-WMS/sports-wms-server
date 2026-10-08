@@ -118,6 +118,38 @@ public class StoreOrderService implements StoreOrderUseCase {
 
     @Override
     public List<StoreOrderListItem> getStoreOrders(StoreOrderSearchCondition condition) {
+        return searchStoreOrders(condition);
+    }
+
+    /**
+     * 점주는 담당 지점의 발주, 창고 관리자는 담당 창고에 배정된 발주(창고 배정 전 발주는 제외)만 돌려준다.
+     * 지점·창고를 필터로 지정하면 담당 범위여야 하고(아니면 403), 본사 관리자는 이 조회를 쓰지 않는다(403).
+     */
+    @Override
+    public List<StoreOrderListItem> getMyStoreOrders(StoreOrderSearchCondition condition, AuthenticatedUser actor) {
+        List<Long> storeScope = null;
+        List<Long> warehouseScope = null;
+        if (actor.isStoreOwner()) {
+            if (condition.storeId() != null) {
+                actor.requireStoreAccess(condition.storeId());
+            } else {
+                storeScope = actor.storeIds();
+            }
+        } else if (actor.isWarehouseManager()) {
+            if (condition.warehouseId() != null) {
+                actor.requireWarehouseAccess(condition.warehouseId());
+            } else {
+                warehouseScope = actor.warehouseIds();
+            }
+        } else {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        return searchStoreOrders(new StoreOrderSearchCondition(
+                condition.status(), condition.storeId(), condition.warehouseId(), condition.keyword(),
+                condition.requestedFrom(), condition.requestedTo(), storeScope, warehouseScope));
+    }
+
+    private List<StoreOrderListItem> searchStoreOrders(StoreOrderSearchCondition condition) {
         if (condition.requestedFrom() != null && condition.requestedTo() != null
                 && condition.requestedFrom().isAfter(condition.requestedTo())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "요청 시작 일시는 종료 일시보다 늦을 수 없습니다.");

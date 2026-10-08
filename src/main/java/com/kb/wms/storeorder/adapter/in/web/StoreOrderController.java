@@ -50,7 +50,7 @@ import lombok.RequiredArgsConstructor;
  * PATCH .../{orderId}/approve, reject, cancel, hold, resume, complete-partial, POST .../assign
  *
  * <p>처리 사용자는 토큰 주체이고, 역할은 SecurityConfig가, 담당 지점·창고 범위와 취소 권한(작성자·상태별)은 서비스가 검사한다.
- * {@code GET /orders/my}(소속 지점·창고 범위 조회)는 아직 구현하지 않았다.
+ * {@code GET /orders/my}는 점주의 담당 지점·창고 관리자의 배정 창고 발주만 돌려준다.
  * 목록은 페이지네이션 없이 전체를 반환한다(공통 페이징 도입 시 추가).
  */
 @RestController
@@ -82,6 +82,24 @@ public class StoreOrderController {
         List<StoreOrderListItemResponse> items = storeOrderUseCase
                 .getStoreOrders(new StoreOrderSearchCondition(
                         status, storeId, warehouseId, keyword, requestedFrom, requestedTo))
+                .stream()
+                .map(StoreOrderListItemResponse::from)
+                .toList();
+        return ApiResponse.ok(ItemsResponse.of(items));
+    }
+
+    @GetMapping("/my")
+    public ApiResponse<ItemsResponse<StoreOrderListItemResponse>> getMyStoreOrders(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @RequestParam(required = false) StoreOrderStatus status,
+            @RequestParam(required = false) Long storeId,
+            @RequestParam(required = false) Long warehouseId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedTo) {
+        List<StoreOrderListItemResponse> items = storeOrderUseCase
+                .getMyStoreOrders(new StoreOrderSearchCondition(
+                        status, storeId, warehouseId, keyword, requestedFrom, requestedTo), principal)
                 .stream()
                 .map(StoreOrderListItemResponse::from)
                 .toList();

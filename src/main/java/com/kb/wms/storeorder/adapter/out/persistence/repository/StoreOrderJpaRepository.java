@@ -46,6 +46,8 @@ public interface StoreOrderJpaRepository extends JpaRepository<StoreOrderJpaEnti
             where (:status is null or o.status = :status)
               and (:storeId is null or o.storeId = :storeId)
               and (:warehouseId is null or o.warehouseId = :warehouseId)
+              and (:storeScoped = false or o.storeId in :storeIds)
+              and (:warehouseScoped = false or o.warehouseId in :warehouseIds)
               and (:keyword is null
                    or lower(o.orderNo) like lower(concat('%', :keyword, '%'))
                    or lower(s.name) like lower(concat('%', :keyword, '%')))
@@ -60,7 +62,11 @@ public interface StoreOrderJpaRepository extends JpaRepository<StoreOrderJpaEnti
                                    @Param("warehouseId") Long warehouseId,
                                    @Param("keyword") String keyword,
                                    @Param("requestedFrom") LocalDateTime requestedFrom,
-                                   @Param("requestedTo") LocalDateTime requestedTo);
+                                   @Param("requestedTo") LocalDateTime requestedTo,
+                                   @Param("storeScoped") boolean storeScoped,
+                                   @Param("storeIds") Collection<Long> storeIds,
+                                   @Param("warehouseScoped") boolean warehouseScoped,
+                                   @Param("warehouseIds") Collection<Long> warehouseIds);
 
     @Query("""
             select new com.kb.wms.storeorder.application.port.in.result.StoreOrderView(

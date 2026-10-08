@@ -5,6 +5,7 @@ import static com.kb.wms.common.security.TestAuth.signInAsHqAdmin;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -254,6 +255,34 @@ class StoreOrderControllerTest {
         assertThat(condition.keyword()).isEqualTo("SO-2026");
         assertThat(condition.requestedFrom()).isEqualTo(LocalDateTime.of(2026, 10, 1, 0, 0));
         assertThat(condition.requestedTo()).isEqualTo(LocalDateTime.of(2026, 10, 31, 23, 59, 59));
+    }
+
+    @Test
+    @DisplayName("내 발주 목록은 필터와 토큰 사용자를 서비스에 넘기고 data.items로 반환하며, 서비스의 403을 그대로 응답한다")
+    void myList_passesFilterAndPrincipal() throws Exception {
+        StoreOrderSummary summary = new StoreOrderSummary(7L, "SO-20261002-0001", 2L, "Store A", 1L,
+                "Warehouse 1", StoreOrderStatus.ASSIGNED, T0, null, 2L, BigDecimal.valueOf(15000), 0L);
+        when(storeOrderUseCase.getMyStoreOrders(any(StoreOrderSearchCondition.class), any()))
+                .thenReturn(List.of(new StoreOrderListItem(summary, null, StoreOrderProgressStage.PREPARING)));
+
+        mockMvc.perform(get("/api/v1/orders/my").with(user(9L))
+                        .param("status", "ASSIGNED").param("storeId", "2").param("keyword", "SO-2026"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].orderNo").value("SO-20261002-0001"))
+                .andExpect(jsonPath("$.data.items[0].progressStage").value("PREPARING"));
+
+        ArgumentCaptor<StoreOrderSearchCondition> captor = ArgumentCaptor.forClass(StoreOrderSearchCondition.class);
+        verify(storeOrderUseCase).getMyStoreOrders(captor.capture(), argThat(actor -> actor.userId().equals(9L)));
+        assertThat(captor.getValue().status()).isEqualTo(StoreOrderStatus.ASSIGNED);
+        assertThat(captor.getValue().storeId()).isEqualTo(2L);
+        assertThat(captor.getValue().keyword()).isEqualTo("SO-2026");
+
+        when(storeOrderUseCase.getMyStoreOrders(any(StoreOrderSearchCondition.class), any()))
+                .thenThrow(new BusinessException(com.kb.wms.common.exception.ErrorCode.FORBIDDEN));
+        mockMvc.perform(get("/api/v1/orders/my").param("storeId", "99"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
     }
 
     @Test

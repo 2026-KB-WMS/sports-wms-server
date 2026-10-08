@@ -287,6 +287,45 @@ class StoreOrderServiceTest {
         assertThat(items.get(1).latestOutboundStatus()).isEqualTo(StoreOrderOutboundStatus.SHIPPED);
     }
 
+    // ---------- getMyStoreOrders ----------
+
+    @Test
+    @DisplayName("내 발주 목록: 점주는 필터가 없으면 담당 지점으로, 창고 관리자는 담당 창고로 범위를 좁힌다")
+    void getMyStoreOrders_scopedToAssigned() {
+        StoreOrderSearchCondition none = condition(null, null, null, null);
+        StoreOrderSearchCondition ownerScope = new StoreOrderSearchCondition(
+                null, null, null, null, null, null, List.of(1L, 2L), null);
+        StoreOrderSearchCondition managerScope = new StoreOrderSearchCondition(
+                null, null, null, null, null, null, null, List.of(3L));
+        when(storeOrderQueryRepository.search(ownerScope)).thenReturn(List.of(summary(1L, StoreOrderStatus.REQUESTED, 0)));
+        when(storeOrderQueryRepository.search(managerScope)).thenReturn(List.of(summary(2L, StoreOrderStatus.ASSIGNED, 0)));
+
+        AuthenticatedUser storeOwner = new AuthenticatedUser(5L, UserRole.STORE_OWNER, List.of(), List.of(1L, 2L));
+        assertThat(storeOrderService.getMyStoreOrders(none, storeOwner))
+                .extracting(item -> item.summary().storeOrderId()).containsExactly(1L);
+        assertThat(storeOrderService.getMyStoreOrders(none, manager(7L, 3L)))
+                .extracting(item -> item.summary().storeOrderId()).containsExactly(2L);
+    }
+
+    @Test
+    @DisplayName("내 발주 목록: 담당 지점·창고를 필터로 지정하면 추가 범위 없이 그 조건으로만 조회한다")
+    void getMyStoreOrders_specifiedFilterWithinScope() {
+        when(storeOrderQueryRepository.search(condition(1L, null, null, null))).thenReturn(List.of());
+        when(storeOrderQueryRepository.search(condition(null, 3L, null, null))).thenReturn(List.of());
+
+        assertThat(storeOrderService.getMyStoreOrders(condition(1L, null, null, null), owner(5L, 1L))).isEmpty();
+        assertThat(storeOrderService.getMyStoreOrders(condition(null, 3L, null, null), manager(7L, 3L))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("내 발주 목록: 담당이 아닌 지점·창고 필터와 본사 호출은 403이고, 존재 확인·조회보다 먼저 거절한다")
+    void getMyStoreOrders_forbidden() {
+        assertError(() -> storeOrderService.getMyStoreOrders(condition(2L, null, null, null), owner(5L, 1L)), "FORBIDDEN");
+        assertError(() -> storeOrderService.getMyStoreOrders(condition(null, 9L, null, null), manager(7L, 3L)), "FORBIDDEN");
+        assertError(() -> storeOrderService.getMyStoreOrders(condition(null, null, null, null), HQ), "FORBIDDEN");
+        verifyNoInteractions(storeOrderQueryRepository, storeAvailabilityPort, warehouseAvailabilityPort);
+    }
+
     // ---------- getStoreOrder ----------
 
     @Test

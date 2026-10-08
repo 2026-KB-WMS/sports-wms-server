@@ -83,6 +83,7 @@ public class SecurityConfig {
                         // 단건 조회 범위(담당 지점·배정 창고)와 취소의 작성자·상태별 권한은 서비스가 검사한다.
                         .requestMatchers(HttpMethod.POST, "/api/v1/orders").hasRole("STORE_OWNER")
                         .requestMatchers(HttpMethod.GET, "/api/v1/orders").hasRole("HQ_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/orders/my").hasAnyRole("STORE_OWNER", "WAREHOUSE_MANAGER")
                         .requestMatchers(HttpMethod.GET, "/api/v1/orders/*", "/api/v1/orders/*/details")
                         .hasAnyRole("HQ_ADMIN", "STORE_OWNER", "WAREHOUSE_MANAGER")
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/orders/*/cancel").hasAnyRole("HQ_ADMIN", "STORE_OWNER")

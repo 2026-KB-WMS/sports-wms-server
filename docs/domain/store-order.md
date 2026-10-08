@@ -72,7 +72,7 @@
 
 ## 구현 현황 (2026-10-04)
 
-트래킹 이슈 #117, 하위 이슈 #118 도메인 모델 + 마이그레이션(완료), #119 포트 + 어댑터(완료: 영속성 어댑터·조회 쿼리·출고 임시 어댑터·`StoreOrderProgressStage`. 임시 어댑터는 출고 도메인 구현(#143)에서 `StoreOrderOutboundAdapter`로 교체했다), #120 서비스(등록·조회, 구현 완료: `StoreOrderService`), #121 서비스(승인·반려·취소, 구현 완료: `StoreOrderService`), #122 서비스(배정·보류·재개·부분 출고 종결, 구현 완료: `StoreOrderService`), #123 웹 어댑터(11개 엔드포인트 구현 완료: `StoreOrderController`, `GET /orders/my`는 보류), #124 테스트. 선행 #116 StatusHistory 공통 도메인(완료).
+트래킹 이슈 #117, 하위 이슈 #118 도메인 모델 + 마이그레이션(완료), #119 포트 + 어댑터(완료: 영속성 어댑터·조회 쿼리·출고 임시 어댑터·`StoreOrderProgressStage`. 임시 어댑터는 출고 도메인 구현(#143)에서 `StoreOrderOutboundAdapter`로 교체했다), #120 서비스(등록·조회, 구현 완료: `StoreOrderService`), #121 서비스(승인·반려·취소, 구현 완료: `StoreOrderService`), #122 서비스(배정·보류·재개·부분 출고 종결, 구현 완료: `StoreOrderService`), #123 웹 어댑터(11개 엔드포인트 구현 완료: `StoreOrderController`, `GET /orders/my`는 #170에서 구현), #124 테스트. 선행 #116 StatusHistory 공통 도메인(완료).
 
 ### 설계 결정 (구현 시 따를 것)
 

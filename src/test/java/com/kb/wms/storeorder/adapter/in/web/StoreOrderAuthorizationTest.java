@@ -93,6 +93,12 @@ class StoreOrderAuthorizationTest {
     }
 
     @Test
+    @DisplayName("내 발주 목록은 점주와 창고 관리자만 호출할 수 있고, 본사는 403이다")
+    void myList_storeOwnerAndWarehouseManager() throws Exception {
+        assertOnly(List.of(owner(), manager()), List.of(hq()), get("/api/v1/orders/my"));
+    }
+
+    @Test
     @DisplayName("발주 단건·상세는 본사·점주·창고 관리자가 호출할 수 있다 (범위는 서비스가 검사)")
     void read_allRoles() throws Exception {
         for (String path : List.of("/api/v1/orders/1", "/api/v1/orders/1/details")) {

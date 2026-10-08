@@ -32,6 +32,12 @@ public interface StoreOrderUseCase {
     /** 필터의 지점·창고가 없으면 각 도메인의 404, 요청 시작 일시가 종료 일시보다 늦으면 400. */
     List<StoreOrderListItem> getStoreOrders(StoreOrderSearchCondition condition);
 
+    /**
+     * 내 발주 목록. 점주는 담당 지점의 발주, 창고 관리자는 담당 창고에 배정된 발주만 돌려준다(창고 배정 전 발주 제외).
+     * 필터의 지점·창고가 담당 범위가 아니면 403 FORBIDDEN, 본사 관리자는 403, 없는 지점·창고는 각 도메인의 404.
+     */
+    List<StoreOrderListItem> getMyStoreOrders(StoreOrderSearchCondition condition, AuthenticatedUser actor);
+
     /** 발주가 없으면 404 STORE_ORDER_NOT_FOUND. 점주는 담당 지점, 창고 관리자는 담당 창고에 배정된 발주만(그 외 403 FORBIDDEN). */
     StoreOrderDetail getStoreOrder(Long storeOrderId, AuthenticatedUser actor);
 
