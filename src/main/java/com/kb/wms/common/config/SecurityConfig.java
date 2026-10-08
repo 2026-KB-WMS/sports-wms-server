@@ -18,7 +18,7 @@ import com.kb.wms.common.security.RestSecurityExceptionHandler;
 /**
  * Security 설정.
  * 토큰이 있으면 JwtAuthenticationFilter가 파싱해 인증 주체를 올린다. 인증 도메인 API(/auth/me, /users)와
- * 인가를 적용한 도메인(상품, 창고, 재고, 지점, 입고, 지점 발주)만 인증·역할을 요구하고, 나머지 요청은 아직 모두 허용한다.
+ * 인가를 적용한 도메인(상품, 창고, 재고, 지점, 입고, 지점 발주, 출고)만 인증·역할을 요구하고, 나머지 요청은 아직 모두 허용한다.
  * 역할 규칙은 docs/api/authorization.md 표와 맞춘다.
  * TODO: 기존 도메인에 인증·인가를 적용하는 마지막 단계(#170)에서 authorizeHttpRequests를 인증 필수로 전환할 것.
  */
@@ -90,6 +90,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/orders/*/hold", "/api/v1/orders/*/resume",
                                 "/api/v1/orders/*/complete-partial").hasRole("WAREHOUSE_MANAGER")
                         .requestMatchers("/api/v1/orders/**").hasRole("HQ_ADMIN")
+                        // 출고·재고 할당: 쓰기는 창고 관리자, 조회는 본사+창고 관리자. 점주는 불가.
+                        // 담당 창고 범위(발주에 배정된 창고)는 서비스가 검사한다.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/allocations/**", "/api/v1/outbounds/**")
+                        .hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
+                        .requestMatchers("/api/v1/allocations/**", "/api/v1/outbounds/**")
+                        .hasRole("WAREHOUSE_MANAGER")
                         .anyRequest().permitAll());
 
         return http.build();

@@ -1,6 +1,7 @@
 package com.kb.wms.outbound.adapter.out.persistence.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,6 +30,7 @@ public interface OutboundQueryJpaRepository extends Repository<OutboundJpaEntity
             join OutboundLineJpaEntity l on l.outboundId = ob.outboundId
             where (:status is null or ob.status = :status)
               and (:warehouseId is null or o.warehouseId = :warehouseId)
+              and (:scoped = false or o.warehouseId in :warehouseIds)
               and (:storeId is null or o.storeId = :storeId)
               and (:storeOrderId is null or o.storeOrderId = :storeOrderId)
               and (:keyword is null
@@ -46,7 +48,9 @@ public interface OutboundQueryJpaRepository extends Repository<OutboundJpaEntity
                                  @Param("storeOrderId") Long storeOrderId,
                                  @Param("keyword") String keyword,
                                  @Param("createdFrom") LocalDateTime createdFrom,
-                                 @Param("createdTo") LocalDateTime createdTo);
+                                 @Param("createdTo") LocalDateTime createdTo,
+                                 @Param("scoped") boolean scoped,
+                                 @Param("warehouseIds") Collection<Long> warehouseIds);
 
     @Query("""
             select new com.kb.wms.outbound.application.port.in.result.OutboundView(

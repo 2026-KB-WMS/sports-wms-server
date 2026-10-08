@@ -7,6 +7,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -61,7 +62,7 @@ public class OutboundService implements OutboundUseCase {
 
     @Override
     @Transactional
-    public OutboundCreateResult createOutbound(OutboundCreateCommand command) {
+    public OutboundCreateResult createOutbound(OutboundCreateCommand command, AuthenticatedUser actor) {
         requireUser(command.userId());
         if (command.storeOrderId() == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "출고할 발주를 선택해주세요.");
@@ -73,6 +74,7 @@ public class OutboundService implements OutboundUseCase {
         }
 
         StoreOrder order = storeOrderFulfillmentUseCase.getOrderForUpdate(command.storeOrderId());
+        actor.requireWarehouseAccess(order.getWarehouseId());
         if (order.getStatus() != StoreOrderStatus.ASSIGNED) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "배정된 발주만 출고를 만들 수 있습니다. 현재 상태: " + order.getStatus());
@@ -99,9 +101,9 @@ public class OutboundService implements OutboundUseCase {
 
     @Override
     @Transactional
-    public OutboundPickingStartResult startPicking(Long outboundId, Long userId) {
-        requireUser(userId);
-        Outbound outbound = lockOutbound(outboundId);
+    public OutboundPickingStartResult startPicking(Long outboundId, AuthenticatedUser actor) {
+        Long userId = actor.userId();
+        Outbound outbound = lockOutbound(outboundId, actor);
 
         if (outbound.getStatus() != OutboundStatus.READY) {
             throw new BusinessException(ErrorCode.CONFLICT,
@@ -134,7 +136,7 @@ public class OutboundService implements OutboundUseCase {
 
     @Override
     @Transactional
-    public OutboundCancelResult cancel(OutboundCancelCommand command) {
+    public OutboundCancelResult cancel(OutboundCancelCommand command, AuthenticatedUser actor) {
         requireUser(command.userId());
         String reason = normalize(command.reason());
         if (reason == null) {
@@ -144,7 +146,7 @@ public class OutboundService implements OutboundUseCase {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     "취소 사유는 " + REASON_MAX_LENGTH + "자 이하여야 합니다.");
         }
-        Outbound outbound = lockOutbound(command.outboundId());
+        Outbound outbound = lockOutbound(command.outboundId(), actor);
 
         if (outbound.getStatus() != OutboundStatus.READY) {
             throw new BusinessException(ErrorCode.CONFLICT,
@@ -162,17 +164,21 @@ public class OutboundService implements OutboundUseCase {
     }
 
     @Override
-    public List<OutboundSummary> searchOutbounds(OutboundSearchCondition condition) {
+    public List<OutboundSummary> searchOutbounds(OutboundSearchCondition condition, AuthenticatedUser actor) {
+        List<Long> scope = actor.warehouseScope(condition.warehouseId());
         if (condition.createdFrom() != null && condition.createdTo() != null
                 && condition.createdFrom().isAfter(condition.createdTo())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "조회 시작 일시가 종료 일시보다 늦을 수 없습니다.");
         }
-        return outboundQueryRepository.searchOutbounds(condition);
+        return outboundQueryRepository.searchOutbounds(new OutboundSearchCondition(
+                condition.status(), condition.warehouseId(), condition.storeId(), condition.storeOrderId(),
+                condition.keyword(), condition.createdFrom(), condition.createdTo(), scope));
     }
 
     @Override
-    public OutboundDetail getOutbound(Long outboundId) {
+    public OutboundDetail getOutbound(Long outboundId, AuthenticatedUser actor) {
         OutboundView view = findViewOrThrow(outboundId);
+        actor.requireWarehouseAccess(view.warehouseId());
         List<OutboundLineView> items = outboundQueryRepository.findOutboundLineViews(outboundId);
         String cancelReason = view.status() == OutboundStatus.CANCELED
                 ? statusHistoryUseCase
@@ -186,12 +192,13 @@ public class OutboundService implements OutboundUseCase {
      * 발주 → 출고 순으로 잠그기 위해, 잠그지 않는 조회로 발주를 먼저 찾아 잠근 뒤 출고를 잠근다.
      * 발주 취소(승인 이후)가 발주를 잠근 채 출고를 처리하는 순서와 같다.
      */
-    private Outbound lockOutbound(Long outboundId) {
+    private Outbound lockOutbound(Long outboundId, AuthenticatedUser actor) {
         if (outboundId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "출고를 선택해주세요.");
         }
         OutboundView view = findViewOrThrow(outboundId);
-        storeOrderFulfillmentUseCase.getOrderForUpdate(view.storeOrderId());
+        StoreOrder order = storeOrderFulfillmentUseCase.getOrderForUpdate(view.storeOrderId());
+        actor.requireWarehouseAccess(order.getWarehouseId());
         return outboundRepository.findByIdForUpdate(outboundId)
                 .orElseThrow(() -> new BusinessException(OutboundErrorCode.OUTBOUND_NOT_FOUND));
     }

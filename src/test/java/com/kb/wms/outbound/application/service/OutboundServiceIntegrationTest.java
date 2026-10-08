@@ -16,6 +16,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
@@ -66,6 +68,12 @@ import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 @Transactional
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class OutboundServiceIntegrationTest {
+
+    private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
+
+    private static AuthenticatedUser hq(long userId) {
+        return new AuthenticatedUser(userId, UserRole.HQ_ADMIN, List.of(), List.of());
+    }
 
     private static final Long USER = 7L;
 
@@ -133,7 +141,7 @@ class OutboundServiceIntegrationTest {
     }
 
     private List<Long> allocate() {
-        return allocationUseCase.allocate(new StockAllocateCommand(order, USER)).items().stream()
+        return allocationUseCase.allocate(new StockAllocateCommand(order, USER), HQ).items().stream()
                 .map(i -> i.allocationId()).toList();
     }
 
@@ -148,7 +156,7 @@ class OutboundServiceIntegrationTest {
     void create() {
         allocate();
 
-        OutboundCreateResult result = useCase.createOutbound(new OutboundCreateCommand(order, " 오전 출고 ", USER));
+        OutboundCreateResult result = useCase.createOutbound(new OutboundCreateCommand(order, " 오전 출고 ", USER), HQ);
 
         assertThat(result.view().status()).isEqualTo(OutboundStatus.READY);
         assertThat(result.view().outboundNo()).matches("OB-\\d{8}-0001");
@@ -163,12 +171,12 @@ class OutboundServiceIntegrationTest {
     @DisplayName("출고 번호는 당일 일련번호로 증가한다")
     void createSequence() {
         List<Long> ids = allocate();
-        useCase.createOutbound(new OutboundCreateCommand(order, null, USER));
+        useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ);
         // 첫 출고를 취소해 할당을 다시 묶을 수 있게 한다
-        Long first = useCase.searchOutbounds(emptyCondition()).get(0).outboundId();
-        useCase.cancel(new OutboundCancelCommand(first, "재작업", USER));
+        Long first = useCase.searchOutbounds(emptyCondition(), HQ).get(0).outboundId();
+        useCase.cancel(new OutboundCancelCommand(first, "재작업", USER), HQ);
 
-        OutboundCreateResult second = useCase.createOutbound(new OutboundCreateCommand(order, null, USER));
+        OutboundCreateResult second = useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ);
 
         assertThat(ids).hasSize(2);
         assertThat(second.view().outboundNo()).endsWith("-0002");
@@ -177,12 +185,12 @@ class OutboundServiceIntegrationTest {
     @Test
     @DisplayName("이미 출고에 묶인 할당만 남았으면 NO_ALLOCATION")
     void createNoAllocation() {
-        assertThatThrownBy(() -> useCase.createOutbound(new OutboundCreateCommand(order, null, USER)))
+        assertThatThrownBy(() -> useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("NO_ALLOCATION"));
 
         allocate();
-        useCase.createOutbound(new OutboundCreateCommand(order, null, USER));
-        assertThatThrownBy(() -> useCase.createOutbound(new OutboundCreateCommand(order, null, USER)))
+        useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ);
+        assertThatThrownBy(() -> useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("NO_ALLOCATION"));
     }
 
@@ -191,17 +199,15 @@ class OutboundServiceIntegrationTest {
     void createInvalid() {
         allocate();
 
-        assertThatThrownBy(() -> useCase.createOutbound(new OutboundCreateCommand(null, null, USER)))
+        assertThatThrownBy(() -> useCase.createOutbound(new OutboundCreateCommand(null, null, USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
-        assertThatThrownBy(() -> useCase.createOutbound(new OutboundCreateCommand(order, null, null)))
+        assertThatThrownBy(() -> useCase.createOutbound(new OutboundCreateCommand(order, null, null), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
-        assertThatThrownBy(() -> useCase.createOutbound(
-                new OutboundCreateCommand(order, "가".repeat(501), USER)))
+        assertThatThrownBy(() -> useCase.createOutbound(new OutboundCreateCommand(order, "가".repeat(501), USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
-        assertThatThrownBy(() -> useCase.createOutbound(new OutboundCreateCommand(999_999L, null, USER)))
+        assertThatThrownBy(() -> useCase.createOutbound(new OutboundCreateCommand(999_999L, null, USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("STORE_ORDER_NOT_FOUND"));
-        assertThat(useCase.createOutbound(
-                new OutboundCreateCommand(order, "가".repeat(500), USER)).view().note()).hasSize(500);
+        assertThat(useCase.createOutbound(new OutboundCreateCommand(order, "가".repeat(500), USER), HQ).view().note()).hasSize(500);
     }
 
     // ---------- 피킹 시작 ----------
@@ -210,28 +216,25 @@ class OutboundServiceIntegrationTest {
     @DisplayName("READY 출고는 PICKING으로 바뀌고, 이후 할당 해제와 재시작은 막힌다")
     void startPicking() {
         List<Long> ids = allocate();
-        Long outboundId = useCase.createOutbound(new OutboundCreateCommand(order, null, USER))
+        Long outboundId = useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ)
                 .view().outboundId();
 
-        OutboundPickingStartResult result = useCase.startPicking(outboundId, USER);
+        OutboundPickingStartResult result = useCase.startPicking(outboundId, hq(USER));
 
         assertThat(result.status()).isEqualTo(OutboundStatus.PICKING);
         assertThat(statusHistoryUseCase.findHistory(StatusHistoryEntityType.OUTBOUND, outboundId)).hasSize(2);
-        assertThatThrownBy(() -> useCase.startPicking(outboundId, USER))
+        assertThatThrownBy(() -> useCase.startPicking(outboundId, hq(USER)))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("CONFLICT"));
-        assertThatThrownBy(() -> allocationUseCase.release(
-                new StockAllocationReleaseCommand(ids.get(0), "사유", USER)))
+        assertThatThrownBy(() -> allocationUseCase.release(new StockAllocationReleaseCommand(ids.get(0), "사유", USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("ALLOCATION_IN_OUTBOUND"));
     }
 
     @Test
-    @DisplayName("피킹 시작 입력 검증: 없는 출고는 404, 사용자 필수")
+    @DisplayName("피킹 시작 입력 검증: 없는 출고는 404, 출고 ID 필수")
     void startPickingInvalid() {
-        assertThatThrownBy(() -> useCase.startPicking(999_999L, USER))
+        assertThatThrownBy(() -> useCase.startPicking(999_999L, hq(USER)))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("OUTBOUND_NOT_FOUND"));
-        assertThatThrownBy(() -> useCase.startPicking(1L, null))
-                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
-        assertThatThrownBy(() -> useCase.startPicking(null, USER))
+        assertThatThrownBy(() -> useCase.startPicking(null, hq(USER)))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
     }
 
@@ -241,14 +244,14 @@ class OutboundServiceIntegrationTest {
     @DisplayName("READY 출고를 취소하면 할당은 유지되고 사유가 이력에 남는다")
     void cancel() {
         allocate();
-        Long outboundId = useCase.createOutbound(new OutboundCreateCommand(order, null, USER))
+        Long outboundId = useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ)
                 .view().outboundId();
 
-        OutboundCancelResult result = useCase.cancel(new OutboundCancelCommand(outboundId, " 오배정 ", USER));
+        OutboundCancelResult result = useCase.cancel(new OutboundCancelCommand(outboundId, " 오배정 ", USER), HQ);
 
         assertThat(result.status()).isEqualTo(OutboundStatus.CANCELED);
         assertThat(result.cancelReason()).isEqualTo("오배정");
-        OutboundDetail detail = useCase.getOutbound(outboundId);
+        OutboundDetail detail = useCase.getOutbound(outboundId, HQ);
         assertThat(detail.cancelReason()).isEqualTo("오배정");
         assertThat(detail.items()).hasSize(2);
     }
@@ -257,24 +260,24 @@ class OutboundServiceIntegrationTest {
     @DisplayName("PICKING 출고나 이미 취소된 출고는 취소할 수 없다(CONFLICT)")
     void cancelConflict() {
         allocate();
-        Long outboundId = useCase.createOutbound(new OutboundCreateCommand(order, null, USER))
+        Long outboundId = useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ)
                 .view().outboundId();
-        useCase.startPicking(outboundId, USER);
+        useCase.startPicking(outboundId, hq(USER));
 
-        assertThatThrownBy(() -> useCase.cancel(new OutboundCancelCommand(outboundId, "사유", USER)))
+        assertThatThrownBy(() -> useCase.cancel(new OutboundCancelCommand(outboundId, "사유", USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("CONFLICT"));
     }
 
     @Test
     @DisplayName("취소 입력 검증: 사유 필수·500자 이하, 사용자 필수, 없는 출고는 404")
     void cancelInvalid() {
-        assertThatThrownBy(() -> useCase.cancel(new OutboundCancelCommand(1L, "  ", USER)))
+        assertThatThrownBy(() -> useCase.cancel(new OutboundCancelCommand(1L, "  ", USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
-        assertThatThrownBy(() -> useCase.cancel(new OutboundCancelCommand(1L, "가".repeat(501), USER)))
+        assertThatThrownBy(() -> useCase.cancel(new OutboundCancelCommand(1L, "가".repeat(501), USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
-        assertThatThrownBy(() -> useCase.cancel(new OutboundCancelCommand(1L, "사유", null)))
+        assertThatThrownBy(() -> useCase.cancel(new OutboundCancelCommand(1L, "사유", null), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
-        assertThatThrownBy(() -> useCase.cancel(new OutboundCancelCommand(999_999L, "사유", USER)))
+        assertThatThrownBy(() -> useCase.cancel(new OutboundCancelCommand(999_999L, "사유", USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("OUTBOUND_NOT_FOUND"));
     }
 
@@ -284,18 +287,18 @@ class OutboundServiceIntegrationTest {
     @DisplayName("목록은 상태·발주 필터를 적용하고 기간 역전은 검증 오류")
     void search() {
         allocate();
-        useCase.createOutbound(new OutboundCreateCommand(order, null, USER));
+        useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ);
 
         List<OutboundSummary> ready = useCase.searchOutbounds(new OutboundSearchCondition(
-                OutboundStatus.READY, null, null, order, null, null, null));
+                OutboundStatus.READY, null, null, order, null, null, null), HQ);
         List<OutboundSummary> picking = useCase.searchOutbounds(new OutboundSearchCondition(
-                OutboundStatus.PICKING, null, null, null, null, null, null));
+                OutboundStatus.PICKING, null, null, null, null, null, null), HQ);
 
         assertThat(ready).hasSize(1);
         assertThat(picking).isEmpty();
         LocalDateTime now = LocalDateTime.now();
         assertThatThrownBy(() -> useCase.searchOutbounds(new OutboundSearchCondition(
-                null, null, null, null, null, now, now.minusDays(1))))
+                null, null, null, null, null, now, now.minusDays(1)), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
     }
 
@@ -303,10 +306,10 @@ class OutboundServiceIntegrationTest {
     @DisplayName("상세 조회는 항목과 로트·구역을 담고 없는 출고는 404")
     void get() {
         allocate();
-        Long outboundId = useCase.createOutbound(new OutboundCreateCommand(order, null, USER))
+        Long outboundId = useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ)
                 .view().outboundId();
 
-        OutboundDetail detail = useCase.getOutbound(outboundId);
+        OutboundDetail detail = useCase.getOutbound(outboundId, HQ);
 
         assertThat(detail.items()).hasSize(2);
         assertThat(detail.items()).allSatisfy(i -> {
@@ -314,11 +317,76 @@ class OutboundServiceIntegrationTest {
             assertThat(i.lotNumber()).isNotNull();
         });
         assertThat(detail.cancelReason()).isNull();
-        assertThatThrownBy(() -> useCase.getOutbound(999_999L))
+        assertThatThrownBy(() -> useCase.getOutbound(999_999L, HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("OUTBOUND_NOT_FOUND"));
     }
 
     private OutboundSearchCondition emptyCondition() {
         return new OutboundSearchCondition(null, null, null, null, null, null, null);
+    }
+
+    // ---------- 담당 창고 범위 (인가) ----------
+
+    private AuthenticatedUser manager(long userId, Long... warehouseIds) {
+        return new AuthenticatedUser(userId, UserRole.WAREHOUSE_MANAGER, List.of(warehouseIds), List.of());
+    }
+
+    @Test
+    @DisplayName("발주에 배정된 창고의 담당 관리자만 할당·출고를 다룰 수 있고, 다른 창고 관리자는 모든 작업이 403이다")
+    void warehouseScope_writes() {
+        AuthenticatedUser mine = manager(7L, warehouse);
+        AuthenticatedUser other = manager(8L, warehouse + 1_000);
+
+        // 담당 창고 관리자는 할당·출고 생성·피킹 시작까지 할 수 있다
+        List<Long> allocationIds = allocationUseCase.allocate(new StockAllocateCommand(order, 7L), mine).items().stream()
+                .map(i -> i.allocationId()).toList();
+        assertThat(allocationIds).isNotEmpty();
+
+        assertThatThrownBy(() -> allocationUseCase.allocate(new StockAllocateCommand(order, 8L), other))
+                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
+        assertThatThrownBy(() -> allocationUseCase.release(
+                new StockAllocationReleaseCommand(allocationIds.get(0), "사유", 8L), other))
+                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
+        assertThatThrownBy(() -> useCase.createOutbound(new OutboundCreateCommand(order, null, 8L), other))
+                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
+
+        Long outboundId = useCase.createOutbound(new OutboundCreateCommand(order, null, 7L), mine).view().outboundId();
+        assertThatThrownBy(() -> useCase.startPicking(outboundId, other))
+                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
+        assertThatThrownBy(() -> useCase.cancel(new OutboundCancelCommand(outboundId, "사유", 8L), other))
+                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
+        // 거절된 요청은 출고 상태를 바꾸지 않는다
+        assertThat(useCase.getOutbound(outboundId, mine).view().status().name()).isEqualTo("READY");
+    }
+
+    @Test
+    @DisplayName("조회는 담당 창고의 발주만 보이고, 다른 창고 관리자는 단건 403·목록 빈 결과, 창고를 지정하면 403이다")
+    void warehouseScope_reads() {
+        AuthenticatedUser mine = manager(7L, warehouse);
+        AuthenticatedUser other = manager(8L, warehouse + 1_000);
+        List<Long> allocationIds = allocationUseCase.allocate(new StockAllocateCommand(order, 7L), mine).items().stream()
+                .map(i -> i.allocationId()).toList();
+        Long outboundId = useCase.createOutbound(new OutboundCreateCommand(order, null, 7L), mine).view().outboundId();
+
+        assertThat(useCase.searchOutbounds(emptyCondition(), mine)).hasSize(1);
+        assertThat(useCase.searchOutbounds(emptyCondition(), other)).isEmpty();
+        assertThat(allocationUseCase.searchAllocations(
+                new com.kb.wms.outbound.application.port.in.query.StockAllocationSearchCondition(
+                        null, null, null, null, null), mine)).hasSize(allocationIds.size());
+        assertThat(allocationUseCase.searchAllocations(
+                new com.kb.wms.outbound.application.port.in.query.StockAllocationSearchCondition(
+                        null, null, null, null, null), other)).isEmpty();
+
+        assertThatThrownBy(() -> useCase.getOutbound(outboundId, other))
+                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
+        assertThatThrownBy(() -> allocationUseCase.getAllocation(allocationIds.get(0), other))
+                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
+        assertThatThrownBy(() -> useCase.searchOutbounds(new OutboundSearchCondition(
+                null, warehouse, null, null, null, null, null), other))
+                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
+
+        // 본사는 전체를 본다
+        assertThat(useCase.searchOutbounds(emptyCondition(), HQ)).hasSize(1);
+        assertThat(useCase.getOutbound(outboundId, HQ).view().outboundId()).isEqualTo(outboundId);
     }
 }

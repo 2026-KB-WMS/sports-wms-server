@@ -61,6 +61,10 @@ class OutboundFlowIntegrationTest {
 
     private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
 
+    private static AuthenticatedUser hq(long userId) {
+        return new AuthenticatedUser(userId, UserRole.HQ_ADMIN, List.of(), List.of());
+    }
+
     private static final Long USER = 9L;
 
     @Autowired OutboundTestFixture fixture;
@@ -96,8 +100,8 @@ class OutboundFlowIntegrationTest {
     }
 
     private Long createOutbound(Scenario s) {
-        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER));
-        return outboundUseCase.createOutbound(new OutboundCreateCommand(s.orderId(), null, USER))
+        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER), HQ);
+        return outboundUseCase.createOutbound(new OutboundCreateCommand(s.orderId(), null, USER), HQ)
                 .view().outboundId();
     }
 
@@ -114,13 +118,13 @@ class OutboundFlowIntegrationTest {
         assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(50, 8));
         assertThat(transactionsOf(outboundId)).isEmpty();
 
-        outboundUseCase.startPicking(outboundId, USER);
+        outboundUseCase.startPicking(outboundId, hq(USER));
         assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(50, 8));
 
         // 피킹 완료: 일부 부족(6/8). 보유 −6, 할당 −8(부족분 예약 해제), 재고 이력 −6
         Long lineId = created.items().get(0).outboundLineId();
         var picked = fulfillmentUseCase.completePicking(new OutboundPickingCompleteCommand(outboundId,
-                List.of(new PickedLine(lineId, 6L)), USER));
+                List.of(new PickedLine(lineId, 6L)), USER), HQ);
         assertThat(picked.status()).isEqualTo(OutboundStatus.PICKED);
         assertThat(picked.hasShortage()).isTrue();
         assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(44, 0));
@@ -134,9 +138,9 @@ class OutboundFlowIntegrationTest {
                 });
 
         // 배송 시작·완료: 재고 불변, 부족분이 남아 발주는 ASSIGNED
-        fulfillmentUseCase.ship(outboundId, USER);
+        fulfillmentUseCase.ship(outboundId, hq(USER));
         assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(44, 0));
-        var delivered = fulfillmentUseCase.deliver(outboundId, USER);
+        var delivered = fulfillmentUseCase.deliver(outboundId, hq(USER));
         assertThat(delivered.storeOrderStatus()).isEqualTo(StoreOrderStatus.ASSIGNED);
         assertThat(transactionsOf(outboundId)).hasSize(1);
         assertThat(orderLine(s).getStatus()).isEqualTo(StoreOrderLineStatus.PARTIALLY_SHIPPED);
@@ -144,12 +148,12 @@ class OutboundFlowIntegrationTest {
 
         // 후속 할당·출고로 남은 2개 처리
         Long second = createOutboundAgain(s);
-        Long secondLine = outboundUseCase.getOutbound(second).items().get(0).outboundLineId();
-        outboundUseCase.startPicking(second, USER);
+        Long secondLine = outboundUseCase.getOutbound(second, HQ).items().get(0).outboundLineId();
+        outboundUseCase.startPicking(second, hq(USER));
         fulfillmentUseCase.completePicking(new OutboundPickingCompleteCommand(second,
-                List.of(new PickedLine(secondLine, 2L)), USER));
-        fulfillmentUseCase.ship(second, USER);
-        var done = fulfillmentUseCase.deliver(second, USER);
+                List.of(new PickedLine(secondLine, 2L)), USER), HQ);
+        fulfillmentUseCase.ship(second, hq(USER));
+        var done = fulfillmentUseCase.deliver(second, hq(USER));
 
         assertThat(done.storeOrderStatus()).isEqualTo(StoreOrderStatus.COMPLETED);
         assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(42, 0));
@@ -190,7 +194,7 @@ class OutboundFlowIntegrationTest {
     void cancelOrderInPicking() {
         Scenario s = fixture.create(50, 8);
         Long outboundId = createOutbound(s);
-        outboundUseCase.startPicking(outboundId, USER);
+        outboundUseCase.startPicking(outboundId, hq(USER));
 
         assertThatThrownBy(() -> storeOrderUseCase.cancelStoreOrder(new StoreOrderCancelCommand(s.orderId(), "고객 요청", USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("ORDER_IN_PICKING"));
@@ -212,7 +216,7 @@ class OutboundFlowIntegrationTest {
     @DisplayName("부분 종결: 출고를 만들지 않은 ALLOCATED 할당을 해제하고 재고·항목 할당 수량을 되돌린다")
     void completePartialReleasesAllocationWithoutOutbound() {
         Scenario s = fixture.create(50, 8);
-        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER));
+        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER), HQ);
         assertThat(inventory(s.inventoryLotId()).allocated()).isEqualTo(8);
         assertThat(orderLine(s).getAllocatedQuantity()).isEqualTo(8L);
         Long allocationId = allocationRepository.findByStoreOrderId(s.orderId()).get(0).getAllocationId();
@@ -243,7 +247,7 @@ class OutboundFlowIntegrationTest {
     void completePartialReleasesAllocationOfCanceledOutbound() {
         Scenario s = fixture.create(50, 8);
         Long outboundId = createOutbound(s);
-        outboundUseCase.cancel(new OutboundCancelCommand(outboundId, "취소", USER));
+        outboundUseCase.cancel(new OutboundCancelCommand(outboundId, "취소", USER), HQ);
         assertThat(inventory(s.inventoryLotId()).allocated()).isEqualTo(8);
 
         StoreOrderCompletePartialResult result = storeOrderUseCase.completePartialStoreOrder(new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER), HQ);
@@ -262,13 +266,13 @@ class OutboundFlowIntegrationTest {
     void completePartialReleasesExtraAllocationAfterDelivery() {
         Scenario s = fixture.create(50, 8);
         Long outboundId = createOutbound(s);
-        outboundUseCase.startPicking(outboundId, USER);
-        Long lineId = outboundUseCase.getOutbound(outboundId).items().get(0).outboundLineId();
+        outboundUseCase.startPicking(outboundId, hq(USER));
+        Long lineId = outboundUseCase.getOutbound(outboundId, HQ).items().get(0).outboundLineId();
         fulfillmentUseCase.completePicking(new OutboundPickingCompleteCommand(outboundId,
-                List.of(new PickedLine(lineId, 6L)), USER));
-        fulfillmentUseCase.ship(outboundId, USER);
-        fulfillmentUseCase.deliver(outboundId, USER);
-        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER));
+                List.of(new PickedLine(lineId, 6L)), USER), HQ);
+        fulfillmentUseCase.ship(outboundId, hq(USER));
+        fulfillmentUseCase.deliver(outboundId, hq(USER));
+        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER), HQ);
         assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(44, 2));
 
         StoreOrderCompletePartialResult result = storeOrderUseCase.completePartialStoreOrder(new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER), HQ);
@@ -305,15 +309,15 @@ class OutboundFlowIntegrationTest {
         Long outboundId = createOutbound(s);
         assertThat(storeOrderUseCase.getStoreOrderDetails(s.orderId(), HQ).outbounds()).hasSize(1)
                 .allSatisfy(o -> assertThat(o.status().name()).isEqualTo("READY"));
-        outboundUseCase.startPicking(outboundId, USER);
-        Long lineId = outboundUseCase.getOutbound(outboundId).items().get(0).outboundLineId();
+        outboundUseCase.startPicking(outboundId, hq(USER));
+        Long lineId = outboundUseCase.getOutbound(outboundId, HQ).items().get(0).outboundLineId();
         fulfillmentUseCase.completePicking(new OutboundPickingCompleteCommand(outboundId,
-                List.of(new PickedLine(lineId, 5L)), USER));
-        fulfillmentUseCase.ship(outboundId, USER);
+                List.of(new PickedLine(lineId, 5L)), USER), HQ);
+        fulfillmentUseCase.ship(outboundId, hq(USER));
 
         assertThat(storeOrderUseCase.getStoreOrder(s.orderId(), HQ).progressStage())
                 .isEqualTo(StoreOrderProgressStage.IN_TRANSIT);
-        fulfillmentUseCase.deliver(outboundId, USER);
+        fulfillmentUseCase.deliver(outboundId, hq(USER));
         assertThat(storeOrderUseCase.getStoreOrder(s.orderId(), HQ).progressStage())
                 .isEqualTo(StoreOrderProgressStage.PARTIALLY_DELIVERED);
     }
@@ -321,13 +325,13 @@ class OutboundFlowIntegrationTest {
     // ---------- 보조 ----------
 
     private OutboundCreateResult outboundUseCaseCreate(Scenario s) {
-        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER));
-        return outboundUseCase.createOutbound(new OutboundCreateCommand(s.orderId(), null, USER));
+        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER), HQ);
+        return outboundUseCase.createOutbound(new OutboundCreateCommand(s.orderId(), null, USER), HQ);
     }
 
     private Long createOutboundAgain(Scenario s) {
-        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER));
-        return outboundUseCase.createOutbound(new OutboundCreateCommand(s.orderId(), null, USER))
+        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER), HQ);
+        return outboundUseCase.createOutbound(new OutboundCreateCommand(s.orderId(), null, USER), HQ)
                 .view().outboundId();
     }
 

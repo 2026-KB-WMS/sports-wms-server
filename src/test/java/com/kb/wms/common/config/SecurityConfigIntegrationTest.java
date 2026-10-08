@@ -30,8 +30,8 @@ import com.kb.wms.common.security.JwtProvider;
 @AutoConfigureMockMvc
 class SecurityConfigIntegrationTest {
 
-    // 인가를 가장 마지막에 적용하는 도메인(출고)의 조회 API. 도메인별 인가 적용(#170) 순서가 바뀌면 아직 열려 있는 API로 옮긴다.
-    private static final String OPEN_ENDPOINT = "/api/v1/outbounds";
+    // 모든 도메인에 인가를 적용한 뒤에는 열려 있는 업무 API가 없어, 규칙이 없는 경로(API 문서)로 필터 동작만 확인한다. 전체 인증 전환 때 이 테스트를 함께 바꾼다.
+    private static final String OPEN_ENDPOINT = "/v3/api-docs";
 
     @Autowired
     private MockMvc mockMvc;
