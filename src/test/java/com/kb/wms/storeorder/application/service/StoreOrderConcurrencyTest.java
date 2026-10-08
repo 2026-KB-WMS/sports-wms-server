@@ -22,6 +22,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.adapter.out.persistence.repository.StatusHistoryJpaRepository;
@@ -53,6 +55,8 @@ import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
 @SpringBootTest
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class StoreOrderConcurrencyTest {
+
+    private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
 
     private static final long USER = 9L;
 
@@ -132,7 +136,7 @@ class StoreOrderConcurrencyTest {
                 },
                 () -> {
                     // 사유 없는 취소는 승인 전(REQUESTED)에만 가능하다. 승인이 먼저면 400으로 거절된다.
-                    storeOrderUseCase.cancelStoreOrder(new StoreOrderCancelCommand(orderId, null, USER));
+                    storeOrderUseCase.cancelStoreOrder(new StoreOrderCancelCommand(orderId, null, USER), HQ);
                     return null;
                 });
         List<Throwable> results = runConcurrently(tasks);

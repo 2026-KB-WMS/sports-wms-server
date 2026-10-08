@@ -2,6 +2,7 @@ package com.kb.wms.storeorder.application.port.in;
 
 import java.util.List;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderAssignCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderRegisterCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderCancelCommand;
@@ -25,17 +26,17 @@ import com.kb.wms.storeorder.application.port.in.result.StoreOrderStatusChange;
  */
 public interface StoreOrderUseCase {
 
-    /** 발주와 항목을 한 트랜잭션으로 등록하고 StatusHistory(null → REQUESTED)를 남긴 뒤 발주 ID를 반환한다. 응답 조립은 조회 유스케이스로 한다. */
-    Long registerStoreOrder(StoreOrderRegisterCommand command);
+    /** 요청 지점이 actor의 담당 지점이 아니면 403 FORBIDDEN. 발주와 항목을 한 트랜잭션으로 등록하고 StatusHistory(null → REQUESTED)를 남긴 뒤 발주 ID를 반환한다. 응답 조립은 조회 유스케이스로 한다. */
+    Long registerStoreOrder(StoreOrderRegisterCommand command, AuthenticatedUser actor);
 
     /** 필터의 지점·창고가 없으면 각 도메인의 404, 요청 시작 일시가 종료 일시보다 늦으면 400. */
     List<StoreOrderListItem> getStoreOrders(StoreOrderSearchCondition condition);
 
-    /** 발주가 없으면 404 STORE_ORDER_NOT_FOUND */
-    StoreOrderDetail getStoreOrder(Long storeOrderId);
+    /** 발주가 없으면 404 STORE_ORDER_NOT_FOUND. 점주는 담당 지점, 창고 관리자는 담당 창고에 배정된 발주만(그 외 403 FORBIDDEN). */
+    StoreOrderDetail getStoreOrder(Long storeOrderId, AuthenticatedUser actor);
 
-    /** 발주가 없으면 404 STORE_ORDER_NOT_FOUND */
-    StoreOrderDetails getStoreOrderDetails(Long storeOrderId);
+    /** 발주가 없으면 404 STORE_ORDER_NOT_FOUND. 조회 범위는 {@link #getStoreOrder}와 같다. */
+    StoreOrderDetails getStoreOrderDetails(Long storeOrderId, AuthenticatedUser actor);
 
     /**
      * REQUESTED → APPROVED. 발주 행을 잠그고 지점·항목 SKU가 활성인지 확인한 뒤 전이하고 StatusHistory를 남긴다.
@@ -52,9 +53,10 @@ public interface StoreOrderUseCase {
     /**
      * 진행 중 발주를 CANCELED로 바꾸고 항목을 모두 CANCELED로 만든다. 승인 이후 취소는 사유 필수(400).
      * 이미 종결된 발주는 409 CONFLICT, 피킹이 시작된 출고가 있으면 409 ORDER_IN_PICKING.
+     * 승인 전(REQUESTED) 취소는 작성자인 점주만, 승인 이후 취소는 본사 관리자만 할 수 있다(그 외 403 FORBIDDEN).
      * 승인 이후 취소는 출고 연동 포트로 할당 해제·READY 출고 취소를 같은 트랜잭션에서 처리한다.
      */
-    StoreOrderCancelResult cancelStoreOrder(StoreOrderCancelCommand command);
+    StoreOrderCancelResult cancelStoreOrder(StoreOrderCancelCommand command, AuthenticatedUser actor);
 
     /**
      * APPROVED → ASSIGNED(최초 배정), ASSIGNED의 창고 변경(재배정). 재배정은 사유 필수(400)이고
@@ -64,21 +66,21 @@ public interface StoreOrderUseCase {
     StoreOrderAssignResult assignStoreOrder(StoreOrderAssignCommand command);
 
     /**
-     * ASSIGNED → ON_HOLD. 사유 필수(400). ASSIGNED가 아니면 409 CONFLICT,
+     * ASSIGNED → ON_HOLD. 배정 창고가 actor의 담당 창고가 아니면 403 FORBIDDEN. 사유 필수(400). ASSIGNED가 아니면 409 CONFLICT,
      * 피킹이 시작된 출고가 있으면 409 ORDER_IN_PICKING.
      */
-    StoreOrderStatusChange holdStoreOrder(StoreOrderHoldCommand command);
+    StoreOrderStatusChange holdStoreOrder(StoreOrderHoldCommand command, AuthenticatedUser actor);
 
     /**
      * ON_HOLD → ASSIGNED. 사유 필수(400). ON_HOLD가 아니거나 배정 창고가 비활성이면 409 CONFLICT.
      * 재개 후 statusReason은 null이다.
      */
-    StoreOrderStatusChange resumeStoreOrder(StoreOrderResumeCommand command);
+    StoreOrderStatusChange resumeStoreOrder(StoreOrderResumeCommand command, AuthenticatedUser actor);
 
     /**
      * ASSIGNED → COMPLETED(부분 출고 종결). 사유 필수(400). ASSIGNED가 아니면 409 CONFLICT,
      * 진행 중 출고가 있으면 409 OUTBOUND_IN_PROGRESS, 부족 수량이 없으면 409 NO_SHORTAGE.
      * 항목 상태는 바꾸지 않고 부족 수량만 계산해 돌려준다.
      */
-    StoreOrderCompletePartialResult completePartialStoreOrder(StoreOrderCompletePartialCommand command);
+    StoreOrderCompletePartialResult completePartialStoreOrder(StoreOrderCompletePartialCommand command, AuthenticatedUser actor);
 }

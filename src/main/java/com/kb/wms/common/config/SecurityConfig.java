@@ -18,7 +18,7 @@ import com.kb.wms.common.security.RestSecurityExceptionHandler;
 /**
  * Security 설정.
  * 토큰이 있으면 JwtAuthenticationFilter가 파싱해 인증 주체를 올린다. 인증 도메인 API(/auth/me, /users)와
- * 인가를 적용한 도메인(상품, 창고, 재고, 지점, 입고)만 인증·역할을 요구하고, 나머지 요청은 아직 모두 허용한다.
+ * 인가를 적용한 도메인(상품, 창고, 재고, 지점, 입고, 지점 발주)만 인증·역할을 요구하고, 나머지 요청은 아직 모두 허용한다.
  * 역할 규칙은 docs/api/authorization.md 표와 맞춘다.
  * TODO: 기존 도메인에 인증·인가를 적용하는 마지막 단계(#170)에서 authorizeHttpRequests를 인증 필수로 전환할 것.
  */
@@ -79,6 +79,16 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/purchase-orders/**", "/api/v1/inbounds/**")
                         .hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
                         .requestMatchers("/api/v1/inbounds/**").hasRole("WAREHOUSE_MANAGER")
+                        // 지점 발주: 등록은 점주, 전체 목록·승인·반려·배정은 본사, 보류·재개·부분 종결은 창고 관리자, 취소는 본사+점주.
+                        // 단건 조회 범위(담당 지점·배정 창고)와 취소의 작성자·상태별 권한은 서비스가 검사한다.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/orders").hasRole("STORE_OWNER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/orders").hasRole("HQ_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/orders/*", "/api/v1/orders/*/details")
+                        .hasAnyRole("HQ_ADMIN", "STORE_OWNER", "WAREHOUSE_MANAGER")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/orders/*/cancel").hasAnyRole("HQ_ADMIN", "STORE_OWNER")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/orders/*/hold", "/api/v1/orders/*/resume",
+                                "/api/v1/orders/*/complete-partial").hasRole("WAREHOUSE_MANAGER")
+                        .requestMatchers("/api/v1/orders/**").hasRole("HQ_ADMIN")
                         .anyRequest().permitAll());
 
         return http.build();

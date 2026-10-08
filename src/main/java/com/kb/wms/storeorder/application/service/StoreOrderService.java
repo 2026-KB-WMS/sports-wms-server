@@ -13,6 +13,7 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -85,8 +86,9 @@ public class StoreOrderService implements StoreOrderUseCase {
 
     @Override
     @Transactional
-    public Long registerStoreOrder(StoreOrderRegisterCommand command) {
+    public Long registerStoreOrder(StoreOrderRegisterCommand command, AuthenticatedUser actor) {
         validateRegister(command);
+        actor.requireStoreAccess(command.storeId());
 
         storeAvailabilityPort.requireActive(command.storeId());
 
@@ -142,16 +144,18 @@ public class StoreOrderService implements StoreOrderUseCase {
     }
 
     @Override
-    public StoreOrderDetail getStoreOrder(Long storeOrderId) {
+    public StoreOrderDetail getStoreOrder(Long storeOrderId, AuthenticatedUser actor) {
         StoreOrderView view = findViewOrThrow(storeOrderId);
+        requireReadAccess(actor, view.storeId(), view.warehouseId());
         StoreOrderOutboundStatus latest = storeOrderOutboundPort.findLatestOutboundStatus(storeOrderId).orElse(null);
         return new StoreOrderDetail(view, findStatusReason(view),
                 StoreOrderProgressStage.resolve(view.status(), latest, view.hasShortage()));
     }
 
     @Override
-    public StoreOrderDetails getStoreOrderDetails(Long storeOrderId) {
+    public StoreOrderDetails getStoreOrderDetails(Long storeOrderId, AuthenticatedUser actor) {
         StoreOrderView view = findViewOrThrow(storeOrderId);
+        requireReadAccess(actor, view.storeId(), view.warehouseId());
         StoreOrderOutboundStatus latest = storeOrderOutboundPort.findLatestOutboundStatus(storeOrderId).orElse(null);
 
         List<StoreOrderStatusHistoryView> history = statusHistoryUseCase
@@ -225,11 +229,11 @@ public class StoreOrderService implements StoreOrderUseCase {
     /**
      * 승인 전(REQUESTED) 취소는 사유가 선택이고, 승인 이후(APPROVED·ASSIGNED·ON_HOLD) 취소는 사유가 필수다.
      * 피킹이 시작된 출고가 있으면 막고, 승인 이후 취소는 출고 연동 포트로 READY 출고 취소·할당 해제를 같은 트랜잭션에서 처리한다.
-     * 작성자·역할 검사는 인증 연동 때 웹 어댑터에서 적용한다.
+     * 승인 전 취소는 작성자인 점주만, 승인 이후 취소는 본사 관리자만 할 수 있다.
      */
     @Override
     @Transactional
-    public StoreOrderCancelResult cancelStoreOrder(StoreOrderCancelCommand command) {
+    public StoreOrderCancelResult cancelStoreOrder(StoreOrderCancelCommand command, AuthenticatedUser actor) {
         requireChangedBy(command.changedBy());
         String reason = normalizeReason(command.reason());
 
@@ -239,6 +243,12 @@ public class StoreOrderService implements StoreOrderUseCase {
                     "진행 중인 발주만 취소할 수 있습니다. 현재 상태: " + order.getStatus());
         }
         boolean afterApproval = !order.isRequested();
+        boolean allowed = afterApproval
+                ? actor.isHqAdmin()
+                : actor.isStoreOwner() && actor.userId().equals(order.getCreatedBy());
+        if (!allowed) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
         if (afterApproval && reason == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "승인된 발주를 취소할 때는 사유를 입력해야 합니다.");
         }
@@ -318,11 +328,12 @@ public class StoreOrderService implements StoreOrderUseCase {
     /** 피킹이 시작된 출고가 있으면 막는다. READY 출고나 재고 할당이 있어도 보류할 수 있고 재고·수량은 바뀌지 않는다. */
     @Override
     @Transactional
-    public StoreOrderStatusChange holdStoreOrder(StoreOrderHoldCommand command) {
+    public StoreOrderStatusChange holdStoreOrder(StoreOrderHoldCommand command, AuthenticatedUser actor) {
         requireChangedBy(command.changedBy());
         String reason = requireReason(command.reason(), "보류 사유를 입력해주세요.");
 
         StoreOrder order = findForUpdateOrThrow(command.storeOrderId());
+        actor.requireWarehouseAccess(order.getWarehouseId());
         if (order.getStatus() != StoreOrderStatus.ASSIGNED) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "창고 배정 상태의 발주만 출고를 보류할 수 있습니다. 현재 상태: " + order.getStatus());
@@ -344,11 +355,12 @@ public class StoreOrderService implements StoreOrderUseCase {
     /** 재고 충분 여부는 검증하지 않는다. 배정 창고가 비활성이면 재개할 수 없다. 재개 후 statusReason은 null이다. */
     @Override
     @Transactional
-    public StoreOrderStatusChange resumeStoreOrder(StoreOrderResumeCommand command) {
+    public StoreOrderStatusChange resumeStoreOrder(StoreOrderResumeCommand command, AuthenticatedUser actor) {
         requireChangedBy(command.changedBy());
         String reason = requireReason(command.reason(), "재개 사유를 입력해주세요.");
 
         StoreOrder order = findForUpdateOrThrow(command.storeOrderId());
+        actor.requireWarehouseAccess(order.getWarehouseId());
         if (order.getStatus() != StoreOrderStatus.ON_HOLD) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "출고 보류 상태의 발주만 재개할 수 있습니다. 현재 상태: " + order.getStatus());
@@ -373,11 +385,12 @@ public class StoreOrderService implements StoreOrderUseCase {
      */
     @Override
     @Transactional
-    public StoreOrderCompletePartialResult completePartialStoreOrder(StoreOrderCompletePartialCommand command) {
+    public StoreOrderCompletePartialResult completePartialStoreOrder(StoreOrderCompletePartialCommand command, AuthenticatedUser actor) {
         requireChangedBy(command.changedBy());
         String reason = requireReason(command.reason(), "종결 사유를 입력해주세요.");
 
         StoreOrder order = findForUpdateOrThrow(command.storeOrderId());
+        actor.requireWarehouseAccess(order.getWarehouseId());
         if (order.getStatus() != StoreOrderStatus.ASSIGNED) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "창고 배정 상태의 발주만 부분 출고로 종결할 수 있습니다. 현재 상태: " + order.getStatus());
@@ -426,6 +439,15 @@ public class StoreOrderService implements StoreOrderUseCase {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, message);
         }
         return normalized;
+    }
+
+    /** 점주는 담당 지점의 발주, 창고 관리자는 담당 창고에 배정된 발주(미배정이면 불가), 본사는 전체를 볼 수 있다. */
+    private static void requireReadAccess(AuthenticatedUser actor, Long storeId, Long warehouseId) {
+        if (actor.isStoreOwner()) {
+            actor.requireStoreAccess(storeId);
+        } else {
+            actor.requireWarehouseAccess(warehouseId);
+        }
     }
 
     private void requireChangedBy(Long changedBy) {

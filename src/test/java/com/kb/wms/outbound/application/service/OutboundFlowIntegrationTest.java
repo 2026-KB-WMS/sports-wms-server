@@ -13,6 +13,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
@@ -56,6 +58,8 @@ import jakarta.persistence.EntityManager;
 @Import(OutboundTestFixture.class)
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class OutboundFlowIntegrationTest {
+
+    private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
 
     private static final Long USER = 9L;
 
@@ -168,8 +172,7 @@ class OutboundFlowIntegrationTest {
         Long outboundId = createOutbound(s);
         assertThat(inventory(s.inventoryLotId()).allocated()).isEqualTo(8);
 
-        StoreOrderCancelResult result = storeOrderUseCase.cancelStoreOrder(
-                new StoreOrderCancelCommand(s.orderId(), "고객 요청", USER));
+        StoreOrderCancelResult result = storeOrderUseCase.cancelStoreOrder(new StoreOrderCancelCommand(s.orderId(), "고객 요청", USER), HQ);
 
         assertThat(result.status()).isEqualTo(StoreOrderStatus.CANCELED);
         assertThat(result.canceledOutboundCount()).isEqualTo(1);
@@ -189,8 +192,7 @@ class OutboundFlowIntegrationTest {
         Long outboundId = createOutbound(s);
         outboundUseCase.startPicking(outboundId, USER);
 
-        assertThatThrownBy(() -> storeOrderUseCase.cancelStoreOrder(
-                new StoreOrderCancelCommand(s.orderId(), "고객 요청", USER)))
+        assertThatThrownBy(() -> storeOrderUseCase.cancelStoreOrder(new StoreOrderCancelCommand(s.orderId(), "고객 요청", USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("ORDER_IN_PICKING"));
         assertThat(storeOrderJpaRepository.findById(s.orderId()).orElseThrow().getStatus())
                 .isEqualTo(StoreOrderStatus.ASSIGNED);
@@ -202,8 +204,7 @@ class OutboundFlowIntegrationTest {
         Scenario s = fixture.create(50, 8);
         createOutbound(s);
 
-        assertThatThrownBy(() -> storeOrderUseCase.completePartialStoreOrder(
-                new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER)))
+        assertThatThrownBy(() -> storeOrderUseCase.completePartialStoreOrder(new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("OUTBOUND_IN_PROGRESS"));
     }
 
@@ -216,8 +217,7 @@ class OutboundFlowIntegrationTest {
         assertThat(orderLine(s).getAllocatedQuantity()).isEqualTo(8L);
         Long allocationId = allocationRepository.findByStoreOrderId(s.orderId()).get(0).getAllocationId();
 
-        StoreOrderCompletePartialResult result = storeOrderUseCase.completePartialStoreOrder(
-                new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER));
+        StoreOrderCompletePartialResult result = storeOrderUseCase.completePartialStoreOrder(new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER), HQ);
 
         assertThat(result.status()).isEqualTo(StoreOrderStatus.COMPLETED);
         assertThat(result.releasedAllocationCount()).isEqualTo(1);
@@ -246,8 +246,7 @@ class OutboundFlowIntegrationTest {
         outboundUseCase.cancel(new OutboundCancelCommand(outboundId, "취소", USER));
         assertThat(inventory(s.inventoryLotId()).allocated()).isEqualTo(8);
 
-        StoreOrderCompletePartialResult result = storeOrderUseCase.completePartialStoreOrder(
-                new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER));
+        StoreOrderCompletePartialResult result = storeOrderUseCase.completePartialStoreOrder(new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER), HQ);
 
         assertThat(result.releasedAllocationCount()).isEqualTo(1);
         assertThat(outboundRepository.findById(outboundId).orElseThrow().getStatus())
@@ -272,8 +271,7 @@ class OutboundFlowIntegrationTest {
         allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER));
         assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(44, 2));
 
-        StoreOrderCompletePartialResult result = storeOrderUseCase.completePartialStoreOrder(
-                new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER));
+        StoreOrderCompletePartialResult result = storeOrderUseCase.completePartialStoreOrder(new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER), HQ);
 
         assertThat(result.releasedAllocationCount()).isEqualTo(1);
         assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(44, 0));
@@ -289,8 +287,7 @@ class OutboundFlowIntegrationTest {
     void completePartialWithNoLeftoverAllocations() {
         Scenario s = fixture.create(50, 8);
 
-        StoreOrderCompletePartialResult result = storeOrderUseCase.completePartialStoreOrder(
-                new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER));
+        StoreOrderCompletePartialResult result = storeOrderUseCase.completePartialStoreOrder(new StoreOrderCompletePartialCommand(s.orderId(), "부분 종결", USER), HQ);
 
         assertThat(result.status()).isEqualTo(StoreOrderStatus.COMPLETED);
         assertThat(result.releasedAllocationCount()).isZero();
@@ -301,12 +298,12 @@ class OutboundFlowIntegrationTest {
     @DisplayName("발주 상세는 출고 상태와 진행 단계를 실제 값으로 보여 준다(outbounds, progressStage)")
     void orderDetailShowsOutbound() {
         Scenario s = fixture.create(50, 8);
-        assertThat(storeOrderUseCase.getStoreOrderDetails(s.orderId()).outbounds()).isEmpty();
-        assertThat(storeOrderUseCase.getStoreOrder(s.orderId()).progressStage())
+        assertThat(storeOrderUseCase.getStoreOrderDetails(s.orderId(), HQ).outbounds()).isEmpty();
+        assertThat(storeOrderUseCase.getStoreOrder(s.orderId(), HQ).progressStage())
                 .isEqualTo(StoreOrderProgressStage.PREPARING);
 
         Long outboundId = createOutbound(s);
-        assertThat(storeOrderUseCase.getStoreOrderDetails(s.orderId()).outbounds()).hasSize(1)
+        assertThat(storeOrderUseCase.getStoreOrderDetails(s.orderId(), HQ).outbounds()).hasSize(1)
                 .allSatisfy(o -> assertThat(o.status().name()).isEqualTo("READY"));
         outboundUseCase.startPicking(outboundId, USER);
         Long lineId = outboundUseCase.getOutbound(outboundId).items().get(0).outboundLineId();
@@ -314,10 +311,10 @@ class OutboundFlowIntegrationTest {
                 List.of(new PickedLine(lineId, 5L)), USER));
         fulfillmentUseCase.ship(outboundId, USER);
 
-        assertThat(storeOrderUseCase.getStoreOrder(s.orderId()).progressStage())
+        assertThat(storeOrderUseCase.getStoreOrder(s.orderId(), HQ).progressStage())
                 .isEqualTo(StoreOrderProgressStage.IN_TRANSIT);
         fulfillmentUseCase.deliver(outboundId, USER);
-        assertThat(storeOrderUseCase.getStoreOrder(s.orderId()).progressStage())
+        assertThat(storeOrderUseCase.getStoreOrder(s.orderId(), HQ).progressStage())
                 .isEqualTo(StoreOrderProgressStage.PARTIALLY_DELIVERED);
     }
 

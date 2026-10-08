@@ -41,12 +41,12 @@ public record AuthenticatedUser(
 
     /** 본사 관리자는 모든 창고, 그 외에는 배정된 창고만 접근할 수 있다. */
     public boolean canAccessWarehouse(Long warehouseId) {
-        return isHqAdmin() || warehouseIds.contains(warehouseId);
+        return isHqAdmin() || (warehouseId != null && warehouseIds.contains(warehouseId));
     }
 
     /** 본사 관리자는 모든 지점, 그 외에는 배정된 지점만 접근할 수 있다. */
     public boolean canAccessStore(Long storeId) {
-        return isHqAdmin() || storeIds.contains(storeId);
+        return isHqAdmin() || (storeId != null && storeIds.contains(storeId));
     }
 
     /**

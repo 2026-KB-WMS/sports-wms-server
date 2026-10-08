@@ -72,12 +72,12 @@
 
 ## 구현 현황 (2026-10-04)
 
-트래킹 이슈 #117, 하위 이슈 #118 도메인 모델 + 마이그레이션(완료), #119 포트 + 어댑터(완료: 영속성 어댑터·조회 쿼리·출고 임시 어댑터·`StoreOrderProgressStage`. 임시 어댑터는 출고 도메인 구현(#143)에서 `StoreOrderOutboundAdapter`로 교체했다), #120 서비스(등록·조회, 구현 완료: `StoreOrderService`), #121 서비스(승인·반려·취소, 구현 완료: `StoreOrderService`), #122 서비스(배정·보류·재개·부분 출고 종결, 구현 완료: `StoreOrderService`), #123 웹 어댑터(11개 엔드포인트 구현 완료: `StoreOrderController`, `GET /orders/my`는 인증 연동 때 추가), #124 테스트. 선행 #116 StatusHistory 공통 도메인(완료).
+트래킹 이슈 #117, 하위 이슈 #118 도메인 모델 + 마이그레이션(완료), #119 포트 + 어댑터(완료: 영속성 어댑터·조회 쿼리·출고 임시 어댑터·`StoreOrderProgressStage`. 임시 어댑터는 출고 도메인 구현(#143)에서 `StoreOrderOutboundAdapter`로 교체했다), #120 서비스(등록·조회, 구현 완료: `StoreOrderService`), #121 서비스(승인·반려·취소, 구현 완료: `StoreOrderService`), #122 서비스(배정·보류·재개·부분 출고 종결, 구현 완료: `StoreOrderService`), #123 웹 어댑터(11개 엔드포인트 구현 완료: `StoreOrderController`, `GET /orders/my`는 보류), #124 테스트. 선행 #116 StatusHistory 공통 도메인(완료).
 
 ### 설계 결정 (구현 시 따를 것)
 
 - 출고·할당 의존 동작(승인 후 취소 시 할당 해제·`READY` 출고 취소, `ORDER_IN_PICKING`·`OUTBOUND_IN_PROGRESS`·`ORDER_IN_FULFILLMENT` 검사, `latestOutboundStatus`·`outbounds` 조회)은 출고 연동 포트로 정의했고 출고 도메인 구현(#143)에서 실제 어댑터로 완성했다(`OutboundFlowIntegrationTest`로 검증). 보류 항목은 Notion "[보류]" 페이지에 기록한다.
-- 인증은 입고와 같은 방식이다. 처리 사용자 `userId`는 `@RequestParam`으로 받고 역할·소속 지점/창고·작성자 검사는 인증 연동 때 처리한다.
+- 인증·인가 적용됨(#170): 처리 사용자는 토큰 주체이고, 역할은 보안 설정이, 담당 지점·창고 범위와 취소 권한은 서비스가 검사한다([`api/authorization.md`](../api/authorization.md), ADR-012).
 - 다른 도메인 데이터(지점명·창고명·SKU 정보)는 조회 쿼리에서 ID 기준 읽기 전용 조인으로 가져온다(ADR-007 방식).
 - 지점 도메인의 `STORE_IN_USE`(진행 중 발주가 있으면 비활성화 금지)는 연결했다(#141). 지점 도메인은 `StoreOrderPresencePort`로 확인하고, 이 도메인의 읽기 전용 `StoreOrderPresenceUseCase`에 연결한다. 발주 등록·상태 전이 유스케이스와 분리해 지점 ↔ 발주 순환 의존을 피한다.
 - 목록 페이지네이션은 전 도메인 일괄 적용 때까지 보류한다(`data.items`).
