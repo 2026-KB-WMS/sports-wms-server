@@ -32,8 +32,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * 공급처 등록/조회/수정/비활성화.
  * POST, GET, PATCH /api/v1/suppliers
- * 인증/인가가 아직 구현되지 않아 역할별 규칙(창고 관리자는 활성 공급처만 조회)은 적용하지 않는다.
- * 인증 연동 시 이 컨트롤러에서 역할을 보고 isActive=true 강제와 비활성 공급처 상세 404 처리를 추가한다.
+ * 창고 관리자에게는 활성 공급처만 보이는 규칙(목록은 isActive=true 고정, 비활성 단건은 404)을 서비스가 처리한다.
  */
 @RestController
 @RequestMapping("/api/v1/suppliers")

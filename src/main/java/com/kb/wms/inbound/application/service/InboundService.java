@@ -36,7 +36,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * 입고 등록·조회·취소와 검수 구역 후보 조회.
  *
- * <p>역할·소속 창고 검사는 인증 도메인 연동 시 웹 어댑터에서 적용한다.
+ * <p>역할은 SecurityConfig가, 담당 창고 범위는 이 서비스가 검사한다(ADR-012).
  * 검수(inspect)와 완료(complete)는 각각 별도 서비스로 구현한다.
  */
 @Service

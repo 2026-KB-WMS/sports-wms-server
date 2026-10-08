@@ -9,7 +9,7 @@ import java.util.List;
  * @param storeId             발주하는 지점
  * @param requestedDeliveryAt 요청 배송 일시 (선택, 현재 시각 이후)
  * @param note                발주 비고 (선택)
- * @param createdBy           요청 사용자 (인증 연동 전에는 요청 파라미터의 userId)
+ * @param createdBy           요청 사용자 (토큰 사용자의 ID)
  */
 public record StoreOrderRegisterCommand(
         Long storeId,

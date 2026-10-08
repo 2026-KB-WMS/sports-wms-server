@@ -132,7 +132,6 @@ public class InventoryQueryPersistenceAdapter implements InventoryQueryRepositor
         return inventoryLotJpaRepository.existsSupplierId(supplierId);
     }
 
-    /** 빈 문자열·공백 검색어는 조건 없음으로 본다. */
     /** JPQL의 IN에 빈 목록을 넘기지 않으려는 자리 값. 범위 조건을 쓰지 않을 때(scoped=false)나 담당 창고가 없을 때 쓴다. */
     static final List<Long> NO_WAREHOUSE = List.of(-1L);
 
@@ -144,6 +143,7 @@ public class InventoryQueryPersistenceAdapter implements InventoryQueryRepositor
         return warehouseIds == null || warehouseIds.isEmpty() ? NO_WAREHOUSE : warehouseIds;
     }
 
+    /** 빈 문자열·공백 검색어는 조건 없음으로 본다. */
     private static String keyword(String keyword) {
         return StringUtils.hasText(keyword) ? keyword.trim() : null;
     }

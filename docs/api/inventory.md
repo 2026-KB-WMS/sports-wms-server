@@ -96,12 +96,12 @@
 - Query: `skuId`, `supplierId`, `expiringBefore`(YYYY-MM-DD, 당일 포함), `keyword`(로트 번호). `sort`는 받지 않는다.
 - 정렬은 고정(`expiryDate` 오름차순, 유통기한 없는 로트는 뒤, 같으면 `lotId` 오름차순).
 - 응답 항목: `lotId, lotNumber, skuId, skuCode, skuName, supplierId, supplierName, manufacturedDate, expiryDate, status, unitCost` (수량 미포함)
-- 범위: HQ_ADMIN 전체. WAREHOUSE_MANAGER는 담당 창고에 재고(InventoryLot) 또는 입고 이력이 있는 로트만.
+- 범위: HQ_ADMIN 전체. WAREHOUSE_MANAGER는 담당 창고에 재고(InventoryLot) 또는 입고 완료 이력이 있는 로트만.
 - 에러: 400, 403(점주), 404(필터 대상 없음). 생성·수정 API 없음.
 
 ## GET /lots/{lotId} — 로트 상세 (P2)
 
 - 응답: 로트 필드 + `inventory[]`(`inventoryLotId, warehouseId, warehouseName, sectionId, sectionCode, sectionName, onHandQuantity, allocatedQuantity, qualityStatus`), `inbounds[]`(`inboundId, inboundNo, warehouseId, receivedAt, receivedQuantity, acceptedQuantity, defectiveQuantity, receivedUnitPrice`), `createdAt, updatedAt`
 - `inventory`는 구역별 InventoryLot, `inbounds`는 `InboundLine.lot_id`가 이 로트인 항목. 없으면 빈 배열.
-- WAREHOUSE_MANAGER: 담당 창고의 재고·입고 이력이 있는 로트만(없으면 403), 응답의 `inventory`/`inbounds`는 담당 창고 항목만. 입고 이력(`inbounds`)만 따로 조회하는 API는 없으므로 403 판정은 항상 로트 단위(목록과 같은 기준)로 먼저 하고, 응답에서는 담당 창고 항목만 남긴다.
+- WAREHOUSE_MANAGER: 담당 창고의 재고·입고 완료 이력이 있는 로트만(없으면 403), 응답의 `inventory`/`inbounds`는 담당 창고 항목만. 입고 이력(`inbounds`)만 따로 조회하는 API는 없으므로 403 판정은 항상 로트 단위(목록과 같은 기준)로 먼저 하고, 응답에서는 담당 창고 항목만 남긴다.
 - 에러: 404(로트 없음), 403

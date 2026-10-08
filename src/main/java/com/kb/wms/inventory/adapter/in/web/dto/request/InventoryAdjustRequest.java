@@ -9,7 +9,7 @@ import jakarta.validation.constraints.Size;
 
 /**
  * POST /api/v1/inventory/adjustments 요청 바디.
- * 처리자(userId)는 인증이 도입되기 전까지 쿼리 파라미터로 받는다(창고 도메인의 GET /warehouses/my와 동일한 임시 방식).
+ * 처리자는 토큰 사용자이며 요청 바디에 포함하지 않는다.
  */
 public record InventoryAdjustRequest(
         @NotNull(message = "조정할 재고 ID는 필수 값입니다.")

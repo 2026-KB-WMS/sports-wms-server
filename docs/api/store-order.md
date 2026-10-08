@@ -94,7 +94,7 @@
 ## GET /orders/my (P2)
 
 - 권한: STORE_OWNER, WAREHOUSE_MANAGER. 본사 관리자는 403(`GET /orders` 사용).
-- Query: `status`, `storeId`(점주가 여러 지점에 배정된 경우), `warehouseId`(창고 관리자가 여러 창고에 배정된 경우), `keyword`(주문 번호), `requestedFrom`, `requestedTo`(양 끝 포함). `sort`는 받지 않고 정렬은 `GET /orders`와 같이 고정(`requestedAt` 내림차순)이다.
+- Query: `status`, `storeId`(점주가 여러 지점에 배정된 경우), `warehouseId`(창고 관리자가 여러 창고에 배정된 경우), `keyword`(주문 번호·지점명), `requestedFrom`, `requestedTo`(양 끝 포함). `sort`는 받지 않고 정렬은 `GET /orders`와 같이 고정(`requestedAt` 내림차순)이다.
 - 응답 항목: `GET /orders`와 같다.
 - 에러: 400, 403(본사 관리자가 호출, 배정되지 않은 지점·창고를 필터로 지정), 404(존재하지 않는 `storeId`·`warehouseId`)
 - 규칙: STORE_OWNER는 본인 지점 발주, WAREHOUSE_MANAGER는 담당 창고에 배정된 발주만. 창고 관리자에게는 창고에 배정되기 전 발주(`REQUESTED`, `APPROVED`)와 반려·취소된 미배정 발주가 보이지 않고, 배정 이후(`ASSIGNED`, `ON_HOLD`, `COMPLETED`)와 배정 뒤 취소된 발주만 보인다. 점주는 `status`·`progressStage`·`latestOutboundStatus`로 승인·배정·출고·배송 상태를 확인한다. 조회 전용.

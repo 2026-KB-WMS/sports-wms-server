@@ -39,7 +39,7 @@ import lombok.RequiredArgsConstructor;
  * 입고 검수. 호출마다 검수 항목 전체를 교체하고, 항목마다 로트를 찾거나 만든다(ADR-004).
  * 재고·구역 사용량·발주 항목은 바꾸지 않는다(완료 처리에서 반영).
  *
- * <p>역할·소속 창고 검사는 인증 도메인 연동 시 웹 어댑터에서 적용한다.
+ * <p>역할은 SecurityConfig가, 담당 창고 범위는 이 서비스가 입고 행을 잠근 직후 검사한다(ADR-012).
  */
 @Service
 @RequiredArgsConstructor

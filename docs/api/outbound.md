@@ -72,7 +72,7 @@
 - 권한: HQ_ADMIN, WAREHOUSE_MANAGER(담당 창고 발주의 할당만)
 - Query: `storeOrderId`, `warehouseId`, `skuId`, `status`(`ALLOCATED`/`PICKED`/`RELEASED`), `keyword`(발주 번호·SKU 코드·로트 번호 부분 일치). `page`·`size`·`sort`는 페이지네이션 도입 때 적용(구현 대비 메모). 정렬은 고정(`allocatedAt` 내림차순, 같으면 `allocationId` 내림차순).
 - 응답: `data.items[]`: `allocationId, storeOrderId, orderNo, storeOrderLineId, warehouseId, skuId, skuCode, skuName, inventoryLotId, lotId, lotNumber, expiryDate, sectionId, sectionCode, allocatedQuantity, pickedQuantity, status, allocatedAt, releasedAt`
-- 에러: 400(`status` 값·필터 형식 오류), 403(점주, 또는 담당하지 않는 창고를 `warehouseId`로 지정), 404(존재하지 않는 `storeOrderId`·`warehouseId`·`skuId`로 필터링)
+- 에러: 400(`status` 값·필터 형식 오류), 403(점주, 또는 담당하지 않는 창고를 `warehouseId`로 지정), 404(존재하지 않는 `storeOrderId`·`warehouseId`·`skuId`로 필터링. 현재 구현은 404가 아니라 빈 목록이며, 위 "구현 대비 메모" 참고)
 - 규칙: 조회 전용. 재고 행·로트·구역 정보는 `InventoryLot`·`Lot`·`WarehouseSection`을 ID 기준 읽기 전용 조인으로 가져온다(ADR-007). `warehouseId`를 생략한 창고 관리자는 담당 창고들의 할당을 받는다.
 
 ## GET /allocations/{allocationId} (P1)

@@ -12,7 +12,7 @@ import com.kb.wms.outbound.domain.enums.OutboundStatus;
 
 /**
  * GET /api/v1/outbounds/{outboundId}/details 응답. 확정 공급 단가와 금액은 피킹 완료 전에는 null이다
- * (인증 연동 뒤에는 HQ_ADMIN·WAREHOUSE_MANAGER에게만 제공한다).
+ * (이 API는 HQ_ADMIN·WAREHOUSE_MANAGER만 호출할 수 있다).
  */
 public record OutboundDetailResponse(
         Long outboundId,
