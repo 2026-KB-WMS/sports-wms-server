@@ -1,6 +1,7 @@
 package com.kb.wms.auth.application.service;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -10,9 +11,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.auth.application.port.in.UserUseCase;
+import com.kb.wms.auth.application.port.in.command.InitialHqAdminCommand;
 import com.kb.wms.auth.application.port.in.command.UserSignupCommand;
 import com.kb.wms.auth.application.port.in.command.UserUpdateCommand;
 import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
+import com.kb.wms.auth.application.port.in.result.InitialHqAdminResult;
 import com.kb.wms.auth.application.port.out.UserQueryRepository;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
@@ -136,6 +139,65 @@ public class UserService implements UserUseCase {
                     fromStatus.name(), newStatus.name(), null, command.actorUserId());
         }
         return saved;
+    }
+
+    @Override
+    @Transactional
+    public InitialHqAdminResult ensureInitialHqAdmin(InitialHqAdminCommand command) {
+        if (userRepository.existsByRole(UserRole.HQ_ADMIN)) {
+            return InitialHqAdminResult.ALREADY_EXISTS;
+        }
+        if (command.isEmpty()) {
+            return InitialHqAdminResult.NOT_CONFIGURED;
+        }
+        validateInitialAdminProfile(command);
+        String loginId = normalizeLoginId(command.loginId());
+        validateLoginId(loginId);
+        validatePassword(command.password());
+
+        if (userRepository.existsByLoginId(loginId)) {
+            throw new BusinessException(AuthErrorCode.DUPLICATE_LOGIN_ID);
+        }
+        if (userRepository.existsByEmail(command.email())) {
+            throw new BusinessException(AuthErrorCode.DUPLICATE_EMAIL);
+        }
+
+        userRepository.save(User.createHqAdmin(loginId, passwordEncoder.encode(command.password()),
+                command.name(), command.email(), command.phone()));
+        return InitialHqAdminResult.CREATED;
+    }
+
+    private void validateInitialAdminProfile(InitialHqAdminCommand command) {
+        List<String> missing = new ArrayList<>();
+        if (isBlank(command.loginId())) {
+            missing.add("loginId");
+        }
+        if (isBlank(command.password())) {
+            missing.add("password");
+        }
+        if (isBlank(command.name())) {
+            missing.add("name");
+        }
+        if (isBlank(command.email())) {
+            missing.add("email");
+        }
+        if (isBlank(command.phone())) {
+            missing.add("phone");
+        }
+        if (!missing.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "최초 본사 관리자 설정에 비어 있는 값이 있습니다: " + String.join(", ", missing));
+        }
+        // 컬럼 길이를 넘으면 DB 오류가 나서 동시 기동 중복과 구분되지 않으므로 미리 거른다.
+        if (command.name().length() > 100 || command.email().length() > 255 || command.phone().length() > 30
+                || !command.email().contains("@")) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "최초 본사 관리자의 이름(100자)·이메일(255자, @ 포함)·연락처(30자) 형식을 확인해주세요.");
+        }
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private void validateStatusChange(User user, UserStatus target, UserRole roleAfterChange) {

@@ -14,6 +14,11 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/wms?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      WMS_ADMIN_LOGIN_ID: ${WMS_ADMIN_LOGIN_ID:-}
+      WMS_ADMIN_PASSWORD: ${WMS_ADMIN_PASSWORD:-}
+      WMS_ADMIN_NAME: ${WMS_ADMIN_NAME:-}
+      WMS_ADMIN_EMAIL: ${WMS_ADMIN_EMAIL:-}
+      WMS_ADMIN_PHONE: ${WMS_ADMIN_PHONE:-}
     ports:
       - "8080:8080"
 

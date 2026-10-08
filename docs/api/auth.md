@@ -19,7 +19,7 @@
 - **`PATCH /users/{userId}` 추가 규칙(명세에 없이 서비스에 넣음)**: 소속(창고·지점 멤버)이 있는 사용자의 `role` 변경은 409 `AFFILIATION_ASSIGNED`, 창고 관리자·점주를 소속 없이 `ACTIVE`로 만들면 409 `AFFILIATION_REQUIRED`, 허용되지 않는 상태 전이는 409 `INVALID_USER_STATUS_TRANSITION`. 상태가 바뀌면 `StatusHistory`(`entity_type` `USER`)에 이전·이후 상태와 처리자를 기록한다(사유는 받지 않는다).
 - **상태 전이 허용 범위(Notion 미결을 구현에서 확정)**: 재활성화(`INACTIVE`→`ACTIVE`)와 가입 반려(`PENDING`→`INACTIVE`)를 둘 다 허용한다. `approve`/`deactivate` 별도 엔드포인트로 나누지 않고 `PATCH`의 `status` 하나로 처리한다. `PENDING`으로 되돌리기와 같은 상태로의 변경은 409.
 - **토큰 정책(Notion 미결을 ADR-011로 확정)**: 액세스 토큰(JWT, HS256)만 발급, 만료 3600초, 리프레시 토큰·로그아웃 없음. 비활성화·역할 변경 뒤에도 발급된 토큰은 만료까지 유효하다(즉시 무효화 없음). 로그인 실패 횟수 제한·rate limiting은 두지 않았다(보류).
-- **최초 본사 관리자 생성 수단이 없다.** 가입 API는 `HQ_ADMIN`을 만들 수 없고, 가입 승인은 `HQ_ADMIN`만 할 수 있다. 코드에는 최초 관리자용 팩토리(`User.createHqAdmin`)와 `existsByRole`만 있고 시작 시 시드나 초기화 러너는 없다. 새 환경에서는 DB에 직접 첫 관리자를 넣어야 한다(미결, 결정 필요).
+- **최초 본사 관리자**: 가입 API는 `HQ_ADMIN`을 만들 수 없고 가입 승인은 `HQ_ADMIN`만 할 수 있으므로, 본사 관리자가 하나도 없을 때만 앱 시작 시 환경변수(`WMS_ADMIN_LOGIN_ID`, `WMS_ADMIN_PASSWORD`, `WMS_ADMIN_NAME`, `WMS_ADMIN_EMAIL`, `WMS_ADMIN_PHONE`)로 `ACTIVE` 관리자를 만든다([ADR-013](../adr/013-initial-hq-admin-from-environment.md), #189). 설정이 비었거나 잘못돼도 기동은 막지 않고 로그만 남긴다. 비밀번호 변경 API가 없어 이 비밀번호를 바꿀 방법은 아직 없다(보류).
 - 확정 필요(미결): 로그인 실패 횟수 제한, 비활성화된 계정의 유효 토큰으로 `GET /auth/me` 호출 시 처리(현재는 조회됨), 가입 시 소속 선택 필드 추가 여부(현재는 가입 후 본사가 배정), 가입 반려 사유 기록.
 
 ## 엔드포인트 목록 (5)

@@ -24,3 +24,4 @@
 | [010](010-store-order-progress-stage-derived.md) | 지점 발주 진행 단계(progressStage)는 저장하지 않고 파생 값으로 계산 | Accepted | 2026-10-04 |
 | [011](011-jwt-access-token-only.md) | 액세스 토큰만 발급하는 JWT 인증 (HS256, jjwt) | Accepted | 2026-10-06 |
 | [012](012-authorization-check-placement.md) | 인가 검사 위치 — 역할은 보안 설정, 소속·작성자는 서비스 | Accepted | 2026-10-08 |
+| [013](013-initial-hq-admin-from-environment.md) | 최초 본사 관리자는 시작 시 환경변수로 생성 | Accepted | 2026-10-08 |
