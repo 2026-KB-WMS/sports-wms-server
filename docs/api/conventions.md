@@ -22,7 +22,7 @@
 | Authorization | 조건부 | `Bearer {accessToken}`. 인증 항목이 `없음`인 API(가입·로그인)는 생략한다. |
 | Content-Type | 조건부 | `application/json` (Body가 있는 POST/PATCH/PUT에 필수) |
 
-- 액세스·리프레시 토큰 발급 방식과 만료 시간은 TBD — 확정 시 이 문서에 반영한다.
+- 토큰은 로그인(`POST /auth/login`)이 발급하는 액세스 토큰(JWT, HS256)뿐이며 만료는 3600초다. 리프레시 토큰은 없다 ([ADR-011](../adr/011-jwt-access-token-only.md), [auth.md](auth.md)).
 
 ### Query Parameters (목록 조회 공통)
 - `page`(1부터 시작, 기본 1), `size`(기본 20, 최대 100), `sort`(예: `createdAt,desc`) — **페이지네이션 도입 시 적용** (위 구현 기준 메모 참고). 현재는 어떤 목록 API도 `page`·`size`·`sort`를 받지 않고(보내도 무시된다) 엔드포인트마다 고정된 정렬을 쓴다. 기본 정렬은 각 명세의 "정렬" 항목에 적는다.
@@ -79,6 +79,6 @@
 - 업무 상태를 바꾸는 모든 API는 같은 트랜잭션에서 `StatusHistory`에 이전·이후 상태, 사유(있는 경우), 처리자, 시각을 기록한다. 재고 수량 변동은 `InventoryTransaction`이 별도로 기록한다.
 
 ## 확정 필요 항목
-- [ ] 액세스·리프레시 토큰 발급/만료/갱신 정책
-- [ ] Rate limiting 적용 여부
+- [x] 액세스 토큰 발급/만료 정책 (ADR-011: 액세스 토큰만, 3600초, 갱신 없음). 리프레시 토큰·즉시 무효화는 보류
+- [ ] Rate limiting 적용 여부 (현재 없음, 보류)
 - [ ] 도메인 특수 오류 코드 전체 목록을 API 명세 각 엔드포인트에 반영
