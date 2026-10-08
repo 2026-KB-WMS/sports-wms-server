@@ -50,7 +50,7 @@ class LotServiceTest {
     @Test
     @DisplayName("존재하는 skuId로 필터링하면 로트 목록을 조회한다")
     void getLots_success() {
-        LotSearchCondition condition = new LotSearchCondition(1L, null, null, null);
+        LotSearchCondition condition = LotSearchCondition.unscoped(1L, null, null, null);
         when(inventoryQueryRepository.existsSku(1L)).thenReturn(true);
         List<LotSummary> expected = List.of();
         when(inventoryQueryRepository.findLots(condition)).thenReturn(expected);
@@ -63,7 +63,7 @@ class LotServiceTest {
     @Test
     @DisplayName("존재하지 않는 skuId로 필터링하면 SKU_NOT_FOUND 예외를 던진다")
     void getLots_skuNotFound() {
-        LotSearchCondition condition = new LotSearchCondition(999L, null, null, null);
+        LotSearchCondition condition = LotSearchCondition.unscoped(999L, null, null, null);
         when(inventoryQueryRepository.existsSku(999L)).thenReturn(false);
 
         assertThatThrownBy(() -> lotService.getLots(condition, HQ))
@@ -76,7 +76,7 @@ class LotServiceTest {
     @Test
     @DisplayName("존재하지 않는 supplierId로 필터링하면 SUPPLIER_NOT_FOUND 예외를 던진다")
     void getLots_supplierNotFound() {
-        LotSearchCondition condition = new LotSearchCondition(null, 999L, null, null);
+        LotSearchCondition condition = LotSearchCondition.unscoped(null, 999L, null, null);
         when(inventoryQueryRepository.existsSupplier(999L)).thenReturn(false);
 
         assertThatThrownBy(() -> lotService.getLots(condition, HQ))
@@ -89,7 +89,7 @@ class LotServiceTest {
     @Test
     @DisplayName("존재하는 supplierId로 필터링하면 로트 목록을 조회한다")
     void getLots_supplierExists() {
-        LotSearchCondition condition = new LotSearchCondition(null, 3L, null, null);
+        LotSearchCondition condition = LotSearchCondition.unscoped(null, 3L, null, null);
         when(inventoryQueryRepository.existsSupplier(3L)).thenReturn(true);
         List<LotSummary> expected = List.of();
         when(inventoryQueryRepository.findLots(condition)).thenReturn(expected);
@@ -231,7 +231,7 @@ class LotServiceTest {
         when(inventoryQueryRepository.findLots(new LotSearchCondition(null, null, null, null, List.of(1L))))
                 .thenReturn(List.of(lotSummary()));
 
-        assertThat(lotService.getLots(new LotSearchCondition(null, null, null, null), manager)).hasSize(1);
+        assertThat(lotService.getLots(LotSearchCondition.unscoped(null, null, null, null), manager)).hasSize(1);
     }
 
     @Test

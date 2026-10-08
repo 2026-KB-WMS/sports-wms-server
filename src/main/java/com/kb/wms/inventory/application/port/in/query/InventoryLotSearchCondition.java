@@ -23,9 +23,10 @@ public record InventoryLotSearchCondition(
         List<Long> warehouseIds
 ) {
 
-    public InventoryLotSearchCondition(Long skuId, Long warehouseId, Long sectionId, Long lotId,
-                                       LocalDate expiringBefore, QualityStatus qualityStatus, Boolean includeEmpty) {
-        this(skuId, warehouseId, sectionId, lotId, expiringBefore, qualityStatus, includeEmpty, null);
+    /** 담당 창고·지점 범위 제한 없이 조회하는 조건. 사용자 요청에서는 서비스가 범위를 채워 넘긴다. */
+    public static InventoryLotSearchCondition unscoped(Long skuId, Long warehouseId, Long sectionId, Long lotId,
+            LocalDate expiringBefore, QualityStatus qualityStatus, Boolean includeEmpty) {
+        return new InventoryLotSearchCondition(skuId, warehouseId, sectionId, lotId, expiringBefore, qualityStatus, includeEmpty, null);
     }
 
     public static InventoryLotSearchCondition ofLot(Long lotId) {

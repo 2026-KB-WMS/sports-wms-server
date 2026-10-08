@@ -79,7 +79,7 @@ public class InboundController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime arrivedFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime arrivedTo) {
         List<InboundSummaryResponse> items = inboundUseCase
-                .getInbounds(new InboundSearchCondition(
+                .getInbounds(InboundSearchCondition.unscoped(
                         status, warehouseId, purchaseOrderId, keyword, arrivedFrom, arrivedTo), principal)
                 .stream()
                 .map(InboundSummaryResponse::from)

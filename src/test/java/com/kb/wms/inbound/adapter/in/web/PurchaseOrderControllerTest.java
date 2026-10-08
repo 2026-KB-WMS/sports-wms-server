@@ -291,7 +291,7 @@ class PurchaseOrderControllerTest {
 
         mockMvc.perform(get("/api/v1/purchase-orders")).andExpect(status().isOk());
 
-        verify(purchaseOrderUseCase).getPurchaseOrders(eq(new PurchaseOrderSearchCondition(null, null, null, null, null, null)), any());
+        verify(purchaseOrderUseCase).getPurchaseOrders(eq(PurchaseOrderSearchCondition.unscoped(null, null, null, null, null, null)), any());
     }
 
     @Test

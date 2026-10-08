@@ -17,7 +17,8 @@ public record LotSearchCondition(
         String keyword,
         List<Long> warehouseIds
 ) {
-    public LotSearchCondition(Long skuId, Long supplierId, LocalDate expiringBefore, String keyword) {
-        this(skuId, supplierId, expiringBefore, keyword, null);
+    /** 담당 창고·지점 범위 제한 없이 조회하는 조건. 사용자 요청에서는 서비스가 범위를 채워 넘긴다. */
+    public static LotSearchCondition unscoped(Long skuId, Long supplierId, LocalDate expiringBefore, String keyword) {
+        return new LotSearchCondition(skuId, supplierId, expiringBefore, keyword, null);
     }
 }

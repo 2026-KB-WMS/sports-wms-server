@@ -61,7 +61,7 @@ class LotControllerTest {
         LotSummary summary = new LotSummary(1L, "LOT-001", 2L, "SKU-001", "상품A", 3L, "한빛식품",
                 LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1), LotStatus.AVAILABLE,
                 BigDecimal.TEN, null, null);
-        when(lotUseCase.getLots(eq(new LotSearchCondition(2L, null, null, null)), any())).thenReturn(List.of(summary));
+        when(lotUseCase.getLots(eq(LotSearchCondition.unscoped(2L, null, null, null)), any())).thenReturn(List.of(summary));
 
         mockMvc.perform(get("/api/v1/lots").param("skuId", "2"))
                 .andExpect(status().isOk())

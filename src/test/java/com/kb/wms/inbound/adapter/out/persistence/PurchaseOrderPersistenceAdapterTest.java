@@ -333,7 +333,7 @@ class PurchaseOrderPersistenceAdapterTest {
 
     private PurchaseOrderSearchCondition condition(PurchaseOrderStatus status, Long warehouseId, Long supplierId,
                                                    String keyword, LocalDateTime from, LocalDateTime to) {
-        return new PurchaseOrderSearchCondition(status, warehouseId, supplierId, keyword, from, to);
+        return PurchaseOrderSearchCondition.unscoped(status, warehouseId, supplierId, keyword, from, to);
     }
 
     private PurchaseOrderSummary byId(List<PurchaseOrderSummary> list, Long id) {

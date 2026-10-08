@@ -47,7 +47,7 @@ public class LotController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate expiringBefore,
             @RequestParam(required = false) String keyword) {
         List<LotSummaryResponse> items = lotUseCase
-                .getLots(new LotSearchCondition(skuId, supplierId, expiringBefore, keyword), principal).stream()
+                .getLots(LotSearchCondition.unscoped(skuId, supplierId, expiringBefore, keyword), principal).stream()
                 .map(LotSummaryResponse::from)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));

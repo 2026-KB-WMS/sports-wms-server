@@ -97,7 +97,7 @@ public class InventoryQueryService implements InventoryQueryUseCase {
                                                             AuthenticatedUser actor) {
         validatePeriod(condition);
         getInventory(inventoryLotId, actor);
-        return inventoryQueryRepository.findTransactions(new InventoryTransactionSearchCondition(
+        return inventoryQueryRepository.findTransactions(InventoryTransactionSearchCondition.unscoped(
                 inventoryLotId, null, null, null, null, condition.transactionType(), null, null,
                 condition.createdFrom(), condition.createdTo()));
     }

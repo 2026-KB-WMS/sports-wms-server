@@ -111,7 +111,7 @@ class LotSupplierInboundQueryTest {
         assertThat(lot.supplierId()).isEqualTo(supplierId);
         assertThat(lot.supplierName()).isEqualTo("한빛식품");
 
-        assertThat(inventoryQueryRepository.findLots(new LotSearchCondition(null, supplierId, null, null)))
+        assertThat(inventoryQueryRepository.findLots(LotSearchCondition.unscoped(null, supplierId, null, null)))
                 .extracting(LotSummary::lotNumber)
                 .containsExactly("LOT-L1");
 
@@ -150,12 +150,12 @@ class LotSupplierInboundQueryTest {
     @Test
     @DisplayName("존재하지 않는 supplierId로 로트를 필터링하면 404 SUPPLIER_NOT_FOUND이고, 있는 공급처는 목록을 반환한다")
     void getLots_supplierFilter() {
-        assertThatThrownBy(() -> lotUseCase.getLots(new LotSearchCondition(null, 9_999L, null, null), HQ))
+        assertThatThrownBy(() -> lotUseCase.getLots(LotSearchCondition.unscoped(null, 9_999L, null, null), HQ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(InventoryErrorCode.SUPPLIER_NOT_FOUND.name());
 
-        assertThat(lotUseCase.getLots(new LotSearchCondition(null, supplierId, null, null), HQ)).hasSize(1);
+        assertThat(lotUseCase.getLots(LotSearchCondition.unscoped(null, supplierId, null, null), HQ)).hasSize(1);
     }
 
     @Test

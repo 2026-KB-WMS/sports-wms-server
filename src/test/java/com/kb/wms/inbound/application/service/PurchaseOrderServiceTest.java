@@ -473,7 +473,7 @@ class PurchaseOrderServiceTest {
     @Test
     @DisplayName("목록 조회는 검색 조건을 그대로 조회 포트에 위임한다")
     void getPurchaseOrders_delegates() {
-        PurchaseOrderSearchCondition condition = new PurchaseOrderSearchCondition(
+        PurchaseOrderSearchCondition condition = PurchaseOrderSearchCondition.unscoped(
                 PurchaseOrderStatus.REQUESTED, 1L, 3L, "PO", null, null);
         List<PurchaseOrderSummary> expected = List.of();
         when(purchaseOrderQueryRepository.search(condition)).thenReturn(expected);
@@ -484,7 +484,7 @@ class PurchaseOrderServiceTest {
     @Test
     @DisplayName("등록 시작 일시가 종료 일시보다 늦으면 VALIDATION_ERROR를 던진다")
     void getPurchaseOrders_invalidDateRange() {
-        PurchaseOrderSearchCondition condition = new PurchaseOrderSearchCondition(
+        PurchaseOrderSearchCondition condition = PurchaseOrderSearchCondition.unscoped(
                 null, null, null, null,
                 LocalDateTime.of(2026, 10, 2, 0, 0), LocalDateTime.of(2026, 10, 1, 0, 0));
 
@@ -603,14 +603,14 @@ class PurchaseOrderServiceTest {
     @DisplayName("발주 목록은 창고를 생략하면 담당 창고로 좁히고, 비담당 창고를 지정하면 403이다. 단건은 비담당 창고면 403이다")
     void scope_listAndDetail() {
         AuthenticatedUser manager = new AuthenticatedUser(5L, UserRole.WAREHOUSE_MANAGER, List.of(1L, 2L), List.of());
-        PurchaseOrderSearchCondition all = new PurchaseOrderSearchCondition(null, null, null, null, null, null);
+        PurchaseOrderSearchCondition all = PurchaseOrderSearchCondition.unscoped(null, null, null, null, null, null);
         when(purchaseOrderQueryRepository.search(
                 new PurchaseOrderSearchCondition(null, null, null, null, null, null, List.of(1L, 2L))))
                 .thenReturn(List.of());
 
         assertThat(purchaseOrderService.getPurchaseOrders(all, manager)).isEmpty();
         assertError(() -> purchaseOrderService.getPurchaseOrders(
-                new PurchaseOrderSearchCondition(null, 3L, null, null, null, null), manager), ErrorCode.FORBIDDEN.name());
+                PurchaseOrderSearchCondition.unscoped(null, 3L, null, null, null, null), manager), ErrorCode.FORBIDDEN.name());
     }
 
 

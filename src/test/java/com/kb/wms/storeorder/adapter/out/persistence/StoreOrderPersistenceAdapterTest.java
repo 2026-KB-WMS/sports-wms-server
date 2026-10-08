@@ -96,7 +96,7 @@ class StoreOrderPersistenceAdapterTest {
 
     private StoreOrderSearchCondition condition(StoreOrderStatus status, Long storeId, Long warehouseId,
                                                 String keyword, LocalDateTime from, LocalDateTime to) {
-        return new StoreOrderSearchCondition(status, storeId, warehouseId, keyword, from, to);
+        return StoreOrderSearchCondition.unscoped(status, storeId, warehouseId, keyword, from, to);
     }
 
     private StoreOrderSearchCondition noCondition() {

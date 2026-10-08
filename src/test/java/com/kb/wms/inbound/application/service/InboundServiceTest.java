@@ -330,7 +330,7 @@ class InboundServiceTest {
     @Test
     @DisplayName("입고 목록은 조건을 조회 리포지토리에 넘겨 결과를 그대로 반환한다")
     void getInbounds_delegates() {
-        InboundSearchCondition condition = new InboundSearchCondition(
+        InboundSearchCondition condition = InboundSearchCondition.unscoped(
                 InboundStatus.ARRIVED, 1L, 4L, "IB-", null, null);
         when(inboundQueryRepository.search(condition)).thenReturn(List.of());
 
@@ -341,7 +341,7 @@ class InboundServiceTest {
     @Test
     @DisplayName("도착 시작 일시가 종료 일시보다 늦으면 VALIDATION_ERROR를 던진다")
     void getInbounds_invalidDateRange() {
-        InboundSearchCondition condition = new InboundSearchCondition(
+        InboundSearchCondition condition = InboundSearchCondition.unscoped(
                 null, null, null, null,
                 LocalDateTime.of(2026, 10, 2, 0, 0), LocalDateTime.of(2026, 10, 1, 0, 0));
 
@@ -462,9 +462,9 @@ class InboundServiceTest {
                 .thenReturn(List.of());
 
         assertThat(inboundService.getInbounds(
-                new InboundSearchCondition(null, null, null, null, null, null), MANAGER)).isEmpty();
+                InboundSearchCondition.unscoped(null, null, null, null, null, null), MANAGER)).isEmpty();
         assertError(() -> inboundService.getInbounds(
-                new InboundSearchCondition(null, 3L, null, null, null, null), MANAGER), ErrorCode.FORBIDDEN.name());
+                InboundSearchCondition.unscoped(null, 3L, null, null, null, null), MANAGER), ErrorCode.FORBIDDEN.name());
     }
 
     @Test

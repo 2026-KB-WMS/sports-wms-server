@@ -80,7 +80,7 @@ public class StoreOrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedTo) {
         List<StoreOrderListItemResponse> items = storeOrderUseCase
-                .getStoreOrders(new StoreOrderSearchCondition(
+                .getStoreOrders(StoreOrderSearchCondition.unscoped(
                         status, storeId, warehouseId, keyword, requestedFrom, requestedTo))
                 .stream()
                 .map(StoreOrderListItemResponse::from)
@@ -98,7 +98,7 @@ public class StoreOrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedTo) {
         List<StoreOrderListItemResponse> items = storeOrderUseCase
-                .getMyStoreOrders(new StoreOrderSearchCondition(
+                .getMyStoreOrders(StoreOrderSearchCondition.unscoped(
                         status, storeId, warehouseId, keyword, requestedFrom, requestedTo), principal)
                 .stream()
                 .map(StoreOrderListItemResponse::from)

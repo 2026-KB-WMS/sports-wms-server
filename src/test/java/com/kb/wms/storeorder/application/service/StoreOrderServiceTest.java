@@ -131,7 +131,7 @@ class StoreOrderServiceTest {
 
     private static StoreOrderSearchCondition condition(Long storeId, Long warehouseId,
                                                        LocalDateTime from, LocalDateTime to) {
-        return new StoreOrderSearchCondition(null, storeId, warehouseId, null, from, to);
+        return StoreOrderSearchCondition.unscoped(null, storeId, warehouseId, null, from, to);
     }
 
     private static void assertError(ThrowingCallable call, String errorCodeName) {

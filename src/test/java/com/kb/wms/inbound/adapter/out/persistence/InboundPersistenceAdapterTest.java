@@ -519,7 +519,7 @@ class InboundPersistenceAdapterTest {
 
     private InboundSearchCondition condition(InboundStatus status, Long warehouseId, Long purchaseOrderId,
                                              String keyword, LocalDateTime from, LocalDateTime to) {
-        return new InboundSearchCondition(status, warehouseId, purchaseOrderId, keyword, from, to);
+        return InboundSearchCondition.unscoped(status, warehouseId, purchaseOrderId, keyword, from, to);
     }
 
     private InboundSummary byId(List<InboundSummary> list, Long id) {

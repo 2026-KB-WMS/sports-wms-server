@@ -72,7 +72,7 @@ public class PurchaseOrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdTo) {
         List<PurchaseOrderSummaryResponse> items = purchaseOrderUseCase
-                .getPurchaseOrders(new PurchaseOrderSearchCondition(
+                .getPurchaseOrders(PurchaseOrderSearchCondition.unscoped(
                         status, warehouseId, supplierId, keyword, createdFrom, createdTo), principal)
                 .stream()
                 .map(PurchaseOrderSummaryResponse::from)

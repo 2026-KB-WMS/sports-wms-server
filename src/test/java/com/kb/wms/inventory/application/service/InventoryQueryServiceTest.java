@@ -52,7 +52,7 @@ class InventoryQueryServiceTest {
     @Test
     @DisplayName("skuId·warehouseId 필터가 모두 존재하면 SKU 요약 목록을 조회한다")
     void getInventories_success() {
-        InventorySearchCondition condition = new InventorySearchCondition(1L, 2L, null);
+        InventorySearchCondition condition = InventorySearchCondition.unscoped(1L, 2L, null);
         when(inventoryQueryRepository.existsSku(1L)).thenReturn(true);
         when(inventoryQueryRepository.existsWarehouse(2L)).thenReturn(true);
         List<InventorySkuSummary> expected = List.of();
@@ -66,7 +66,7 @@ class InventoryQueryServiceTest {
     @Test
     @DisplayName("존재하지 않는 skuId로 필터링하면 SKU_NOT_FOUND 예외를 던진다")
     void getInventories_skuNotFound() {
-        InventorySearchCondition condition = new InventorySearchCondition(999L, null, null);
+        InventorySearchCondition condition = InventorySearchCondition.unscoped(999L, null, null);
         when(inventoryQueryRepository.existsSku(999L)).thenReturn(false);
 
         assertThatThrownBy(() -> inventoryQueryService.getInventories(condition, HQ))
@@ -79,7 +79,7 @@ class InventoryQueryServiceTest {
     @Test
     @DisplayName("존재하지 않는 warehouseId로 필터링하면 WAREHOUSE_NOT_FOUND 예외를 던진다")
     void getInventories_warehouseNotFound() {
-        InventorySearchCondition condition = new InventorySearchCondition(null, 999L, null);
+        InventorySearchCondition condition = InventorySearchCondition.unscoped(null, 999L, null);
         when(inventoryQueryRepository.existsWarehouse(999L)).thenReturn(false);
 
         assertThatThrownBy(() -> inventoryQueryService.getInventories(condition, HQ))
@@ -91,7 +91,7 @@ class InventoryQueryServiceTest {
     @Test
     @DisplayName("필터 없이 조회하면 존재 검증 없이 목록을 조회한다")
     void getInventories_noFilter_skipsValidation() {
-        InventorySearchCondition condition = new InventorySearchCondition(null, null, null);
+        InventorySearchCondition condition = InventorySearchCondition.unscoped(null, null, null);
         when(inventoryQueryRepository.findSkuSummaries(condition)).thenReturn(List.of());
 
         inventoryQueryService.getInventories(condition, HQ);
@@ -103,7 +103,7 @@ class InventoryQueryServiceTest {
     @DisplayName("존재하지 않는 sectionId로 로트별 재고를 조회하면 SECTION_NOT_FOUND 예외를 던진다")
     void getInventoriesByLot_sectionNotFound() {
         InventoryLotSearchCondition condition =
-                new InventoryLotSearchCondition(null, null, 999L, null, null, null, null);
+                InventoryLotSearchCondition.unscoped(null, null, 999L, null, null, null, null);
         when(inventoryQueryRepository.existsSection(999L)).thenReturn(false);
 
         assertThatThrownBy(() -> inventoryQueryService.getInventoriesByLot(condition, HQ))
@@ -138,7 +138,7 @@ class InventoryQueryServiceTest {
     @Test
     @DisplayName("존재하지 않는 warehouseId로 저재고를 조회하면 WAREHOUSE_NOT_FOUND 예외를 던진다")
     void getLowStock_warehouseNotFound() {
-        LowStockSearchCondition condition = new LowStockSearchCondition(999L, null);
+        LowStockSearchCondition condition = LowStockSearchCondition.unscoped(999L, null);
         when(inventoryQueryRepository.existsWarehouse(999L)).thenReturn(false);
 
         assertThatThrownBy(() -> inventoryQueryService.getLowStock(condition, HQ))
@@ -150,7 +150,7 @@ class InventoryQueryServiceTest {
     @Test
     @DisplayName("createdFrom이 createdTo보다 이후이면 VALIDATION_ERROR 예외를 던진다")
     void getTransactions_invalidPeriod() {
-        InventoryTransactionSearchCondition condition = new InventoryTransactionSearchCondition(
+        InventoryTransactionSearchCondition condition = InventoryTransactionSearchCondition.unscoped(
                 null, null, null, null, null, null, null, null,
                 LocalDateTime.of(2026, 1, 10, 0, 0), LocalDateTime.of(2026, 1, 1, 0, 0));
 
@@ -163,7 +163,7 @@ class InventoryQueryServiceTest {
     @Test
     @DisplayName("referenceId만 지정하고 referenceType을 지정하지 않으면 VALIDATION_ERROR 예외를 던진다")
     void getTransactions_referenceIdWithoutType() {
-        InventoryTransactionSearchCondition condition = new InventoryTransactionSearchCondition(
+        InventoryTransactionSearchCondition condition = InventoryTransactionSearchCondition.unscoped(
                 null, null, null, null, null, null, null, 5L, null, null);
 
         assertThatThrownBy(() -> inventoryQueryService.getTransactions(condition, HQ))
@@ -175,7 +175,7 @@ class InventoryQueryServiceTest {
     @Test
     @DisplayName("존재하지 않는 lotId로 이력을 조회하면 LOT_NOT_FOUND 예외를 던진다")
     void getTransactions_lotNotFound() {
-        InventoryTransactionSearchCondition condition = new InventoryTransactionSearchCondition(
+        InventoryTransactionSearchCondition condition = InventoryTransactionSearchCondition.unscoped(
                 null, null, null, null, 999L, null, null, null, null, null);
         when(lotRepository.existsById(999L)).thenReturn(false);
 
@@ -189,7 +189,7 @@ class InventoryQueryServiceTest {
     @DisplayName("존재하지 않는 재고의 이력을 조회하면 INVENTORY_NOT_FOUND 예외를 던진다")
     void getTransactionsOf_notFound() {
         when(inventoryQueryRepository.findDetail(999L)).thenReturn(Optional.empty());
-        InventoryTransactionSearchCondition condition = new InventoryTransactionSearchCondition(
+        InventoryTransactionSearchCondition condition = InventoryTransactionSearchCondition.unscoped(
                 999L, null, null, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> inventoryQueryService.getTransactionsOf(999L, condition, HQ))
@@ -221,11 +221,11 @@ class InventoryQueryServiceTest {
         when(inventoryQueryRepository.findTransactions(new InventoryTransactionSearchCondition(
                 null, null, null, null, null, null, null, null, null, null, scope))).thenReturn(List.of());
 
-        inventoryQueryService.getInventories(new InventorySearchCondition(null, null, null), manager);
-        inventoryQueryService.getLowStock(new LowStockSearchCondition(null, null), manager);
+        inventoryQueryService.getInventories(InventorySearchCondition.unscoped(null, null, null), manager);
+        inventoryQueryService.getLowStock(LowStockSearchCondition.unscoped(null, null), manager);
         inventoryQueryService.getInventoriesByLot(
-                new InventoryLotSearchCondition(null, null, null, null, null, null, null), manager);
-        inventoryQueryService.getTransactions(new InventoryTransactionSearchCondition(
+                InventoryLotSearchCondition.unscoped(null, null, null, null, null, null, null), manager);
+        inventoryQueryService.getTransactions(InventoryTransactionSearchCondition.unscoped(
                 null, null, null, null, null, null, null, null, null, null), manager);
 
         verify(inventoryQueryRepository).findSkuSummaries(new InventorySearchCondition(null, null, null, scope));
@@ -238,12 +238,12 @@ class InventoryQueryServiceTest {
         when(inventoryQueryRepository.findSkuSummaries(new InventorySearchCondition(null, 2L, null, null)))
                 .thenReturn(List.of());
 
-        inventoryQueryService.getInventories(new InventorySearchCondition(null, 2L, null), manager);
+        inventoryQueryService.getInventories(InventorySearchCondition.unscoped(null, 2L, null), manager);
 
-        assertThatThrownBy(() -> inventoryQueryService.getInventories(new InventorySearchCondition(null, 3L, null), manager))
+        assertThatThrownBy(() -> inventoryQueryService.getInventories(InventorySearchCondition.unscoped(null, 3L, null), manager))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
-        assertThatThrownBy(() -> inventoryQueryService.getLowStock(new LowStockSearchCondition(3L, null), manager))
+        assertThatThrownBy(() -> inventoryQueryService.getLowStock(LowStockSearchCondition.unscoped(3L, null), manager))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
         verify(inventoryQueryRepository, never()).existsWarehouse(3L);
@@ -254,10 +254,10 @@ class InventoryQueryServiceTest {
     void list_sectionOfOtherWarehouse_forbidden() {
         when(inventoryQueryRepository.findWarehouseIdOfSection(7L)).thenReturn(Optional.of(3L));
 
-        assertThatThrownBy(() -> inventoryQueryService.getInventoriesByLot(new InventoryLotSearchCondition(null, null, 7L, null, null, null, null), manager))
+        assertThatThrownBy(() -> inventoryQueryService.getInventoriesByLot(InventoryLotSearchCondition.unscoped(null, null, 7L, null, null, null, null), manager))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
-        assertThatThrownBy(() -> inventoryQueryService.getTransactions(new InventoryTransactionSearchCondition(null, null, 7L, null, null, null, null, null, null, null), manager))
+        assertThatThrownBy(() -> inventoryQueryService.getTransactions(InventoryTransactionSearchCondition.unscoped(null, null, 7L, null, null, null, null, null, null, null), manager))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
         verify(inventoryQueryRepository, never()).findLotViews(org.mockito.ArgumentMatchers.any());
@@ -271,7 +271,7 @@ class InventoryQueryServiceTest {
         assertThatThrownBy(() -> inventoryQueryService.getInventory(1L, manager))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
-        assertThatThrownBy(() -> inventoryQueryService.getTransactionsOf(1L, new InventoryTransactionSearchCondition(1L, null, null, null, null, null, null, null, null, null), manager))
+        assertThatThrownBy(() -> inventoryQueryService.getTransactionsOf(1L, InventoryTransactionSearchCondition.unscoped(1L, null, null, null, null, null, null, null, null, null), manager))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
         verify(inventoryQueryRepository, never()).findTransactions(org.mockito.ArgumentMatchers.any());

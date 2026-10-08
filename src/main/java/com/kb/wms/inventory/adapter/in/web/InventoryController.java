@@ -60,7 +60,7 @@ public class InventoryController {
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) String keyword) {
         List<InventorySkuSummaryResponse> items = inventoryQueryUseCase
-                .getInventories(new InventorySearchCondition(skuId, warehouseId, keyword), principal).stream()
+                .getInventories(InventorySearchCondition.unscoped(skuId, warehouseId, keyword), principal).stream()
                 .map(InventorySkuSummaryResponse::from)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
@@ -76,7 +76,7 @@ public class InventoryController {
             @RequestParam(required = false) QualityStatus qualityStatus,
             @RequestParam(required = false) Boolean includeEmpty) {
         List<InventoryLotViewResponse> items = inventoryQueryUseCase
-                .getInventoriesByLot(new InventoryLotSearchCondition(
+                .getInventoriesByLot(InventoryLotSearchCondition.unscoped(
                         skuId, warehouseId, sectionId, null, expiringBefore, qualityStatus, includeEmpty), principal)
                 .stream()
                 .map(InventoryLotViewResponse::from)
@@ -97,7 +97,7 @@ public class InventoryController {
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) String keyword) {
         List<LowStockItemResponse> items = inventoryQueryUseCase
-                .getLowStock(new LowStockSearchCondition(warehouseId, keyword), principal).stream()
+                .getLowStock(LowStockSearchCondition.unscoped(warehouseId, keyword), principal).stream()
                 .map(LowStockItemResponse::from)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
@@ -116,7 +116,7 @@ public class InventoryController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdTo) {
         List<InventoryTransactionResponse> items = inventoryQueryUseCase.getTransactions(
-                        new InventoryTransactionSearchCondition(null, warehouseId, sectionId, skuId, lotId,
+                        InventoryTransactionSearchCondition.unscoped(null, warehouseId, sectionId, skuId, lotId,
                                 transactionType, referenceType, referenceId, createdFrom, createdTo), principal)
                 .stream()
                 .map(InventoryTransactionResponse::from)
@@ -132,7 +132,7 @@ public class InventoryController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdTo) {
         List<InventoryTransactionResponse> items = inventoryQueryUseCase.getTransactionsOf(inventoryId,
-                        new InventoryTransactionSearchCondition(inventoryId, null, null, null, null,
+                        InventoryTransactionSearchCondition.unscoped(inventoryId, null, null, null, null,
                                 transactionType, null, null, createdFrom, createdTo), principal)
                 .stream()
                 .map(InventoryTransactionResponse::from)

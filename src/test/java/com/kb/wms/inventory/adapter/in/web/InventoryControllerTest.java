@@ -87,7 +87,7 @@ class InventoryControllerTest {
     @DisplayName("GET /api/v1/inventory: SKU 기준 재고 요약 목록을 반환한다")
     void getInventories_success() throws Exception {
         InventorySkuSummary summary = new InventorySkuSummary(1L, "SKU-001", "상품A", "EA", 100L, 80L, 20L, 0L);
-        when(inventoryQueryUseCase.getInventories(eq(new InventorySearchCondition(1L, 2L, "상품")), any()))
+        when(inventoryQueryUseCase.getInventories(eq(InventorySearchCondition.unscoped(1L, 2L, "상품")), any()))
                 .thenReturn(List.of(summary));
 
         mockMvc.perform(get("/api/v1/inventory")
@@ -144,7 +144,7 @@ class InventoryControllerTest {
     @DisplayName("GET /api/v1/inventory/low-stock: 안전 재고 미만 SKU 목록을 반환한다")
     void getLowStock_success() throws Exception {
         LowStockItem item = new LowStockItem(1L, "SKU-001", "상품A", "EA", 50L, 30L, 20L);
-        when(inventoryQueryUseCase.getLowStock(eq(new LowStockSearchCondition(null, null)), any()))
+        when(inventoryQueryUseCase.getLowStock(eq(LowStockSearchCondition.unscoped(null, null)), any()))
                 .thenReturn(List.of(item));
 
         mockMvc.perform(get("/api/v1/inventory/low-stock"))
@@ -252,7 +252,7 @@ class InventoryControllerTest {
                 eq(new InventoryAdjustCommand(1L, 100L, 120L, "실사 반영", 9L)),
                 argThat(user -> user.userId().equals(9L) && user.warehouseIds().equals(List.of(1L))));
         verify(inventoryQueryUseCase).getInventories(
-                eq(new InventorySearchCondition(null, null, null)),
+                eq(InventorySearchCondition.unscoped(null, null, null)),
                 argThat(user -> user.userId().equals(9L)));
     }
 

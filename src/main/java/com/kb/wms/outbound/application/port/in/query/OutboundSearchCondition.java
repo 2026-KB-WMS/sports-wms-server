@@ -23,8 +23,9 @@ public record OutboundSearchCondition(
         List<Long> warehouseIds
 ) {
 
-    public OutboundSearchCondition(OutboundStatus status, Long warehouseId, Long storeId, Long storeOrderId,
-                                   String keyword, LocalDateTime createdFrom, LocalDateTime createdTo) {
-        this(status, warehouseId, storeId, storeOrderId, keyword, createdFrom, createdTo, null);
+    /** 담당 창고·지점 범위 제한 없이 조회하는 조건. 사용자 요청에서는 서비스가 범위를 채워 넘긴다. */
+    public static OutboundSearchCondition unscoped(OutboundStatus status, Long warehouseId, Long storeId, Long storeOrderId,
+            String keyword, LocalDateTime createdFrom, LocalDateTime createdTo) {
+        return new OutboundSearchCondition(status, warehouseId, storeId, storeOrderId, keyword, createdFrom, createdTo, null);
     }
 }

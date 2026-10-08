@@ -403,8 +403,8 @@ class StockAllocationServiceIntegrationTest {
         stockSkuB();
         useCase.allocate(new StockAllocateCommand(order, USER), HQ);
 
-        List<StockAllocationSummary> all = useCase.searchAllocations(new StockAllocationSearchCondition(order, null, null, null, null), HQ);
-        List<StockAllocationSummary> released = useCase.searchAllocations(new StockAllocationSearchCondition(order, null, null, AllocationStatus.RELEASED, null), HQ);
+        List<StockAllocationSummary> all = useCase.searchAllocations(StockAllocationSearchCondition.unscoped(order, null, null, null, null), HQ);
+        List<StockAllocationSummary> released = useCase.searchAllocations(StockAllocationSearchCondition.unscoped(order, null, null, AllocationStatus.RELEASED, null), HQ);
 
         assertThat(all).hasSize(3);
         assertThat(released).isEmpty();
