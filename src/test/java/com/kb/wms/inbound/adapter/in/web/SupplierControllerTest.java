@@ -1,5 +1,6 @@
 package com.kb.wms.inbound.adapter.in.web;
 
+import static com.kb.wms.common.security.TestAuth.signInAs;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -14,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -24,6 +26,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inbound.application.port.in.SupplierUseCase;
@@ -50,6 +53,12 @@ class SupplierControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @BeforeEach
+    void signIn() {
+        // 처리 사용자는 토큰 주체다. 서비스는 목이라 담당 창고 범위는 서비스 테스트에서 확인한다.
+        signInAs(UserRole.WAREHOUSE_MANAGER, 5L, java.util.List.of(1L), java.util.List.of());
+    }
 
     @MockitoBean
     private SupplierUseCase supplierUseCase;
@@ -119,7 +128,7 @@ class SupplierControllerTest {
     @Test
     @DisplayName("공급처 목록을 조회하면 200과 items 배열을 반환한다")
     void getSuppliers_success() throws Exception {
-        when(supplierUseCase.getSuppliers(new SupplierSearchCondition("공급", true)))
+        when(supplierUseCase.getSuppliers(eq(new SupplierSearchCondition("공급", true)), any()))
                 .thenReturn(List.of(newSupplier()));
 
         mockMvc.perform(get("/api/v1/suppliers").param("keyword", "공급").param("isActive", "true"))
@@ -132,7 +141,7 @@ class SupplierControllerTest {
     @Test
     @DisplayName("공급처 상세를 조회하면 200과 공급처를 반환한다")
     void getSupplier_success() throws Exception {
-        when(supplierUseCase.getSupplier(1L)).thenReturn(newSupplier());
+        when(supplierUseCase.getSupplier(eq(1L), any())).thenReturn(newSupplier());
 
         mockMvc.perform(get("/api/v1/suppliers/{supplierId}", 1L))
                 .andExpect(status().isOk())
@@ -143,7 +152,7 @@ class SupplierControllerTest {
     @Test
     @DisplayName("존재하지 않는 공급처를 조회하면 404 SUPPLIER_NOT_FOUND를 반환한다")
     void getSupplier_notFound() throws Exception {
-        when(supplierUseCase.getSupplier(999L))
+        when(supplierUseCase.getSupplier(eq(999L), any()))
                 .thenThrow(new BusinessException(SupplierErrorCode.SUPPLIER_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/suppliers/{supplierId}", 999L))

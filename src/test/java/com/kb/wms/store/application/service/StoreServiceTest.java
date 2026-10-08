@@ -17,6 +17,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -224,5 +226,24 @@ class StoreServiceTest {
         List<StoreMembershipSummary> result = storeService.getMyStores(999L);
 
         assertThat(result).isEmpty();
+    }
+
+    private final AuthenticatedUser owner =
+            new AuthenticatedUser(3L, UserRole.STORE_OWNER, List.of(), List.of(1L));
+    private final AuthenticatedUser hqAdmin = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
+
+    @Test
+    @DisplayName("점주는 담당 지점만 조회할 수 있고, 담당이 아니면 조회 전에 403 FORBIDDEN이다. 본사는 전체를 조회한다")
+    void getStore_withActor_checksAssignedStore() {
+        Store store = Store.register("ST-GANGNAM", "강남점", "서울시 강남구", "김점주", "02-333-1234");
+        when(storeRepository.findById(1L)).thenReturn(Optional.of(store));
+        when(storeRepository.findById(2L)).thenReturn(Optional.of(store));
+
+        assertThat(storeService.getStore(1L, owner)).isSameAs(store);
+        assertThat(storeService.getStore(2L, hqAdmin)).isSameAs(store);
+        assertThatThrownBy(() -> storeService.getStore(2L, owner))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        verify(storeRepository, never()).findById(3L);
     }
 }

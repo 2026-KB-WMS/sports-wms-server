@@ -16,6 +16,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
@@ -67,6 +69,12 @@ import jakarta.persistence.EntityManager;
 @Transactional
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class OutboundFulfillmentServiceIntegrationTest {
+
+    private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
+
+    private static AuthenticatedUser hq(long userId) {
+        return new AuthenticatedUser(userId, UserRole.HQ_ADMIN, List.of(), List.of());
+    }
 
     private static final Long USER = 7L;
 
@@ -140,15 +148,15 @@ class OutboundFulfillmentServiceIntegrationTest {
 
     /** 할당 → 출고 생성 → 피킹 시작까지 만들고 출고 ID를 돌려준다. */
     private Long pickingOutbound() {
-        allocationUseCase.allocate(new StockAllocateCommand(order, USER));
-        Long outboundId = outboundUseCase.createOutbound(new OutboundCreateCommand(order, null, USER))
+        allocationUseCase.allocate(new StockAllocateCommand(order, USER), HQ);
+        Long outboundId = outboundUseCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ)
                 .view().outboundId();
-        outboundUseCase.startPicking(outboundId, USER);
+        outboundUseCase.startPicking(outboundId, hq(USER));
         return outboundId;
     }
 
     private OutboundLineView lineOf(Long outboundId, Long skuCodeLot) {
-        return outboundUseCase.getOutbound(outboundId).items().stream()
+        return outboundUseCase.getOutbound(outboundId, HQ).items().stream()
                 .filter(i -> i.inventoryLotId().equals(skuCodeLot)).findFirst().orElseThrow();
     }
 
@@ -174,6 +182,21 @@ class OutboundFulfillmentServiceIntegrationTest {
         return ((BusinessException) t).getErrorCodeName();
     }
 
+    @Test
+    @DisplayName("다른 창고 관리자는 피킹 완료·배송 시작·배송 완료가 403이고 재고·상태를 바꾸지 않는다")
+    void otherWarehouseManager_forbidden() {
+        Long outboundId = pickingOutbound();
+        AuthenticatedUser other = new AuthenticatedUser(8L, UserRole.WAREHOUSE_MANAGER, List.of(-1L), List.of());
+
+        assertThatThrownBy(() -> useCase.completePicking(pick(outboundId, 3, 2), other))
+                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
+        assertThatThrownBy(() -> useCase.ship(outboundId, other))
+                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
+        assertThatThrownBy(() -> useCase.deliver(outboundId, other))
+                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
+        assertThat(inventoryRow(lotA).getOnHandQuantity()).isEqualTo(50);
+    }
+
     // ---------- 피킹 완료 ----------
 
     @Test
@@ -181,7 +204,7 @@ class OutboundFulfillmentServiceIntegrationTest {
     void completePicking() {
         Long outboundId = pickingOutbound();
 
-        OutboundPickingCompleteResult result = useCase.completePicking(pick(outboundId, 3, 2));
+        OutboundPickingCompleteResult result = useCase.completePicking(pick(outboundId, 3, 2), HQ);
 
         assertThat(result.status()).isEqualTo(OutboundStatus.PICKED);
         assertThat(result.hasShortage()).isFalse();
@@ -205,7 +228,7 @@ class OutboundFulfillmentServiceIntegrationTest {
     void completePickingWithShortage() {
         Long outboundId = pickingOutbound();
 
-        OutboundPickingCompleteResult result = useCase.completePicking(pick(outboundId, 1, 2));
+        OutboundPickingCompleteResult result = useCase.completePicking(pick(outboundId, 1, 2), HQ);
 
         assertThat(result.hasShortage()).isTrue();
         assertThat(result.items().stream().mapToLong(i -> i.shortageQuantity()).sum()).isEqualTo(2);
@@ -215,7 +238,7 @@ class OutboundFulfillmentServiceIntegrationTest {
         assertThat(a.getAllocatedQuantity()).isZero();
         assertThat(a.getShippedQuantity()).isEqualTo(1);
         // 남은 2개는 다시 할당할 수 있다
-        assertThat(allocationUseCase.allocate(new StockAllocateCommand(order, USER)).items()).hasSize(1);
+        assertThat(allocationUseCase.allocate(new StockAllocateCommand(order, USER), HQ).items()).hasSize(1);
     }
 
     @Test
@@ -223,9 +246,9 @@ class OutboundFulfillmentServiceIntegrationTest {
     void nothingPicked() {
         Long outboundId = pickingOutbound();
 
-        assertThatThrownBy(() -> useCase.completePicking(pick(outboundId, 0, 0)))
+        assertThatThrownBy(() -> useCase.completePicking(pick(outboundId, 0, 0), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("NOTHING_PICKED"));
-        assertThat(outboundUseCase.getOutbound(outboundId).view().status()).isEqualTo(OutboundStatus.PICKING);
+        assertThat(outboundUseCase.getOutbound(outboundId, HQ).view().status()).isEqualTo(OutboundStatus.PICKING);
     }
 
     @Test
@@ -241,7 +264,7 @@ class OutboundFulfillmentServiceIntegrationTest {
         entityManager.flush();
         entityManager.clear();
 
-        assertThatThrownBy(() -> useCase.completePicking(pick(outboundId, 3, 2)))
+        assertThatThrownBy(() -> useCase.completePicking(pick(outboundId, 3, 2), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("SUPPLY_PRICE_MISSING"));
     }
 
@@ -252,25 +275,24 @@ class OutboundFulfillmentServiceIntegrationTest {
         Long lineIdA = lineOf(outboundId, lotA).outboundLineId();
         Long lineIdB = lineOf(outboundId, lotB).outboundLineId();
 
-        assertThatThrownBy(() -> useCase.completePicking(
-                new OutboundPickingCompleteCommand(outboundId, null, USER)))
+        assertThatThrownBy(() -> useCase.completePicking(new OutboundPickingCompleteCommand(outboundId, null, USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
         assertThatThrownBy(() -> useCase.completePicking(new OutboundPickingCompleteCommand(
-                outboundId, List.of(new PickedLine(lineIdA, 3L)), USER)))
+                outboundId, List.of(new PickedLine(lineIdA, 3L)), USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
         assertThatThrownBy(() -> useCase.completePicking(new OutboundPickingCompleteCommand(
-                outboundId, List.of(new PickedLine(lineIdA, 3L), new PickedLine(lineIdA, 3L)), USER)))
+                outboundId, List.of(new PickedLine(lineIdA, 3L), new PickedLine(lineIdA, 3L)), USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
         assertThatThrownBy(() -> useCase.completePicking(new OutboundPickingCompleteCommand(
-                outboundId, List.of(new PickedLine(lineIdA, 3L), new PickedLine(999_999L, 2L)), USER)))
+                outboundId, List.of(new PickedLine(lineIdA, 3L), new PickedLine(999_999L, 2L)), USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
         assertThatThrownBy(() -> useCase.completePicking(new OutboundPickingCompleteCommand(
-                outboundId, List.of(new PickedLine(lineIdA, -1L), new PickedLine(lineIdB, 2L)), USER)))
+                outboundId, List.of(new PickedLine(lineIdA, -1L), new PickedLine(lineIdB, 2L)), USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
-        assertThatThrownBy(() -> useCase.completePicking(pick(outboundId, 4, 2)))
+        assertThatThrownBy(() -> useCase.completePicking(pick(outboundId, 4, 2), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
         assertThatThrownBy(() -> useCase.completePicking(new OutboundPickingCompleteCommand(
-                outboundId, List.of(), null)))
+                outboundId, List.of(), null), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
         assertThat(inventoryRow(lotA).getOnHandQuantity()).isEqualTo(50);
     }
@@ -278,15 +300,13 @@ class OutboundFulfillmentServiceIntegrationTest {
     @Test
     @DisplayName("PICKING이 아니거나 없는 출고는 피킹을 완료할 수 없다")
     void completePickingConflict() {
-        allocationUseCase.allocate(new StockAllocateCommand(order, USER));
-        Long outboundId = outboundUseCase.createOutbound(new OutboundCreateCommand(order, null, USER))
+        allocationUseCase.allocate(new StockAllocateCommand(order, USER), HQ);
+        Long outboundId = outboundUseCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ)
                 .view().outboundId();
 
-        assertThatThrownBy(() -> useCase.completePicking(
-                new OutboundPickingCompleteCommand(outboundId, List.of(), USER)))
+        assertThatThrownBy(() -> useCase.completePicking(new OutboundPickingCompleteCommand(outboundId, List.of(), USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("CONFLICT"));
-        assertThatThrownBy(() -> useCase.completePicking(
-                new OutboundPickingCompleteCommand(999_999L, List.of(), USER)))
+        assertThatThrownBy(() -> useCase.completePicking(new OutboundPickingCompleteCommand(999_999L, List.of(), USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("OUTBOUND_NOT_FOUND"));
     }
 
@@ -296,20 +316,18 @@ class OutboundFulfillmentServiceIntegrationTest {
     @DisplayName("PICKED 출고만 배송을 시작하고 재고는 바뀌지 않는다")
     void ship() {
         Long outboundId = pickingOutbound();
-        assertThatThrownBy(() -> useCase.ship(outboundId, USER))
+        assertThatThrownBy(() -> useCase.ship(outboundId, hq(USER)))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("CONFLICT"));
-        useCase.completePicking(pick(outboundId, 3, 2));
+        useCase.completePicking(pick(outboundId, 3, 2), HQ);
 
-        OutboundShipResult result = useCase.ship(outboundId, USER);
+        OutboundShipResult result = useCase.ship(outboundId, hq(USER));
 
         assertThat(result.status()).isEqualTo(OutboundStatus.SHIPPED);
         assertThat(result.shippedAt()).isNotNull();
         assertThat(result.shippedBy()).isEqualTo(USER);
         assertThat(inventoryRow(lotA).getOnHandQuantity()).isEqualTo(47);
-        assertThatThrownBy(() -> useCase.ship(outboundId, USER))
+        assertThatThrownBy(() -> useCase.ship(outboundId, hq(USER)))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("CONFLICT"));
-        assertThatThrownBy(() -> useCase.ship(outboundId, null))
-                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
     }
 
     // ---------- 배송 완료 ----------
@@ -318,10 +336,10 @@ class OutboundFulfillmentServiceIntegrationTest {
     @DisplayName("전량 출고된 배송 완료는 항목을 COMPLETED로, 발주를 COMPLETED로 바꾼다")
     void deliverCompletesOrder() {
         Long outboundId = pickingOutbound();
-        useCase.completePicking(pick(outboundId, 3, 2));
-        useCase.ship(outboundId, USER);
+        useCase.completePicking(pick(outboundId, 3, 2), HQ);
+        useCase.ship(outboundId, hq(USER));
 
-        OutboundDeliverResult result = useCase.deliver(outboundId, USER);
+        OutboundDeliverResult result = useCase.deliver(outboundId, hq(USER));
 
         assertThat(result.status()).isEqualTo(OutboundStatus.DELIVERED);
         assertThat(result.deliveredAt()).isNotNull();
@@ -329,7 +347,7 @@ class OutboundFulfillmentServiceIntegrationTest {
         assertThat(orderLine(lineA).getStatus()).isEqualTo(StoreOrderLineStatus.COMPLETED);
         assertThat(orderLine(lineB).getStatus()).isEqualTo(StoreOrderLineStatus.COMPLETED);
         assertThat(statusHistoryUseCase.findHistory(StatusHistoryEntityType.STORE_ORDER, order)).isNotEmpty();
-        assertThatThrownBy(() -> useCase.deliver(outboundId, USER))
+        assertThatThrownBy(() -> useCase.deliver(outboundId, hq(USER)))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("CONFLICT"));
     }
 
@@ -337,26 +355,26 @@ class OutboundFulfillmentServiceIntegrationTest {
     @DisplayName("부족분이 있으면 항목은 PARTIALLY_SHIPPED, 발주는 ASSIGNED를 유지하고 후속 출고로 마무리된다")
     void deliverPartialThenFollowUp() {
         Long first = pickingOutbound();
-        useCase.completePicking(pick(first, 1, 2));
-        useCase.ship(first, USER);
+        useCase.completePicking(pick(first, 1, 2), HQ);
+        useCase.ship(first, hq(USER));
 
-        OutboundDeliverResult partial = useCase.deliver(first, USER);
+        OutboundDeliverResult partial = useCase.deliver(first, hq(USER));
 
         assertThat(partial.storeOrderStatus()).isEqualTo(StoreOrderStatus.ASSIGNED);
         assertThat(orderLine(lineA).getStatus()).isEqualTo(StoreOrderLineStatus.PARTIALLY_SHIPPED);
         assertThat(orderLine(lineB).getStatus()).isEqualTo(StoreOrderLineStatus.COMPLETED);
 
         // 후속 할당·출고
-        allocationUseCase.allocate(new StockAllocateCommand(order, USER));
-        Long second = outboundUseCase.createOutbound(new OutboundCreateCommand(order, null, USER))
+        allocationUseCase.allocate(new StockAllocateCommand(order, USER), HQ);
+        Long second = outboundUseCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ)
                 .view().outboundId();
-        outboundUseCase.startPicking(second, USER);
-        OutboundLineView only = outboundUseCase.getOutbound(second).items().get(0);
+        outboundUseCase.startPicking(second, hq(USER));
+        OutboundLineView only = outboundUseCase.getOutbound(second, HQ).items().get(0);
         useCase.completePicking(new OutboundPickingCompleteCommand(second,
-                List.of(new PickedLine(only.outboundLineId(), 2L)), USER));
-        useCase.ship(second, USER);
+                List.of(new PickedLine(only.outboundLineId(), 2L)), USER), HQ);
+        useCase.ship(second, hq(USER));
 
-        OutboundDeliverResult done = useCase.deliver(second, USER);
+        OutboundDeliverResult done = useCase.deliver(second, hq(USER));
 
         assertThat(done.storeOrderStatus()).isEqualTo(StoreOrderStatus.COMPLETED);
         assertThat(orderLine(lineA).getStatus()).isEqualTo(StoreOrderLineStatus.COMPLETED);
@@ -366,21 +384,21 @@ class OutboundFulfillmentServiceIntegrationTest {
     @DisplayName("진행 중인 다른 출고가 있으면 전량 출고돼도 발주는 ASSIGNED를 유지한다")
     void deliverWithOtherOutboundInProgress() {
         // 발주 항목 A만 먼저 전량 처리하는 출고, B는 별도 출고를 READY로 남긴다.
-        allocationUseCase.allocate(new StockAllocateCommand(order, USER));
-        Long all = outboundUseCase.createOutbound(new OutboundCreateCommand(order, null, USER))
+        allocationUseCase.allocate(new StockAllocateCommand(order, USER), HQ);
+        Long all = outboundUseCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ)
                 .view().outboundId();
-        outboundUseCase.startPicking(all, USER);
-        useCase.completePicking(pick(all, 3, 2));
-        useCase.ship(all, USER);
+        outboundUseCase.startPicking(all, hq(USER));
+        useCase.completePicking(pick(all, 3, 2), HQ);
+        useCase.ship(all, hq(USER));
         // 다른 진행 중 출고가 생기려면 할당이 더 있어야 하므로 항목을 늘려 준비한다.
         Long skuC = sku("SKU-C");
         inventory(inventoryLotJpaRepository.findById(lotA).orElseThrow().getSectionId(), skuC, "LOT-C", 10);
         line(order, skuC, 1, new BigDecimal("1000"));
-        allocationUseCase.allocate(new StockAllocateCommand(order, USER));
-        Long other = outboundUseCase.createOutbound(new OutboundCreateCommand(order, null, USER))
+        allocationUseCase.allocate(new StockAllocateCommand(order, USER), HQ);
+        Long other = outboundUseCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ)
                 .view().outboundId();
 
-        OutboundDeliverResult result = useCase.deliver(all, USER);
+        OutboundDeliverResult result = useCase.deliver(all, hq(USER));
 
         assertThat(other).isNotEqualTo(all);
         assertThat(result.storeOrderStatus()).isEqualTo(StoreOrderStatus.ASSIGNED);

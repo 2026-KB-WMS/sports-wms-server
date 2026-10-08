@@ -1,6 +1,7 @@
 package com.kb.wms.inbound.adapter.out.persistence.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -49,6 +50,7 @@ public interface PurchaseOrderJpaRepository extends JpaRepository<PurchaseOrderJ
             left join UserJpaEntity cu on cu.userId = po.createdBy
             where (:status is null or po.status = :status)
               and (:warehouseId is null or po.warehouseId = :warehouseId)
+              and (:scoped = false or po.warehouseId in :warehouseIds)
               and (:supplierId is null or po.supplierId = :supplierId)
               and (:keyword is null or lower(po.purchaseOrderNo) like lower(concat('%', :keyword, '%')))
               and (:createdFrom is null or po.createdAt >= :createdFrom)
@@ -62,7 +64,9 @@ public interface PurchaseOrderJpaRepository extends JpaRepository<PurchaseOrderJ
                                       @Param("supplierId") Long supplierId,
                                       @Param("keyword") String keyword,
                                       @Param("createdFrom") LocalDateTime createdFrom,
-                                      @Param("createdTo") LocalDateTime createdTo);
+                                      @Param("createdTo") LocalDateTime createdTo,
+                                      @Param("scoped") boolean scoped,
+                                      @Param("warehouseIds") Collection<Long> warehouseIds);
 
     @Query("""
             select new com.kb.wms.inbound.application.port.in.result.PurchaseOrderView(

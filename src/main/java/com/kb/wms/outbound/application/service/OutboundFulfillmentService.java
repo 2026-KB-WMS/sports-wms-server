@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -68,9 +69,10 @@ public class OutboundFulfillmentService implements OutboundFulfillmentUseCase {
 
     @Override
     @Transactional
-    public OutboundPickingCompleteResult completePicking(OutboundPickingCompleteCommand command) {
+    public OutboundPickingCompleteResult completePicking(OutboundPickingCompleteCommand command,
+                                                         AuthenticatedUser actor) {
         requireUser(command.userId());
-        Outbound outbound = lockOutbound(command.outboundId());
+        Outbound outbound = lockOutbound(command.outboundId(), actor);
         if (outbound.getStatus() != OutboundStatus.PICKING) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "PICKING 상태의 출고만 피킹을 완료할 수 있습니다. 현재 상태: " + outbound.getStatus());
@@ -144,9 +146,9 @@ public class OutboundFulfillmentService implements OutboundFulfillmentUseCase {
 
     @Override
     @Transactional
-    public OutboundShipResult ship(Long outboundId, Long userId) {
-        requireUser(userId);
-        Outbound outbound = lockOutbound(outboundId);
+    public OutboundShipResult ship(Long outboundId, AuthenticatedUser actor) {
+        Long userId = actor.userId();
+        Outbound outbound = lockOutbound(outboundId, actor);
         if (outbound.getStatus() != OutboundStatus.PICKED) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "PICKED 상태의 출고만 배송을 시작할 수 있습니다. 현재 상태: " + outbound.getStatus());
@@ -163,9 +165,9 @@ public class OutboundFulfillmentService implements OutboundFulfillmentUseCase {
 
     @Override
     @Transactional
-    public OutboundDeliverResult deliver(Long outboundId, Long userId) {
-        requireUser(userId);
-        Outbound outbound = lockOutbound(outboundId);
+    public OutboundDeliverResult deliver(Long outboundId, AuthenticatedUser actor) {
+        Long userId = actor.userId();
+        Outbound outbound = lockOutbound(outboundId, actor);
         if (outbound.getStatus() != OutboundStatus.SHIPPED) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "SHIPPED 상태의 출고만 배송을 완료할 수 있습니다. 현재 상태: " + outbound.getStatus());
@@ -261,12 +263,13 @@ public class OutboundFulfillmentService implements OutboundFulfillmentUseCase {
     }
 
     /** 발주 → 출고 순으로 잠근다(서비스 B와 같은 순서). */
-    private Outbound lockOutbound(Long outboundId) {
+    private Outbound lockOutbound(Long outboundId, AuthenticatedUser actor) {
         if (outboundId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "출고를 선택해주세요.");
         }
         OutboundView view = findViewOrThrow(outboundId);
-        storeOrderFulfillmentUseCase.getOrderForUpdate(view.storeOrderId());
+        StoreOrder order = storeOrderFulfillmentUseCase.getOrderForUpdate(view.storeOrderId());
+        actor.requireWarehouseAccess(order.getWarehouseId());
         return outboundRepository.findByIdForUpdate(outboundId)
                 .orElseThrow(() -> new BusinessException(OutboundErrorCode.OUTBOUND_NOT_FOUND));
     }

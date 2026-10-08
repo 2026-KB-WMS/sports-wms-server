@@ -2,6 +2,7 @@ package com.kb.wms.inbound.application.port.in;
 
 import java.util.List;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.command.SupplierRegisterCommand;
 import com.kb.wms.inbound.application.port.in.command.SupplierUpdateCommand;
 import com.kb.wms.inbound.application.port.in.query.SupplierSearchCondition;
@@ -15,9 +16,9 @@ public interface SupplierUseCase {
 
     Supplier registerSupplier(SupplierRegisterCommand command);
 
-    List<Supplier> getSuppliers(SupplierSearchCondition condition);
+    List<Supplier> getSuppliers(SupplierSearchCondition condition, AuthenticatedUser actor);
 
-    Supplier getSupplier(Long supplierId);
+    Supplier getSupplier(Long supplierId, AuthenticatedUser actor);
 
     Supplier updateSupplier(Long supplierId, SupplierUpdateCommand command);
 

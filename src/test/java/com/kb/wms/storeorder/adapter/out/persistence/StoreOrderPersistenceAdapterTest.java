@@ -243,6 +243,31 @@ class StoreOrderPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("지점 범위(점주의 담당 지점)로 좁히고, 빈 범위면 아무것도 보이지 않는다")
+    void search_byStoreScope() {
+        assertThat(queryRepository.search(new StoreOrderSearchCondition(
+                null, null, null, null, null, null, List.of(gangnam), null)))
+                .extracting(StoreOrderSummary::storeOrderId).containsExactly(so2, so1);
+        assertThat(queryRepository.search(new StoreOrderSearchCondition(
+                null, null, null, null, null, null, List.of(gangnam, busanStore), null))).hasSize(3);
+        assertThat(queryRepository.search(new StoreOrderSearchCondition(
+                null, null, null, null, null, null, List.of(), null))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("창고 범위(창고 관리자의 담당 창고)로 좁히면 창고 배정 전 발주는 제외된다")
+    void search_byWarehouseScope_excludesUnassigned() {
+        assertThat(queryRepository.search(new StoreOrderSearchCondition(
+                null, null, null, null, null, null, null, List.of(seoul))))
+                .extracting(StoreOrderSummary::storeOrderId).containsExactly(so2);
+        assertThat(queryRepository.search(new StoreOrderSearchCondition(
+                null, null, null, null, null, null, null, List.of(seoul, busan))))
+                .extracting(StoreOrderSummary::storeOrderId).containsExactly(so3, so2);
+        assertThat(queryRepository.search(new StoreOrderSearchCondition(
+                null, null, null, null, null, null, null, List.of()))).isEmpty();
+    }
+
+    @Test
     @DisplayName("미배정 발주는 창고 이름이 null이고 배정된 발주는 창고 이름이 채워진다 (left join)")
     void search_warehouseNullForUnassigned() {
         List<StoreOrderSummary> result = queryRepository.search(noCondition());
@@ -475,11 +500,15 @@ class StoreOrderPersistenceAdapterTest {
                 "010-1234-5678", UserRole.STORE_OWNER));
         entityManager.createQuery("update StoreOrderJpaEntity o set o.createdBy = :userId where o.storeOrderId = :id")
                 .setParameter("userId", writer.getUserId()).setParameter("id", so2).executeUpdate();
+        // 방금 만든 사용자와 절대 겹치지 않는 존재하지 않는 사용자 ID
+        long nobody = writer.getUserId() + 1_000_000L;
+        entityManager.createQuery("update StoreOrderJpaEntity o set o.createdBy = :userId where o.storeOrderId = :id")
+                .setParameter("userId", nobody).setParameter("id", so1).executeUpdate();
         entityManager.clear();
 
         assertThat(queryRepository.findView(so2).orElseThrow().createdByName()).isEqualTo("김점주");
         StoreOrderView other = queryRepository.findView(so1).orElseThrow();
-        assertThat(other.createdBy()).isEqualTo(1L);
+        assertThat(other.createdBy()).isEqualTo(nobody);
         assertThat(other.createdByName()).isNull();
     }
 }

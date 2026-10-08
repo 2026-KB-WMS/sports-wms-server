@@ -1,6 +1,7 @@
 package com.kb.wms.common.config;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -18,8 +20,8 @@ import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.security.JwtProvider;
 
 /**
- * 인증 필터가 붙은 실제 필터 체인에서도 기존 엔드포인트가 계속 열려 있는지 확인한다.
- * 인증 필수로 전환(#170)할 때 이 테스트를 함께 바꾼다.
+ * 인증 필터가 붙은 실제 필터 체인에서 토큰 없음·위조 토큰은 401, 가입·로그인·API 문서·헬스 체크만 열려 있는지 확인한다.
+ * 도메인별 역할 규칙은 각 도메인의 *AuthorizationTest가 확인한다.
  */
 @SpringBootTest
 @TestPropertySource(properties = {
@@ -30,7 +32,9 @@ import com.kb.wms.common.security.JwtProvider;
 @AutoConfigureMockMvc
 class SecurityConfigIntegrationTest {
 
+    // 본사 관리자가 조회할 수 있는 임의의 업무 API
     private static final String BRANDS = "/api/v1/products/brands";
+    private static final String OPEN_ENDPOINT = "/api/v1/outbounds";
 
     @Autowired
     private MockMvc mockMvc;
@@ -38,24 +42,39 @@ class SecurityConfigIntegrationTest {
     private JwtProvider jwtProvider;
 
     @Test
-    @DisplayName("토큰이 없어도 기존 엔드포인트를 호출할 수 있다")
+    @DisplayName("토큰이 없으면 업무 API는 401이다")
     void withoutToken() throws Exception {
-        mockMvc.perform(get(BRANDS)).andExpect(status().isOk());
+        mockMvc.perform(get(OPEN_ENDPOINT)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get(BRANDS)).andExpect(status().isUnauthorized());
+        // 어느 규칙에도 해당하지 않는 경로도 로그인이 필요하다
+        mockMvc.perform(get("/api/v1/unknown")).andExpect(status().isUnauthorized());
     }
 
     @Test
-    @DisplayName("유효하지 않은 토큰이어도 기존 엔드포인트는 거절하지 않는다")
+    @DisplayName("유효하지 않은 토큰이면 401이다")
     void withInvalidToken() throws Exception {
-        mockMvc.perform(get(BRANDS).header("Authorization", "Bearer not-a-jwt")).andExpect(status().isOk());
+        mockMvc.perform(get(OPEN_ENDPOINT).header("Authorization", "Bearer not-a-jwt"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
-    @DisplayName("유효한 토큰이면 기존 엔드포인트를 호출할 수 있다")
+    @DisplayName("유효한 토큰이면 업무 API를 호출할 수 있다")
     void withValidToken() throws Exception {
         String token = jwtProvider.createAccessToken(
                 new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of()));
 
+        mockMvc.perform(get(OPEN_ENDPOINT).header("Authorization", "Bearer " + token)).andExpect(status().isOk());
         mockMvc.perform(get(BRANDS).header("Authorization", "Bearer " + token)).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("가입·로그인·API 문서·헬스 체크는 토큰 없이 호출할 수 있다 (본문 검증 오류 400은 보안을 통과했다는 뜻)")
+    void openEndpoints() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/signup").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk());
     }
 
     private String bearer(UserRole role) {

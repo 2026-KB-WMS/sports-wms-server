@@ -8,6 +8,7 @@
 - Notion 명세의 `pageInfo`와 일반 `NOT_FOUND`는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
 - 목록 API는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고).
 - 확정 필요(미결): 안전 재고를 창고별로 둘지 여부, `InventoryTransaction.reference_id`가 문서 헤더(Inbound/Outbound)인지 항목(Line)인지, 로트 상태 변경 API(격리·폐기·만료 전환) 필요 여부.
+- 인가(#170): 재고 조정 처리자는 토큰 주체이며 `userId` 쿼리 파라미터는 받지 않는다. 담당 창고 검사는 서비스에서 한다: 목록은 `warehouseId`를 생략하면 담당 창고로 좁히고(본사는 전체), 지정한 `warehouseId`·`sectionId`(구역의 창고)가 담당이 아니면 403이다. 재고 상세·재고별 이력·조정은 재고 행의 창고가 담당이 아니면 403이다. 로트 목록은 담당 창고에 재고가 있거나 입고 완료 이력이 있는 로트만 보이며, 입고 중(검수 중)인 로트는 완료 전까지 창고 관리자 목록에 나타나지 않는다. 로트 상세는 응답을 담당 창고 항목으로 좁히고, 보이는 항목이 없으면 403이다.
 - 수량은 BIGINT(정수). Lot은 별도 생성 API 없이 입고 검수 트랜잭션에서 find-or-create(UNIQUE(sku_id, supplier_id, lot_number), ADR-004 — Notion 원문 기준).
 
 ## 엔드포인트 목록 (7 + 2)

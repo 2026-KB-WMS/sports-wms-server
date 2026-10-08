@@ -10,6 +10,7 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -52,13 +53,12 @@ public class InboundCompleteService implements InboundCompleteUseCase {
 
     @Override
     @Transactional
-    public InboundCompleteResult completeInbound(Long inboundId, Long userId) {
-        if (userId == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "처리 사용자는 필수입니다.");
-        }
+    public InboundCompleteResult completeInbound(Long inboundId, AuthenticatedUser actor) {
+        Long userId = actor.userId();
 
         Inbound inbound = inboundRepository.findByIdForUpdate(inboundId)
                 .orElseThrow(() -> new BusinessException(InboundErrorCode.INBOUND_NOT_FOUND));
+        actor.requireWarehouseAccess(inbound.getWarehouseId());
         if (!inbound.isInspecting()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "검수 중 상태의 입고만 완료 처리할 수 있습니다. 현재 상태: " + inbound.getStatus());

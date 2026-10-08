@@ -1,6 +1,7 @@
 package com.kb.wms.inventory.adapter.out.persistence.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -28,6 +29,7 @@ public interface InventoryTransactionJpaRepository extends JpaRepository<Invento
             left join UserJpaEntity cu on cu.userId = t.createdBy
             where (:inventoryLotId is null or t.inventoryLotId = :inventoryLotId)
               and (:warehouseId is null or ws.warehouseId = :warehouseId)
+              and (:scoped = false or ws.warehouseId in :warehouseIds)
               and (:sectionId is null or il.sectionId = :sectionId)
               and (:skuId is null or s.skuId = :skuId)
               and (:lotId is null or il.lotId = :lotId)
@@ -40,6 +42,8 @@ public interface InventoryTransactionJpaRepository extends JpaRepository<Invento
             """)
     List<InventoryTransactionView> findViews(@Param("inventoryLotId") Long inventoryLotId,
                                              @Param("warehouseId") Long warehouseId,
+                                             @Param("scoped") boolean scoped,
+                                             @Param("warehouseIds") Collection<Long> warehouseIds,
                                              @Param("sectionId") Long sectionId,
                                              @Param("skuId") Long skuId,
                                              @Param("lotId") Long lotId,

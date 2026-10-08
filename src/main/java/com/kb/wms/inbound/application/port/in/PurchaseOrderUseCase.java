@@ -2,6 +2,7 @@ package com.kb.wms.inbound.application.port.in;
 
 import java.util.List;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderCancelCommand;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderRegisterCommand;
 import com.kb.wms.inbound.application.port.in.query.PurchaseOrderSearchCondition;
@@ -17,17 +18,20 @@ import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 public interface PurchaseOrderUseCase {
 
     /** 발주와 발주 항목을 한 트랜잭션으로 등록하고 발주 ID를 반환한다. 응답 조립은 조회 유스케이스로 한다. */
-    Long registerPurchaseOrder(PurchaseOrderRegisterCommand command);
+    Long registerPurchaseOrder(PurchaseOrderRegisterCommand command, AuthenticatedUser actor);
 
-    List<PurchaseOrderSummary> getPurchaseOrders(PurchaseOrderSearchCondition condition);
+    List<PurchaseOrderSummary> getPurchaseOrders(PurchaseOrderSearchCondition condition, AuthenticatedUser actor);
 
-    PurchaseOrderView getPurchaseOrder(Long purchaseOrderId);
+    PurchaseOrderView getPurchaseOrder(Long purchaseOrderId, AuthenticatedUser actor);
 
-    PurchaseOrderDetails getPurchaseOrderDetails(Long purchaseOrderId);
+    PurchaseOrderDetails getPurchaseOrderDetails(Long purchaseOrderId, AuthenticatedUser actor);
 
     /** 확정 대기(REQUESTED) 발주를 확정한다. userId는 상태 이력의 처리자다. */
     PurchaseOrder confirmPurchaseOrder(Long purchaseOrderId, Long userId);
 
-    /** 요청·확정 발주를 취소한다. 사유와 처리자는 상태 이력에 남기고 조회 시 cancelReason으로 돌려준다. */
-    PurchaseOrder cancelPurchaseOrder(Long purchaseOrderId, PurchaseOrderCancelCommand command);
+    /**
+     * 요청·확정 발주를 취소한다. 사유와 처리자는 상태 이력에 남기고 조회 시 cancelReason으로 돌려준다.
+     * 요청(REQUESTED) 발주는 작성자인 창고 관리자만, 확정(CONFIRMED) 발주는 본사 관리자만 취소할 수 있다(그 외 403 FORBIDDEN).
+     */
+    PurchaseOrder cancelPurchaseOrder(Long purchaseOrderId, PurchaseOrderCancelCommand command, AuthenticatedUser actor);
 }

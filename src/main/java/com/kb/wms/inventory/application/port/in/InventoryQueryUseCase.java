@@ -2,6 +2,7 @@ package com.kb.wms.inventory.application.port.in;
 
 import java.util.List;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inventory.application.port.in.query.InventoryLotSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventorySearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventoryTransactionSearchCondition;
@@ -13,27 +14,28 @@ import com.kb.wms.inventory.application.port.in.result.InventoryTransactionView;
 import com.kb.wms.inventory.application.port.in.result.LowStockItem;
 
 /**
- * 재고·재고 이력 조회 유스케이스.
+ * 재고·재고 이력 조회 유스케이스. 사용자 요청용 조회는 actor의 담당 창고(본사는 전체)로 제한되며, 범위 밖이면 403 FORBIDDEN이다.
  * GET /api/v1/inventory, /inventory/by-lot, /inventory/{inventoryId}, /inventory/low-stock,
  * /inventory/transactions, /inventory/{inventoryId}/transactions
  */
 public interface InventoryQueryUseCase {
 
-    List<InventorySkuSummary> getInventories(InventorySearchCondition condition);
+    List<InventorySkuSummary> getInventories(InventorySearchCondition condition, AuthenticatedUser actor);
 
-    List<InventoryLotView> getInventoriesByLot(InventoryLotSearchCondition condition);
+    List<InventoryLotView> getInventoriesByLot(InventoryLotSearchCondition condition, AuthenticatedUser actor);
 
-    InventoryDetail getInventory(Long inventoryLotId);
+    InventoryDetail getInventory(Long inventoryLotId, AuthenticatedUser actor);
 
-    List<LowStockItem> getLowStock(LowStockSearchCondition condition);
+    List<LowStockItem> getLowStock(LowStockSearchCondition condition, AuthenticatedUser actor);
 
-    List<InventoryTransactionView> getTransactions(InventoryTransactionSearchCondition condition);
+    List<InventoryTransactionView> getTransactions(InventoryTransactionSearchCondition condition, AuthenticatedUser actor);
 
     /**
      * 특정 재고 행의 이력. 재고가 없으면 404 INVENTORY_NOT_FOUND.
      */
     List<InventoryTransactionView> getTransactionsOf(Long inventoryLotId,
-                                                     InventoryTransactionSearchCondition condition);
+                                                     InventoryTransactionSearchCondition condition,
+                                                     AuthenticatedUser actor);
 
     /**
      * 출고 할당(POST /allocations)용 후보 재고 행. 창고·SKU의 가용 재고를 FEFO 순서로 반환한다.

@@ -28,6 +28,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -50,6 +52,8 @@ import com.kb.wms.inventory.exception.InventoryErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class InboundInspectServiceTest {
+
+    private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
 
     private static final long USER = 5L;
     private static final BigDecimal ORDERED_PRICE = BigDecimal.valueOf(60000);
@@ -200,7 +204,7 @@ class InboundInspectServiceTest {
                 .thenReturn(31L);
         stubSave();
 
-        Inbound result = inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)));
+        Inbound result = inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)), HQ);
 
         assertThat(result.getStatus()).isEqualTo(InboundStatus.INSPECTING);
         InOrder order = inOrder(inboundRepository);
@@ -235,7 +239,7 @@ class InboundInspectServiceTest {
                 .thenReturn(31L);
         stubSave();
 
-        inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)));
+        inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)), HQ);
 
         verifyNoInteractions(statusHistoryUseCase);
     }
@@ -249,7 +253,7 @@ class InboundInspectServiceTest {
         when(lotPort.findOrRegisterLot(any(), any(), any(), any(), any(), any())).thenReturn(31L);
         stubSave();
 
-        Inbound result = inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)));
+        Inbound result = inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)), HQ);
 
         assertThat(result.getStatus()).isEqualTo(InboundStatus.INSPECTING);
         verify(inboundRepository).deleteLinesByInboundId(7L);
@@ -264,7 +268,7 @@ class InboundInspectServiceTest {
         when(lotPort.findOrRegisterLot(any(), any(), any(), any(), any(), any())).thenReturn(31L);
         stubSave();
 
-        inboundInspectService.inspectInbound(7L, command(withSections(line(60, 58, 2), null, null)));
+        inboundInspectService.inspectInbound(7L, command(withSections(line(60, 58, 2), null, null)), HQ);
 
         ArgumentCaptor<List<InboundLine>> captor = ArgumentCaptor.forClass(List.class);
         verify(inboundRepository).saveLines(captor.capture());
@@ -283,7 +287,7 @@ class InboundInspectServiceTest {
         when(lotPort.findOrRegisterLot(any(), any(), eq("LOT-B"), any(), any(), any())).thenReturn(32L);
         stubSave();
 
-        inboundInspectService.inspectInbound(7L, command(line("LOT-A", 40), line("LOT-B", 20)));
+        inboundInspectService.inspectInbound(7L, command(line("LOT-A", 40), line("LOT-B", 20)), HQ);
 
         ArgumentCaptor<List<InboundLine>> captor = ArgumentCaptor.forClass(List.class);
         verify(inboundRepository).saveLines(captor.capture());
@@ -300,7 +304,7 @@ class InboundInspectServiceTest {
         when(lotPort.findOrRegisterLot(any(), any(), any(), any(), any(), eq(newPrice))).thenReturn(31L);
         stubSave();
 
-        inboundInspectService.inspectInbound(7L, command(withPrice(line(60, 58, 2), newPrice, "공급처 단가 인하")));
+        inboundInspectService.inspectInbound(7L, command(withPrice(line(60, 58, 2), newPrice, "공급처 단가 인하")), HQ);
 
         ArgumentCaptor<List<InboundLine>> captor = ArgumentCaptor.forClass(List.class);
         verify(inboundRepository).saveLines(captor.capture());
@@ -334,7 +338,7 @@ class InboundInspectServiceTest {
                 command(line("LOT-A", 10), line("LOT-A", 10)));
 
         for (InboundInspectCommand command : invalid) {
-            assertError(() -> inboundInspectService.inspectInbound(7L, command), ErrorCode.VALIDATION_ERROR.name());
+            assertError(() -> inboundInspectService.inspectInbound(7L, command, HQ), ErrorCode.VALIDATION_ERROR.name());
         }
         verifyNoInteractions(inboundRepository, purchaseOrderRepository, lotPort, inboundSectionPort);
     }
@@ -346,7 +350,7 @@ class InboundInspectServiceTest {
     void inspect_inboundNotFound() {
         when(inboundRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
 
-        assertError(() -> inboundInspectService.inspectInbound(999L, command(line(60, 58, 2))),
+        assertError(() -> inboundInspectService.inspectInbound(999L, command(line(60, 58, 2)), HQ),
                 InboundErrorCode.INBOUND_NOT_FOUND.name());
     }
 
@@ -356,7 +360,7 @@ class InboundInspectServiceTest {
         for (InboundStatus status : List.of(InboundStatus.COMPLETED, InboundStatus.CANCELED)) {
             when(inboundRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(inbound(status)));
 
-            assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2))),
+            assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)), HQ),
                     ErrorCode.CONFLICT.name());
         }
         verify(inboundRepository, never()).save(any(Inbound.class));
@@ -369,7 +373,7 @@ class InboundInspectServiceTest {
         when(inboundRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(inbound(InboundStatus.ARRIVED)));
         when(purchaseOrderRepository.findById(4L)).thenReturn(Optional.empty());
 
-        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2))),
+        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)), HQ),
                 PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND.name());
     }
 
@@ -379,7 +383,7 @@ class InboundInspectServiceTest {
         givenInbound(InboundStatus.ARRIVED);
         when(purchaseOrderRepository.findLineById(11L)).thenReturn(Optional.empty());
 
-        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2))),
+        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)), HQ),
                 ErrorCode.NOT_FOUND.name());
     }
 
@@ -390,7 +394,7 @@ class InboundInspectServiceTest {
         when(purchaseOrderRepository.findLineById(11L))
                 .thenReturn(Optional.of(purchaseOrderLine(11L, 99L, 100, 0)));
 
-        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2))),
+        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(lotPort);
     }
@@ -405,10 +409,10 @@ class InboundInspectServiceTest {
         BigDecimal newPrice = BigDecimal.valueOf(55000);
 
         assertError(() -> inboundInspectService.inspectInbound(
-                        7L, command(withPrice(line(60, 58, 2), newPrice, null))),
+                        7L, command(withPrice(line(60, 58, 2), newPrice, null)), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         assertError(() -> inboundInspectService.inspectInbound(
-                        7L, command(withPrice(line(60, 58, 2), newPrice, "  "))),
+                        7L, command(withPrice(line(60, 58, 2), newPrice, "  ")), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(lotPort);
     }
@@ -419,7 +423,7 @@ class InboundInspectServiceTest {
         givenInbound(InboundStatus.ARRIVED);
         givenPurchaseOrderLine(100, 40);
 
-        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(61, 59, 2))),
+        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(61, 59, 2)), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(lotPort);
     }
@@ -431,7 +435,7 @@ class InboundInspectServiceTest {
         givenPurchaseOrderLine(100, 40);
 
         assertError(() -> inboundInspectService.inspectInbound(
-                        7L, command(line("LOT-A", 40), line("LOT-B", 21))),
+                        7L, command(line("LOT-A", 40), line("LOT-B", 21)), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(lotPort);
     }
@@ -445,7 +449,7 @@ class InboundInspectServiceTest {
         givenPurchaseOrderLine(100, 0);
         when(inboundSectionPort.getSection(2L)).thenThrow(new BusinessException(ErrorCode.NOT_FOUND, "구역 없음"));
 
-        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2))),
+        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)), HQ),
                 ErrorCode.NOT_FOUND.name());
         verifyNoInteractions(lotPort);
     }
@@ -457,7 +461,7 @@ class InboundInspectServiceTest {
         givenPurchaseOrderLine(100, 0);
         when(inboundSectionPort.getSection(2L)).thenReturn(rack(2L, 99L, true));
 
-        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2))),
+        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
     }
 
@@ -468,7 +472,7 @@ class InboundInspectServiceTest {
         givenPurchaseOrderLine(100, 0);
         when(inboundSectionPort.getSection(2L)).thenReturn(rack(2L, 1L, false));
 
-        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2))),
+        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
     }
 
@@ -479,7 +483,7 @@ class InboundInspectServiceTest {
         givenPurchaseOrderLine(100, 0);
         when(inboundSectionPort.getSection(2L)).thenReturn(defect(2L, 1L, true));
 
-        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2))),
+        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
     }
 
@@ -491,7 +495,7 @@ class InboundInspectServiceTest {
         when(inboundSectionPort.getSection(2L)).thenReturn(rack(2L, 1L, true));
         when(inboundSectionPort.getSection(9L)).thenReturn(rack(9L, 1L, true));
 
-        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2))),
+        assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
     }
 
@@ -508,10 +512,23 @@ class InboundInspectServiceTest {
             doThrow(new BusinessException(code)).when(lotPort)
                     .findOrRegisterLot(anyLong(), anyLong(), any(), any(), any(), any());
 
-            assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2))), code.name());
+            assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)), HQ), code.name());
         }
         verify(inboundRepository, never()).save(any(Inbound.class));
         verify(inboundRepository, never()).deleteLinesByInboundId(anyLong());
         verify(inboundRepository, never()).saveLines(anyList());
+    }
+
+
+    @Test
+    @DisplayName("검수는 입고 창고가 담당 창고가 아니면 403이고 상태·항목을 바꾸지 않는다")
+    void inspect_otherWarehouse_forbidden() {
+        AuthenticatedUser other = new AuthenticatedUser(6L, UserRole.WAREHOUSE_MANAGER, List.of(9L), List.of());
+        when(inboundRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(inbound(InboundStatus.ARRIVED)));
+
+        assertThatThrownBy(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)), other))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        verify(inboundRepository, never()).save(any());
     }
 }

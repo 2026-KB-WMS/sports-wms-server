@@ -16,6 +16,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.common.statushistory.domain.entity.StatusHistory;
@@ -70,6 +72,12 @@ import jakarta.persistence.EntityManager;
 @Transactional
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class StockAllocationServiceIntegrationTest {
+
+    private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
+
+    private static AuthenticatedUser hq(long userId) {
+        return new AuthenticatedUser(userId, UserRole.HQ_ADMIN, List.of(), List.of());
+    }
 
     private static final Long USER = 7L;
 
@@ -183,7 +191,7 @@ class StockAllocationServiceIntegrationTest {
     void allocateSplitsByFefo() {
         stockSkuB();
 
-        StockAllocateResult result = useCase.allocate(new StockAllocateCommand(order, USER));
+        StockAllocateResult result = useCase.allocate(new StockAllocateCommand(order, USER), HQ);
 
         assertThat(result.orderNo()).isEqualTo("SO-20261005-0001");
         List<StockAllocationSummary> itemsOfA = result.items().stream()
@@ -213,7 +221,7 @@ class StockAllocationServiceIntegrationTest {
     @Test
     @DisplayName("한 항목이라도 가용 재고가 부족하면 아무것도 할당하지 않고 INSUFFICIENT_STOCK")
     void allocateAllOrNothing() {
-        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(order, USER)))
+        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(order, USER), HQ))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> {
                     assertThat(errorCodeOf(e)).isEqualTo("INSUFFICIENT_STOCK");
@@ -236,7 +244,7 @@ class StockAllocationServiceIntegrationTest {
         entityManager.flush();
         line(order, skuA, 100);
 
-        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(order, USER)))
+        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(order, USER), HQ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("요청 100, 가용 46");
     }
@@ -245,9 +253,9 @@ class StockAllocationServiceIntegrationTest {
     @DisplayName("이미 전부 할당한 발주를 다시 할당하면 ALREADY_ALLOCATED")
     void allocateTwice() {
         stockSkuB();
-        useCase.allocate(new StockAllocateCommand(order, USER));
+        useCase.allocate(new StockAllocateCommand(order, USER), HQ);
 
-        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(order, USER)))
+        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(order, USER), HQ))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("ALREADY_ALLOCATED"));
     }
@@ -260,7 +268,7 @@ class StockAllocationServiceIntegrationTest {
                 .storeOrderId(order).orderNo(hold.getOrderNo()).storeId(store).warehouseId(warehouse)
                 .status(StoreOrderStatus.ON_HOLD).requestedAt(hold.getRequestedAt()).createdBy(1L).build());
 
-        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(order, USER)))
+        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(order, USER), HQ))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("CONFLICT"));
     }
@@ -268,11 +276,11 @@ class StockAllocationServiceIntegrationTest {
     @Test
     @DisplayName("없는 발주와 사용자 누락은 각각 404, 400")
     void allocateInvalid() {
-        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(999_999L, USER)))
+        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(999_999L, USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("STORE_ORDER_NOT_FOUND"));
-        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(order, null)))
+        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(order, null), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
-        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(null, USER)))
+        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(null, USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
     }
 
@@ -282,12 +290,11 @@ class StockAllocationServiceIntegrationTest {
     @DisplayName("할당을 해제하면 RELEASED 가 되고 재고·발주 항목 할당 수량이 줄며 사유가 이력에 남는다")
     void release() {
         stockSkuB();
-        StockAllocateResult allocated = useCase.allocate(new StockAllocateCommand(order, USER));
+        StockAllocateResult allocated = useCase.allocate(new StockAllocateCommand(order, USER), HQ);
         StockAllocationSummary target = allocated.items().stream()
                 .filter(i -> i.inventoryLotId().equals(lotLate)).findFirst().orElseThrow();
 
-        StockAllocationReleaseResult result = useCase.release(
-                new StockAllocationReleaseCommand(target.allocationId(), "  재고 재배치  ", USER));
+        StockAllocationReleaseResult result = useCase.release(new StockAllocationReleaseCommand(target.allocationId(), "  재고 재배치  ", USER), HQ);
 
         assertThat(result.status()).isEqualTo(AllocationStatus.RELEASED);
         assertThat(result.releasedAt()).isNotNull();
@@ -309,11 +316,11 @@ class StockAllocationServiceIntegrationTest {
     @DisplayName("해제 후 남은 수량은 다시 할당할 수 있다")
     void allocateAfterRelease() {
         stockSkuB();
-        StockAllocateResult allocated = useCase.allocate(new StockAllocateCommand(order, USER));
+        StockAllocateResult allocated = useCase.allocate(new StockAllocateCommand(order, USER), HQ);
         Long id = allocated.items().get(0).allocationId();
-        useCase.release(new StockAllocationReleaseCommand(id, "재할당", USER));
+        useCase.release(new StockAllocationReleaseCommand(id, "재할당", USER), HQ);
 
-        StockAllocateResult again = useCase.allocate(new StockAllocateCommand(order, USER));
+        StockAllocateResult again = useCase.allocate(new StockAllocateCommand(order, USER), HQ);
 
         assertThat(again.items()).hasSize(1);
         assertThat(again.items().get(0).allocatedQuantity())
@@ -324,11 +331,11 @@ class StockAllocationServiceIntegrationTest {
     @DisplayName("이미 해제됐거나 피킹된 할당은 해제할 수 없다(CONFLICT)")
     void releaseTerminal() {
         stockSkuB();
-        StockAllocateResult allocated = useCase.allocate(new StockAllocateCommand(order, USER));
+        StockAllocateResult allocated = useCase.allocate(new StockAllocateCommand(order, USER), HQ);
         Long released = allocated.items().get(0).allocationId();
-        useCase.release(new StockAllocationReleaseCommand(released, "사유", USER));
+        useCase.release(new StockAllocationReleaseCommand(released, "사유", USER), HQ);
 
-        assertThatThrownBy(() -> useCase.release(new StockAllocationReleaseCommand(released, "사유", USER)))
+        assertThatThrownBy(() -> useCase.release(new StockAllocationReleaseCommand(released, "사유", USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("CONFLICT"));
     }
 
@@ -336,17 +343,17 @@ class StockAllocationServiceIntegrationTest {
     @DisplayName("취소되지 않은 출고에 연결된 할당은 해제할 수 없고 취소된 뒤에는 해제할 수 있다")
     void releaseInOutbound() {
         stockSkuB();
-        StockAllocateResult allocated = useCase.allocate(new StockAllocateCommand(order, USER));
+        StockAllocateResult allocated = useCase.allocate(new StockAllocateCommand(order, USER), HQ);
         Long id = allocated.items().get(0).allocationId();
         Outbound outbound = outboundRepository.save(Outbound.create("OB-20261005-0001", order, null));
         outboundRepository.saveLines(List.of(OutboundLine.create(outbound.getOutboundId(), id)));
 
-        assertThatThrownBy(() -> useCase.release(new StockAllocationReleaseCommand(id, "사유", USER)))
+        assertThatThrownBy(() -> useCase.release(new StockAllocationReleaseCommand(id, "사유", USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("ALLOCATION_IN_OUTBOUND"));
 
         outbound.cancel();
         outboundRepository.save(outbound);
-        StockAllocationReleaseResult result = useCase.release(new StockAllocationReleaseCommand(id, "사유", USER));
+        StockAllocationReleaseResult result = useCase.release(new StockAllocationReleaseCommand(id, "사유", USER), HQ);
         assertThat(result.status()).isEqualTo(AllocationStatus.RELEASED);
     }
 
@@ -354,17 +361,17 @@ class StockAllocationServiceIntegrationTest {
     @DisplayName("해제 입력 검증: 사유 필수·500자 이하, 사용자 필수, 없는 할당은 404")
     void releaseInvalid() {
         stockSkuB();
-        Long id = useCase.allocate(new StockAllocateCommand(order, USER)).items().get(0).allocationId();
+        Long id = useCase.allocate(new StockAllocateCommand(order, USER), HQ).items().get(0).allocationId();
 
-        assertThatThrownBy(() -> useCase.release(new StockAllocationReleaseCommand(id, "  ", USER)))
+        assertThatThrownBy(() -> useCase.release(new StockAllocationReleaseCommand(id, "  ", USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
-        assertThatThrownBy(() -> useCase.release(new StockAllocationReleaseCommand(id, null, USER)))
+        assertThatThrownBy(() -> useCase.release(new StockAllocationReleaseCommand(id, null, USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
-        assertThatThrownBy(() -> useCase.release(new StockAllocationReleaseCommand(id, "가".repeat(501), USER)))
+        assertThatThrownBy(() -> useCase.release(new StockAllocationReleaseCommand(id, "가".repeat(501), USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
-        assertThatThrownBy(() -> useCase.release(new StockAllocationReleaseCommand(id, "사유", null)))
+        assertThatThrownBy(() -> useCase.release(new StockAllocationReleaseCommand(id, "사유", null), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
-        assertThatThrownBy(() -> useCase.release(new StockAllocationReleaseCommand(999_999L, "사유", USER)))
+        assertThatThrownBy(() -> useCase.release(new StockAllocationReleaseCommand(999_999L, "사유", USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("ALLOCATION_NOT_FOUND"));
     }
 
@@ -374,19 +381,19 @@ class StockAllocationServiceIntegrationTest {
     @DisplayName("상세 조회는 연결된 출고 ID를 담고 없는 할당은 404")
     void getAllocation() {
         stockSkuB();
-        StockAllocateResult allocated = useCase.allocate(new StockAllocateCommand(order, USER));
+        StockAllocateResult allocated = useCase.allocate(new StockAllocateCommand(order, USER), HQ);
         Long linked = allocated.items().get(0).allocationId();
         Long free = allocated.items().get(1).allocationId();
         Outbound outbound = outboundRepository.save(Outbound.create("OB-20261005-0001", order, null));
         outboundRepository.saveLines(List.of(OutboundLine.create(outbound.getOutboundId(), linked)));
 
-        StockAllocationDetail linkedDetail = useCase.getAllocation(linked);
-        StockAllocationDetail freeDetail = useCase.getAllocation(free);
+        StockAllocationDetail linkedDetail = useCase.getAllocation(linked, HQ);
+        StockAllocationDetail freeDetail = useCase.getAllocation(free, HQ);
 
         assertThat(linkedDetail.outboundId()).isEqualTo(outbound.getOutboundId());
         assertThat(linkedDetail.view().storeName()).isEqualTo("강남점");
         assertThat(freeDetail.outboundId()).isNull();
-        assertThatThrownBy(() -> useCase.getAllocation(999_999L))
+        assertThatThrownBy(() -> useCase.getAllocation(999_999L, HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("ALLOCATION_NOT_FOUND"));
     }
 
@@ -394,12 +401,10 @@ class StockAllocationServiceIntegrationTest {
     @DisplayName("목록 조회는 발주·상태 필터를 적용한다")
     void searchAllocations() {
         stockSkuB();
-        useCase.allocate(new StockAllocateCommand(order, USER));
+        useCase.allocate(new StockAllocateCommand(order, USER), HQ);
 
-        List<StockAllocationSummary> all = useCase.searchAllocations(
-                new StockAllocationSearchCondition(order, null, null, null, null));
-        List<StockAllocationSummary> released = useCase.searchAllocations(
-                new StockAllocationSearchCondition(order, null, null, AllocationStatus.RELEASED, null));
+        List<StockAllocationSummary> all = useCase.searchAllocations(new StockAllocationSearchCondition(order, null, null, null, null), HQ);
+        List<StockAllocationSummary> released = useCase.searchAllocations(new StockAllocationSearchCondition(order, null, null, AllocationStatus.RELEASED, null), HQ);
 
         assertThat(all).hasSize(3);
         assertThat(released).isEmpty();

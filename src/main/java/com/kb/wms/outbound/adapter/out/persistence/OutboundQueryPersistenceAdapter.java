@@ -32,7 +32,8 @@ public class OutboundQueryPersistenceAdapter implements OutboundQueryRepository 
     public List<StockAllocationSummary> searchAllocations(StockAllocationSearchCondition condition) {
         return allocationQueryRepository.search(
                 condition.storeOrderId(), condition.warehouseId(), condition.skuId(), condition.status(),
-                SearchKeyword.normalize(condition.keyword()));
+                SearchKeyword.normalize(condition.keyword()),
+                condition.warehouseIds() != null, scopeIds(condition.warehouseIds()));
     }
 
     @Override
@@ -57,7 +58,15 @@ public class OutboundQueryPersistenceAdapter implements OutboundQueryRepository 
     public List<OutboundSummary> searchOutbounds(OutboundSearchCondition condition) {
         return outboundQueryRepository.search(
                 condition.status(), condition.warehouseId(), condition.storeId(), condition.storeOrderId(),
-                SearchKeyword.normalize(condition.keyword()), condition.createdFrom(), condition.createdTo());
+                SearchKeyword.normalize(condition.keyword()), condition.createdFrom(), condition.createdTo(),
+                condition.warehouseIds() != null, scopeIds(condition.warehouseIds()));
+    }
+
+    /** JPQL의 IN에 빈 목록을 넘기지 않으려는 자리 값. 범위 조건을 쓰지 않거나 담당 창고가 없을 때 쓴다. */
+    private static final List<Long> NO_WAREHOUSE = List.of(-1L);
+
+    private static List<Long> scopeIds(List<Long> warehouseIds) {
+        return warehouseIds == null || warehouseIds.isEmpty() ? NO_WAREHOUSE : warehouseIds;
     }
 
     @Override

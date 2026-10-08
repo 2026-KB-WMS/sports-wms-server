@@ -25,10 +25,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.common.statushistory.domain.entity.StatusHistory;
 import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand;
+import com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand;
+import com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderRegisterCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderCancelCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderRejectCommand;
@@ -59,6 +64,11 @@ import com.kb.wms.storeorder.exception.StoreOrderErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class StoreOrderServiceTest {
+
+    // 발주 5번 사용자가 지점 1에서 만든 요청 발주의 작성자(점주)
+    private static final AuthenticatedUser AUTHOR =
+            new AuthenticatedUser(5L, UserRole.STORE_OWNER, List.of(), List.of(1L));
+    private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
 
     @Mock
     private StoreOrderRepository storeOrderRepository;
@@ -142,7 +152,7 @@ class StoreOrderServiceTest {
         when(storeOrderRepository.save(any(StoreOrder.class))).thenReturn(savedOrder(77L));
 
         Long id = storeOrderService.registerStoreOrder(registerCommand(
-                LocalDateTime.now().plusDays(1), "빠른 배송 부탁", line(10L, 3), line(11L, 5)));
+                LocalDateTime.now().plusDays(1), "빠른 배송 부탁", line(10L, 3), line(11L, 5)), HQ);
 
         assertThat(id).isEqualTo(77L);
 
@@ -177,14 +187,14 @@ class StoreOrderServiceTest {
     @Test
     @DisplayName("항목이 비어 있으면 400 VALIDATION_ERROR")
     void registerStoreOrder_emptyLines() {
-        assertError(() -> storeOrderService.registerStoreOrder(registerCommand(null, null)), "VALIDATION_ERROR");
+        assertError(() -> storeOrderService.registerStoreOrder(registerCommand(null, null), HQ), "VALIDATION_ERROR");
         verifyNoInteractions(storeAvailabilityPort, storeOrderRepository);
     }
 
     @Test
     @DisplayName("수량이 1 미만이면 400 VALIDATION_ERROR")
     void registerStoreOrder_quantityBelowOne() {
-        assertError(() -> storeOrderService.registerStoreOrder(registerCommand(null, null, line(10L, 0))),
+        assertError(() -> storeOrderService.registerStoreOrder(registerCommand(null, null, line(10L, 0)), HQ),
                 "VALIDATION_ERROR");
         verifyNoInteractions(storeOrderRepository);
     }
@@ -192,24 +202,21 @@ class StoreOrderServiceTest {
     @Test
     @DisplayName("같은 SKU가 두 번 들어오면 400 VALIDATION_ERROR")
     void registerStoreOrder_duplicateSku() {
-        assertError(() -> storeOrderService.registerStoreOrder(
-                registerCommand(null, null, line(10L, 1), line(10L, 2))), "VALIDATION_ERROR");
+        assertError(() -> storeOrderService.registerStoreOrder(registerCommand(null, null, line(10L, 1), line(10L, 2)), HQ), "VALIDATION_ERROR");
         verifyNoInteractions(storeOrderRepository);
     }
 
     @Test
     @DisplayName("요청 배송 일시가 과거이면 400 VALIDATION_ERROR")
     void registerStoreOrder_pastDeliveryAt() {
-        assertError(() -> storeOrderService.registerStoreOrder(
-                registerCommand(LocalDateTime.now().minusMinutes(1), null, line(10L, 1))), "VALIDATION_ERROR");
+        assertError(() -> storeOrderService.registerStoreOrder(registerCommand(LocalDateTime.now().minusMinutes(1), null, line(10L, 1)), HQ), "VALIDATION_ERROR");
         verifyNoInteractions(storeOrderRepository);
     }
 
     @Test
     @DisplayName("비고가 1000자를 넘으면 400 VALIDATION_ERROR")
     void registerStoreOrder_noteTooLong() {
-        assertError(() -> storeOrderService.registerStoreOrder(
-                registerCommand(null, "a".repeat(1001), line(10L, 1))), "VALIDATION_ERROR");
+        assertError(() -> storeOrderService.registerStoreOrder(registerCommand(null, "a".repeat(1001), line(10L, 1)), HQ), "VALIDATION_ERROR");
         verifyNoInteractions(storeOrderRepository);
     }
 
@@ -219,7 +226,7 @@ class StoreOrderServiceTest {
         doThrow(new BusinessException(com.kb.wms.store.exception.StoreErrorCode.STORE_NOT_FOUND))
                 .when(storeAvailabilityPort).requireActive(1L);
 
-        assertError(() -> storeOrderService.registerStoreOrder(registerCommand(null, null, line(10L, 1))),
+        assertError(() -> storeOrderService.registerStoreOrder(registerCommand(null, null, line(10L, 1)), HQ),
                 "STORE_NOT_FOUND");
         verifyNoInteractions(storeOrderRepository, skuSupplyPricePort, statusHistoryUseCase);
     }
@@ -230,7 +237,7 @@ class StoreOrderServiceTest {
         when(skuSupplyPricePort.getOrderableSupplyPrice(10L))
                 .thenThrow(new BusinessException(StoreOrderErrorCode.SUPPLY_PRICE_MISSING));
 
-        assertError(() -> storeOrderService.registerStoreOrder(registerCommand(null, null, line(10L, 1))),
+        assertError(() -> storeOrderService.registerStoreOrder(registerCommand(null, null, line(10L, 1)), HQ),
                 "SUPPLY_PRICE_MISSING");
         verify(storeOrderRepository, never()).save(any());
         verifyNoInteractions(statusHistoryUseCase);
@@ -280,6 +287,45 @@ class StoreOrderServiceTest {
         assertThat(items.get(1).latestOutboundStatus()).isEqualTo(StoreOrderOutboundStatus.SHIPPED);
     }
 
+    // ---------- getMyStoreOrders ----------
+
+    @Test
+    @DisplayName("내 발주 목록: 점주는 필터가 없으면 담당 지점으로, 창고 관리자는 담당 창고로 범위를 좁힌다")
+    void getMyStoreOrders_scopedToAssigned() {
+        StoreOrderSearchCondition none = condition(null, null, null, null);
+        StoreOrderSearchCondition ownerScope = new StoreOrderSearchCondition(
+                null, null, null, null, null, null, List.of(1L, 2L), null);
+        StoreOrderSearchCondition managerScope = new StoreOrderSearchCondition(
+                null, null, null, null, null, null, null, List.of(3L));
+        when(storeOrderQueryRepository.search(ownerScope)).thenReturn(List.of(summary(1L, StoreOrderStatus.REQUESTED, 0)));
+        when(storeOrderQueryRepository.search(managerScope)).thenReturn(List.of(summary(2L, StoreOrderStatus.ASSIGNED, 0)));
+
+        AuthenticatedUser storeOwner = new AuthenticatedUser(5L, UserRole.STORE_OWNER, List.of(), List.of(1L, 2L));
+        assertThat(storeOrderService.getMyStoreOrders(none, storeOwner))
+                .extracting(item -> item.summary().storeOrderId()).containsExactly(1L);
+        assertThat(storeOrderService.getMyStoreOrders(none, manager(7L, 3L)))
+                .extracting(item -> item.summary().storeOrderId()).containsExactly(2L);
+    }
+
+    @Test
+    @DisplayName("내 발주 목록: 담당 지점·창고를 필터로 지정하면 추가 범위 없이 그 조건으로만 조회한다")
+    void getMyStoreOrders_specifiedFilterWithinScope() {
+        when(storeOrderQueryRepository.search(condition(1L, null, null, null))).thenReturn(List.of());
+        when(storeOrderQueryRepository.search(condition(null, 3L, null, null))).thenReturn(List.of());
+
+        assertThat(storeOrderService.getMyStoreOrders(condition(1L, null, null, null), owner(5L, 1L))).isEmpty();
+        assertThat(storeOrderService.getMyStoreOrders(condition(null, 3L, null, null), manager(7L, 3L))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("내 발주 목록: 담당이 아닌 지점·창고 필터와 본사 호출은 403이고, 존재 확인·조회보다 먼저 거절한다")
+    void getMyStoreOrders_forbidden() {
+        assertError(() -> storeOrderService.getMyStoreOrders(condition(2L, null, null, null), owner(5L, 1L)), "FORBIDDEN");
+        assertError(() -> storeOrderService.getMyStoreOrders(condition(null, 9L, null, null), manager(7L, 3L)), "FORBIDDEN");
+        assertError(() -> storeOrderService.getMyStoreOrders(condition(null, null, null, null), HQ), "FORBIDDEN");
+        verifyNoInteractions(storeOrderQueryRepository, storeAvailabilityPort, warehouseAvailabilityPort);
+    }
+
     // ---------- getStoreOrder ----------
 
     @Test
@@ -287,8 +333,8 @@ class StoreOrderServiceTest {
     void getStoreOrder_notFound() {
         when(storeOrderQueryRepository.findView(anyLong())).thenReturn(Optional.empty());
 
-        assertError(() -> storeOrderService.getStoreOrder(1L), "STORE_ORDER_NOT_FOUND");
-        assertError(() -> storeOrderService.getStoreOrderDetails(1L), "STORE_ORDER_NOT_FOUND");
+        assertError(() -> storeOrderService.getStoreOrder(1L, HQ), "STORE_ORDER_NOT_FOUND");
+        assertError(() -> storeOrderService.getStoreOrderDetails(1L, HQ), "STORE_ORDER_NOT_FOUND");
     }
 
     @Test
@@ -299,7 +345,7 @@ class StoreOrderServiceTest {
         when(statusHistoryUseCase.findStatusReason(StatusHistoryEntityType.STORE_ORDER, 5L, "REJECTED"))
                 .thenReturn(Optional.of("단가 협의 필요"));
 
-        StoreOrderDetail detail = storeOrderService.getStoreOrder(5L);
+        StoreOrderDetail detail = storeOrderService.getStoreOrder(5L, HQ);
 
         assertThat(detail.statusReason()).isEqualTo("단가 협의 필요");
         assertThat(detail.progressStage()).isEqualTo(StoreOrderProgressStage.REJECTED);
@@ -311,7 +357,7 @@ class StoreOrderServiceTest {
         when(storeOrderQueryRepository.findView(6L)).thenReturn(Optional.of(view(6L, StoreOrderStatus.ASSIGNED, 0)));
         when(storeOrderOutboundPort.findLatestOutboundStatus(6L)).thenReturn(Optional.empty());
 
-        StoreOrderDetail detail = storeOrderService.getStoreOrder(6L);
+        StoreOrderDetail detail = storeOrderService.getStoreOrder(6L, HQ);
 
         assertThat(detail.statusReason()).isNull();
         assertThat(detail.progressStage()).isEqualTo(StoreOrderProgressStage.PREPARING);
@@ -334,7 +380,7 @@ class StoreOrderServiceTest {
                 StatusHistory.record(StatusHistoryEntityType.STORE_ORDER, 7L, null, "REQUESTED", null, 5L, at),
                 StatusHistory.record(StatusHistoryEntityType.STORE_ORDER, 7L, "REQUESTED", "APPROVED", null, 2L, at)));
 
-        StoreOrderDetails details = storeOrderService.getStoreOrderDetails(7L);
+        StoreOrderDetails details = storeOrderService.getStoreOrderDetails(7L, HQ);
 
         assertThat(details.storeOrderId()).isEqualTo(7L);
         assertThat(details.status()).isEqualTo(StoreOrderStatus.APPROVED);
@@ -539,7 +585,7 @@ class StoreOrderServiceTest {
         givenLines(1L, requestedLine(1L, 10L));
         when(storeOrderOutboundPort.existsPickingStarted(1L)).thenReturn(false);
 
-        StoreOrderCancelResult result = storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, null, 5L));
+        StoreOrderCancelResult result = storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, null, 5L), AUTHOR);
 
         assertThat(result.status()).isEqualTo(StoreOrderStatus.CANCELED);
         assertThat(result.statusReason()).isNull();
@@ -563,8 +609,7 @@ class StoreOrderServiceTest {
             when(storeOrderOutboundPort.cancelFulfillment(1L, 2L))
                     .thenReturn(new StoreOrderFulfillmentCancelResult(2, 1));
 
-            StoreOrderCancelResult result = storeOrderService.cancelStoreOrder(
-                    new StoreOrderCancelCommand(1L, "재고 이슈", 2L));
+            StoreOrderCancelResult result = storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, "재고 이슈", 2L), HQ);
 
             assertThat(result.status()).isEqualTo(StoreOrderStatus.CANCELED);
             assertThat(result.statusReason()).isEqualTo("재고 이슈");
@@ -581,7 +626,7 @@ class StoreOrderServiceTest {
     void cancelStoreOrder_afterApprovalRequiresReason() {
         givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
 
-        assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, "  ", 2L)),
+        assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, "  ", 2L), HQ),
                 "VALIDATION_ERROR");
         verify(storeOrderRepository, never()).save(any());
         verifyNoInteractions(statusHistoryUseCase);
@@ -591,8 +636,7 @@ class StoreOrderServiceTest {
     @Test
     @DisplayName("사유가 500자를 넘으면 400 VALIDATION_ERROR")
     void cancelStoreOrder_reasonTooLong() {
-        assertError(() -> storeOrderService.cancelStoreOrder(
-                new StoreOrderCancelCommand(1L, "a".repeat(501), 5L)), "VALIDATION_ERROR");
+        assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, "a".repeat(501), 5L), AUTHOR), "VALIDATION_ERROR");
         verifyNoInteractions(storeOrderRepository);
     }
 
@@ -603,7 +647,7 @@ class StoreOrderServiceTest {
                 StoreOrderStatus.CANCELED, StoreOrderStatus.REJECTED, StoreOrderStatus.COMPLETED)) {
             when(storeOrderRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(orderIn(1L, status)));
 
-            assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, "사유", 2L)),
+            assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, "사유", 2L), HQ),
                     "CONFLICT");
         }
         verify(storeOrderRepository, never()).save(any());
@@ -617,7 +661,7 @@ class StoreOrderServiceTest {
         givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
         when(storeOrderOutboundPort.existsPickingStarted(1L)).thenReturn(true);
 
-        assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, "사유", 2L)),
+        assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, "사유", 2L), HQ),
                 "ORDER_IN_PICKING");
         verify(storeOrderOutboundPort, never()).cancelFulfillment(anyLong(), anyLong());
         verify(storeOrderRepository, never()).save(any());
@@ -629,7 +673,7 @@ class StoreOrderServiceTest {
     void cancelStoreOrder_notFound() {
         when(storeOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.empty());
 
-        assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(9L, "사유", 2L)),
+        assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(9L, "사유", 2L), HQ),
                 "STORE_ORDER_NOT_FOUND");
     }
 
@@ -784,8 +828,7 @@ class StoreOrderServiceTest {
         givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
         when(storeOrderOutboundPort.existsPickingStarted(1L)).thenReturn(false);
 
-        StoreOrderStatusChange result = storeOrderService.holdStoreOrder(
-                new com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand(1L, "재고 부족", 7L));
+        StoreOrderStatusChange result = storeOrderService.holdStoreOrder(new com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand(1L, "재고 부족", 7L), HQ);
 
         assertThat(result.status()).isEqualTo(StoreOrderStatus.ON_HOLD);
         assertThat(result.statusReason()).isEqualTo("재고 부족");
@@ -796,21 +839,18 @@ class StoreOrderServiceTest {
     @Test
     @DisplayName("보류 사유가 없으면 400, ASSIGNED가 아니면 409 CONFLICT, 피킹이 시작됐으면 409 ORDER_IN_PICKING")
     void holdStoreOrder_failures() {
-        assertError(() -> storeOrderService.holdStoreOrder(
-                new com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand(1L, null, 7L)),
+        assertError(() -> storeOrderService.holdStoreOrder(new com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand(1L, null, 7L), HQ),
                 "VALIDATION_ERROR");
 
         when(storeOrderRepository.findByIdForUpdate(1L))
                 .thenReturn(Optional.of(orderIn(1L, StoreOrderStatus.ON_HOLD)));
-        assertError(() -> storeOrderService.holdStoreOrder(
-                new com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand(1L, "사유", 7L)),
+        assertError(() -> storeOrderService.holdStoreOrder(new com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand(1L, "사유", 7L), HQ),
                 "CONFLICT");
 
         when(storeOrderRepository.findByIdForUpdate(2L))
                 .thenReturn(Optional.of(orderIn(2L, StoreOrderStatus.ASSIGNED)));
         when(storeOrderOutboundPort.existsPickingStarted(2L)).thenReturn(true);
-        assertError(() -> storeOrderService.holdStoreOrder(
-                new com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand(2L, "사유", 7L)),
+        assertError(() -> storeOrderService.holdStoreOrder(new com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand(2L, "사유", 7L), HQ),
                 "ORDER_IN_PICKING");
 
         verify(storeOrderRepository, never()).save(any());
@@ -824,8 +864,7 @@ class StoreOrderServiceTest {
     void resumeStoreOrder_success() {
         givenLockedOrder(1L, StoreOrderStatus.ON_HOLD);
 
-        StoreOrderStatusChange result = storeOrderService.resumeStoreOrder(
-                new com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand(1L, "재고 입고", 7L));
+        StoreOrderStatusChange result = storeOrderService.resumeStoreOrder(new com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand(1L, "재고 입고", 7L), HQ);
 
         assertThat(result.status()).isEqualTo(StoreOrderStatus.ASSIGNED);
         assertThat(result.statusReason()).isNull();
@@ -837,14 +876,12 @@ class StoreOrderServiceTest {
     @Test
     @DisplayName("재개 사유가 없으면 400, ON_HOLD가 아니면(보류 중 취소 포함) 409 CONFLICT")
     void resumeStoreOrder_failures() {
-        assertError(() -> storeOrderService.resumeStoreOrder(
-                new com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand(1L, " ", 7L)),
+        assertError(() -> storeOrderService.resumeStoreOrder(new com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand(1L, " ", 7L), HQ),
                 "VALIDATION_ERROR");
 
         for (StoreOrderStatus status : List.of(StoreOrderStatus.ASSIGNED, StoreOrderStatus.CANCELED)) {
             when(storeOrderRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(orderIn(1L, status)));
-            assertError(() -> storeOrderService.resumeStoreOrder(
-                    new com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand(1L, "사유", 7L)),
+            assertError(() -> storeOrderService.resumeStoreOrder(new com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand(1L, "사유", 7L), HQ),
                     "CONFLICT");
         }
         verifyNoInteractions(warehouseAvailabilityPort, statusHistoryUseCase);
@@ -857,8 +894,7 @@ class StoreOrderServiceTest {
         doThrow(new BusinessException(com.kb.wms.common.exception.ErrorCode.CONFLICT, "비활성 창고"))
                 .when(warehouseAvailabilityPort).requireActive(3L);
 
-        assertError(() -> storeOrderService.resumeStoreOrder(
-                new com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand(1L, "사유", 7L)),
+        assertError(() -> storeOrderService.resumeStoreOrder(new com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand(1L, "사유", 7L), HQ),
                 "CONFLICT");
         verify(storeOrderRepository, never()).save(any());
         verifyNoInteractions(statusHistoryUseCase);
@@ -879,9 +915,8 @@ class StoreOrderServiceTest {
                 new StoreOrderLineView(101L, 11L, "SKU-11", "양말", "EA", 5L, 0L, 5L,
                         new BigDecimal("200.00"), StoreOrderLineStatus.COMPLETED)));
 
-        var result = storeOrderService.completePartialStoreOrder(
-                new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
-                        1L, "공급 중단", 7L));
+        var result = storeOrderService.completePartialStoreOrder(new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
+                        1L, "공급 중단", 7L), HQ);
 
         assertThat(result.status()).isEqualTo(StoreOrderStatus.COMPLETED);
         assertThat(result.statusReason()).isEqualTo("공급 중단");
@@ -909,9 +944,8 @@ class StoreOrderServiceTest {
                 new StoreOrderLineView(100L, 10L, "SKU-10", "러닝화", "EA", 10L, 0L, 4L,
                         new BigDecimal("1500.00"), StoreOrderLineStatus.PARTIALLY_SHIPPED)));
 
-        var result = storeOrderService.completePartialStoreOrder(
-                new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
-                        1L, "공급 중단", 7L));
+        var result = storeOrderService.completePartialStoreOrder(new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
+                        1L, "공급 중단", 7L), HQ);
 
         assertThat(result.releasedAllocationCount()).isZero();
         assertThat(result.status()).isEqualTo(StoreOrderStatus.COMPLETED);
@@ -922,15 +956,13 @@ class StoreOrderServiceTest {
     void completePartialStoreOrder_guards() {
         givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
         when(storeOrderOutboundPort.existsInProgressOutbound(1L)).thenReturn(true);
-        assertError(() -> storeOrderService.completePartialStoreOrder(
-                new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
-                        1L, "사유", 7L)), "OUTBOUND_IN_PROGRESS");
+        assertError(() -> storeOrderService.completePartialStoreOrder(new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
+                        1L, "사유", 7L), HQ), "OUTBOUND_IN_PROGRESS");
 
         when(storeOrderOutboundPort.existsInProgressOutbound(1L)).thenReturn(false);
         givenLinesUnlocked(1L, shippedLine(1L, 10L, 10, 10), shippedLine(1L, 11L, 5, 6));
-        assertError(() -> storeOrderService.completePartialStoreOrder(
-                new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
-                        1L, "사유", 7L)), "NO_SHORTAGE");
+        assertError(() -> storeOrderService.completePartialStoreOrder(new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
+                        1L, "사유", 7L), HQ), "NO_SHORTAGE");
 
         verify(storeOrderRepository, never()).save(any());
         verify(storeOrderOutboundPort, never()).releaseUnlinkedAllocations(any(), any());
@@ -940,20 +972,91 @@ class StoreOrderServiceTest {
     @Test
     @DisplayName("종결 사유가 없으면 400, ASSIGNED가 아니면 409 CONFLICT, 없는 발주는 404")
     void completePartialStoreOrder_otherFailures() {
-        assertError(() -> storeOrderService.completePartialStoreOrder(
-                new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
-                        1L, null, 7L)), "VALIDATION_ERROR");
+        assertError(() -> storeOrderService.completePartialStoreOrder(new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
+                        1L, null, 7L), HQ), "VALIDATION_ERROR");
 
         when(storeOrderRepository.findByIdForUpdate(1L))
                 .thenReturn(Optional.of(orderIn(1L, StoreOrderStatus.ON_HOLD)));
-        assertError(() -> storeOrderService.completePartialStoreOrder(
-                new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
-                        1L, "사유", 7L)), "CONFLICT");
+        assertError(() -> storeOrderService.completePartialStoreOrder(new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
+                        1L, "사유", 7L), HQ), "CONFLICT");
 
         when(storeOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.empty());
-        assertError(() -> storeOrderService.completePartialStoreOrder(
-                new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
-                        9L, "사유", 7L)), "STORE_ORDER_NOT_FOUND");
+        assertError(() -> storeOrderService.completePartialStoreOrder(new com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand(
+                        9L, "사유", 7L), HQ), "STORE_ORDER_NOT_FOUND");
         verifyNoInteractions(statusHistoryUseCase);
+    }
+
+    private static AuthenticatedUser owner(long userId, long storeId) {
+        return new AuthenticatedUser(userId, UserRole.STORE_OWNER, List.of(), List.of(storeId));
+    }
+
+    private static AuthenticatedUser manager(long userId, long warehouseId) {
+        return new AuthenticatedUser(userId, UserRole.WAREHOUSE_MANAGER, List.of(warehouseId), List.of());
+    }
+
+    private static StoreOrderView assignedView(Long id) {
+        return new StoreOrderView(id, "SO-20261004-0001", 1L, "강남점", 3L, "서울 물류센터", StoreOrderStatus.ASSIGNED,
+                LocalDateTime.of(2026, 10, 4, 9, 0), null, null, 1L, new BigDecimal("1000.00"),
+                0L, 5L, null, LocalDateTime.of(2026, 10, 4, 9, 0), LocalDateTime.of(2026, 10, 4, 9, 0));
+    }
+
+    @Test
+    @DisplayName("발주 등록은 담당 지점의 점주만 할 수 있다")
+    void register_otherStore_forbidden() {
+        assertError(() -> storeOrderService.registerStoreOrder(registerCommand(null, null, line(10L, 1)), owner(6L, 2L)),
+                "FORBIDDEN");
+        verify(storeOrderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("승인 전 발주는 작성자 점주만 취소할 수 있고, 다른 점주·본사는 403이다")
+    void cancel_requested_onlyAuthor() {
+        givenLockedOrder(1L, StoreOrderStatus.REQUESTED);
+
+        assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, null, 6L), owner(6L, 1L)),
+                "FORBIDDEN");
+        assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, null, 1L), HQ), "FORBIDDEN");
+        verify(storeOrderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("승인 이후 발주는 본사만 취소할 수 있고, 작성자 점주도 403이다")
+    void cancel_afterApproval_onlyHqAdmin() {
+        givenLockedOrder(1L, StoreOrderStatus.APPROVED);
+
+        assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, "사유", 5L), AUTHOR),
+                "FORBIDDEN");
+        verify(storeOrderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("단건·상세 조회는 점주는 담당 지점, 창고 관리자는 배정 창고의 발주만 볼 수 있다 (미배정은 불가)")
+    void read_scope() {
+        when(storeOrderQueryRepository.findView(1L)).thenReturn(Optional.of(assignedView(1L)));
+        when(storeOrderQueryRepository.findView(2L)).thenReturn(Optional.of(view(2L, StoreOrderStatus.REQUESTED, 0)));
+
+        assertThat(storeOrderService.getStoreOrder(1L, owner(5L, 1L)).view().storeOrderId()).isEqualTo(1L);
+        assertThat(storeOrderService.getStoreOrder(1L, manager(7L, 3L)).view().storeOrderId()).isEqualTo(1L);
+        assertThat(storeOrderService.getStoreOrder(1L, HQ).view().storeOrderId()).isEqualTo(1L);
+
+        assertError(() -> storeOrderService.getStoreOrder(1L, owner(6L, 2L)), "FORBIDDEN");
+        assertError(() -> storeOrderService.getStoreOrderDetails(1L, owner(6L, 2L)), "FORBIDDEN");
+        assertError(() -> storeOrderService.getStoreOrder(1L, manager(8L, 9L)), "FORBIDDEN");
+        assertError(() -> storeOrderService.getStoreOrderDetails(1L, manager(8L, 9L)), "FORBIDDEN");
+        // 창고가 아직 배정되지 않은 발주는 창고 관리자에게 보이지 않는다
+        assertError(() -> storeOrderService.getStoreOrder(2L, manager(7L, 3L)), "FORBIDDEN");
+    }
+
+    @Test
+    @DisplayName("보류·재개·부분 종결은 배정 창고가 담당 창고가 아니면 403이고 상태를 바꾸지 않는다")
+    void fulfillmentActions_otherWarehouse_forbidden() {
+        givenLockedOrder(1L, StoreOrderStatus.ASSIGNED);
+        AuthenticatedUser other = manager(8L, 9L);
+
+        assertError(() -> storeOrderService.holdStoreOrder(new StoreOrderHoldCommand(1L, "사유", 8L), other), "FORBIDDEN");
+        assertError(() -> storeOrderService.resumeStoreOrder(new StoreOrderResumeCommand(1L, "사유", 8L), other), "FORBIDDEN");
+        assertError(() -> storeOrderService.completePartialStoreOrder(
+                new StoreOrderCompletePartialCommand(1L, "사유", 8L), other), "FORBIDDEN");
+        verify(storeOrderRepository, never()).save(any());
     }
 }

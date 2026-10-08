@@ -215,6 +215,19 @@ class PurchaseOrderPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("창고 범위(담당 창고 목록)로 좁히고, 빈 목록이면 비어 있다")
+    void search_byWarehouseScope() {
+        assertThat(queryRepository.search(new PurchaseOrderSearchCondition(
+                null, null, null, null, null, null, List.of(seoul))))
+                .extracting(PurchaseOrderSummary::purchaseOrderId).containsExactlyInAnyOrder(po1, po3);
+        assertThat(queryRepository.search(new PurchaseOrderSearchCondition(
+                null, null, null, null, null, null, List.of(seoul, busan)))).hasSize(
+                queryRepository.search(condition(null, null, null, null, null, null)).size());
+        assertThat(queryRepository.search(new PurchaseOrderSearchCondition(
+                null, null, null, null, null, null, List.of()))).isEmpty();
+    }
+
+    @Test
     @DisplayName("창고·공급처로 필터링한다")
     void search_byWarehouseAndSupplier() {
         assertThat(queryRepository.search(condition(null, seoul, null, null, null, null)))
@@ -377,12 +390,17 @@ class PurchaseOrderPersistenceAdapterTest {
         entityManager.createQuery(
                         "update PurchaseOrderJpaEntity po set po.createdBy = :userId where po.purchaseOrderId = :id")
                 .setParameter("userId", writer.getUserId()).setParameter("id", po1).executeUpdate();
+        // 방금 만든 사용자와 절대 겹치지 않는 존재하지 않는 사용자 ID
+        long nobody = writer.getUserId() + 1_000_000L;
+        entityManager.createQuery(
+                        "update PurchaseOrderJpaEntity po set po.createdBy = :userId where po.purchaseOrderId = :id")
+                .setParameter("userId", nobody).setParameter("id", po2).executeUpdate();
         entityManager.clear();
 
         assertThat(queryRepository.findView(po1).orElseThrow().createdByName()).isEqualTo("김작성");
         List<PurchaseOrderSummary> result = queryRepository.search(condition(null, null, null, null, null, null));
         assertThat(byId(result, po1).createdByName()).isEqualTo("김작성");
-        assertThat(byId(result, po2).createdBy()).isEqualTo(1L);
+        assertThat(byId(result, po2).createdBy()).isEqualTo(nobody);
         assertThat(byId(result, po2).createdByName()).isNull();
         assertThat(queryRepository.findView(po2).orElseThrow().createdByName()).isNull();
     }

@@ -19,7 +19,7 @@
 - 재고 할당 생성·해제, 출고 생성·피킹·배송·취소는 담당 창고(`WarehouseMember`)의 WAREHOUSE_MANAGER만 한다. 대상 창고는 발주의 `warehouse_id`다.
 - 조회는 HQ_ADMIN과 담당 창고의 WAREHOUSE_MANAGER만 한다. 점주는 호출할 수 없고 진행 상태는 지점 발주 조회의 `progressStage`로 본다.
 - 본사 관리자는 출고를 직접 취소하지 않는다. 승인 이후 발주 취소로 `READY` 출고가 함께 취소될 뿐이다.
-- 인증 연동 전에는 처리 사용자 `userId`를 `@RequestParam`으로 받고 역할·소속 검사는 인증 연동 때 처리한다(입고·지점 발주와 같은 방식).
+- 인증·인가 적용됨(#170): 처리 사용자는 토큰 주체이고, 역할은 보안 설정이, 담당 창고 범위는 서비스가 발주를 잠근 직후에 검사한다([`api/authorization.md`](../api/authorization.md), ADR-012).
 
 ## 재고 할당(StockAllocation) 상태
 

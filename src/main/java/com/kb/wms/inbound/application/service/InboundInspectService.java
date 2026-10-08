@@ -13,6 +13,7 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -58,11 +59,12 @@ public class InboundInspectService implements InboundInspectUseCase {
 
     @Override
     @Transactional
-    public Inbound inspectInbound(Long inboundId, InboundInspectCommand command) {
+    public Inbound inspectInbound(Long inboundId, InboundInspectCommand command, AuthenticatedUser actor) {
         validateRequest(command);
 
         Inbound inbound = inboundRepository.findByIdForUpdate(inboundId)
                 .orElseThrow(() -> new BusinessException(InboundErrorCode.INBOUND_NOT_FOUND));
+        actor.requireWarehouseAccess(inbound.getWarehouseId());
         if (!inbound.isInspectable()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "도착 또는 검수 중 상태의 입고만 검수할 수 있습니다. 현재 상태: " + inbound.getStatus());

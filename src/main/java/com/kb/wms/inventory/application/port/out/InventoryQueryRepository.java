@@ -44,6 +44,9 @@ public interface InventoryQueryRepository {
 
     Optional<LotSummary> findLot(Long lotId);
 
+    /** 로트가 warehouseIds 중 하나에 재고 또는 입고 완료 이력이 있을 때만 반환한다. */
+    Optional<LotSummary> findLot(Long lotId, List<Long> warehouseIds);
+
     /** 로트가 입고된 이력(InboundLine.lot_id, 입고 완료 건만). 입고 완료 일시 내림차순, inbound_id 내림차순. */
     List<LotInboundView> findLotInbounds(Long lotId);
 
@@ -66,6 +69,9 @@ public interface InventoryQueryRepository {
     boolean existsWarehouse(Long warehouseId);
 
     boolean existsSection(Long sectionId);
+
+    /** 구역이 속한 창고 ID. 구역이 없으면 비어 있다. */
+    Optional<Long> findWarehouseIdOfSection(Long sectionId);
 
     /** 공급처(입고 도메인 supplier 테이블) 존재 여부. 읽기 전용 확인이며 입고 서비스를 거치지 않는다. */
     boolean existsSupplier(Long supplierId);

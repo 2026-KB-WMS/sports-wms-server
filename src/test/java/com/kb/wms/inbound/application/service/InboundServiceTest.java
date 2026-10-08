@@ -25,6 +25,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -49,6 +51,8 @@ import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class InboundServiceTest {
+
+    private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
 
     @Mock
     private InboundRepository inboundRepository;
@@ -130,7 +134,7 @@ class InboundServiceTest {
         stubSaveAssigningId(7L);
         LocalDateTime arrivedAt = LocalDateTime.now().minusHours(1);
 
-        Long inboundId = inboundService.registerInbound(new InboundRegisterCommand(4L, arrivedAt, "1차 입고", 5L));
+        Long inboundId = inboundService.registerInbound(new InboundRegisterCommand(4L, arrivedAt, "1차 입고", 5L), HQ);
 
         assertThat(inboundId).isEqualTo(7L);
         ArgumentCaptor<Inbound> captor = ArgumentCaptor.forClass(Inbound.class);
@@ -157,7 +161,7 @@ class InboundServiceTest {
         stubSaveAssigningId(7L);
         LocalDateTime before = LocalDateTime.now();
 
-        inboundService.registerInbound(new InboundRegisterCommand(4L, null, null, 5L));
+        inboundService.registerInbound(new InboundRegisterCommand(4L, null, null, 5L), HQ);
 
         ArgumentCaptor<Inbound> captor = ArgumentCaptor.forClass(Inbound.class);
         verify(inboundRepository).save(captor.capture());
@@ -168,7 +172,7 @@ class InboundServiceTest {
     @Test
     @DisplayName("발주 ID가 없으면 VALIDATION_ERROR를 던진다")
     void register_missingPurchaseOrderId() {
-        assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(null, null, null, 5L)),
+        assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(null, null, null, 5L), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(purchaseOrderRepository, inboundRepository);
     }
@@ -176,7 +180,7 @@ class InboundServiceTest {
     @Test
     @DisplayName("처리 사용자가 없으면 VALIDATION_ERROR를 던진다")
     void register_missingUserId() {
-        assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(4L, null, null, null)),
+        assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(4L, null, null, null), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(purchaseOrderRepository, inboundRepository, statusHistoryUseCase);
     }
@@ -185,7 +189,7 @@ class InboundServiceTest {
     @DisplayName("도착 일시가 미래이면 VALIDATION_ERROR를 던진다")
     void register_arrivedAtInFuture() {
         assertError(() -> inboundService.registerInbound(
-                        new InboundRegisterCommand(4L, LocalDateTime.now().plusDays(1), null, 5L)),
+                        new InboundRegisterCommand(4L, LocalDateTime.now().plusDays(1), null, 5L), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(purchaseOrderRepository, inboundRepository);
     }
@@ -194,7 +198,7 @@ class InboundServiceTest {
     @DisplayName("비고가 1000자를 넘으면 VALIDATION_ERROR를 던진다")
     void register_noteTooLong() {
         assertError(() -> inboundService.registerInbound(
-                        new InboundRegisterCommand(4L, null, "가".repeat(1001), 5L)),
+                        new InboundRegisterCommand(4L, null, "가".repeat(1001), 5L), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(purchaseOrderRepository, inboundRepository);
     }
@@ -204,7 +208,7 @@ class InboundServiceTest {
     void register_purchaseOrderNotFound() {
         when(purchaseOrderRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
 
-        assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(999L, null, null, 5L)),
+        assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(999L, null, null, 5L), HQ),
                 PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND.name());
         verify(inboundRepository, never()).save(any(Inbound.class));
     }
@@ -216,7 +220,7 @@ class InboundServiceTest {
                 PurchaseOrderStatus.REQUESTED, PurchaseOrderStatus.COMPLETED, PurchaseOrderStatus.CANCELED)) {
             when(purchaseOrderRepository.findByIdForUpdate(4L)).thenReturn(Optional.of(purchaseOrder(status)));
 
-            assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(4L, null, null, 5L)),
+            assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(4L, null, null, 5L), HQ),
                     ErrorCode.CONFLICT.name());
         }
         verify(inboundRepository, never()).save(any(Inbound.class));
@@ -229,7 +233,7 @@ class InboundServiceTest {
                 .thenReturn(Optional.of(purchaseOrder(PurchaseOrderStatus.CONFIRMED)));
         when(inboundRepository.existsInProgressByPurchaseOrderId(4L)).thenReturn(true);
 
-        assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(4L, null, null, 5L)),
+        assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(4L, null, null, 5L), HQ),
                 InboundErrorCode.INBOUND_IN_PROGRESS.name());
         verify(inboundRepository, never()).save(any(Inbound.class));
     }
@@ -243,7 +247,7 @@ class InboundServiceTest {
             when(inboundRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(inbound(7L, status)));
             when(inboundRepository.save(any(Inbound.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-            Inbound result = inboundService.cancelInbound(7L, new InboundCancelCommand("잘못된 발주에 등록", 5L));
+            Inbound result = inboundService.cancelInbound(7L, new InboundCancelCommand("잘못된 발주에 등록", 5L), HQ);
 
             assertThat(result.getStatus()).isEqualTo(InboundStatus.CANCELED);
             verify(statusHistoryUseCase).record(StatusHistoryEntityType.INBOUND, 7L,
@@ -254,7 +258,7 @@ class InboundServiceTest {
     @Test
     @DisplayName("취소 처리 사용자가 없으면 VALIDATION_ERROR를 던지고 이력을 남기지 않는다")
     void cancel_userIdRequired() {
-        assertError(() -> inboundService.cancelInbound(7L, new InboundCancelCommand("사유", null)),
+        assertError(() -> inboundService.cancelInbound(7L, new InboundCancelCommand("사유", null), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(inboundRepository, statusHistoryUseCase);
     }
@@ -262,10 +266,10 @@ class InboundServiceTest {
     @Test
     @DisplayName("취소 사유가 없거나 공백이면 입고를 조회하지 않고 VALIDATION_ERROR를 던진다")
     void cancel_reasonRequired() {
-        assertError(() -> inboundService.cancelInbound(7L, null), ErrorCode.VALIDATION_ERROR.name());
-        assertError(() -> inboundService.cancelInbound(7L, new InboundCancelCommand(null, 5L)),
+        assertError(() -> inboundService.cancelInbound(7L, null, HQ), ErrorCode.VALIDATION_ERROR.name());
+        assertError(() -> inboundService.cancelInbound(7L, new InboundCancelCommand(null, 5L), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
-        assertError(() -> inboundService.cancelInbound(7L, new InboundCancelCommand("  ", 5L)),
+        assertError(() -> inboundService.cancelInbound(7L, new InboundCancelCommand("  ", 5L), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(inboundRepository);
     }
@@ -273,7 +277,7 @@ class InboundServiceTest {
     @Test
     @DisplayName("취소 사유가 500자를 넘으면 VALIDATION_ERROR를 던진다")
     void cancel_reasonTooLong() {
-        assertError(() -> inboundService.cancelInbound(7L, new InboundCancelCommand("가".repeat(501), 5L)),
+        assertError(() -> inboundService.cancelInbound(7L, new InboundCancelCommand("가".repeat(501), 5L), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(inboundRepository);
     }
@@ -283,7 +287,7 @@ class InboundServiceTest {
     void cancel_notFound() {
         when(inboundRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
 
-        assertError(() -> inboundService.cancelInbound(999L, new InboundCancelCommand("사유", 5L)),
+        assertError(() -> inboundService.cancelInbound(999L, new InboundCancelCommand("사유", 5L), HQ),
                 InboundErrorCode.INBOUND_NOT_FOUND.name());
     }
 
@@ -293,7 +297,7 @@ class InboundServiceTest {
         for (InboundStatus status : List.of(InboundStatus.COMPLETED, InboundStatus.CANCELED)) {
             when(inboundRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(inbound(7L, status)));
 
-            assertError(() -> inboundService.cancelInbound(7L, new InboundCancelCommand("사유", 5L)),
+            assertError(() -> inboundService.cancelInbound(7L, new InboundCancelCommand("사유", 5L), HQ),
                     ErrorCode.CONFLICT.name());
         }
         verify(inboundRepository, never()).save(any(Inbound.class));
@@ -309,7 +313,7 @@ class InboundServiceTest {
         when(statusHistoryUseCase.findStatusReason(StatusHistoryEntityType.INBOUND, 7L, "CANCELED"))
                 .thenReturn(Optional.of("잘못된 발주에 등록"));
 
-        assertThat(inboundService.getInbound(7L).cancelReason()).isEqualTo("잘못된 발주에 등록");
+        assertThat(inboundService.getInbound(7L, HQ).cancelReason()).isEqualTo("잘못된 발주에 등록");
     }
 
     @Test
@@ -317,7 +321,7 @@ class InboundServiceTest {
     void getInbound_notCanceled_noCancelReason() {
         when(inboundQueryRepository.findView(7L)).thenReturn(Optional.of(viewWithStatus(InboundStatus.ARRIVED)));
 
-        assertThat(inboundService.getInbound(7L).cancelReason()).isNull();
+        assertThat(inboundService.getInbound(7L, HQ).cancelReason()).isNull();
         verifyNoInteractions(statusHistoryUseCase);
     }
 
@@ -330,7 +334,7 @@ class InboundServiceTest {
                 InboundStatus.ARRIVED, 1L, 4L, "IB-", null, null);
         when(inboundQueryRepository.search(condition)).thenReturn(List.of());
 
-        assertThat(inboundService.getInbounds(condition)).isEmpty();
+        assertThat(inboundService.getInbounds(condition, HQ)).isEmpty();
         verify(inboundQueryRepository).search(condition);
     }
 
@@ -341,7 +345,7 @@ class InboundServiceTest {
                 null, null, null, null,
                 LocalDateTime.of(2026, 10, 2, 0, 0), LocalDateTime.of(2026, 10, 1, 0, 0));
 
-        assertError(() -> inboundService.getInbounds(condition), ErrorCode.VALIDATION_ERROR.name());
+        assertError(() -> inboundService.getInbounds(condition, HQ), ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(inboundQueryRepository);
     }
 
@@ -350,7 +354,7 @@ class InboundServiceTest {
     void getInbound_notFound() {
         when(inboundQueryRepository.findView(999L)).thenReturn(Optional.empty());
 
-        assertError(() -> inboundService.getInbound(999L), InboundErrorCode.INBOUND_NOT_FOUND.name());
+        assertError(() -> inboundService.getInbound(999L, HQ), InboundErrorCode.INBOUND_NOT_FOUND.name());
     }
 
     @Test
@@ -368,7 +372,7 @@ class InboundServiceTest {
         when(inboundQueryRepository.findView(7L)).thenReturn(Optional.of(view));
         when(inboundQueryRepository.findLineViews(7L)).thenReturn(List.of(lineView));
 
-        InboundDetails details = inboundService.getInboundDetails(7L);
+        InboundDetails details = inboundService.getInboundDetails(7L, HQ);
 
         assertThat(details.inboundId()).isEqualTo(7L);
         assertThat(details.inboundNo()).isEqualTo("IB-20261002-0001");
@@ -381,7 +385,7 @@ class InboundServiceTest {
     void getInboundDetails_notFound() {
         when(inboundQueryRepository.findView(anyLong())).thenReturn(Optional.empty());
 
-        assertError(() -> inboundService.getInboundDetails(999L), InboundErrorCode.INBOUND_NOT_FOUND.name());
+        assertError(() -> inboundService.getInboundDetails(999L, HQ), InboundErrorCode.INBOUND_NOT_FOUND.name());
         verify(inboundQueryRepository, never()).findLineViews(anyLong());
     }
 
@@ -397,7 +401,7 @@ class InboundServiceTest {
         when(inboundRepository.findById(7L)).thenReturn(Optional.of(inbound(7L, InboundStatus.INSPECTING)));
         when(inboundQueryRepository.findAssignableSections(1L, condition)).thenReturn(List.of(candidate));
 
-        assertThat(inboundService.getAssignableSections(7L, condition)).containsExactly(candidate);
+        assertThat(inboundService.getAssignableSections(7L, condition, HQ)).containsExactly(candidate);
     }
 
     @Test
@@ -407,7 +411,7 @@ class InboundServiceTest {
         when(inboundRepository.findById(7L)).thenReturn(Optional.of(inbound(7L, InboundStatus.ARRIVED)));
         when(inboundQueryRepository.findDefectSections(1L, condition)).thenReturn(List.of());
 
-        assertThat(inboundService.getDefectSections(7L, condition)).isEmpty();
+        assertThat(inboundService.getDefectSections(7L, condition, HQ)).isEmpty();
     }
 
     @Test
@@ -416,9 +420,9 @@ class InboundServiceTest {
         when(inboundRepository.findById(999L)).thenReturn(Optional.empty());
         SectionCandidateCondition condition = new SectionCandidateCondition(null, null);
 
-        assertError(() -> inboundService.getAssignableSections(999L, condition),
+        assertError(() -> inboundService.getAssignableSections(999L, condition, HQ),
                 InboundErrorCode.INBOUND_NOT_FOUND.name());
-        assertError(() -> inboundService.getDefectSections(999L, condition),
+        assertError(() -> inboundService.getDefectSections(999L, condition, HQ),
                 InboundErrorCode.INBOUND_NOT_FOUND.name());
     }
 
@@ -427,8 +431,57 @@ class InboundServiceTest {
     void getSections_negativeRequiredQuantity() {
         SectionCandidateCondition condition = new SectionCandidateCondition(BigDecimal.valueOf(-1), null);
 
-        assertError(() -> inboundService.getAssignableSections(7L, condition), ErrorCode.VALIDATION_ERROR.name());
-        assertError(() -> inboundService.getDefectSections(7L, condition), ErrorCode.VALIDATION_ERROR.name());
+        assertError(() -> inboundService.getAssignableSections(7L, condition, HQ), ErrorCode.VALIDATION_ERROR.name());
+        assertError(() -> inboundService.getDefectSections(7L, condition, HQ), ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(inboundRepository, inboundQueryRepository);
+    }
+
+
+    private static final AuthenticatedUser MANAGER =
+            new AuthenticatedUser(5L, UserRole.WAREHOUSE_MANAGER, List.of(1L, 2L), List.of());
+    private static final AuthenticatedUser OTHER_MANAGER =
+            new AuthenticatedUser(6L, UserRole.WAREHOUSE_MANAGER, List.of(9L), List.of());
+
+    @Test
+    @DisplayName("입고 등록은 발주의 창고가 담당 창고일 때만 할 수 있다")
+    void register_otherWarehouse_forbidden() {
+        when(purchaseOrderRepository.findByIdForUpdate(4L))
+                .thenReturn(java.util.Optional.of(purchaseOrder(PurchaseOrderStatus.CONFIRMED)));
+
+        assertError(() -> inboundService.registerInbound(
+                        new InboundRegisterCommand(4L, null, null, 6L), OTHER_MANAGER),
+                ErrorCode.FORBIDDEN.name());
+        verify(inboundRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("입고 목록은 창고를 생략하면 담당 창고로 좁히고, 비담당 창고를 지정하면 403이다")
+    void getInbounds_scope() {
+        when(inboundQueryRepository.search(
+                new InboundSearchCondition(null, null, null, null, null, null, List.of(1L, 2L))))
+                .thenReturn(List.of());
+
+        assertThat(inboundService.getInbounds(
+                new InboundSearchCondition(null, null, null, null, null, null), MANAGER)).isEmpty();
+        assertError(() -> inboundService.getInbounds(
+                new InboundSearchCondition(null, 3L, null, null, null, null), MANAGER), ErrorCode.FORBIDDEN.name());
+    }
+
+    @Test
+    @DisplayName("입고 단건·상세·구역 후보·취소는 입고 창고가 담당 창고가 아니면 403이다")
+    void singleInbound_otherWarehouse_forbidden() {
+        when(inboundQueryRepository.findView(7L)).thenReturn(java.util.Optional.of(viewWithStatus(InboundStatus.ARRIVED)));
+        when(inboundRepository.findById(7L)).thenReturn(java.util.Optional.of(inbound(7L, InboundStatus.ARRIVED)));
+        when(inboundRepository.findByIdForUpdate(7L)).thenReturn(java.util.Optional.of(inbound(7L, InboundStatus.ARRIVED)));
+        SectionCandidateCondition condition = new SectionCandidateCondition(null, null);
+
+        assertError(() -> inboundService.getInbound(7L, OTHER_MANAGER), ErrorCode.FORBIDDEN.name());
+        assertError(() -> inboundService.getInboundDetails(7L, OTHER_MANAGER), ErrorCode.FORBIDDEN.name());
+        assertError(() -> inboundService.getAssignableSections(7L, condition, OTHER_MANAGER), ErrorCode.FORBIDDEN.name());
+        assertError(() -> inboundService.getDefectSections(7L, condition, OTHER_MANAGER), ErrorCode.FORBIDDEN.name());
+        assertError(() -> inboundService.cancelInbound(7L, new InboundCancelCommand("사유", 6L), OTHER_MANAGER),
+                ErrorCode.FORBIDDEN.name());
+        verify(inboundRepository, never()).save(any());
+        assertThat(inboundService.getInbound(7L, MANAGER).inboundId()).isEqualTo(7L);
     }
 }

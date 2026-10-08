@@ -12,6 +12,7 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -64,8 +65,9 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
 
     @Override
     @Transactional
-    public Long registerPurchaseOrder(PurchaseOrderRegisterCommand command) {
+    public Long registerPurchaseOrder(PurchaseOrderRegisterCommand command, AuthenticatedUser actor) {
         validateRegister(command);
+        actor.requireWarehouseAccess(command.warehouseId());
 
         warehouseAvailabilityPort.requireActive(command.warehouseId());
 
@@ -99,18 +101,23 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
     }
 
     @Override
-    public List<PurchaseOrderSummary> getPurchaseOrders(PurchaseOrderSearchCondition condition) {
+    public List<PurchaseOrderSummary> getPurchaseOrders(PurchaseOrderSearchCondition condition,
+                                                        AuthenticatedUser actor) {
+        List<Long> scope = actor.warehouseScope(condition.warehouseId());
         if (condition.createdFrom() != null && condition.createdTo() != null
                 && condition.createdFrom().isAfter(condition.createdTo())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "등록 시작 일시는 종료 일시보다 늦을 수 없습니다.");
         }
-        return purchaseOrderQueryRepository.search(condition);
+        return purchaseOrderQueryRepository.search(new PurchaseOrderSearchCondition(
+                condition.status(), condition.warehouseId(), condition.supplierId(), condition.keyword(),
+                condition.createdFrom(), condition.createdTo(), scope));
     }
 
     @Override
-    public PurchaseOrderView getPurchaseOrder(Long purchaseOrderId) {
+    public PurchaseOrderView getPurchaseOrder(Long purchaseOrderId, AuthenticatedUser actor) {
         PurchaseOrderView view = purchaseOrderQueryRepository.findView(purchaseOrderId)
                 .orElseThrow(PurchaseOrderService::notFound);
+        actor.requireWarehouseAccess(view.warehouseId());
         if (view.status() != PurchaseOrderStatus.CANCELED) {
             return view;
         }
@@ -122,8 +129,8 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
     }
 
     @Override
-    public PurchaseOrderDetails getPurchaseOrderDetails(Long purchaseOrderId) {
-        PurchaseOrderView view = getPurchaseOrder(purchaseOrderId);
+    public PurchaseOrderDetails getPurchaseOrderDetails(Long purchaseOrderId, AuthenticatedUser actor) {
+        PurchaseOrderView view = getPurchaseOrder(purchaseOrderId, actor);
         return new PurchaseOrderDetails(
                 view.purchaseOrderId(), view.purchaseOrderNo(), view.status(),
                 purchaseOrderQueryRepository.findLineViews(purchaseOrderId));
@@ -156,7 +163,8 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
      */
     @Override
     @Transactional
-    public PurchaseOrder cancelPurchaseOrder(Long purchaseOrderId, PurchaseOrderCancelCommand command) {
+    public PurchaseOrder cancelPurchaseOrder(Long purchaseOrderId, PurchaseOrderCancelCommand command,
+                                             AuthenticatedUser actor) {
         requireUser(command == null ? null : command.userId());
         PurchaseOrder purchaseOrder = purchaseOrderRepository.findByIdForUpdate(purchaseOrderId)
                 .orElseThrow(PurchaseOrderService::notFound);
@@ -164,6 +172,7 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "요청 또는 확정 상태의 발주만 취소할 수 있습니다. 현재 상태: " + purchaseOrder.getStatus());
         }
+        requireCancelAuthority(purchaseOrder, actor);
         String reason = command == null ? null : command.reason();
         boolean hasReason = reason != null && !reason.isBlank();
         if (purchaseOrder.getStatus() == PurchaseOrderStatus.CONFIRMED && !hasReason) {
@@ -182,6 +191,16 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         statusHistoryUseCase.record(StatusHistoryEntityType.PURCHASE_ORDER, purchaseOrderId,
                 from.name(), saved.getStatus().name(), hasReason ? reason : null, command.userId());
         return saved;
+    }
+
+    /** 요청 발주는 작성자인 창고 관리자만, 확정 발주는 본사 관리자만 취소할 수 있다. */
+    private static void requireCancelAuthority(PurchaseOrder purchaseOrder, AuthenticatedUser actor) {
+        boolean allowed = purchaseOrder.getStatus() == PurchaseOrderStatus.REQUESTED
+                ? actor.isWarehouseManager() && actor.userId().equals(purchaseOrder.getCreatedBy())
+                : actor.isHqAdmin();
+        if (!allowed) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
     }
 
     private static void requireUser(Long userId) {

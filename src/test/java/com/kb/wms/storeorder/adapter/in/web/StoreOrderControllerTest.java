@@ -1,7 +1,11 @@
 package com.kb.wms.storeorder.adapter.in.web;
 
+import static com.kb.wms.common.security.TestAuth.as;
+import static com.kb.wms.common.security.TestAuth.signInAsHqAdmin;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -15,6 +19,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -24,7 +29,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.storeorder.application.port.in.StoreOrderUseCase;
@@ -76,6 +83,16 @@ class StoreOrderControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @BeforeEach
+    void signIn() {
+        signInAsHqAdmin();
+    }
+
+    /** 처리 사용자 ID만 지정한 요청 주체. 서비스는 목이라 역할·범위 검사는 서비스 테스트에서 확인한다. */
+    private static RequestPostProcessor user(long userId) {
+        return as(UserRole.HQ_ADMIN, userId, java.util.List.of(), java.util.List.of());
+    }
+
     @MockitoBean
     private StoreOrderUseCase storeOrderUseCase;
 
@@ -109,16 +126,16 @@ class StoreOrderControllerTest {
     @Test
     @DisplayName("발주를 등록하면 201과 라인이 포함된 응답을 반환하고 userId가 createdBy로 전달된다")
     void register_success() throws Exception {
-        when(storeOrderUseCase.registerStoreOrder(any(StoreOrderRegisterCommand.class))).thenReturn(7L);
-        when(storeOrderUseCase.getStoreOrder(7L))
+        when(storeOrderUseCase.registerStoreOrder(any(StoreOrderRegisterCommand.class), any())).thenReturn(7L);
+        when(storeOrderUseCase.getStoreOrder(eq(7L), any()))
                 .thenReturn(new StoreOrderDetail(view(StoreOrderStatus.REQUESTED), null,
                         StoreOrderProgressStage.PENDING_APPROVAL));
-        when(storeOrderUseCase.getStoreOrderDetails(7L))
+        when(storeOrderUseCase.getStoreOrderDetails(eq(7L), any()))
                 .thenReturn(new StoreOrderDetails(7L, "SO-20261002-0001", StoreOrderStatus.REQUESTED,
                         StoreOrderProgressStage.PENDING_APPROVAL, lines(), List.of(), List.of()));
 
         mockMvc.perform(post("/api/v1/orders")
-                        .param("userId", "5")
+                        .with(user(5L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(REGISTER_BODY))
                 .andExpect(status().isCreated())
@@ -130,7 +147,7 @@ class StoreOrderControllerTest {
                 .andExpect(jsonPath("$.data.lines[0].skuCode").value("SKU-1"));
 
         ArgumentCaptor<StoreOrderRegisterCommand> captor = ArgumentCaptor.forClass(StoreOrderRegisterCommand.class);
-        verify(storeOrderUseCase).registerStoreOrder(captor.capture());
+        verify(storeOrderUseCase).registerStoreOrder(captor.capture(), any());
         StoreOrderRegisterCommand command = captor.getValue();
         assertThat(command.storeId()).isEqualTo(2L);
         assertThat(command.createdBy()).isEqualTo(5L);
@@ -140,21 +157,10 @@ class StoreOrderControllerTest {
     }
 
     @Test
-    @DisplayName("userId가 없으면 400 VALIDATION_ERROR")
-    void register_missingUserId() throws Exception {
-        mockMvc.perform(post("/api/v1/orders")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(REGISTER_BODY))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
-        verifyNoInteractions(storeOrderUseCase);
-    }
-
-    @Test
     @DisplayName("라인이 비어 있으면 400 VALIDATION_ERROR")
     void register_emptyLines() throws Exception {
         mockMvc.perform(post("/api/v1/orders")
-                        .param("userId", "5")
+                        .with(user(5L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"storeId\":2,\"lines\":[]}"))
                 .andExpect(status().isBadRequest())
@@ -166,7 +172,7 @@ class StoreOrderControllerTest {
     @DisplayName("수량이 1 미만이면 400 VALIDATION_ERROR")
     void register_quantityBelowOne() throws Exception {
         mockMvc.perform(post("/api/v1/orders")
-                        .param("userId", "5")
+                        .with(user(5L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"storeId\":2,\"lines\":[{\"skuId\":1,\"requestedQuantity\":0}]}"))
                 .andExpect(status().isBadRequest())
@@ -178,7 +184,7 @@ class StoreOrderControllerTest {
     @DisplayName("지점이 없으면 400 VALIDATION_ERROR")
     void register_missingStoreId() throws Exception {
         mockMvc.perform(post("/api/v1/orders")
-                        .param("userId", "5")
+                        .with(user(5L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"lines\":[{\"skuId\":1,\"requestedQuantity\":1}]}"))
                 .andExpect(status().isBadRequest())
@@ -192,7 +198,7 @@ class StoreOrderControllerTest {
         String body = "{\"storeId\":2,\"note\":\"" + "a".repeat(1001)
                 + "\",\"lines\":[{\"skuId\":1,\"requestedQuantity\":1}]}";
         mockMvc.perform(post("/api/v1/orders")
-                        .param("userId", "5")
+                        .with(user(5L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest())
@@ -203,11 +209,11 @@ class StoreOrderControllerTest {
     @Test
     @DisplayName("공급 단가가 없으면 409 SUPPLY_PRICE_MISSING")
     void register_supplyPriceMissing() throws Exception {
-        when(storeOrderUseCase.registerStoreOrder(any(StoreOrderRegisterCommand.class)))
+        when(storeOrderUseCase.registerStoreOrder(any(StoreOrderRegisterCommand.class), any()))
                 .thenThrow(new BusinessException(StoreOrderErrorCode.SUPPLY_PRICE_MISSING));
 
         mockMvc.perform(post("/api/v1/orders")
-                        .param("userId", "5")
+                        .with(user(5L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(REGISTER_BODY))
                 .andExpect(status().isConflict())
@@ -252,6 +258,34 @@ class StoreOrderControllerTest {
     }
 
     @Test
+    @DisplayName("내 발주 목록은 필터와 토큰 사용자를 서비스에 넘기고 data.items로 반환하며, 서비스의 403을 그대로 응답한다")
+    void myList_passesFilterAndPrincipal() throws Exception {
+        StoreOrderSummary summary = new StoreOrderSummary(7L, "SO-20261002-0001", 2L, "Store A", 1L,
+                "Warehouse 1", StoreOrderStatus.ASSIGNED, T0, null, 2L, BigDecimal.valueOf(15000), 0L);
+        when(storeOrderUseCase.getMyStoreOrders(any(StoreOrderSearchCondition.class), any()))
+                .thenReturn(List.of(new StoreOrderListItem(summary, null, StoreOrderProgressStage.PREPARING)));
+
+        mockMvc.perform(get("/api/v1/orders/my").with(user(9L))
+                        .param("status", "ASSIGNED").param("storeId", "2").param("keyword", "SO-2026"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].orderNo").value("SO-20261002-0001"))
+                .andExpect(jsonPath("$.data.items[0].progressStage").value("PREPARING"));
+
+        ArgumentCaptor<StoreOrderSearchCondition> captor = ArgumentCaptor.forClass(StoreOrderSearchCondition.class);
+        verify(storeOrderUseCase).getMyStoreOrders(captor.capture(), argThat(actor -> actor.userId().equals(9L)));
+        assertThat(captor.getValue().status()).isEqualTo(StoreOrderStatus.ASSIGNED);
+        assertThat(captor.getValue().storeId()).isEqualTo(2L);
+        assertThat(captor.getValue().keyword()).isEqualTo("SO-2026");
+
+        when(storeOrderUseCase.getMyStoreOrders(any(StoreOrderSearchCondition.class), any()))
+                .thenThrow(new BusinessException(com.kb.wms.common.exception.ErrorCode.FORBIDDEN));
+        mockMvc.perform(get("/api/v1/orders/my").param("storeId", "99"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
     @DisplayName("결과가 없으면 빈 items를 반환한다")
     void list_empty() throws Exception {
         when(storeOrderUseCase.getStoreOrders(any(StoreOrderSearchCondition.class))).thenReturn(List.of());
@@ -284,7 +318,7 @@ class StoreOrderControllerTest {
     @Test
     @DisplayName("단건 조회는 헤더와 진행 단계를 반환한다")
     void get_success() throws Exception {
-        when(storeOrderUseCase.getStoreOrder(7L))
+        when(storeOrderUseCase.getStoreOrder(eq(7L), any()))
                 .thenReturn(new StoreOrderDetail(view(StoreOrderStatus.CANCELED), "changed mind",
                         StoreOrderProgressStage.CANCELED));
 
@@ -300,7 +334,7 @@ class StoreOrderControllerTest {
     @Test
     @DisplayName("없는 발주를 조회하면 404 STORE_ORDER_NOT_FOUND")
     void get_notFound() throws Exception {
-        when(storeOrderUseCase.getStoreOrder(999L))
+        when(storeOrderUseCase.getStoreOrder(eq(999L), any()))
                 .thenThrow(new BusinessException(StoreOrderErrorCode.STORE_ORDER_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/orders/{orderId}", 999L))
@@ -320,7 +354,7 @@ class StoreOrderControllerTest {
     @Test
     @DisplayName("상세 조회는 라인, 출고, 상태 이력을 반환한다")
     void details_success() throws Exception {
-        when(storeOrderUseCase.getStoreOrderDetails(7L))
+        when(storeOrderUseCase.getStoreOrderDetails(eq(7L), any()))
                 .thenReturn(new StoreOrderDetails(7L, "SO-20261002-0001", StoreOrderStatus.ASSIGNED,
                         StoreOrderProgressStage.PREPARING, lines(),
                         List.of(new StoreOrderOutboundView(100L, "OB-1", StoreOrderOutboundStatus.PICKING, null, null)),
@@ -345,7 +379,7 @@ class StoreOrderControllerTest {
     void approve_success() throws Exception {
         when(storeOrderUseCase.approveStoreOrder(7L, 9L)).thenReturn(change(StoreOrderStatus.APPROVED, null));
 
-        mockMvc.perform(patch("/api/v1/orders/{orderId}/approve", 7L).param("userId", "9"))
+        mockMvc.perform(patch("/api/v1/orders/{orderId}/approve", 7L).with(user(9L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.storeOrderId").value(7))
                 .andExpect(jsonPath("$.data.status").value("APPROVED"));
@@ -357,18 +391,9 @@ class StoreOrderControllerTest {
     void approve_conflict() throws Exception {
         when(storeOrderUseCase.approveStoreOrder(7L, 9L)).thenThrow(conflict());
 
-        mockMvc.perform(patch("/api/v1/orders/{orderId}/approve", 7L).param("userId", "9"))
+        mockMvc.perform(patch("/api/v1/orders/{orderId}/approve", 7L).with(user(9L)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("CONFLICT"));
-    }
-
-    @Test
-    @DisplayName("승인 시 userId가 없으면 400")
-    void approve_missingUserId() throws Exception {
-        mockMvc.perform(patch("/api/v1/orders/{orderId}/approve", 7L))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
-        verifyNoInteractions(storeOrderUseCase);
     }
 
     // ---------- 반려 ----------
@@ -380,7 +405,7 @@ class StoreOrderControllerTest {
                 .thenReturn(change(StoreOrderStatus.CANCELED, "wrong items"));
 
         mockMvc.perform(patch("/api/v1/orders/{orderId}/reject", 7L)
-                        .param("userId", "9")
+                        .with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"wrong items\"}"))
                 .andExpect(status().isOk())
@@ -397,14 +422,14 @@ class StoreOrderControllerTest {
     @DisplayName("반려 사유가 비어 있거나 500자를 넘으면 400")
     void reject_invalidReason() throws Exception {
         mockMvc.perform(patch("/api/v1/orders/{orderId}/reject", 7L)
-                        .param("userId", "9")
+                        .with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"  \"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
 
         mockMvc.perform(patch("/api/v1/orders/{orderId}/reject", 7L)
-                        .param("userId", "9")
+                        .with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"" + "a".repeat(501) + "\"}"))
                 .andExpect(status().isBadRequest())
@@ -417,18 +442,18 @@ class StoreOrderControllerTest {
     @Test
     @DisplayName("본문 없이 취소해도 되고 결과에 해제/취소 건수가 포함된다")
     void cancel_withoutBody() throws Exception {
-        when(storeOrderUseCase.cancelStoreOrder(any(StoreOrderCancelCommand.class)))
+        when(storeOrderUseCase.cancelStoreOrder(any(StoreOrderCancelCommand.class), any()))
                 .thenReturn(new StoreOrderCancelResult(7L, "SO-20261002-0001", StoreOrderStatus.CANCELED,
                         null, 2, 1, T1));
 
-        mockMvc.perform(patch("/api/v1/orders/{orderId}/cancel", 7L).param("userId", "5"))
+        mockMvc.perform(patch("/api/v1/orders/{orderId}/cancel", 7L).with(user(5L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CANCELED"))
                 .andExpect(jsonPath("$.data.releasedAllocationCount").value(2))
                 .andExpect(jsonPath("$.data.canceledOutboundCount").value(1));
 
         ArgumentCaptor<StoreOrderCancelCommand> captor = ArgumentCaptor.forClass(StoreOrderCancelCommand.class);
-        verify(storeOrderUseCase).cancelStoreOrder(captor.capture());
+        verify(storeOrderUseCase).cancelStoreOrder(captor.capture(), any());
         assertThat(captor.getValue().reason()).isNull();
         assertThat(captor.getValue().changedBy()).isEqualTo(5L);
     }
@@ -436,29 +461,29 @@ class StoreOrderControllerTest {
     @Test
     @DisplayName("사유와 함께 취소하면 사유가 전달된다")
     void cancel_withReason() throws Exception {
-        when(storeOrderUseCase.cancelStoreOrder(any(StoreOrderCancelCommand.class)))
+        when(storeOrderUseCase.cancelStoreOrder(any(StoreOrderCancelCommand.class), any()))
                 .thenReturn(new StoreOrderCancelResult(7L, "SO-20261002-0001", StoreOrderStatus.CANCELED,
                         "no longer needed", 0, 0, T1));
 
         mockMvc.perform(patch("/api/v1/orders/{orderId}/cancel", 7L)
-                        .param("userId", "5")
+                        .with(user(5L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"no longer needed\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.statusReason").value("no longer needed"));
 
         ArgumentCaptor<StoreOrderCancelCommand> captor = ArgumentCaptor.forClass(StoreOrderCancelCommand.class);
-        verify(storeOrderUseCase).cancelStoreOrder(captor.capture());
+        verify(storeOrderUseCase).cancelStoreOrder(captor.capture(), any());
         assertThat(captor.getValue().reason()).isEqualTo("no longer needed");
     }
 
     @Test
     @DisplayName("피킹 중이면 409 ORDER_IN_PICKING")
     void cancel_inPicking() throws Exception {
-        when(storeOrderUseCase.cancelStoreOrder(any(StoreOrderCancelCommand.class)))
+        when(storeOrderUseCase.cancelStoreOrder(any(StoreOrderCancelCommand.class), any()))
                 .thenThrow(new BusinessException(StoreOrderErrorCode.ORDER_IN_PICKING));
 
-        mockMvc.perform(patch("/api/v1/orders/{orderId}/cancel", 7L).param("userId", "5"))
+        mockMvc.perform(patch("/api/v1/orders/{orderId}/cancel", 7L).with(user(5L)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("ORDER_IN_PICKING"));
     }
@@ -466,10 +491,10 @@ class StoreOrderControllerTest {
     @Test
     @DisplayName("출고가 진행되었으면 409 ORDER_IN_FULFILLMENT")
     void cancel_inFulfillment() throws Exception {
-        when(storeOrderUseCase.cancelStoreOrder(any(StoreOrderCancelCommand.class)))
+        when(storeOrderUseCase.cancelStoreOrder(any(StoreOrderCancelCommand.class), any()))
                 .thenThrow(new BusinessException(StoreOrderErrorCode.ORDER_IN_FULFILLMENT));
 
-        mockMvc.perform(patch("/api/v1/orders/{orderId}/cancel", 7L).param("userId", "5"))
+        mockMvc.perform(patch("/api/v1/orders/{orderId}/cancel", 7L).with(user(5L)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("ORDER_IN_FULFILLMENT"));
     }
@@ -478,7 +503,7 @@ class StoreOrderControllerTest {
     @DisplayName("취소 사유가 500자를 넘으면 400")
     void cancel_reasonTooLong() throws Exception {
         mockMvc.perform(patch("/api/v1/orders/{orderId}/cancel", 7L)
-                        .param("userId", "5")
+                        .with(user(5L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"" + "a".repeat(501) + "\"}"))
                 .andExpect(status().isBadRequest())
@@ -496,7 +521,7 @@ class StoreOrderControllerTest {
                         3L, "Warehouse 3", T1));
 
         mockMvc.perform(post("/api/v1/orders/assign")
-                        .param("userId", "9")
+                        .with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"storeOrderId\":7,\"warehouseId\":3,\"reason\":\"closer\"}"))
                 .andExpect(status().isOk())
@@ -516,7 +541,7 @@ class StoreOrderControllerTest {
     @DisplayName("배정 시 warehouseId가 없으면 400")
     void assign_missingWarehouse() throws Exception {
         mockMvc.perform(post("/api/v1/orders/assign")
-                        .param("userId", "9")
+                        .with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"storeOrderId\":7}"))
                 .andExpect(status().isBadRequest())
@@ -531,7 +556,7 @@ class StoreOrderControllerTest {
                 .thenThrow(new BusinessException(StoreOrderErrorCode.OUTBOUND_IN_PROGRESS));
 
         mockMvc.perform(post("/api/v1/orders/assign")
-                        .param("userId", "9")
+                        .with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"storeOrderId\":7,\"warehouseId\":3}"))
                 .andExpect(status().isConflict())
@@ -543,11 +568,11 @@ class StoreOrderControllerTest {
     @Test
     @DisplayName("보류하면 ON_HOLD 상태와 사유를 반환한다")
     void hold_success() throws Exception {
-        when(storeOrderUseCase.holdStoreOrder(any(StoreOrderHoldCommand.class)))
+        when(storeOrderUseCase.holdStoreOrder(any(StoreOrderHoldCommand.class), any()))
                 .thenReturn(change(StoreOrderStatus.ON_HOLD, "out of stock"));
 
         mockMvc.perform(patch("/api/v1/orders/{orderId}/hold", 7L)
-                        .param("userId", "9")
+                        .with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"out of stock\"}"))
                 .andExpect(status().isOk())
@@ -555,7 +580,7 @@ class StoreOrderControllerTest {
                 .andExpect(jsonPath("$.data.statusReason").value("out of stock"));
 
         ArgumentCaptor<StoreOrderHoldCommand> captor = ArgumentCaptor.forClass(StoreOrderHoldCommand.class);
-        verify(storeOrderUseCase).holdStoreOrder(captor.capture());
+        verify(storeOrderUseCase).holdStoreOrder(captor.capture(), any());
         assertThat(captor.getValue().reason()).isEqualTo("out of stock");
         assertThat(captor.getValue().changedBy()).isEqualTo(9L);
     }
@@ -564,7 +589,7 @@ class StoreOrderControllerTest {
     @DisplayName("보류 사유가 없으면 400")
     void hold_missingReason() throws Exception {
         mockMvc.perform(patch("/api/v1/orders/{orderId}/hold", 7L)
-                        .param("userId", "9")
+                        .with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
@@ -575,11 +600,11 @@ class StoreOrderControllerTest {
     @Test
     @DisplayName("재개하면 ASSIGNED 상태를 반환한다")
     void resume_success() throws Exception {
-        when(storeOrderUseCase.resumeStoreOrder(any(StoreOrderResumeCommand.class)))
+        when(storeOrderUseCase.resumeStoreOrder(any(StoreOrderResumeCommand.class), any()))
                 .thenReturn(change(StoreOrderStatus.ASSIGNED, "restocked"));
 
         mockMvc.perform(patch("/api/v1/orders/{orderId}/resume", 7L)
-                        .param("userId", "9")
+                        .with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"restocked\"}"))
                 .andExpect(status().isOk())
@@ -589,10 +614,10 @@ class StoreOrderControllerTest {
     @Test
     @DisplayName("보류 상태가 아닌 발주를 재개하면 409 CONFLICT")
     void resume_conflict() throws Exception {
-        when(storeOrderUseCase.resumeStoreOrder(any(StoreOrderResumeCommand.class))).thenThrow(conflict());
+        when(storeOrderUseCase.resumeStoreOrder(any(StoreOrderResumeCommand.class), any())).thenThrow(conflict());
 
         mockMvc.perform(patch("/api/v1/orders/{orderId}/resume", 7L)
-                        .param("userId", "9")
+                        .with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"restocked\"}"))
                 .andExpect(status().isConflict())
@@ -602,13 +627,13 @@ class StoreOrderControllerTest {
     @Test
     @DisplayName("부분 종결하면 라인별 부족 수량을 반환한다")
     void completePartial_success() throws Exception {
-        when(storeOrderUseCase.completePartialStoreOrder(any(StoreOrderCompletePartialCommand.class)))
+        when(storeOrderUseCase.completePartialStoreOrder(any(StoreOrderCompletePartialCommand.class), any()))
                 .thenReturn(new StoreOrderCompletePartialResult(7L, "SO-20261002-0001", StoreOrderStatus.COMPLETED,
                         "no more stock",
                         List.of(new StoreOrderCompletePartialResult.Item(70L, "SKU-1", 10L, 4L, 6L)), 2, T1));
 
         mockMvc.perform(patch("/api/v1/orders/{orderId}/complete-partial", 7L)
-                        .param("userId", "9")
+                        .with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"no more stock\"}"))
                 .andExpect(status().isOk())
@@ -621,11 +646,11 @@ class StoreOrderControllerTest {
     @Test
     @DisplayName("부족 라인이 없으면 409 NO_SHORTAGE")
     void completePartial_noShortage() throws Exception {
-        when(storeOrderUseCase.completePartialStoreOrder(any(StoreOrderCompletePartialCommand.class)))
+        when(storeOrderUseCase.completePartialStoreOrder(any(StoreOrderCompletePartialCommand.class), any()))
                 .thenThrow(new BusinessException(StoreOrderErrorCode.NO_SHORTAGE));
 
         mockMvc.perform(patch("/api/v1/orders/{orderId}/complete-partial", 7L)
-                        .param("userId", "9")
+                        .with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"no more stock\"}"))
                 .andExpect(status().isConflict())

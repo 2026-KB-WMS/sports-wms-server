@@ -32,6 +32,7 @@ public interface StockAllocationQueryJpaRepository extends Repository<StockAlloc
             join WarehouseSectionJpaEntity sec on sec.sectionId = il.sectionId
             where (:storeOrderId is null or o.storeOrderId = :storeOrderId)
               and (:warehouseId is null or o.warehouseId = :warehouseId)
+              and (:scoped = false or o.warehouseId in :warehouseIds)
               and (:skuId is null or k.skuId = :skuId)
               and (:status is null or a.status = :status)
               and (:keyword is null
@@ -44,7 +45,9 @@ public interface StockAllocationQueryJpaRepository extends Repository<StockAlloc
                                         @Param("warehouseId") Long warehouseId,
                                         @Param("skuId") Long skuId,
                                         @Param("status") AllocationStatus status,
-                                        @Param("keyword") String keyword);
+                                        @Param("keyword") String keyword,
+                                        @Param("scoped") boolean scoped,
+                                        @Param("warehouseIds") Collection<Long> warehouseIds);
 
     @Query("""
             select new com.kb.wms.outbound.application.port.in.result.StockAllocationSummary(

@@ -15,7 +15,7 @@
 
 - Notion 상태 컬럼은 "시작 전"이다.
 - Notion 명세의 `pageInfo`(`page`·`size`·`sort`)와 일반 `NOT_FOUND`는 현재 구현 기준과 다름 → conventions.md 기준을 따른다. 목록 API는 `data.items`만 반환하고 `page`·`size`는 지원하지 않는다(페이지네이션 보류). 404는 도메인 전용 코드를 쓴다(`OUTBOUND_NOT_FOUND`, `ALLOCATION_NOT_FOUND`로 확정. 발주·창고·지점·SKU는 각 도메인 코드).
-- 인증·인가는 입고·지점 발주와 같은 방식으로 보류한다. 처리 사용자는 쿼리 파라미터 `userId`로 받고, 401/403과 역할·소속 창고 검사, `GET` 목록의 담당 창고 범위 제한은 인증 연동 때 적용한다.
+- 인증·인가는 #170에서 적용했다. 처리 사용자는 토큰 주체이며 `userId` 쿼리 파라미터는 받지 않는다. 역할은 보안 설정이, 담당 창고 범위(발주에 배정된 창고)는 서비스가 검사한다: 단건·쓰기는 비담당 창고면 403, 목록은 창고를 생략하면 담당 창고로 좁히고 비담당 창고를 지정하면 403이다.
 - 모든 상태 변경과 사유는 `StatusHistory`에 기록한다(`entity_type`은 `OUTBOUND`, `STOCK_ALLOCATION`). 응답의 `cancelReason`은 이 이력에서 읽는다.
 - 출고에는 창고 컬럼이 없다. 창고 기준 조회·권한은 지점 발주의 `warehouse_id`를 쓴다.
 - 발주 항목 `shipped_quantity`는 피킹 완료에서 누적하고, 항목 상태(`PARTIALLY_SHIPPED`·`COMPLETED`)는 배송 완료에서 전환한다(2026-10-05 결정, [domain/outbound.md](../domain/outbound.md) "결정·미결" 1번). Notion은 이 시점을 문서마다 다르게 적고 있다.
@@ -46,7 +46,7 @@
 
 ## 공통 정의
 
-- **데이터 범위**(인증 연동 후): HQ_ADMIN 전체, WAREHOUSE_MANAGER는 본인이 배정된 창고(`WarehouseMember`)에 배정된 발주의 할당·출고. 점주는 이 도메인 API를 호출할 수 없다(진행 상태는 지점 발주 조회의 `progressStage`로 본다). 범위 밖은 403.
+- **데이터 범위**: HQ_ADMIN 전체, WAREHOUSE_MANAGER는 본인이 배정된 창고(`WarehouseMember`)에 배정된 발주의 할당·출고. 점주는 이 도메인 API를 호출할 수 없다(진행 상태는 지점 발주 조회의 `progressStage`로 본다). 범위 밖은 403.
 - 할당 `status`: `ALLOCATED`(예약 중) → `PICKED`(피킹 완료, 재고 차감됨) 또는 `RELEASED`(해제).
 - 출고 `status`: `READY` → `PICKING` → `PICKED` → `SHIPPED` → `DELIVERED`. `READY`에서만 `CANCELED`로 갈 수 있다.
 - 출고 항목(`OutboundLine`)은 할당 한 건당 하나이며, 한 출고에는 취소되지 않은 출고에 아직 연결되지 않은 `ALLOCATED` 할당 전부가 묶인다.
