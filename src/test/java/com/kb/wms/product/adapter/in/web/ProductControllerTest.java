@@ -1,6 +1,9 @@
 package com.kb.wms.product.adapter.in.web;
 
+import static com.kb.wms.common.security.TestAuth.signInAsHqAdmin;
+import static com.kb.wms.common.security.TestAuth.storeOwner;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -13,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +45,11 @@ class ProductControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @BeforeEach
+    void signIn() {
+        signInAsHqAdmin();
+    }
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @MockitoBean
@@ -56,6 +65,17 @@ class ProductControllerTest {
 
     private record TestUpdateRequest(String productName, String description, Long brandId, Long categoryId,
                                       Boolean isActive) {
+    }
+
+    @Test
+    @DisplayName("상품 조회는 토큰 사용자를 서비스에 넘기고, 서비스의 404를 그대로 응답한다")
+    void getProduct_passesPrincipal() throws Exception {
+        when(productUseCase.getProduct(eq(5L), any())).thenThrow(new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+
+        mockMvc.perform(get("/api/v1/products/{productId}", 5L).with(storeOwner(9L, 1L)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("PRODUCT_NOT_FOUND"));
+        verify(productUseCase).getProduct(eq(5L), argThat(actor -> actor.userId().equals(9L) && actor.isStoreOwner()));
     }
 
     @Test
@@ -94,7 +114,7 @@ class ProductControllerTest {
     @DisplayName("상품 목록을 조회하면 200과 브랜드·카테고리·keyword·isActive 필터가 그대로 전달된다")
     void getProducts_success() throws Exception {
         Product product = Product.register(1L, 2L, "P-0001", "라켓 A", "설명");
-        when(productUseCase.getProducts(new ProductSearchCondition(1L, 2L, "라켓", true))).thenReturn(List.of(product));
+        when(productUseCase.getProducts(eq(new ProductSearchCondition(1L, 2L, "라켓", true)), any())).thenReturn(List.of(product));
         when(brandQueryUseCase.getBrand(1L)).thenReturn(Brand.register("브랜드 A", null));
         when(categoryUseCase.getCategory(2L)).thenReturn(Category.register(null, "CAT-002", "가방", 1, 0));
 
@@ -108,7 +128,7 @@ class ProductControllerTest {
     @Test
     @DisplayName("존재하지 않는 상품을 조회하면 404 PRODUCT_NOT_FOUND를 반환한다")
     void getProduct_notFound() throws Exception {
-        when(productUseCase.getProduct(999L)).thenThrow(new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+        when(productUseCase.getProduct(eq(999L), any())).thenThrow(new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/products/{productId}", 999L))
                 .andExpect(status().isNotFound())

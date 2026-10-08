@@ -3,6 +3,7 @@ package com.kb.wms.product.application.port.in;
 import com.kb.wms.product.application.port.in.query.ProductSearchCondition;
 import java.util.List;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
 import com.kb.wms.product.application.port.in.command.ProductUpdateCommand;
 import com.kb.wms.product.domain.entity.Product;
@@ -22,4 +23,10 @@ public interface ProductUseCase {
     List<Product> getProducts(ProductSearchCondition condition);
 
     Product getProduct(Long productId);
+
+    /** 사용자 요청용 목록 조회. 점주(STORE_OWNER)에게는 활성 상품만 돌려준다. */
+    List<Product> getProducts(ProductSearchCondition condition, AuthenticatedUser actor);
+
+    /** 사용자 요청용 단건 조회. 점주가 비활성 상품을 조회하면 PRODUCT_NOT_FOUND(404)다. */
+    Product getProduct(Long productId, AuthenticatedUser actor);
 }

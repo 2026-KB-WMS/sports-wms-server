@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.application.port.in.ProductUseCase;
 import com.kb.wms.product.application.port.in.query.ProductSearchCondition;
 import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
@@ -121,5 +122,25 @@ public class ProductService implements ProductUseCase {
     public Product getProduct(Long productId) {
         return productRepository.findById(productId)
                 .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+    }
+
+    /** 점주에게는 판매 가능한(활성) 상품만 보이므로, isActive 필터가 무엇이든 활성 상품으로 고정한다. */
+    @Override
+    public List<Product> getProducts(ProductSearchCondition condition, AuthenticatedUser actor) {
+        if (actor.isStoreOwner()) {
+            return getProducts(new ProductSearchCondition(
+                    condition.brandId(), condition.categoryId(), condition.keyword(), true));
+        }
+        return getProducts(condition);
+    }
+
+    /** 점주에게 비활성 상품은 없는 것으로 보인다(404). */
+    @Override
+    public Product getProduct(Long productId, AuthenticatedUser actor) {
+        Product product = getProduct(productId);
+        if (actor.isStoreOwner() && !product.isActive()) {
+            throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);
+        }
+        return product;
     }
 }

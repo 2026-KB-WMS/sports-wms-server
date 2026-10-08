@@ -1,7 +1,11 @@
 package com.kb.wms.product.adapter.in.web;
 
+import static com.kb.wms.common.security.TestAuth.hqAdmin;
+import static com.kb.wms.common.security.TestAuth.signInAsHqAdmin;
+import static com.kb.wms.common.security.TestAuth.storeOwner;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -12,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +48,11 @@ class ProductSkuControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @BeforeEach
+    void signIn() {
+        signInAsHqAdmin();
+    }
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @MockitoBean
@@ -100,7 +110,7 @@ class ProductSkuControllerTest {
     @DisplayName("SKU 목록을 조회하면 200과 상품명·옵션이 포함된 목록을 반환한다")
     void getSkus_success() throws Exception {
         ProductSku sku = mockSku();
-        when(productSkuUseCase.getSkus(new ProductSkuSearchCondition(1L, 2L, 3L, "SKU", true)))
+        when(productSkuUseCase.getSkus(eq(new ProductSkuSearchCondition(1L, 2L, 3L, "SKU", true)), any()))
                 .thenReturn(List.of(sku));
         when(productUseCase.getProduct(sku.getProductId())).thenReturn(Product.register(1L, 1L, "P-0001", "라켓 A", null));
         when(productSkuUseCase.getSkuOptions(sku.getSkuId())).thenReturn(List.of());
@@ -118,7 +128,7 @@ class ProductSkuControllerTest {
     void getSku_success() throws Exception {
         ProductSku sku = mockSku();
         Product product = Product.register(1L, 2L, "P-0001", "라켓 A", null);
-        when(productSkuUseCase.getSku(1L)).thenReturn(sku);
+        when(productSkuUseCase.getSku(eq(1L), any())).thenReturn(sku);
         when(productUseCase.getProduct(sku.getProductId())).thenReturn(product);
         when(brandQueryUseCase.getBrand(1L)).thenReturn(Brand.register("브랜드 A", null));
         when(categoryUseCase.getCategory(2L)).thenReturn(Category.register(null, "CAT-002", "라켓", 1, 0));
@@ -134,9 +144,40 @@ class ProductSkuControllerTest {
     }
 
     @Test
+    @DisplayName("점주에게는 SKU 목록·단건 응답에서 매입가와 안전재고가 빠지고, 본사에는 그대로 내려간다")
+    void sku_purchaseDataHiddenFromStoreOwner() throws Exception {
+        ProductSku sku = mockSku();
+        Product product = Product.register(1L, 2L, "P-0001", "라켓 A", null);
+        when(productSkuUseCase.getSkus(any(ProductSkuSearchCondition.class), any())).thenReturn(List.of(sku));
+        when(productSkuUseCase.getSku(eq(1L), any())).thenReturn(sku);
+        when(productUseCase.getProduct(sku.getProductId())).thenReturn(product);
+        when(brandQueryUseCase.getBrand(1L)).thenReturn(Brand.register("브랜드 A", null));
+        when(categoryUseCase.getCategory(2L)).thenReturn(Category.register(null, "CAT-002", "라켓", 1, 0));
+        when(productSkuUseCase.getSkuOptions(sku.getSkuId())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/products/skus").with(storeOwner(9L, 1L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].currentSupplyPrice").value(15000))
+                .andExpect(jsonPath("$.data.items[0].currentPurchasePrice").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].safetyStockQuantity").doesNotExist());
+        mockMvc.perform(get("/api/v1/products/skus/{skuId}", 1L).with(storeOwner(9L, 1L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.currentSupplyPrice").value(15000))
+                .andExpect(jsonPath("$.data.currentPurchasePrice").doesNotExist())
+                .andExpect(jsonPath("$.data.safetyStockQuantity").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/products/skus").with(hqAdmin()))
+                .andExpect(jsonPath("$.data.items[0].currentPurchasePrice").value(10000))
+                .andExpect(jsonPath("$.data.items[0].safetyStockQuantity").value(10));
+        mockMvc.perform(get("/api/v1/products/skus/{skuId}", 1L).with(hqAdmin()))
+                .andExpect(jsonPath("$.data.currentPurchasePrice").value(10000))
+                .andExpect(jsonPath("$.data.safetyStockQuantity").value(10));
+    }
+
+    @Test
     @DisplayName("존재하지 않는 SKU를 조회하면 404 SKU_NOT_FOUND를 반환한다")
     void getSku_notFound() throws Exception {
-        when(productSkuUseCase.getSku(999L)).thenThrow(new BusinessException(ProductErrorCode.SKU_NOT_FOUND));
+        when(productSkuUseCase.getSku(eq(999L), any())).thenThrow(new BusinessException(ProductErrorCode.SKU_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/products/skus/{skuId}", 999L))
                 .andExpect(status().isNotFound())

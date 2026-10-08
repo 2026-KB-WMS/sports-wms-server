@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductSkuRegisterRequest;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductSkuStatusRequest;
 import com.kb.wms.product.adapter.in.web.dto.request.SkuOptionConnectRequest;
@@ -61,6 +63,7 @@ public class ProductSkuController {
 
     @GetMapping
     public ApiResponse<ItemsResponse<ProductSkuListItemResponse>> getSkus(
+            @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) Long productId,
             @RequestParam(required = false) Long brandId,
             @RequestParam(required = false) Long categoryId,
@@ -69,7 +72,7 @@ public class ProductSkuController {
         // 같은 상품의 SKU가 여러 개이므로 상품명은 상품당 한 번만 조회한다.
         Map<Long, String> productNames = new HashMap<>();
         List<ProductSku> skus = productSkuUseCase
-                .getSkus(new ProductSkuSearchCondition(productId, brandId, categoryId, keyword, isActive));
+                .getSkus(new ProductSkuSearchCondition(productId, brandId, categoryId, keyword, isActive), principal);
         // 옵션은 SKU 전체를 한 번에 조회한다(SKU마다 조회하면 N+1).
         Map<Long, List<SkuOptionSummary>> options = productSkuUseCase.getSkuOptionsBySkuIds(
                 skus.stream().map(ProductSku::getSkuId).toList());
@@ -78,14 +81,16 @@ public class ProductSkuController {
                         sku,
                         productNames.computeIfAbsent(sku.getProductId(),
                                 id -> productUseCase.getProduct(id).getName()),
-                        options.getOrDefault(sku.getSkuId(), List.of())))
+                        options.getOrDefault(sku.getSkuId(), List.of()),
+                        sku.isPurchaseInfoVisibleTo(principal.isStoreOwner())))
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
     }
 
     @GetMapping("/{skuId}")
-    public ApiResponse<ProductSkuDetailResponse> getSku(@PathVariable Long skuId) {
-        ProductSku sku = productSkuUseCase.getSku(skuId);
+    public ApiResponse<ProductSkuDetailResponse> getSku(@AuthenticationPrincipal AuthenticatedUser principal,
+                                                        @PathVariable Long skuId) {
+        ProductSku sku = productSkuUseCase.getSku(skuId, principal);
         Product product = productUseCase.getProduct(sku.getProductId());
         ProductSkuDetailResponse response = ProductSkuDetailResponse.of(
                 sku,
@@ -95,7 +100,8 @@ public class ProductSkuController {
                 brandQueryUseCase.getBrand(product.getBrandId()).getName(),
                 product.getCategoryId(),
                 categoryUseCase.getCategory(product.getCategoryId()).getName(),
-                productSkuUseCase.getSkuOptions(sku.getSkuId()));
+                productSkuUseCase.getSkuOptions(sku.getSkuId()),
+                sku.isPurchaseInfoVisibleTo(principal.isStoreOwner()));
         return ApiResponse.ok(response);
     }
 

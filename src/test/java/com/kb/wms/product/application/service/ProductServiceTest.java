@@ -18,6 +18,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
@@ -315,5 +317,46 @@ class ProductServiceTest {
         assertThat(activeSku.isActive()).isFalse();
         verify(productSkuRepository).save(activeSku);
         verify(productSkuRepository, never()).save(inactiveSku);
+    }
+
+
+    private final AuthenticatedUser storeOwner = new AuthenticatedUser(9L, UserRole.STORE_OWNER, List.of(), List.of(1L));
+    private final AuthenticatedUser warehouseManager =
+            new AuthenticatedUser(8L, UserRole.WAREHOUSE_MANAGER, List.of(1L), List.of());
+    private final AuthenticatedUser hqAdmin = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
+
+    @Test
+    @DisplayName("점주의 상품 목록은 isActive 필터와 상관없이 활성 상품만 조회하고, 본사·창고 관리자는 필터를 그대로 쓴다")
+    void getProducts_storeOwnerOnlyActive() {
+        when(productRepository.search(new ProductSearchCondition(null, null, "라켓", true))).thenReturn(List.of());
+        when(productRepository.search(new ProductSearchCondition(null, null, "라켓", false))).thenReturn(List.of());
+
+        productService.getProducts(new ProductSearchCondition(null, null, "라켓", false), storeOwner);
+        productService.getProducts(new ProductSearchCondition(null, null, "라켓", null), storeOwner);
+        productService.getProducts(new ProductSearchCondition(null, null, "라켓", false), hqAdmin);
+        productService.getProducts(new ProductSearchCondition(null, null, "라켓", false), warehouseManager);
+
+        verify(productRepository, org.mockito.Mockito.times(2))
+                .search(new ProductSearchCondition(null, null, "라켓", true));
+        verify(productRepository, org.mockito.Mockito.times(2))
+                .search(new ProductSearchCondition(null, null, "라켓", false));
+    }
+
+    @Test
+    @DisplayName("점주가 비활성 상품을 조회하면 404 PRODUCT_NOT_FOUND이고, 본사·창고 관리자와 활성 상품은 조회된다")
+    void getProduct_inactiveHiddenFromStoreOwner() {
+        Product inactive = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", null);
+        inactive.deactivate();
+        Product active = Product.register(1L, 1L, "P-0002", "배드민턴 라켓 B", null);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(inactive));
+        when(productRepository.findById(2L)).thenReturn(Optional.of(active));
+
+        assertThatThrownBy(() -> productService.getProduct(1L, storeOwner))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND.name());
+        assertThat(productService.getProduct(1L, hqAdmin)).isSameAs(inactive);
+        assertThat(productService.getProduct(1L, warehouseManager)).isSameAs(inactive);
+        assertThat(productService.getProduct(2L, storeOwner)).isSameAs(active);
     }
 }

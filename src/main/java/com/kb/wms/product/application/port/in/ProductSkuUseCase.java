@@ -3,6 +3,7 @@ package com.kb.wms.product.application.port.in;
 import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
 import java.util.List;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
 import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
@@ -21,6 +22,12 @@ public interface ProductSkuUseCase {
     List<ProductSku> getSkus(ProductSkuSearchCondition condition);
 
     ProductSku getSku(Long skuId);
+
+    /** 사용자 요청용 목록 조회. 점주(STORE_OWNER)에게는 활성 SKU만 돌려준다. */
+    List<ProductSku> getSkus(ProductSkuSearchCondition condition, AuthenticatedUser actor);
+
+    /** 사용자 요청용 단건 조회. 점주가 비활성 SKU를 조회하면 SKU_NOT_FOUND(404)다. */
+    ProductSku getSku(Long skuId, AuthenticatedUser actor);
 
     /** 활성화는 상품이 비활성이면 PRODUCT_INACTIVE로 거절한다. 이미 같은 상태면 그대로 반환한다. */
     ProductSku changeSkuStatus(Long skuId, boolean active);

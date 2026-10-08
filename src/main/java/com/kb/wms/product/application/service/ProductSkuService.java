@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.application.port.in.ProductSkuUseCase;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
@@ -36,11 +37,10 @@ import com.kb.wms.product.exception.ProductErrorCode;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 역할(HQ_ADMIN/WAREHOUSE_MANAGER/STORE_OWNER)별 응답 필드·목록 차등 처리는
- * 여기서 다루지 않는다. 이 서비스는 항상 전체 데이터를 반환하고,
- * 점주 응답에서 매입 단가·안전 재고를 숨기거나 비활성 SKU를 제외하는 건
- * 웹 어댑터(#20)에서 {@link ProductSku#isPurchaseInfoVisibleTo(boolean)}와
- * {@link ProductSku#isActive()}를 사용해 DTO로 변환할 때 처리한다.
+ * 점주(STORE_OWNER)에게는 활성 SKU만 보인다. 사용자 요청용 조회(actor를 받는 메서드)가 목록은 활성으로 고정하고
+ * 단건은 비활성이면 404로 처리하며, 다른 도메인의 내부 조회(actor 없는 메서드)는 항상 전체 데이터를 반환한다.
+ * 점주 응답에서 매입 단가·안전 재고를 숨기는 건 웹 어댑터가
+ * {@link ProductSku#isPurchaseInfoVisibleTo(boolean)}로 판단해 DTO로 변환할 때 처리한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -95,6 +95,26 @@ public class ProductSkuService implements ProductSkuUseCase {
     public ProductSku getSku(Long skuId) {
         return productSkuRepository.findById(skuId)
                 .orElseThrow(() -> new BusinessException(ProductErrorCode.SKU_NOT_FOUND));
+    }
+
+    /** 점주에게는 판매 가능한(활성) SKU만 보이므로, isActive 필터가 무엇이든 활성 SKU로 고정한다. */
+    @Override
+    public List<ProductSku> getSkus(ProductSkuSearchCondition condition, AuthenticatedUser actor) {
+        if (actor.isStoreOwner()) {
+            return getSkus(new ProductSkuSearchCondition(condition.productId(), condition.brandId(),
+                    condition.categoryId(), condition.keyword(), true));
+        }
+        return getSkus(condition);
+    }
+
+    /** 점주에게 비활성 SKU는 없는 것으로 보인다(404). */
+    @Override
+    public ProductSku getSku(Long skuId, AuthenticatedUser actor) {
+        ProductSku sku = getSku(skuId);
+        if (actor.isStoreOwner() && !sku.isActive()) {
+            throw new BusinessException(ProductErrorCode.SKU_NOT_FOUND);
+        }
+        return sku;
     }
 
     @Override
