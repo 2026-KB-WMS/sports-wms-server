@@ -390,12 +390,17 @@ class PurchaseOrderPersistenceAdapterTest {
         entityManager.createQuery(
                         "update PurchaseOrderJpaEntity po set po.createdBy = :userId where po.purchaseOrderId = :id")
                 .setParameter("userId", writer.getUserId()).setParameter("id", po1).executeUpdate();
+        // 방금 만든 사용자와 절대 겹치지 않는 존재하지 않는 사용자 ID
+        long nobody = writer.getUserId() + 1_000_000L;
+        entityManager.createQuery(
+                        "update PurchaseOrderJpaEntity po set po.createdBy = :userId where po.purchaseOrderId = :id")
+                .setParameter("userId", nobody).setParameter("id", po2).executeUpdate();
         entityManager.clear();
 
         assertThat(queryRepository.findView(po1).orElseThrow().createdByName()).isEqualTo("김작성");
         List<PurchaseOrderSummary> result = queryRepository.search(condition(null, null, null, null, null, null));
         assertThat(byId(result, po1).createdByName()).isEqualTo("김작성");
-        assertThat(byId(result, po2).createdBy()).isEqualTo(1L);
+        assertThat(byId(result, po2).createdBy()).isEqualTo(nobody);
         assertThat(byId(result, po2).createdByName()).isNull();
         assertThat(queryRepository.findView(po2).orElseThrow().createdByName()).isNull();
     }

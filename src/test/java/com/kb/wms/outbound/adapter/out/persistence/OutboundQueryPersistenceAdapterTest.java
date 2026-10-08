@@ -424,12 +424,18 @@ class OutboundQueryPersistenceAdapterTest {
                         "update StockAllocationJpaEntity a set a.allocatedBy = :userId where a.allocationId = :id")
                 .setParameter("userId", picker.getUserId()).setParameter("id", named.getAllocationId())
                 .executeUpdate();
+        // 방금 만든 사용자와 절대 겹치지 않는 존재하지 않는 사용자 ID
+        long nobody = picker.getUserId() + 1_000_000L;
+        entityManager.createQuery(
+                        "update StockAllocationJpaEntity a set a.allocatedBy = :userId where a.allocationId = :id")
+                .setParameter("userId", nobody).setParameter("id", unnamed.getAllocationId())
+                .executeUpdate();
         entityManager.clear();
 
         assertThat(queryRepository.findAllocationView(named.getAllocationId()).orElseThrow().allocatedByName())
                 .isEqualTo("이할당");
         StockAllocationView other = queryRepository.findAllocationView(unnamed.getAllocationId()).orElseThrow();
-        assertThat(other.allocatedBy()).isEqualTo(1L);
+        assertThat(other.allocatedBy()).isEqualTo(nobody);
         assertThat(other.allocatedByName()).isNull();
     }
 }

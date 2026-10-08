@@ -500,11 +500,15 @@ class StoreOrderPersistenceAdapterTest {
                 "010-1234-5678", UserRole.STORE_OWNER));
         entityManager.createQuery("update StoreOrderJpaEntity o set o.createdBy = :userId where o.storeOrderId = :id")
                 .setParameter("userId", writer.getUserId()).setParameter("id", so2).executeUpdate();
+        // 방금 만든 사용자와 절대 겹치지 않는 존재하지 않는 사용자 ID
+        long nobody = writer.getUserId() + 1_000_000L;
+        entityManager.createQuery("update StoreOrderJpaEntity o set o.createdBy = :userId where o.storeOrderId = :id")
+                .setParameter("userId", nobody).setParameter("id", so1).executeUpdate();
         entityManager.clear();
 
         assertThat(queryRepository.findView(so2).orElseThrow().createdByName()).isEqualTo("김점주");
         StoreOrderView other = queryRepository.findView(so1).orElseThrow();
-        assertThat(other.createdBy()).isEqualTo(1L);
+        assertThat(other.createdBy()).isEqualTo(nobody);
         assertThat(other.createdByName()).isNull();
     }
 }

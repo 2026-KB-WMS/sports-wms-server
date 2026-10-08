@@ -380,7 +380,8 @@ class InventoryPersistenceAdapterTest {
         inventoryTransactionRepository.save(InventoryTransaction.record(
                 invR1LotA, TransactionType.INBOUND, 0, 100, ReferenceType.INBOUND, 6L, null, writer.getUserId()));
         inventoryTransactionRepository.save(InventoryTransaction.record(
-                invR1LotA, TransactionType.ADJUSTMENT, 100, 97, ReferenceType.ADJUSTMENT, null, "실사 차이", 5L));
+                invR1LotA, TransactionType.ADJUSTMENT, 100, 97, ReferenceType.ADJUSTMENT, null, "실사 차이",
+                writer.getUserId() + 1_000_000L));  // 존재하지 않는 사용자 ID (방금 만든 사용자와 겹치지 않는다)
         entityManager.flush();
 
         var result = inventoryQueryRepository.findTransactions(new InventoryTransactionSearchCondition(
