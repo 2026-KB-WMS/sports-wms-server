@@ -1,7 +1,12 @@
 package com.kb.wms.store.adapter.in.web;
 
+import static com.kb.wms.common.security.TestAuth.as;
+import static com.kb.wms.common.security.TestAuth.signInAsHqAdmin;
+import static com.kb.wms.common.security.TestAuth.storeOwner;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -11,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,8 +25,11 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.store.application.port.in.StoreUseCase;
 import com.kb.wms.store.application.port.in.command.StoreRegisterCommand;
@@ -36,6 +45,15 @@ class StoreControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @BeforeEach
+    void signIn() {
+        signInAsHqAdmin();
+    }
+
+    private static RequestPostProcessor hqUser(Long userId) {
+        return as(UserRole.HQ_ADMIN, userId, List.of(), List.of());
+    }
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @MockitoBean
@@ -98,7 +116,7 @@ class StoreControllerTest {
                 true, 100L, "OWNER", null);
         when(storeUseCase.getMyStores(eq(10L))).thenReturn(List.of(summary));
 
-        mockMvc.perform(get("/api/v1/stores/my").param("userId", "10"))
+        mockMvc.perform(get("/api/v1/stores/my").with(storeOwner(10L, 1L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].storeCode").value("ST-GANGNAM"))
                 .andExpect(jsonPath("$.data.items[0].memberRole").value("OWNER"));
@@ -109,15 +127,26 @@ class StoreControllerTest {
     void getMyStores_empty() throws Exception {
         when(storeUseCase.getMyStores(eq(999L))).thenReturn(List.of());
 
-        mockMvc.perform(get("/api/v1/stores/my").param("userId", "999"))
+        mockMvc.perform(get("/api/v1/stores/my").with(storeOwner(999L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items").isEmpty());
     }
 
     @Test
+    @DisplayName("지점 단건 조회는 토큰 사용자를 서비스에 넘기고, 서비스의 403 FORBIDDEN을 그대로 응답한다")
+    void getStore_passesPrincipal_andMapsForbidden() throws Exception {
+        when(storeUseCase.getStore(eq(2L), any())).thenThrow(new BusinessException(ErrorCode.FORBIDDEN));
+
+        mockMvc.perform(get("/api/v1/stores/{storeId}", 2L).with(storeOwner(10L, 1L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+        verify(storeUseCase).getStore(eq(2L), argThat(user -> user.userId().equals(10L)));
+    }
+
+    @Test
     @DisplayName("존재하지 않는 지점을 조회하면 404 STORE_NOT_FOUND를 반환한다")
     void getStore_notFound() throws Exception {
-        when(storeUseCase.getStore(999L)).thenThrow(new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
+        when(storeUseCase.getStore(eq(999L), any())).thenThrow(new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/stores/{storeId}", 999L))
                 .andExpect(status().isNotFound())
@@ -156,7 +185,7 @@ class StoreControllerTest {
         store.deactivate();
         when(storeUseCase.deactivateStore(1L, null, 10L)).thenReturn(store);
 
-        mockMvc.perform(patch("/api/v1/stores/{storeId}/deactivate", 1L).param("userId", "10"))
+        mockMvc.perform(patch("/api/v1/stores/{storeId}/deactivate", 1L).with(hqUser(10L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.isActive").value(false));
     }
@@ -169,7 +198,7 @@ class StoreControllerTest {
         when(storeUseCase.deactivateStore(1L, "폐점", 10L)).thenReturn(store);
 
         mockMvc.perform(patch("/api/v1/stores/{storeId}/deactivate", 1L)
-                        .param("userId", "10")
+                        .with(hqUser(10L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"폐점\"}"))
                 .andExpect(status().isOk())
@@ -180,7 +209,7 @@ class StoreControllerTest {
     @DisplayName("비활성화 사유가 500자를 넘으면 400 VALIDATION_ERROR를 반환한다")
     void deactivateStore_reasonTooLong() throws Exception {
         mockMvc.perform(patch("/api/v1/stores/{storeId}/deactivate", 1L)
-                        .param("userId", "10")
+                        .with(hqUser(10L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(java.util.Map.of("reason", "가".repeat(501)))))
                 .andExpect(status().isBadRequest())

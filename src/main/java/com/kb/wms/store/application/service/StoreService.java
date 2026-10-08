@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -56,6 +57,12 @@ public class StoreService implements StoreUseCase {
     public Store getStore(Long storeId) {
         return storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
+    }
+
+    @Override
+    public Store getStore(Long storeId, AuthenticatedUser actor) {
+        actor.requireStoreAccess(storeId);
+        return getStore(storeId);
     }
 
     @Override

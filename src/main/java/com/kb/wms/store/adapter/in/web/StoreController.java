@@ -3,6 +3,7 @@ package com.kb.wms.store.adapter.in.web;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.store.adapter.in.web.dto.request.StoreDeactivateRequest;
@@ -31,7 +33,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * 지점 등록/조회/수정/비활성화.
  * POST, GET, PATCH /api/v1/stores, GET /api/v1/stores/my
- * 인증/인가가 아직 구현되지 않아 my 조회는 userId를 쿼리 파라미터로 받는다(추후 인증 연동 시 교체 예정).
+ * my 조회와 비활성화 처리자는 토큰 주체이고, 단건 조회는 서비스가 담당 지점(HQ_ADMIN은 전체)만 허용한다.
  */
 @RestController
 @RequestMapping("/api/v1/stores")
@@ -59,16 +61,18 @@ public class StoreController {
     }
 
     @GetMapping("/my")
-    public ApiResponse<ItemsResponse<StoreMembershipResponse>> getMyStores(@RequestParam Long userId) {
-        List<StoreMembershipResponse> items = storeUseCase.getMyStores(userId).stream()
+    public ApiResponse<ItemsResponse<StoreMembershipResponse>> getMyStores(
+            @AuthenticationPrincipal AuthenticatedUser principal) {
+        List<StoreMembershipResponse> items = storeUseCase.getMyStores(principal.userId()).stream()
                 .map(StoreMembershipResponse::from)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
     }
 
     @GetMapping("/{storeId}")
-    public ApiResponse<StoreResponse> getStore(@PathVariable Long storeId) {
-        Store store = storeUseCase.getStore(storeId);
+    public ApiResponse<StoreResponse> getStore(@AuthenticationPrincipal AuthenticatedUser principal,
+                                               @PathVariable Long storeId) {
+        Store store = storeUseCase.getStore(storeId, principal);
         return ApiResponse.ok(StoreResponse.from(store));
     }
 
@@ -82,11 +86,11 @@ public class StoreController {
 
     @PatchMapping("/{storeId}/deactivate")
     public ApiResponse<StoreResponse> deactivateStore(
+            @AuthenticationPrincipal AuthenticatedUser principal,
             @PathVariable Long storeId,
-            @RequestParam Long userId,
             @Valid @RequestBody(required = false) StoreDeactivateRequest request) {
         String reason = request == null ? null : request.reason();
-        Store store = storeUseCase.deactivateStore(storeId, reason, userId);
+        Store store = storeUseCase.deactivateStore(storeId, reason, principal.userId());
         return ApiResponse.ok(StoreResponse.from(store));
     }
 }
