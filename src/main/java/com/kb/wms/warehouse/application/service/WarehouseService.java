@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.warehouse.application.port.in.WarehouseSectionCapacityUseCase;
@@ -58,6 +59,12 @@ public class WarehouseService implements WarehouseUseCase {
     public Warehouse getWarehouse(Long warehouseId) {
         return warehouseRepository.findById(warehouseId)
                 .orElseThrow(() -> new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND));
+    }
+
+    @Override
+    public Warehouse getWarehouse(Long warehouseId, AuthenticatedUser actor) {
+        actor.requireWarehouseAccess(warehouseId);
+        return getWarehouse(warehouseId);
     }
 
     @Override

@@ -1,5 +1,7 @@
 package com.kb.wms.warehouse.adapter.in.web;
 
+import static com.kb.wms.common.security.TestAuth.hqAdmin;
+import static com.kb.wms.common.security.TestAuth.warehouseManager;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -23,6 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.warehouse.application.port.in.WarehouseSectionUseCase;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionRegisterCommand;
@@ -92,11 +95,11 @@ class WarehouseSectionControllerTest {
     @DisplayName("전체 구역 목록을 조회하면 200과 목록을 반환한다")
     void getAllSections_success() throws Exception {
         WarehouseSection section = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
-        when(warehouseSectionUseCase.getSections(new WarehouseSectionSearchCondition(null, null, null, null, null)))
+        when(warehouseSectionUseCase.getSections(eq(new WarehouseSectionSearchCondition(null, null, null, null, null)), any()))
                 .thenReturn(List.of(section));
         when(warehouseUseCase.getWarehouse(1L)).thenReturn(warehouse);
 
-        mockMvc.perform(get("/api/v1/warehouses/sections"))
+        mockMvc.perform(get("/api/v1/warehouses/sections").with(hqAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].sectionCode").value("A-01"));
     }
@@ -106,11 +109,11 @@ class WarehouseSectionControllerTest {
     void getSectionsByWarehouse_success() throws Exception {
         WarehouseSection section = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
         when(warehouseSectionUseCase.getSections(
-                new WarehouseSectionSearchCondition(1L, 10L, "RACK", "A-", true)))
+                eq(new WarehouseSectionSearchCondition(1L, 10L, "RACK", "A-", true)), any()))
                 .thenReturn(List.of(section));
         when(warehouseUseCase.getWarehouse(1L)).thenReturn(warehouse);
 
-        mockMvc.perform(get("/api/v1/warehouses/{warehouseId}/sections", 1L)
+        mockMvc.perform(get("/api/v1/warehouses/{warehouseId}/sections", 1L).with(hqAdmin())
                         .param("parentSectionId", "10").param("sectionType", "RACK")
                         .param("keyword", "A-").param("isActive", "true"))
                 .andExpect(status().isOk())
@@ -123,22 +126,36 @@ class WarehouseSectionControllerTest {
     void getSection_withParent_resolvesParentSectionCode() throws Exception {
         WarehouseSection parent = WarehouseSection.register(1L, null, "A", "A구역", "ZONE", BigDecimal.valueOf(500));
         WarehouseSection child = WarehouseSection.register(1L, 10L, "A-01", "A-1랙", "RACK", BigDecimal.valueOf(50));
-        when(warehouseSectionUseCase.getSection(2L)).thenReturn(child);
+        when(warehouseSectionUseCase.getSection(eq(2L), any())).thenReturn(child);
         when(warehouseSectionUseCase.getSection(10L)).thenReturn(parent);
         when(warehouseUseCase.getWarehouse(1L)).thenReturn(warehouse);
 
-        mockMvc.perform(get("/api/v1/warehouses/sections/{sectionId}", 2L))
+        mockMvc.perform(get("/api/v1/warehouses/sections/{sectionId}", 2L).with(hqAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.parentSectionCode").value("A"))
                 .andExpect(jsonPath("$.data.warehouseName").value("서울 물류센터"));
     }
 
     @Test
+    @DisplayName("구역 조회는 서비스가 던진 403 FORBIDDEN을 그대로 응답한다")
+    void getSection_forbiddenFromService() throws Exception {
+        when(warehouseSectionUseCase.getSection(eq(2L), any())).thenThrow(new BusinessException(ErrorCode.FORBIDDEN));
+        when(warehouseSectionUseCase.getSections(any(WarehouseSectionSearchCondition.class), any()))
+                .thenThrow(new BusinessException(ErrorCode.FORBIDDEN));
+
+        mockMvc.perform(get("/api/v1/warehouses/sections/{sectionId}", 2L).with(warehouseManager(10L, 1L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+        mockMvc.perform(get("/api/v1/warehouses/{warehouseId}/sections", 3L).with(warehouseManager(10L, 1L)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("존재하지 않는 구역을 조회하면 404 SECTION_NOT_FOUND를 반환한다")
     void getSection_notFound() throws Exception {
-        when(warehouseSectionUseCase.getSection(999L)).thenThrow(new BusinessException(WarehouseErrorCode.SECTION_NOT_FOUND));
+        when(warehouseSectionUseCase.getSection(eq(999L), any())).thenThrow(new BusinessException(WarehouseErrorCode.SECTION_NOT_FOUND));
 
-        mockMvc.perform(get("/api/v1/warehouses/sections/{sectionId}", 999L))
+        mockMvc.perform(get("/api/v1/warehouses/sections/{sectionId}", 999L).with(hqAdmin()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("SECTION_NOT_FOUND"));
     }
