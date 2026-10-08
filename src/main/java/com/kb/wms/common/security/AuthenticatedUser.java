@@ -41,6 +41,18 @@ public record AuthenticatedUser(
         return isHqAdmin() || storeIds.contains(storeId);
     }
 
+    /**
+     * 목록 조회에 적용할 창고 범위. 창고를 지정했으면 접근 권한을 확인하고(없으면 403) 추가 제한 없이 null,
+     * 지정하지 않았으면 본사는 null(전체), 그 외에는 담당 창고 ID 목록(비어 있을 수 있음)이다. null이면 제한 없음.
+     */
+    public List<Long> warehouseScope(Long requestedWarehouseId) {
+        if (requestedWarehouseId != null) {
+            requireWarehouseAccess(requestedWarehouseId);
+            return null;
+        }
+        return isHqAdmin() ? null : warehouseIds;
+    }
+
     /** 창고 접근 권한이 없으면 403 FORBIDDEN. */
     public void requireWarehouseAccess(Long warehouseId) {
         if (!canAccessWarehouse(warehouseId)) {

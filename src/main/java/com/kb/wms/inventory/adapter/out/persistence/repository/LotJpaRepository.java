@@ -1,6 +1,7 @@
 package com.kb.wms.inventory.adapter.out.persistence.repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,13 +32,23 @@ public interface LotJpaRepository extends JpaRepository<LotJpaEntity, Long> {
               and (:supplierId is null or l.supplierId = :supplierId)
               and (:expiringBefore is null or l.expiryDate <= :expiringBefore)
               and (:keyword is null or lower(l.lotNumber) like lower(concat('%', :keyword, '%')))
+              and (:scoped = false
+                   or exists (select 1 from InventoryLotJpaEntity il
+                              join WarehouseSectionJpaEntity ws on ws.sectionId = il.sectionId
+                              where il.lotId = l.lotId and ws.warehouseId in :warehouseIds)
+                   or exists (select 1 from InboundLineJpaEntity ibl
+                              join InboundJpaEntity ib on ib.inboundId = ibl.inboundId
+                              where ibl.lotId = l.lotId and ib.warehouseId in :warehouseIds
+                                and ib.status = com.kb.wms.inbound.domain.enums.InboundStatus.COMPLETED))
             order by case when l.expiryDate is null then 1 else 0 end, l.expiryDate, l.lotId
             """)
     List<LotSummary> findSummaries(@Param("lotId") Long lotId,
                                    @Param("skuId") Long skuId,
                                    @Param("supplierId") Long supplierId,
                                    @Param("expiringBefore") LocalDate expiringBefore,
-                                   @Param("keyword") String keyword);
+                                   @Param("keyword") String keyword,
+                                   @Param("scoped") boolean scoped,
+                                   @Param("warehouseIds") Collection<Long> warehouseIds);
 
     /**
      * 로트가 입고된 이력. InboundLine.lot_id가 이 로트인 항목을 입고 헤더와 조인한다(조회 전용, ADR-007).

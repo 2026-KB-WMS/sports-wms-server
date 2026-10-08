@@ -35,6 +35,13 @@ public final class TestAuth {
         };
     }
 
+    /** 필터를 끈 컨트롤러 테스트에서 기본 사용자를 본사 관리자로 둔다. {@code @BeforeEach}에서 호출한다. */
+    public static void signInAsHqAdmin() {
+        TestSecurityContextHolder.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(
+                new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of()), null,
+                List.of(new SimpleGrantedAuthority("ROLE_HQ_ADMIN"))));
+    }
+
     public static RequestPostProcessor hqAdmin() {
         return as(UserRole.HQ_ADMIN, 1L, List.of(), List.of());
     }

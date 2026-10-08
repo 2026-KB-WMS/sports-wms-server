@@ -36,7 +36,8 @@ public class InventoryQueryPersistenceAdapter implements InventoryQueryRepositor
     @Override
     public List<InventorySkuSummary> findSkuSummaries(InventorySearchCondition condition) {
         return inventoryLotJpaRepository.findSkuSummaries(
-                condition.skuId(), condition.warehouseId(), keyword(condition.keyword()));
+                condition.skuId(), condition.warehouseId(), scoped(condition.warehouseIds()),
+                scopeIds(condition.warehouseIds()), keyword(condition.keyword()));
     }
 
     @Override
@@ -44,7 +45,8 @@ public class InventoryQueryPersistenceAdapter implements InventoryQueryRepositor
         return inventoryLotJpaRepository.findLotViews(
                 condition.skuId(), condition.warehouseId(), condition.sectionId(), condition.lotId(),
                 condition.expiringBefore(), condition.qualityStatus(),
-                Boolean.TRUE.equals(condition.includeEmpty()));
+                Boolean.TRUE.equals(condition.includeEmpty()),
+                scoped(condition.warehouseIds()), scopeIds(condition.warehouseIds()));
     }
 
     @Override
@@ -54,13 +56,15 @@ public class InventoryQueryPersistenceAdapter implements InventoryQueryRepositor
 
     @Override
     public List<LowStockItem> findLowStock(LowStockSearchCondition condition) {
-        return inventoryLotJpaRepository.findLowStock(condition.warehouseId(), keyword(condition.keyword()));
+        return inventoryLotJpaRepository.findLowStock(condition.warehouseId(),
+                scoped(condition.warehouseIds()), scopeIds(condition.warehouseIds()), keyword(condition.keyword()));
     }
 
     @Override
     public List<InventoryTransactionView> findTransactions(InventoryTransactionSearchCondition condition) {
         return inventoryTransactionJpaRepository.findViews(
-                condition.inventoryLotId(), condition.warehouseId(), condition.sectionId(), condition.skuId(),
+                condition.inventoryLotId(), condition.warehouseId(), scoped(condition.warehouseIds()),
+                scopeIds(condition.warehouseIds()), condition.sectionId(), condition.skuId(),
                 condition.lotId(), condition.transactionType(), condition.referenceType(), condition.referenceId(),
                 condition.createdFrom(), condition.createdTo());
     }
@@ -69,12 +73,23 @@ public class InventoryQueryPersistenceAdapter implements InventoryQueryRepositor
     public List<LotSummary> findLots(LotSearchCondition condition) {
         return lotJpaRepository.findSummaries(
                 null, condition.skuId(), condition.supplierId(), condition.expiringBefore(),
-                keyword(condition.keyword()));
+                keyword(condition.keyword()), scoped(condition.warehouseIds()), scopeIds(condition.warehouseIds()));
+    }
+
+    @Override
+    public Optional<LotSummary> findLot(Long lotId, List<Long> warehouseIds) {
+        return lotJpaRepository.findSummaries(lotId, null, null, null, null, scoped(warehouseIds), scopeIds(warehouseIds))
+                .stream().findFirst();
+    }
+
+    @Override
+    public Optional<Long> findWarehouseIdOfSection(Long sectionId) {
+        return inventoryLotJpaRepository.findWarehouseIdBySectionId(sectionId);
     }
 
     @Override
     public Optional<LotSummary> findLot(Long lotId) {
-        return lotJpaRepository.findSummaries(lotId, null, null, null, null).stream().findFirst();
+        return lotJpaRepository.findSummaries(lotId, null, null, null, null, false, NO_WAREHOUSE).stream().findFirst();
     }
 
     @Override
@@ -118,6 +133,17 @@ public class InventoryQueryPersistenceAdapter implements InventoryQueryRepositor
     }
 
     /** 빈 문자열·공백 검색어는 조건 없음으로 본다. */
+    /** JPQL의 IN에 빈 목록을 넘기지 않으려는 자리 값. 범위 조건을 쓰지 않을 때(scoped=false)나 담당 창고가 없을 때 쓴다. */
+    static final List<Long> NO_WAREHOUSE = List.of(-1L);
+
+    private static boolean scoped(List<Long> warehouseIds) {
+        return warehouseIds != null;
+    }
+
+    private static List<Long> scopeIds(List<Long> warehouseIds) {
+        return warehouseIds == null || warehouseIds.isEmpty() ? NO_WAREHOUSE : warehouseIds;
+    }
+
     private static String keyword(String keyword) {
         return StringUtils.hasText(keyword) ? keyword.trim() : null;
     }

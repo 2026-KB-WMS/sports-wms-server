@@ -1,6 +1,8 @@
 package com.kb.wms.inventory.adapter.in.web;
 
+import static com.kb.wms.common.security.TestAuth.signInAsHqAdmin;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -11,6 +13,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,13 +50,18 @@ class LotControllerTest {
     @MockitoBean
     private WarehouseUseCase warehouseUseCase;
 
+    @BeforeEach
+    void signIn() {
+        signInAsHqAdmin();
+    }
+
     @Test
     @DisplayName("GET /api/v1/lots: 로트 목록을 반환한다")
     void getLots_success() throws Exception {
         LotSummary summary = new LotSummary(1L, "LOT-001", 2L, "SKU-001", "상품A", 3L, "한빛식품",
                 LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1), LotStatus.AVAILABLE,
                 BigDecimal.TEN, null, null);
-        when(lotUseCase.getLots(new LotSearchCondition(2L, null, null, null))).thenReturn(List.of(summary));
+        when(lotUseCase.getLots(eq(new LotSearchCondition(2L, null, null, null)), any())).thenReturn(List.of(summary));
 
         mockMvc.perform(get("/api/v1/lots").param("skuId", "2"))
                 .andExpect(status().isOk())
@@ -65,7 +73,7 @@ class LotControllerTest {
     @Test
     @DisplayName("GET /api/v1/lots: 존재하지 않는 skuId로 필터링하면 404 SKU_NOT_FOUND를 반환한다")
     void getLots_skuNotFound() throws Exception {
-        when(lotUseCase.getLots(any(LotSearchCondition.class)))
+        when(lotUseCase.getLots(any(LotSearchCondition.class), any()))
                 .thenThrow(new BusinessException(InventoryErrorCode.SKU_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/lots").param("skuId", "999"))
@@ -76,7 +84,7 @@ class LotControllerTest {
     @Test
     @DisplayName("GET /api/v1/lots: 존재하지 않는 supplierId로 필터링하면 404 SUPPLIER_NOT_FOUND를 반환한다")
     void getLots_supplierNotFound() throws Exception {
-        when(lotUseCase.getLots(any(LotSearchCondition.class)))
+        when(lotUseCase.getLots(any(LotSearchCondition.class), any()))
                 .thenThrow(new BusinessException(InventoryErrorCode.SUPPLIER_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/lots").param("supplierId", "999"))
@@ -94,11 +102,11 @@ class LotControllerTest {
                 4L, 5L, "A-01", "1구역", 100L, 20L, 80L, QualityStatus.AVAILABLE, null, null);
         Warehouse warehouse =
                 Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.valueOf(1000));
-        when(lotUseCase.getLot(1L)).thenReturn(summary);
-        when(inventoryQueryUseCase.getInventoriesByLot(InventoryLotSearchCondition.ofLot(1L)))
+        when(lotUseCase.getLot(eq(1L), any())).thenReturn(summary);
+        when(inventoryQueryUseCase.getInventoriesByLot(eq(InventoryLotSearchCondition.ofLot(1L)), any()))
                 .thenReturn(List.of(view));
         when(warehouseUseCase.getWarehouse(4L)).thenReturn(warehouse);
-        when(lotUseCase.getLotInbounds(1L)).thenReturn(List.of(new LotInboundView(
+        when(lotUseCase.getLotInbounds(eq(1L), any())).thenReturn(List.of(new LotInboundView(
                 7L, "IB-20261001-0001", 4L, LocalDateTime.of(2026, 10, 1, 14, 30),
                 100L, 95L, 5L, new BigDecimal("1200.00"))));
 
@@ -124,7 +132,7 @@ class LotControllerTest {
         LotSummary summary = new LotSummary(1L, "LOT-001", 2L, "SKU-001", "상품A", 3L, null,
                 LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1), LotStatus.AVAILABLE,
                 BigDecimal.TEN, null, null);
-        when(lotUseCase.getLot(1L)).thenReturn(summary);
+        when(lotUseCase.getLot(eq(1L), any())).thenReturn(summary);
 
         mockMvc.perform(get("/api/v1/lots/{lotId}", 1L))
                 .andExpect(status().isOk())
@@ -135,7 +143,7 @@ class LotControllerTest {
     @Test
     @DisplayName("GET /api/v1/lots/{lotId}: 존재하지 않으면 404 LOT_NOT_FOUND를 반환한다")
     void getLot_notFound() throws Exception {
-        when(lotUseCase.getLot(999L)).thenThrow(new BusinessException(InventoryErrorCode.LOT_NOT_FOUND));
+        when(lotUseCase.getLot(eq(999L), any())).thenThrow(new BusinessException(InventoryErrorCode.LOT_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/lots/{lotId}", 999L))
                 .andExpect(status().isNotFound())

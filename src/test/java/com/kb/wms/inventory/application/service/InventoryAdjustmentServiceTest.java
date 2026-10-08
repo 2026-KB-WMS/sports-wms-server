@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -18,11 +20,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inventory.application.port.in.command.InventoryAdjustCommand;
 import com.kb.wms.inventory.application.port.in.result.InventoryAdjustmentResult;
 import com.kb.wms.inventory.application.port.out.InventoryLotRepository;
+import com.kb.wms.inventory.application.port.out.InventoryQueryRepository;
 import com.kb.wms.inventory.application.port.out.InventoryTransactionRepository;
 import com.kb.wms.inventory.application.port.out.SectionCapacityPort;
 import com.kb.wms.inventory.domain.entity.InventoryLot;
@@ -38,17 +43,38 @@ class InventoryAdjustmentServiceTest {
     private InventoryTransactionRepository inventoryTransactionRepository;
     @Mock
     private SectionCapacityPort sectionCapacityPort;
+    @Mock
+    private InventoryQueryRepository inventoryQueryRepository;
 
     @InjectMocks
     private InventoryAdjustmentService inventoryAdjustmentService;
 
     private InventoryLot lot;
+    // 구역 10은 창고 1에 속하고, 처리자는 창고 1 담당 창고 관리자다.
+    private final AuthenticatedUser actor =
+            new AuthenticatedUser(99L, UserRole.WAREHOUSE_MANAGER, List.of(1L), List.of());
 
     @BeforeEach
     void setUp() {
         lot = InventoryLot.open(10L, 20L, QualityStatus.AVAILABLE);
         lot.increase(100L);
         lot.allocate(20L);
+        lenient().when(inventoryQueryRepository.findWarehouseIdOfSection(10L)).thenReturn(Optional.of(1L));
+    }
+
+    @Test
+    @DisplayName("재고 행의 창고가 담당 창고가 아니면 403 FORBIDDEN이고 수량을 바꾸지 않는다")
+    void adjust_otherWarehouse_forbidden() {
+        InventoryAdjustCommand command = new InventoryAdjustCommand(1L, 100L, 120L, "실사 결과 반영", 99L);
+        AuthenticatedUser other = new AuthenticatedUser(98L, UserRole.WAREHOUSE_MANAGER, List.of(2L), List.of());
+        when(inventoryLotRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(lot));
+
+        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command, other))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+        assertThat(lot.getOnHandQuantity()).isEqualTo(100L);
+        verify(inventoryLotRepository, never()).save(any());
+        verify(inventoryTransactionRepository, never()).save(any());
     }
 
     @Test
@@ -59,7 +85,7 @@ class InventoryAdjustmentServiceTest {
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(inventoryTransactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        InventoryAdjustmentResult result = inventoryAdjustmentService.adjust(command);
+        InventoryAdjustmentResult result = inventoryAdjustmentService.adjust(command, actor);
 
         assertThat(result.inventoryLot().getOnHandQuantity()).isEqualTo(120L);
         assertThat(result.transaction().getBeforeQuantity()).isEqualTo(100L);
@@ -76,7 +102,7 @@ class InventoryAdjustmentServiceTest {
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(inventoryTransactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        InventoryAdjustmentResult result = inventoryAdjustmentService.adjust(command);
+        InventoryAdjustmentResult result = inventoryAdjustmentService.adjust(command, actor);
 
         assertThat(result.inventoryLot().getOnHandQuantity()).isEqualTo(80L);
         assertThat(result.inventoryLot().getLastCountedAt()).isNotNull();
@@ -90,7 +116,7 @@ class InventoryAdjustmentServiceTest {
         InventoryAdjustCommand command = new InventoryAdjustCommand(999L, 100L, 120L, "사유", 99L);
         when(inventoryLotRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command))
+        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command, actor))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(InventoryErrorCode.INVENTORY_NOT_FOUND.name());
@@ -102,7 +128,7 @@ class InventoryAdjustmentServiceTest {
         InventoryAdjustCommand command = new InventoryAdjustCommand(1L, 90L, 120L, "사유", 99L);
         when(inventoryLotRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(lot));
 
-        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command))
+        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command, actor))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(InventoryErrorCode.STALE_QUANTITY.name());
@@ -117,7 +143,7 @@ class InventoryAdjustmentServiceTest {
         InventoryAdjustCommand command = new InventoryAdjustCommand(1L, 100L, 10L, "사유", 99L);
         when(inventoryLotRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(lot));
 
-        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command))
+        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command, actor))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(InventoryErrorCode.BELOW_ALLOCATED_QUANTITY.name());
@@ -130,11 +156,11 @@ class InventoryAdjustmentServiceTest {
         InventoryAdjustCommand nullCommand = new InventoryAdjustCommand(1L, 100L, null, "사유", 99L);
         InventoryAdjustCommand negativeCommand = new InventoryAdjustCommand(1L, 100L, -1L, "사유", 99L);
 
-        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(nullCommand))
+        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(nullCommand, actor))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
-        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(negativeCommand))
+        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(negativeCommand, actor))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
@@ -146,7 +172,7 @@ class InventoryAdjustmentServiceTest {
     void adjust_beforeQuantityNull() {
         InventoryAdjustCommand command = new InventoryAdjustCommand(1L, null, 120L, "사유", 99L);
 
-        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command))
+        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command, actor))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
@@ -158,7 +184,7 @@ class InventoryAdjustmentServiceTest {
     void adjust_sameQuantity() {
         InventoryAdjustCommand command = new InventoryAdjustCommand(1L, 100L, 100L, "사유", 99L);
 
-        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command))
+        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command, actor))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
@@ -169,7 +195,7 @@ class InventoryAdjustmentServiceTest {
     void adjust_reasonBlank() {
         InventoryAdjustCommand command = new InventoryAdjustCommand(1L, 100L, 120L, "  ", 99L);
 
-        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command))
+        assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command, actor))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ErrorCode.VALIDATION_ERROR.name());

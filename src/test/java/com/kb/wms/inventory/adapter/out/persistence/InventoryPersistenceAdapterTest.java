@@ -157,6 +157,45 @@ class InventoryPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("창고 범위: 담당 창고 목록으로 집계·로트 단위·이력을 좁히고, 빈 목록이면 아무것도 보이지 않는다")
+    void warehouseScope_restrictsQueries() {
+        inventoryTransactionRepository.save(InventoryTransaction.record(
+                invR1LotA, TransactionType.INBOUND, 0, 100, ReferenceType.INBOUND, 6L, null, 5L));
+        inventoryTransactionRepository.save(InventoryTransaction.record(
+                invR2LotB, TransactionType.INBOUND, 0, 30, ReferenceType.INBOUND, 7L, null, 5L));
+        entityManager.flush();
+
+        // 창고2만 담당: SKU-A 집계는 창고2 재고(30)뿐이다
+        assertThat(inventoryQueryRepository.findSkuSummaries(
+                new InventorySearchCondition(null, null, null, List.of(warehouse2))))
+                .singleElement().satisfies(a -> assertThat(a.totalQuantity()).isEqualTo(30L));
+        // 두 창고 모두 담당이면 합산한다
+        assertThat(inventoryQueryRepository.findSkuSummaries(
+                new InventorySearchCondition(null, null, null, List.of(warehouse1, warehouse2))))
+                .singleElement().satisfies(a -> assertThat(a.totalQuantity()).isEqualTo(145L));
+        // 담당 창고가 없으면 비어 있다
+        assertThat(inventoryQueryRepository.findSkuSummaries(
+                new InventorySearchCondition(null, null, null, List.of()))).isEmpty();
+
+        assertThat(inventoryQueryRepository.findLotViews(new InventoryLotSearchCondition(
+                null, null, null, null, null, null, false, List.of(warehouse2))))
+                .extracting(InventoryLotView::inventoryLotId).containsExactly(invR2LotB);
+
+        assertThat(inventoryQueryRepository.findTransactions(new InventoryTransactionSearchCondition(
+                null, null, null, null, null, null, null, null, null, null, List.of(warehouse1))))
+                .singleElement().satisfies(t -> assertThat(t.referenceId()).isEqualTo(6L));
+        assertThat(inventoryQueryRepository.findTransactions(new InventoryTransactionSearchCondition(
+                null, null, null, null, null, null, null, null, null, null, List.of()))).isEmpty();
+
+        // 안전 재고 미만: 담당 창고2만 보면 SKU-A 가용 30 < 50 (부족 20), 창고1 재고는 합산되지 않는다
+        assertThat(inventoryQueryRepository.findLowStock(new LowStockSearchCondition(null, null, List.of(warehouse2))))
+                .extracting(LowStockItem::skuCode, LowStockItem::availableQuantity)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("SKU-A", 30L),
+                        org.assertj.core.groups.Tuple.tuple("SKU-B", 0L));
+    }
+
+    @Test
     @DisplayName("재고 상세: 창고명·구역·로트 정보를 함께 반환한다")
     void detail() {
         assertThat(inventoryQueryRepository.findDetail(invR1LotA)).hasValueSatisfying(d -> {
