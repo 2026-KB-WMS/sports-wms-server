@@ -11,6 +11,7 @@
 - **역할 검사**(이 API를 부를 수 있는 역할인가)는 `SecurityConfig`의 경로·메서드 규칙에 모은다. 표는 [`api/authorization.md`](../api/authorization.md)와 1:1로 맞춘다.
 - **소속 범위 검사**(담당 창고·지점의 리소스인가)와 **작성자 검사**는 서비스에서 한다. 대상 리소스의 창고·지점은 읽어 봐야 알 수 있기 때문이다. 소속은 `AuthenticatedUser.requireWarehouseAccess/requireStoreAccess`로 검사하고, 위반은 403 `FORBIDDEN`(`BusinessException`)이다. HQ_ADMIN은 항상 통과한다.
 - 사용자 요청용 유스케이스 메서드는 `AuthenticatedUser actor`를 인자로 받고 서비스가 검사한다. 다른 도메인이 내부 조회에 함께 쓰는 메서드(예: `WarehouseUseCase.getWarehouse`, `WarehouseSectionUseCase.getSection`)는 주체 없이 호출되어야 하므로 기존 시그니처를 그대로 두고 `actor`를 받는 오버로드를 따로 둔다. 재고 행의 창고처럼 쓰기에 필요한 소속도 서비스가 행을 잠근 뒤 같은 트랜잭션에서 검사한다(재고 조정).
+- 검사 순서: 소속 범위(403)를 상태(409)보다 먼저 확인한다. 락을 잡는 변경은 락 직후, 상태 검사 이전에 소속을 확인하고, 작성자·상태별 세부 권한은 상태 검사 뒤에 둔다(상세는 `docs/api/authorization.md`).
 - 목록 조회의 소속 범위 제한은 서비스가 `AuthenticatedUser.warehouseScope`로 담당 ID 목록을 만들어 검색 조건(`warehouseIds`)에 담고, 영속성 쿼리가 `in` 조건으로 좁히는 방식으로 한다. 담당 창고가 없으면 빈 결과다. 구역처럼 소속을 간접 참조하는 조건은 서비스가 조회 포트로 창고를 알아낸 뒤 검사한다.
 
 ## 근거

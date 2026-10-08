@@ -130,7 +130,8 @@
 
 - Body: `reason`(≤500; `CONFIRMED` 발주를 HQ_ADMIN이 취소할 때 필수, `REQUESTED` 취소 시 선택)
 - 응답: `purchaseOrderId, purchaseOrderNo, status=CANCELED, cancelReason, updatedAt`
-- 권한: `REQUESTED`는 작성자 WAREHOUSE_MANAGER만(본사 포함 타인 403), `CONFIRMED`는 HQ_ADMIN만.
+- 권한: `REQUESTED`는 작성자 WAREHOUSE_MANAGER만(본사 포함 타인 403), `CONFIRMED`는 HQ_ADMIN만. 작성자도 발주 창고의 담당 창고 관리자여야 한다.
+- 검사 순서: 발주 창고 소속(403) → 상태(이미 취소·완료면 409) → 작성자·상태별 권한(403) → 사유(400) → 입고 존재(409). 다른 창고 사용자에게는 발주 상태가 409로 드러나지 않는다.
 - 에러: 400(CONFIRMED 취소 시 reason 누락/초과), 403, `PURCHASE_ORDER_NOT_FOUND` 404, 409 `CONFLICT`(이미 CANCELED 또는 COMPLETED), 409 `PURCHASE_ORDER_HAS_INBOUND`(취소되지 않은 입고가 하나라도 있음; 입고를 모두 취소한 발주는 다시 취소 가능)
 - 허용 전이: REQUESTED→CANCELED, CONFIRMED→CANCELED. 상태 변경과 입고 존재 확인은 같은 트랜잭션(동시 취소·입고 등록 시 한쪽만 성공). 사유는 `StatusHistory.reason`에 저장, 응답의 `cancelReason`은 이력에서 읽음.
 

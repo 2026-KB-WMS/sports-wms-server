@@ -1059,4 +1059,25 @@ class StoreOrderServiceTest {
                 new StoreOrderCompletePartialCommand(1L, "사유", 8L), other), "FORBIDDEN");
         verify(storeOrderRepository, never()).save(any());
     }
+
+
+    @Test
+    @DisplayName("다른 지점 사용자의 취소는 발주 상태와 상관없이 403이다 (상태 409가 드러나지 않는다). 소속이 바뀐 작성자도 마찬가지다")
+    void cancel_otherStore_forbiddenBeforeStateCheck() {
+        // 작성자(5번)의 소속이 지점 2로 바뀌어 발주 지점(1)의 담당이 아닌 경우
+        AuthenticatedUser movedAuthor = owner(5L, 2L);
+        AuthenticatedUser otherOwner = owner(6L, 2L);
+
+        for (StoreOrderStatus status : StoreOrderStatus.values()) {
+            givenLockedOrder(1L, status);
+            for (AuthenticatedUser actor : List.of(movedAuthor, otherOwner)) {
+                assertError(() -> storeOrderService.cancelStoreOrder(
+                        new StoreOrderCancelCommand(1L, "사유", actor.userId()), actor), "FORBIDDEN");
+            }
+        }
+        verify(storeOrderRepository, never()).save(any());
+        // 담당 지점의 본사 사용자에게는 종료된 발주가 그대로 409다
+        givenLockedOrder(1L, StoreOrderStatus.COMPLETED);
+        assertError(() -> storeOrderService.cancelStoreOrder(new StoreOrderCancelCommand(1L, "사유", 1L), HQ), "CONFLICT");
+    }
 }

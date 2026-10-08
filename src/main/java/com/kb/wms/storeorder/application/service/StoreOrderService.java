@@ -270,6 +270,8 @@ public class StoreOrderService implements StoreOrderUseCase {
         String reason = normalizeReason(command.reason());
 
         StoreOrder order = findForUpdateOrThrow(command.storeOrderId());
+        // 소속을 먼저 확인해, 다른 지점 사용자에게 발주의 상태(409)가 드러나지 않게 한다. 본사는 전체 지점을 취소할 수 있다.
+        actor.requireStoreAccess(order.getStoreId());
         if (order.isTerminal()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "진행 중인 발주만 취소할 수 있습니다. 현재 상태: " + order.getStatus());

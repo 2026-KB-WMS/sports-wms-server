@@ -612,4 +612,27 @@ class PurchaseOrderServiceTest {
         assertError(() -> purchaseOrderService.getPurchaseOrders(
                 new PurchaseOrderSearchCondition(null, 3L, null, null, null, null), manager), ErrorCode.FORBIDDEN.name());
     }
+
+
+    @Test
+    @DisplayName("다른 창고 사용자의 취소는 발주 상태와 상관없이 403이다 (상태 409가 드러나지 않는다). 소속이 바뀐 작성자도 마찬가지다")
+    void cancel_otherWarehouse_forbiddenBeforeStateCheck() {
+        // 작성자(5번)의 소속이 창고 9로 바뀌어 발주 창고(1)의 담당이 아닌 경우
+        AuthenticatedUser movedAuthor = new AuthenticatedUser(5L, UserRole.WAREHOUSE_MANAGER, List.of(9L), List.of());
+        AuthenticatedUser otherManager = new AuthenticatedUser(6L, UserRole.WAREHOUSE_MANAGER, List.of(9L), List.of());
+
+        for (PurchaseOrderStatus status : PurchaseOrderStatus.values()) {
+            when(purchaseOrderRepository.findByIdForUpdate(4L)).thenReturn(Optional.of(purchaseOrder(4L, status)));
+            for (AuthenticatedUser actor : List.of(movedAuthor, otherManager)) {
+                assertError(() -> purchaseOrderService.cancelPurchaseOrder(
+                        4L, new PurchaseOrderCancelCommand("사유", actor.userId()), actor), ErrorCode.FORBIDDEN.name());
+            }
+        }
+        verify(purchaseOrderRepository, never()).save(any());
+        // 담당 창고의 사용자에게는 종료된 발주가 그대로 409다
+        when(purchaseOrderRepository.findByIdForUpdate(4L))
+                .thenReturn(Optional.of(purchaseOrder(4L, PurchaseOrderStatus.COMPLETED)));
+        assertError(() -> purchaseOrderService.cancelPurchaseOrder(
+                4L, new PurchaseOrderCancelCommand("사유", 1L), HQ), ErrorCode.CONFLICT.name());
+    }
 }
