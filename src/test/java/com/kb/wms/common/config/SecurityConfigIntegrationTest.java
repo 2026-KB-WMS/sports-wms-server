@@ -30,7 +30,8 @@ import com.kb.wms.common.security.JwtProvider;
 @AutoConfigureMockMvc
 class SecurityConfigIntegrationTest {
 
-    private static final String BRANDS = "/api/v1/products/brands";
+    // 인가를 가장 마지막에 적용하는 도메인(출고)의 조회 API. 도메인별 인가 적용(#170) 순서가 바뀌면 아직 열려 있는 API로 옮긴다.
+    private static final String OPEN_ENDPOINT = "/api/v1/outbounds";
 
     @Autowired
     private MockMvc mockMvc;
@@ -40,13 +41,13 @@ class SecurityConfigIntegrationTest {
     @Test
     @DisplayName("토큰이 없어도 기존 엔드포인트를 호출할 수 있다")
     void withoutToken() throws Exception {
-        mockMvc.perform(get(BRANDS)).andExpect(status().isOk());
+        mockMvc.perform(get(OPEN_ENDPOINT)).andExpect(status().isOk());
     }
 
     @Test
     @DisplayName("유효하지 않은 토큰이어도 기존 엔드포인트는 거절하지 않는다")
     void withInvalidToken() throws Exception {
-        mockMvc.perform(get(BRANDS).header("Authorization", "Bearer not-a-jwt")).andExpect(status().isOk());
+        mockMvc.perform(get(OPEN_ENDPOINT).header("Authorization", "Bearer not-a-jwt")).andExpect(status().isOk());
     }
 
     @Test
@@ -55,7 +56,7 @@ class SecurityConfigIntegrationTest {
         String token = jwtProvider.createAccessToken(
                 new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of()));
 
-        mockMvc.perform(get(BRANDS).header("Authorization", "Bearer " + token)).andExpect(status().isOk());
+        mockMvc.perform(get(OPEN_ENDPOINT).header("Authorization", "Bearer " + token)).andExpect(status().isOk());
     }
 
     private String bearer(UserRole role) {
