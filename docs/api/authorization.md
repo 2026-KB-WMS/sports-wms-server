@@ -1,6 +1,6 @@
 # 인가 규칙과 역할 매트릭스
 
-엔드포인트별로 어떤 역할이 호출할 수 있고, 어떤 소속·작성자 검사가 붙는지 한 곳에 모은 표다. 각 도메인 API 명세의 권한 항목과 [ADR-003](../adr/003-master-data-owned-by-hq.md)(마스터 데이터는 본사만)을 정리한 것이며, 값이 다르면 도메인 명세가 기준이다. 검사를 어디서 하는지는 [ADR-012](../adr/012-authorization-check-placement.md)를 따른다. 적용은 #170에서 도메인별로 한다.
+엔드포인트별로 어떤 역할이 호출할 수 있고, 어떤 소속·작성자 검사가 붙는지 한 곳에 모은 표다. 각 도메인 API 명세의 권한 항목과 [ADR-003](../adr/003-master-data-owned-by-hq.md)(마스터 데이터는 본사만)을 정리한 것이며, 값이 다르면 도메인 명세가 기준이다. 검사를 어디서 하는지는 [ADR-012](../adr/012-authorization-check-placement.md)를 따른다. #170에서 모든 도메인에 적용했다.
 
 ## 검사 위치
 
@@ -10,6 +10,11 @@
 | 역할 (이 API를 부를 수 있는 역할인가) | `SecurityConfig`의 경로·메서드 규칙 | 403 `FORBIDDEN` |
 | 소속 범위 (담당 창고·지점의 리소스인가) | 서비스, 대상 리소스를 읽은 뒤 `AuthenticatedUser.requireWarehouseAccess/requireStoreAccess` | 403 `FORBIDDEN` |
 | 작성자·상태 조건 (작성자만 취소 등) | 서비스 | 403 `FORBIDDEN` |
+
+## 토큰 없이 호출할 수 있는 요청
+- `POST /auth/signup`, `POST /auth/login`
+- API 문서(`/v3/api-docs/**`, `/swagger-ui/**`)와 헬스 체크(`/actuator/health`)
+- 위 밖의 모든 요청은 로그인이 필요하다(토큰 없음·만료·위조는 401). 이 표에 없는 경로도 마찬가지다.
 
 ## 기호
 - **전체**: 인증된 모든 역할(HQ_ADMIN, WAREHOUSE_MANAGER, STORE_OWNER). 소속 범위 없음.

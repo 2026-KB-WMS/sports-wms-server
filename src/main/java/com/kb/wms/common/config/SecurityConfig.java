@@ -17,10 +17,10 @@ import com.kb.wms.common.security.RestSecurityExceptionHandler;
 
 /**
  * Security 설정.
- * 토큰이 있으면 JwtAuthenticationFilter가 파싱해 인증 주체를 올린다. 인증 도메인 API(/auth/me, /users)와
- * 인가를 적용한 도메인(상품, 창고, 재고, 지점, 입고, 지점 발주, 출고)만 인증·역할을 요구하고, 나머지 요청은 아직 모두 허용한다.
- * 역할 규칙은 docs/api/authorization.md 표와 맞춘다.
- * TODO: 기존 도메인에 인증·인가를 적용하는 마지막 단계(#170)에서 authorizeHttpRequests를 인증 필수로 전환할 것.
+ * 토큰이 있으면 JwtAuthenticationFilter가 파싱해 인증 주체를 올린다. 가입·로그인, API 문서, 헬스 체크를 뺀
+ * 모든 요청은 로그인이 필요하고, 엔드포인트별 역할 규칙은 아래에 모았다(docs/api/authorization.md 표와 맞춘다).
+ * 규칙은 위에서부터 먼저 맞는 것이 적용되므로 구체적인 경로를 위에 둔다. 담당 창고·지점 범위와
+ * 작성자 같은 데이터 단위 검사는 서비스가 한다(ADR-012).
  */
 @Configuration
 public class SecurityConfig {
@@ -43,12 +43,16 @@ public class SecurityConfig {
                         .accessDeniedHandler(exceptionHandler))
                 .addFilterBefore(new JwtAuthenticationFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
+                        // 가입·로그인과 API 문서(Swagger)·헬스 체크만 토큰 없이 열어 둔다.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/signup", "/api/v1/auth/login").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/api/v1/auth/me").authenticated()
                         .requestMatchers("/api/v1/users/**").hasRole("HQ_ADMIN")
                         // 상품: 조회는 인증된 모든 역할, 등록·수정은 본사만
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/**").authenticated()
                         .requestMatchers("/api/v1/products/**").hasRole("HQ_ADMIN")
-                        // 창고: 앞의 규칙이 먼저 적용되므로 구체적인 경로를 위에 둔다. 담당 창고 범위는 컨트롤러가 검사한다.
+                        // 창고: 앞의 규칙이 먼저 적용되므로 구체적인 경로를 위에 둔다. 담당 창고 범위는 서비스가 검사한다.
                         .requestMatchers(HttpMethod.GET, "/api/v1/warehouses/management-types",
                                 "/api/v1/warehouses/section-types").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/warehouses/my").hasRole("WAREHOUSE_MANAGER")
@@ -96,7 +100,8 @@ public class SecurityConfig {
                         .hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
                         .requestMatchers("/api/v1/allocations/**", "/api/v1/outbounds/**")
                         .hasRole("WAREHOUSE_MANAGER")
-                        .anyRequest().permitAll());
+                        // 위에서 정하지 않은 요청은 로그인한 사용자만 호출할 수 있다.
+                        .anyRequest().authenticated());
 
         return http.build();
     }
