@@ -26,11 +26,11 @@ public record InventoryTransactionSearchCondition(
         LocalDateTime createdTo,
         List<Long> warehouseIds
 ) {
-    public InventoryTransactionSearchCondition(Long inventoryLotId, Long warehouseId, Long sectionId, Long skuId,
-                                               Long lotId, TransactionType transactionType,
-                                               ReferenceType referenceType, Long referenceId,
-                                               LocalDateTime createdFrom, LocalDateTime createdTo) {
-        this(inventoryLotId, warehouseId, sectionId, skuId, lotId, transactionType, referenceType, referenceId,
-                createdFrom, createdTo, null);
+    /** 담당 창고·지점 범위 제한 없이 조회하는 조건. 사용자 요청에서는 서비스가 범위를 채워 넘긴다. */
+    public static InventoryTransactionSearchCondition unscoped(Long inventoryLotId, Long warehouseId, Long sectionId, Long skuId,
+            Long lotId, TransactionType transactionType,
+            ReferenceType referenceType, Long referenceId,
+            LocalDateTime createdFrom, LocalDateTime createdTo) {
+        return new InventoryTransactionSearchCondition(inventoryLotId, warehouseId, sectionId, skuId, lotId, transactionType, referenceType, referenceId, createdFrom, createdTo, null);
     }
 }

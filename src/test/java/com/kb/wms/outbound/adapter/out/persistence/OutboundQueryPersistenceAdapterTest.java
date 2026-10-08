@@ -237,7 +237,7 @@ class OutboundQueryPersistenceAdapterTest {
         allocation(otherLineA, lotBusan, 2, NOW.plusHours(2));
 
         List<StockAllocationSummary> items = queryRepository.searchAllocations(
-                new StockAllocationSearchCondition(order, null, null, null, null));
+                StockAllocationSearchCondition.unscoped(order, null, null, null, null));
 
         assertThat(items).extracting(StockAllocationSummary::allocationId)
                 .containsExactly(newer.getAllocationId(), older.getAllocationId());
@@ -260,18 +260,18 @@ class OutboundQueryPersistenceAdapterTest {
         allocationRepository.save(released);
         StockAllocation busanAllocation = allocation(otherLineA, lotBusan, 2, NOW.plusHours(3));
 
-        assertThat(ids(new StockAllocationSearchCondition(null, busan, null, null, null)))
+        assertThat(ids(StockAllocationSearchCondition.unscoped(null, busan, null, null, null)))
                 .containsExactly(busanAllocation.getAllocationId());
-        assertThat(ids(new StockAllocationSearchCondition(null, seoul, skuA, AllocationStatus.ALLOCATED, null)))
+        assertThat(ids(StockAllocationSearchCondition.unscoped(null, seoul, skuA, AllocationStatus.ALLOCATED, null)))
                 .containsExactly(a.getAllocationId());
-        assertThat(ids(new StockAllocationSearchCondition(null, null, null, AllocationStatus.RELEASED, null)))
+        assertThat(ids(StockAllocationSearchCondition.unscoped(null, null, null, AllocationStatus.RELEASED, null)))
                 .containsExactly(released.getAllocationId());
-        assertThat(ids(new StockAllocationSearchCondition(null, null, null, null, "lot-l")))
+        assertThat(ids(StockAllocationSearchCondition.unscoped(null, null, null, null, "lot-l")))
                 .containsExactly(released.getAllocationId());
-        assertThat(ids(new StockAllocationSearchCondition(null, null, null, null, "SO-20261005-0002")))
+        assertThat(ids(StockAllocationSearchCondition.unscoped(null, null, null, null, "SO-20261005-0002")))
                 .containsExactly(busanAllocation.getAllocationId());
-        assertThat(ids(new StockAllocationSearchCondition(null, null, skuB, null, null))).isEmpty();
-        assertThat(ids(new StockAllocationSearchCondition(null, null, null, null, "  "))).hasSize(3);
+        assertThat(ids(StockAllocationSearchCondition.unscoped(null, null, skuB, null, null))).isEmpty();
+        assertThat(ids(StockAllocationSearchCondition.unscoped(null, null, null, null, "  "))).hasSize(3);
     }
 
     private List<Long> ids(StockAllocationSearchCondition condition) {
@@ -328,7 +328,7 @@ class OutboundQueryPersistenceAdapterTest {
         Outbound second = outbound("OB-20261005-0002", otherOrder, a3.getAllocationId());
 
         List<OutboundSummary> items = queryRepository.searchOutbounds(
-                new OutboundSearchCondition(null, null, null, null, null, null, null));
+                OutboundSearchCondition.unscoped(null, null, null, null, null, null, null));
 
         assertThat(items).extracting(OutboundSummary::outboundId)
                 .containsExactly(second.getOutboundId(), first.getOutboundId());
@@ -350,19 +350,19 @@ class OutboundQueryPersistenceAdapterTest {
         busanOutbound.startPicking();
         outboundRepository.save(busanOutbound);
 
-        assertThat(outboundIds(new OutboundSearchCondition(OutboundStatus.PICKING, null, null, null, null, null, null)))
+        assertThat(outboundIds(OutboundSearchCondition.unscoped(OutboundStatus.PICKING, null, null, null, null, null, null)))
                 .containsExactly(busanOutbound.getOutboundId());
-        assertThat(outboundIds(new OutboundSearchCondition(null, seoul, null, null, null, null, null)))
+        assertThat(outboundIds(OutboundSearchCondition.unscoped(null, seoul, null, null, null, null, null)))
                 .containsExactly(seoulOutbound.getOutboundId());
-        assertThat(outboundIds(new OutboundSearchCondition(null, null, store, order, null, null, null)))
+        assertThat(outboundIds(OutboundSearchCondition.unscoped(null, null, store, order, null, null, null)))
                 .containsExactly(seoulOutbound.getOutboundId());
-        assertThat(outboundIds(new OutboundSearchCondition(null, null, null, null, "ob-20261005-0002", null, null)))
+        assertThat(outboundIds(OutboundSearchCondition.unscoped(null, null, null, null, "ob-20261005-0002", null, null)))
                 .containsExactly(busanOutbound.getOutboundId());
-        assertThat(outboundIds(new OutboundSearchCondition(null, null, null, null, "SO-20261005-0001", null, null)))
+        assertThat(outboundIds(OutboundSearchCondition.unscoped(null, null, null, null, "SO-20261005-0001", null, null)))
                 .containsExactly(seoulOutbound.getOutboundId());
-        assertThat(outboundIds(new OutboundSearchCondition(null, null, null, null, null,
+        assertThat(outboundIds(OutboundSearchCondition.unscoped(null, null, null, null, null,
                 LocalDateTime.now().plusDays(1), null))).isEmpty();
-        assertThat(outboundIds(new OutboundSearchCondition(null, null, null, null, null,
+        assertThat(outboundIds(OutboundSearchCondition.unscoped(null, null, null, null, null,
                 LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1)))).hasSize(2);
     }
 

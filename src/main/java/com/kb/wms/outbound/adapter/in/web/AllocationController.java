@@ -63,7 +63,7 @@ public class AllocationController {
             @RequestParam(required = false) AllocationStatus status,
             @RequestParam(required = false) String keyword) {
         List<StockAllocationItemResponse> items = stockAllocationUseCase
-                .searchAllocations(new StockAllocationSearchCondition(
+                .searchAllocations(StockAllocationSearchCondition.unscoped(
                         storeOrderId, warehouseId, skuId, status, keyword), principal)
                 .stream()
                 .map(StockAllocationItemResponse::from)

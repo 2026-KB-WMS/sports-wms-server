@@ -14,7 +14,8 @@ public record InventorySearchCondition(
         String keyword,
         List<Long> warehouseIds
 ) {
-    public InventorySearchCondition(Long skuId, Long warehouseId, String keyword) {
-        this(skuId, warehouseId, keyword, null);
+    /** 담당 창고·지점 범위 제한 없이 조회하는 조건. 사용자 요청에서는 서비스가 범위를 채워 넘긴다. */
+    public static InventorySearchCondition unscoped(Long skuId, Long warehouseId, String keyword) {
+        return new InventorySearchCondition(skuId, warehouseId, keyword, null);
     }
 }

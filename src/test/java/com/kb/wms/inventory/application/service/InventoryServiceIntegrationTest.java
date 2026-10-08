@@ -182,7 +182,7 @@ class InventoryServiceIntegrationTest {
             assertThat(currentCapacity(sectionR1)).isEqualByComparingTo("158");
             assertThat(currentCapacity(sectionD1)).isEqualByComparingTo("2");
 
-            List<InventoryTransactionView> history = queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
+            List<InventoryTransactionView> history = queryUseCase.getTransactions(InventoryTransactionSearchCondition.unscoped(
                     null, null, null, null, null, TransactionType.INBOUND, null, null, null, null), HQ);
             assertThat(history).hasSize(2)
                     .allSatisfy(t -> assertThat(t.referenceId()).isEqualTo(7L));
@@ -312,7 +312,7 @@ class InventoryServiceIntegrationTest {
         assertError(() -> queryUseCase.getInventory(-1L, HQ), "INVENTORY_NOT_FOUND");
         assertError(() -> queryUseCase.getTransactionsOf(-1L, emptyCondition(), HQ), "INVENTORY_NOT_FOUND");
         assertError(() -> lotUseCase.getLot(-1L, HQ), "LOT_NOT_FOUND");
-        assertError(() -> queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
+        assertError(() -> queryUseCase.getTransactions(InventoryTransactionSearchCondition.unscoped(
                 null, null, null, null, null, null, null, null,
                 java.time.LocalDateTime.of(2026, 9, 2, 0, 0), java.time.LocalDateTime.of(2026, 9, 1, 0, 0)), HQ),
                 "VALIDATION_ERROR");
@@ -322,33 +322,33 @@ class InventoryServiceIntegrationTest {
     @Test
     @DisplayName("존재하지 않는 필터 ID(skuId·warehouseId·sectionId·lotId)로 조회하면 각 도메인 *_NOT_FOUND")
     void queryFilterNotFound() {
-        assertError(() -> queryUseCase.getInventories(new InventorySearchCondition(-1L, null, null), HQ), "SKU_NOT_FOUND");
-        assertError(() -> queryUseCase.getInventories(new InventorySearchCondition(null, -1L, null), HQ), "WAREHOUSE_NOT_FOUND");
+        assertError(() -> queryUseCase.getInventories(InventorySearchCondition.unscoped(-1L, null, null), HQ), "SKU_NOT_FOUND");
+        assertError(() -> queryUseCase.getInventories(InventorySearchCondition.unscoped(null, -1L, null), HQ), "WAREHOUSE_NOT_FOUND");
 
         assertError(() -> queryUseCase.getInventoriesByLot(
-                new InventoryLotSearchCondition(-1L, null, null, null, null, null, null), HQ), "SKU_NOT_FOUND");
+                InventoryLotSearchCondition.unscoped(-1L, null, null, null, null, null, null), HQ), "SKU_NOT_FOUND");
         assertError(() -> queryUseCase.getInventoriesByLot(
-                new InventoryLotSearchCondition(null, -1L, null, null, null, null, null), HQ), "WAREHOUSE_NOT_FOUND");
+                InventoryLotSearchCondition.unscoped(null, -1L, null, null, null, null, null), HQ), "WAREHOUSE_NOT_FOUND");
         assertError(() -> queryUseCase.getInventoriesByLot(
-                new InventoryLotSearchCondition(null, null, -1L, null, null, null, null), HQ), "SECTION_NOT_FOUND");
+                InventoryLotSearchCondition.unscoped(null, null, -1L, null, null, null, null), HQ), "SECTION_NOT_FOUND");
 
-        assertError(() -> queryUseCase.getLowStock(new LowStockSearchCondition(-1L, null), HQ), "WAREHOUSE_NOT_FOUND");
+        assertError(() -> queryUseCase.getLowStock(LowStockSearchCondition.unscoped(-1L, null), HQ), "WAREHOUSE_NOT_FOUND");
 
-        assertError(() -> queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
+        assertError(() -> queryUseCase.getTransactions(InventoryTransactionSearchCondition.unscoped(
                 null, -1L, null, null, null, null, null, null, null, null), HQ), "WAREHOUSE_NOT_FOUND");
-        assertError(() -> queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
+        assertError(() -> queryUseCase.getTransactions(InventoryTransactionSearchCondition.unscoped(
                 null, null, -1L, null, null, null, null, null, null, null), HQ), "SECTION_NOT_FOUND");
-        assertError(() -> queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
+        assertError(() -> queryUseCase.getTransactions(InventoryTransactionSearchCondition.unscoped(
                 null, null, null, -1L, null, null, null, null, null, null), HQ), "SKU_NOT_FOUND");
-        assertError(() -> queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
+        assertError(() -> queryUseCase.getTransactions(InventoryTransactionSearchCondition.unscoped(
                 null, null, null, null, -1L, null, null, null, null, null), HQ), "LOT_NOT_FOUND");
 
-        assertError(() -> lotUseCase.getLots(new LotSearchCondition(-1L, null, null, null), HQ), "SKU_NOT_FOUND");
+        assertError(() -> lotUseCase.getLots(LotSearchCondition.unscoped(-1L, null, null, null), HQ), "SKU_NOT_FOUND");
 
         // 있는 ID는 그대로 통과한다.
-        assertThat(queryUseCase.getInventories(new InventorySearchCondition(skuId, null, null), HQ)).isNotEmpty();
+        assertThat(queryUseCase.getInventories(InventorySearchCondition.unscoped(skuId, null, null), HQ)).isNotEmpty();
         assertThat(queryUseCase.getInventoriesByLot(
-                new InventoryLotSearchCondition(null, null, sectionR1, null, null, null, null), HQ)).isNotEmpty();
+                InventoryLotSearchCondition.unscoped(null, null, sectionR1, null, null, null, null), HQ)).isNotEmpty();
     }
 
     // ---------- helpers ----------
@@ -373,7 +373,7 @@ class InventoryServiceIntegrationTest {
     }
 
     private static InventoryTransactionSearchCondition emptyCondition() {
-        return new InventoryTransactionSearchCondition(null, null, null, null, null, null, null, null, null, null);
+        return InventoryTransactionSearchCondition.unscoped(null, null, null, null, null, null, null, null, null, null);
     }
 
     private void flushAndClear() {

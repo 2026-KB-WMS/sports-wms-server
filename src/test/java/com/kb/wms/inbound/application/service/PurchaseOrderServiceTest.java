@@ -473,7 +473,7 @@ class PurchaseOrderServiceTest {
     @Test
     @DisplayName("목록 조회는 검색 조건을 그대로 조회 포트에 위임한다")
     void getPurchaseOrders_delegates() {
-        PurchaseOrderSearchCondition condition = new PurchaseOrderSearchCondition(
+        PurchaseOrderSearchCondition condition = PurchaseOrderSearchCondition.unscoped(
                 PurchaseOrderStatus.REQUESTED, 1L, 3L, "PO", null, null);
         List<PurchaseOrderSummary> expected = List.of();
         when(purchaseOrderQueryRepository.search(condition)).thenReturn(expected);
@@ -484,7 +484,7 @@ class PurchaseOrderServiceTest {
     @Test
     @DisplayName("등록 시작 일시가 종료 일시보다 늦으면 VALIDATION_ERROR를 던진다")
     void getPurchaseOrders_invalidDateRange() {
-        PurchaseOrderSearchCondition condition = new PurchaseOrderSearchCondition(
+        PurchaseOrderSearchCondition condition = PurchaseOrderSearchCondition.unscoped(
                 null, null, null, null,
                 LocalDateTime.of(2026, 10, 2, 0, 0), LocalDateTime.of(2026, 10, 1, 0, 0));
 
@@ -603,13 +603,36 @@ class PurchaseOrderServiceTest {
     @DisplayName("발주 목록은 창고를 생략하면 담당 창고로 좁히고, 비담당 창고를 지정하면 403이다. 단건은 비담당 창고면 403이다")
     void scope_listAndDetail() {
         AuthenticatedUser manager = new AuthenticatedUser(5L, UserRole.WAREHOUSE_MANAGER, List.of(1L, 2L), List.of());
-        PurchaseOrderSearchCondition all = new PurchaseOrderSearchCondition(null, null, null, null, null, null);
+        PurchaseOrderSearchCondition all = PurchaseOrderSearchCondition.unscoped(null, null, null, null, null, null);
         when(purchaseOrderQueryRepository.search(
                 new PurchaseOrderSearchCondition(null, null, null, null, null, null, List.of(1L, 2L))))
                 .thenReturn(List.of());
 
         assertThat(purchaseOrderService.getPurchaseOrders(all, manager)).isEmpty();
         assertError(() -> purchaseOrderService.getPurchaseOrders(
-                new PurchaseOrderSearchCondition(null, 3L, null, null, null, null), manager), ErrorCode.FORBIDDEN.name());
+                PurchaseOrderSearchCondition.unscoped(null, 3L, null, null, null, null), manager), ErrorCode.FORBIDDEN.name());
+    }
+
+
+    @Test
+    @DisplayName("다른 창고 사용자의 취소는 발주 상태와 상관없이 403이다 (상태 409가 드러나지 않는다). 소속이 바뀐 작성자도 마찬가지다")
+    void cancel_otherWarehouse_forbiddenBeforeStateCheck() {
+        // 작성자(5번)의 소속이 창고 9로 바뀌어 발주 창고(1)의 담당이 아닌 경우
+        AuthenticatedUser movedAuthor = new AuthenticatedUser(5L, UserRole.WAREHOUSE_MANAGER, List.of(9L), List.of());
+        AuthenticatedUser otherManager = new AuthenticatedUser(6L, UserRole.WAREHOUSE_MANAGER, List.of(9L), List.of());
+
+        for (PurchaseOrderStatus status : PurchaseOrderStatus.values()) {
+            when(purchaseOrderRepository.findByIdForUpdate(4L)).thenReturn(Optional.of(purchaseOrder(4L, status)));
+            for (AuthenticatedUser actor : List.of(movedAuthor, otherManager)) {
+                assertError(() -> purchaseOrderService.cancelPurchaseOrder(
+                        4L, new PurchaseOrderCancelCommand("사유", actor.userId()), actor), ErrorCode.FORBIDDEN.name());
+            }
+        }
+        verify(purchaseOrderRepository, never()).save(any());
+        // 담당 창고의 사용자에게는 종료된 발주가 그대로 409다
+        when(purchaseOrderRepository.findByIdForUpdate(4L))
+                .thenReturn(Optional.of(purchaseOrder(4L, PurchaseOrderStatus.COMPLETED)));
+        assertError(() -> purchaseOrderService.cancelPurchaseOrder(
+                4L, new PurchaseOrderCancelCommand("사유", 1L), HQ), ErrorCode.CONFLICT.name());
     }
 }

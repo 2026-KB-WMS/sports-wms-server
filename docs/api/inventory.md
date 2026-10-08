@@ -103,5 +103,5 @@
 
 - 응답: 로트 필드 + `inventory[]`(`inventoryLotId, warehouseId, warehouseName, sectionId, sectionCode, sectionName, onHandQuantity, allocatedQuantity, qualityStatus`), `inbounds[]`(`inboundId, inboundNo, warehouseId, receivedAt, receivedQuantity, acceptedQuantity, defectiveQuantity, receivedUnitPrice`), `createdAt, updatedAt`
 - `inventory`는 구역별 InventoryLot, `inbounds`는 `InboundLine.lot_id`가 이 로트인 항목. 없으면 빈 배열.
-- WAREHOUSE_MANAGER: 담당 창고의 재고·입고 이력이 있는 로트만(없으면 403), 응답의 `inventory`/`inbounds`는 담당 창고 항목만.
+- WAREHOUSE_MANAGER: 담당 창고의 재고·입고 이력이 있는 로트만(없으면 403), 응답의 `inventory`/`inbounds`는 담당 창고 항목만. 입고 이력(`inbounds`)만 따로 조회하는 API는 없으므로 403 판정은 항상 로트 단위(목록과 같은 기준)로 먼저 하고, 응답에서는 담당 창고 항목만 남긴다.
 - 에러: 404(로트 없음), 403

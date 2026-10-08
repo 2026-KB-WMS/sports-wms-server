@@ -289,15 +289,15 @@ class OutboundServiceIntegrationTest {
         allocate();
         useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ);
 
-        List<OutboundSummary> ready = useCase.searchOutbounds(new OutboundSearchCondition(
+        List<OutboundSummary> ready = useCase.searchOutbounds(OutboundSearchCondition.unscoped(
                 OutboundStatus.READY, null, null, order, null, null, null), HQ);
-        List<OutboundSummary> picking = useCase.searchOutbounds(new OutboundSearchCondition(
+        List<OutboundSummary> picking = useCase.searchOutbounds(OutboundSearchCondition.unscoped(
                 OutboundStatus.PICKING, null, null, null, null, null, null), HQ);
 
         assertThat(ready).hasSize(1);
         assertThat(picking).isEmpty();
         LocalDateTime now = LocalDateTime.now();
-        assertThatThrownBy(() -> useCase.searchOutbounds(new OutboundSearchCondition(
+        assertThatThrownBy(() -> useCase.searchOutbounds(OutboundSearchCondition.unscoped(
                 null, null, null, null, null, now, now.minusDays(1)), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
     }
@@ -322,7 +322,7 @@ class OutboundServiceIntegrationTest {
     }
 
     private OutboundSearchCondition emptyCondition() {
-        return new OutboundSearchCondition(null, null, null, null, null, null, null);
+        return OutboundSearchCondition.unscoped(null, null, null, null, null, null, null);
     }
 
     // ---------- 담당 창고 범위 (인가) ----------
@@ -371,17 +371,17 @@ class OutboundServiceIntegrationTest {
         assertThat(useCase.searchOutbounds(emptyCondition(), mine)).hasSize(1);
         assertThat(useCase.searchOutbounds(emptyCondition(), other)).isEmpty();
         assertThat(allocationUseCase.searchAllocations(
-                new com.kb.wms.outbound.application.port.in.query.StockAllocationSearchCondition(
+                com.kb.wms.outbound.application.port.in.query.StockAllocationSearchCondition.unscoped(
                         null, null, null, null, null), mine)).hasSize(allocationIds.size());
         assertThat(allocationUseCase.searchAllocations(
-                new com.kb.wms.outbound.application.port.in.query.StockAllocationSearchCondition(
+                com.kb.wms.outbound.application.port.in.query.StockAllocationSearchCondition.unscoped(
                         null, null, null, null, null), other)).isEmpty();
 
         assertThatThrownBy(() -> useCase.getOutbound(outboundId, other))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
         assertThatThrownBy(() -> allocationUseCase.getAllocation(allocationIds.get(0), other))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
-        assertThatThrownBy(() -> useCase.searchOutbounds(new OutboundSearchCondition(
+        assertThatThrownBy(() -> useCase.searchOutbounds(OutboundSearchCondition.unscoped(
                 null, warehouse, null, null, null, null, null), other))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
 

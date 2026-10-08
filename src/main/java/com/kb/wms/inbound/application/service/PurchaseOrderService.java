@@ -168,6 +168,8 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         requireUser(command == null ? null : command.userId());
         PurchaseOrder purchaseOrder = purchaseOrderRepository.findByIdForUpdate(purchaseOrderId)
                 .orElseThrow(PurchaseOrderService::notFound);
+        // 소속을 먼저 확인해, 다른 창고 사용자에게 발주의 상태(409)가 드러나지 않게 한다.
+        actor.requireWarehouseAccess(purchaseOrder.getWarehouseId());
         if (!purchaseOrder.isInProgress()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "요청 또는 확정 상태의 발주만 취소할 수 있습니다. 현재 상태: " + purchaseOrder.getStatus());
@@ -193,7 +195,10 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         return saved;
     }
 
-    /** 요청 발주는 작성자인 창고 관리자만, 확정 발주는 본사 관리자만 취소할 수 있다. */
+    /**
+     * 요청 발주는 작성자인 창고 관리자만, 확정 발주는 본사 관리자만 취소할 수 있다.
+     * 작성자도 발주 창고의 담당이어야 하며, 이는 호출 전에 소속 검사로 확인한다.
+     */
     private static void requireCancelAuthority(PurchaseOrder purchaseOrder, AuthenticatedUser actor) {
         boolean allowed = purchaseOrder.getStatus() == PurchaseOrderStatus.REQUESTED
                 ? actor.isWarehouseManager() && actor.userId().equals(purchaseOrder.getCreatedBy())

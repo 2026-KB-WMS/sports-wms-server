@@ -135,6 +135,7 @@
 ## PATCH /orders/{orderId}/cancel (P1)
 
 - 권한: `REQUESTED`는 작성자 STORE_OWNER만(요청 지점의 작성자), `APPROVED`·`ASSIGNED`·`ON_HOLD`는 HQ_ADMIN만. 창고 관리자는 불가. 본사 관리자가 `REQUESTED` 발주를 취소하려면 반려를 쓴다(403).
+- 검사 순서: 발주 지점 소속(403, 본사는 전체) → 상태(종결이면 409) → 작성자·상태별 권한(403) → 사유(400) → 피킹 시작(409). 다른 지점 사용자에게는 발주 상태가 409로 드러나지 않으며, 소속이 바뀐 작성자도 취소할 수 없다.
 - Body: `reason`(≤500; 본사가 승인 이후 발주를 취소할 때 필수, 점주가 `REQUESTED`를 취소할 때 선택)
 - 응답: `storeOrderId, orderNo, status=CANCELED, statusReason, releasedAllocationCount, canceledOutboundCount, updatedAt`
 - 에러: 400(본사 취소 시 `reason` 누락·빈 값·초과, `orderId` 형식), 403(창고 관리자 호출, 점주가 작성자·자기 지점이 아니거나 승인 이후 발주를 취소, 본사가 `REQUESTED` 취소), 404, 409 `CONFLICT`(이미 `CANCELED`·`REJECTED`·`COMPLETED`), 409 `ORDER_IN_PICKING`(피킹 시작 이후 출고 `PICKING`·`PICKED`·`SHIPPED`·`DELIVERED`가 하나라도 있음, 배송 완료된 부분 출고 포함)

@@ -75,7 +75,7 @@ public class OutboundController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdTo) {
         List<OutboundListItemResponse> items = outboundUseCase
-                .searchOutbounds(new OutboundSearchCondition(
+                .searchOutbounds(OutboundSearchCondition.unscoped(
                         status, warehouseId, storeId, storeOrderId, keyword, createdFrom, createdTo), principal)
                 .stream()
                 .map(OutboundListItemResponse::from)

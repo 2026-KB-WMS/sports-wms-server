@@ -19,8 +19,9 @@ public record StockAllocationSearchCondition(
         List<Long> warehouseIds
 ) {
 
-    public StockAllocationSearchCondition(Long storeOrderId, Long warehouseId, Long skuId, AllocationStatus status,
-                                          String keyword) {
-        this(storeOrderId, warehouseId, skuId, status, keyword, null);
+    /** 담당 창고·지점 범위 제한 없이 조회하는 조건. 사용자 요청에서는 서비스가 범위를 채워 넘긴다. */
+    public static StockAllocationSearchCondition unscoped(Long storeOrderId, Long warehouseId, Long skuId, AllocationStatus status,
+            String keyword) {
+        return new StockAllocationSearchCondition(storeOrderId, warehouseId, skuId, status, keyword, null);
     }
 }

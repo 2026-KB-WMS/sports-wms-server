@@ -57,7 +57,7 @@
 - 권한: WAREHOUSE_MANAGER만, 본인 담당 창고에 배정된 발주. 대상 창고는 발주의 `warehouse_id`이며 요청으로 받지 않는다.
 - Body: `storeOrderId`(필수)
 - 응답 201: `storeOrderId, orderNo, items[]`. `items[]`는 `GET /allocations`의 `data.items[]`와 같은 형식이다: `allocationId, storeOrderId, orderNo, storeOrderLineId, warehouseId, skuId, skuCode, skuName, inventoryLotId, lotId, lotNumber, expiryDate, sectionId, sectionCode, allocatedQuantity, pickedQuantity, status, allocatedAt, releasedAt(null)`
-- 에러: 400, 403, 404(발주 없음), 409 `CONFLICT`(발주 상태가 `ASSIGNED`가 아님: 보류·취소·미배정), 409 `ALREADY_ALLOCATED`(할당할 잔여 수량 없음), 409 `INSUFFICIENT_STOCK`(한 항목이라도 가용 재고 부족, `errors`에 SKU별 요청·가용 수량), 409 `LOT_NOT_AVAILABLE`, 409 `SKU_NOT_ACTIVE`(재고 도메인이 거절)
+- 에러: 400, 403, 404(발주 없음), 409 `CONFLICT`(발주 상태가 `ASSIGNED`가 아님: 보류·취소). 창고가 아직 배정되지 않은 발주(`REQUESTED`·`APPROVED`)는 창고 관리자에게 403이다(담당 창고를 판별할 수 없고 조회도 할 수 없는 발주이므로 상태 409보다 소속 403이 먼저다), 409 `ALREADY_ALLOCATED`(할당할 잔여 수량 없음), 409 `INSUFFICIENT_STOCK`(한 항목이라도 가용 재고 부족, `errors`에 SKU별 요청·가용 수량), 409 `LOT_NOT_AVAILABLE`, 409 `SKU_NOT_ACTIVE`(재고 도메인이 거절)
 - 규칙:
   - 발주 상태가 `ASSIGNED`일 때만. 보류(`ON_HOLD`) 중에는 재개 후 할당한다.
   - 항목별 할당 대상 수량은 `requestedQuantity - allocatedQuantity - shippedQuantity`(잔여 수량)다. 처음에는 요청 수량 전체, 부분 출고 뒤 다시 실행하면 남은 수량만이다.
@@ -95,7 +95,7 @@
 - 권한: WAREHOUSE_MANAGER만, 본인 담당 창고에 배정된 발주. 출고 창고는 발주의 `warehouse_id`다.
 - Body: `storeOrderId`(필수), `note`(선택, ≤500)
 - 응답 201: `outboundId, outboundNo, storeOrderId, orderNo, status=READY, note, lineCount, items[], createdAt`. `items[]`: `outboundLineId, allocationId, skuId, skuCode, lotNumber, sectionCode, allocatedQuantity, shippedQuantity(0)`
-- 에러: 400, 403, 404(발주 없음), 409 `CONFLICT`(발주 상태가 `ASSIGNED`가 아님), 409 `NO_ALLOCATION`(취소되지 않은 출고에 연결되지 않은 `ALLOCATED` 할당이 없음)
+- 에러: 400, 403, 404(발주 없음), 409 `CONFLICT`(발주 상태가 `ASSIGNED`가 아님. 창고 미배정 발주는 창고 관리자에게 403), 409 `NO_ALLOCATION`(취소되지 않은 출고에 연결되지 않은 `ALLOCATED` 할당이 없음)
 - 규칙:
   - 연결되지 않은 `ALLOCATED` 할당마다 `OutboundLine` 하나를 만들고 `shipped_quantity`는 0, `confirmed_unit_supply_price`는 비워 둔다(피킹 완료 때 채움). 출고 번호는 서버가 만들며 UNIQUE다.
   - 재고 수량·할당·발주 상태는 바뀌지 않는다. 생성 이후 그 할당은 해제할 수 없다.
