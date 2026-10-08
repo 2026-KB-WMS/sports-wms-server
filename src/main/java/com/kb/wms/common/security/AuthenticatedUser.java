@@ -31,6 +31,14 @@ public record AuthenticatedUser(
         return role == UserRole.HQ_ADMIN;
     }
 
+    public boolean isWarehouseManager() {
+        return role == UserRole.WAREHOUSE_MANAGER;
+    }
+
+    public boolean isStoreOwner() {
+        return role == UserRole.STORE_OWNER;
+    }
+
     /** 본사 관리자는 모든 창고, 그 외에는 배정된 창고만 접근할 수 있다. */
     public boolean canAccessWarehouse(Long warehouseId) {
         return isHqAdmin() || warehouseIds.contains(warehouseId);

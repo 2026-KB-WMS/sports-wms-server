@@ -3,6 +3,7 @@ package com.kb.wms.inbound.adapter.in.web;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.inbound.adapter.in.web.dto.request.SupplierRegisterRequest;
@@ -49,18 +51,20 @@ public class SupplierController {
 
     @GetMapping
     public ApiResponse<ItemsResponse<SupplierSummaryResponse>> getSuppliers(
+            @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Boolean isActive) {
         List<SupplierSummaryResponse> items = supplierUseCase
-                .getSuppliers(new SupplierSearchCondition(keyword, isActive)).stream()
+                .getSuppliers(new SupplierSearchCondition(keyword, isActive), principal).stream()
                 .map(SupplierSummaryResponse::from)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
     }
 
     @GetMapping("/{supplierId}")
-    public ApiResponse<SupplierResponse> getSupplier(@PathVariable Long supplierId) {
-        Supplier supplier = supplierUseCase.getSupplier(supplierId);
+    public ApiResponse<SupplierResponse> getSupplier(@AuthenticationPrincipal AuthenticatedUser principal,
+                                                   @PathVariable Long supplierId) {
+        Supplier supplier = supplierUseCase.getSupplier(supplierId, principal);
         return ApiResponse.ok(SupplierResponse.from(supplier));
     }
 

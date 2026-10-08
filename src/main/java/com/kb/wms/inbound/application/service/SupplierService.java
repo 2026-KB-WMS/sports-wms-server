@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inbound.application.port.in.SupplierUseCase;
@@ -38,17 +39,26 @@ public class SupplierService implements SupplierUseCase {
         return supplierRepository.save(supplier);
     }
 
-    /**
-     * 창고 관리자에게는 활성 공급처만 노출하는 규칙은 역할(인증) 정보가 필요하므로
-     * 인증 도메인 연동 시 웹 어댑터에서 isActive=true로 강제해 넘긴다.
-     */
+    /** 창고 관리자에게는 isActive 필터와 상관없이 활성 공급처만 노출한다(발주 등록 시 선택용). */
     @Override
-    public List<Supplier> getSuppliers(SupplierSearchCondition condition) {
+    public List<Supplier> getSuppliers(SupplierSearchCondition condition, AuthenticatedUser actor) {
+        if (actor.isWarehouseManager()) {
+            return supplierRepository.search(new SupplierSearchCondition(condition.keyword(), true));
+        }
         return supplierRepository.search(condition);
     }
 
+    /** 창고 관리자에게 비활성 공급처는 없는 것으로 보인다(404). */
     @Override
-    public Supplier getSupplier(Long supplierId) {
+    public Supplier getSupplier(Long supplierId, AuthenticatedUser actor) {
+        Supplier supplier = getSupplier(supplierId);
+        if (actor.isWarehouseManager() && !supplier.isActive()) {
+            throw new BusinessException(SupplierErrorCode.SUPPLIER_NOT_FOUND);
+        }
+        return supplier;
+    }
+
+    private Supplier getSupplier(Long supplierId) {
         return supplierRepository.findById(supplierId)
                 .orElseThrow(() -> new BusinessException(SupplierErrorCode.SUPPLIER_NOT_FOUND));
     }
