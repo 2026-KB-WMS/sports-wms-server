@@ -2,9 +2,11 @@ package com.kb.wms.auth.application.port.in;
 
 import java.util.List;
 
+import com.kb.wms.auth.application.port.in.command.InitialHqAdminCommand;
 import com.kb.wms.auth.application.port.in.command.UserSignupCommand;
 import com.kb.wms.auth.application.port.in.command.UserUpdateCommand;
 import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
+import com.kb.wms.auth.application.port.in.result.InitialHqAdminResult;
 import com.kb.wms.auth.domain.entity.User;
 
 /**
@@ -23,4 +25,11 @@ public interface UserUseCase {
 
     /** 부분 수정. 상태가 바뀌면 StatusHistory(USER)를 같은 트랜잭션에서 기록한다. */
     User updateUser(UserUpdateCommand command);
+
+    /**
+     * 본사 관리자가 하나도 없을 때만 설정값으로 ACTIVE 관리자를 만든다(시작 시 초기화용, ADR-013).
+     * 이미 있으면 ALREADY_EXISTS, 설정이 모두 비어 있으면 NOT_CONFIGURED를 돌려준다.
+     * 설정이 일부만 비었거나 아이디·비밀번호 형식 위반이면 400, 아이디·이메일 중복이면 409.
+     */
+    InitialHqAdminResult ensureInitialHqAdmin(InitialHqAdminCommand command);
 }
