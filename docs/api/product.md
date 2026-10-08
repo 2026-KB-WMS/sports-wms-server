@@ -9,6 +9,7 @@
 - 상품 비활성화(`PATCH /products/{productId}`의 `isActive=false`)는 같은 트랜잭션에서 하위 ACTIVE SKU를 모두 비활성화한다(구현됨). 상품을 다시 활성화해도 SKU는 자동으로 활성화되지 않는다(SKU 상태 변경 API로 개별 복구).
 - 목록 API(상품·브랜드·카테고리·SKU)는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고).
 - Notion 명세의 `pageInfo`, 일반 `NOT_FOUND`는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
+- 점주(STORE_OWNER) 제한(#182): 상품·SKU 목록은 `isActive` 필터와 상관없이 활성 항목만, 비활성 상품·SKU 단건은 404(`PRODUCT_NOT_FOUND`/`SKU_NOT_FOUND`)다. SKU 목록·단건 응답에서 `currentPurchasePrice`·`safetyStockQuantity` 필드는 점주에게 생략한다. 값이 없는(미설정) 경우도 필드를 생략하므로, 본사·창고 관리자 응답에서도 `null` 대신 필드가 빠진다. SKU의 점주 제한(활성만)은 명세에 명시돼 있지 않아 상품과 같게 적용했다.
 - 미결: 카테고리 최대 depth, SKU 옵션 조합 중복 허용 규칙.
 
 ## 엔드포인트 목록 (15 + 코드 전용 1)

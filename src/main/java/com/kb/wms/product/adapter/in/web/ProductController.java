@@ -3,6 +3,7 @@ package com.kb.wms.product.adapter.in.web;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductRegisterRequest;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductUpdateRequest;
 import com.kb.wms.product.adapter.in.web.dto.response.ProductDetailResponse;
@@ -51,20 +53,22 @@ public class ProductController {
 
     @GetMapping
     public ApiResponse<ItemsResponse<ProductSummaryResponse>> getProducts(
+            @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) Long brandId,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Boolean isActive) {
         List<ProductSummaryResponse> items = productUseCase
-                .getProducts(new ProductSearchCondition(brandId, categoryId, keyword, isActive)).stream()
+                .getProducts(new ProductSearchCondition(brandId, categoryId, keyword, isActive), principal).stream()
                 .map(this::toSummaryResponse)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
     }
 
     @GetMapping("/{productId}")
-    public ApiResponse<ProductDetailResponse> getProduct(@PathVariable Long productId) {
-        Product product = productUseCase.getProduct(productId);
+    public ApiResponse<ProductDetailResponse> getProduct(@AuthenticationPrincipal AuthenticatedUser principal,
+                                                         @PathVariable Long productId) {
+        Product product = productUseCase.getProduct(productId, principal);
         return ApiResponse.ok(toDetailResponse(product));
     }
 
