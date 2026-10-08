@@ -24,6 +24,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -48,6 +50,8 @@ import com.kb.wms.inventory.exception.InventoryErrorCode;
 @ExtendWith(MockitoExtension.class)
 class InboundCompleteServiceTest {
 
+    private static final AuthenticatedUser ACTOR =
+            new AuthenticatedUser(5L, UserRole.WAREHOUSE_MANAGER, List.of(1L), List.of());
     private static final long USER = 5L;
 
     @Mock
@@ -151,7 +155,7 @@ class InboundCompleteServiceTest {
                 new ReceivedStock(2L, 31L, false, 101L), new ReceivedStock(9L, 31L, true, 105L)));
         stubSaves();
 
-        InboundCompleteResult result = inboundCompleteService.completeInbound(7L, USER);
+        InboundCompleteResult result = inboundCompleteService.completeInbound(7L, ACTOR);
 
         ArgumentCaptor<List<StockReceipt>> receipts = ArgumentCaptor.forClass(List.class);
         verify(inboundStockPort).receive(org.mockito.ArgumentMatchers.eq(7L),
@@ -183,7 +187,7 @@ class InboundCompleteServiceTest {
         stubSaves();
         when(purchaseOrderRepository.save(any(PurchaseOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        InboundCompleteResult result = inboundCompleteService.completeInbound(7L, USER);
+        InboundCompleteResult result = inboundCompleteService.completeInbound(7L, ACTOR);
 
         assertThat(result.purchaseOrderLines()).containsExactly(new InboundCompleteResult.PurchaseOrderLineProgress(
                 11L, 60L, 60L, PurchaseOrderLineStatus.COMPLETED));
@@ -202,7 +206,7 @@ class InboundCompleteServiceTest {
                 .thenReturn(List.of(new ReceivedStock(2L, 31L, false, 101L)));
         stubSaves();
 
-        InboundCompleteResult result = inboundCompleteService.completeInbound(7L, USER);
+        InboundCompleteResult result = inboundCompleteService.completeInbound(7L, ACTOR);
 
         assertThat(result.purchaseOrderStatus()).isEqualTo(PurchaseOrderStatus.CONFIRMED);
         verify(purchaseOrderRepository, never()).save(any(PurchaseOrder.class));
@@ -221,7 +225,7 @@ class InboundCompleteServiceTest {
                 new ReceivedStock(2L, 31L, false, 101L), new ReceivedStock(9L, 32L, true, 105L)));
         stubSaves();
 
-        InboundCompleteResult result = inboundCompleteService.completeInbound(7L, USER);
+        InboundCompleteResult result = inboundCompleteService.completeInbound(7L, ACTOR);
 
         ArgumentCaptor<List<StockReceipt>> receipts = ArgumentCaptor.forClass(List.class);
         verify(inboundStockPort).receive(anyLong(), anyLong(), receipts.capture());
@@ -245,7 +249,7 @@ class InboundCompleteServiceTest {
                 new ReceivedStock(9L, 32L, true, 105L)));
         stubSaves();
 
-        InboundCompleteResult result = inboundCompleteService.completeInbound(7L, USER);
+        InboundCompleteResult result = inboundCompleteService.completeInbound(7L, ACTOR);
 
         assertThat(result.purchaseOrderLines()).containsExactly(new InboundCompleteResult.PurchaseOrderLineProgress(
                 11L, 100L, 70L, PurchaseOrderLineStatus.PARTIALLY_RECEIVED));
@@ -263,7 +267,7 @@ class InboundCompleteServiceTest {
                 new ReceivedStock(2L, 31L, false, 101L), new ReceivedStock(9L, 31L, true, 105L)));
         stubSaves();
 
-        inboundCompleteService.completeInbound(7L, USER);
+        inboundCompleteService.completeInbound(7L, ACTOR);
 
         verify(statusHistoryUseCase).record(
                 StatusHistoryEntityType.INBOUND, 7L, "INSPECTING", "COMPLETED", null, USER);
@@ -282,7 +286,7 @@ class InboundCompleteServiceTest {
         stubSaves();
         when(purchaseOrderRepository.save(any(PurchaseOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        inboundCompleteService.completeInbound(7L, USER);
+        inboundCompleteService.completeInbound(7L, ACTOR);
 
         verify(statusHistoryUseCase).record(
                 StatusHistoryEntityType.PURCHASE_ORDER, 4L, "CONFIRMED", "COMPLETED", null, USER);
@@ -291,18 +295,11 @@ class InboundCompleteServiceTest {
     }
 
     @Test
-    @DisplayName("처리 사용자가 없으면 VALIDATION_ERROR를 던진다")
-    void complete_userRequired() {
-        assertError(() -> inboundCompleteService.completeInbound(7L, null), ErrorCode.VALIDATION_ERROR.name());
-        verifyNoInteractions(inboundRepository, purchaseOrderRepository, inboundStockPort);
-    }
-
-    @Test
     @DisplayName("없는 입고를 완료하면 INBOUND_NOT_FOUND를 던진다")
     void complete_inboundNotFound() {
         when(inboundRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
 
-        assertError(() -> inboundCompleteService.completeInbound(999L, USER),
+        assertError(() -> inboundCompleteService.completeInbound(999L, ACTOR),
                 InboundErrorCode.INBOUND_NOT_FOUND.name());
     }
 
@@ -313,7 +310,7 @@ class InboundCompleteServiceTest {
                 InboundStatus.ARRIVED, InboundStatus.COMPLETED, InboundStatus.CANCELED)) {
             when(inboundRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(inbound(status)));
 
-            assertError(() -> inboundCompleteService.completeInbound(7L, USER), ErrorCode.CONFLICT.name());
+            assertError(() -> inboundCompleteService.completeInbound(7L, ACTOR), ErrorCode.CONFLICT.name());
         }
         verifyNoInteractions(inboundStockPort, purchaseOrderRepository);
         verify(inboundRepository, never()).save(any(Inbound.class));
@@ -324,7 +321,7 @@ class InboundCompleteServiceTest {
     void complete_noLines() {
         givenInspectingInbound();
 
-        assertError(() -> inboundCompleteService.completeInbound(7L, USER),
+        assertError(() -> inboundCompleteService.completeInbound(7L, ACTOR),
                 InboundErrorCode.INBOUND_HAS_NO_LINES.name());
         verifyNoInteractions(inboundStockPort, purchaseOrderRepository);
     }
@@ -334,13 +331,13 @@ class InboundCompleteServiceTest {
     void complete_sectionNotAssigned() {
         givenInspectingInbound(inboundLine(21L, 11L, 31L, 58, 2, 2L, null));
 
-        assertError(() -> inboundCompleteService.completeInbound(7L, USER),
+        assertError(() -> inboundCompleteService.completeInbound(7L, ACTOR),
                 InboundErrorCode.SECTION_NOT_ASSIGNED.name());
         verifyNoInteractions(inboundStockPort, purchaseOrderRepository);
 
         givenInspectingInbound(inboundLine(21L, 11L, 31L, 58, 2, null, 9L));
 
-        assertError(() -> inboundCompleteService.completeInbound(7L, USER),
+        assertError(() -> inboundCompleteService.completeInbound(7L, ACTOR),
                 InboundErrorCode.SECTION_NOT_ASSIGNED.name());
         verifyNoInteractions(inboundStockPort, purchaseOrderRepository);
     }
@@ -351,7 +348,7 @@ class InboundCompleteServiceTest {
         givenInspectingInbound(inboundLine(21L, 11L, 31L, 58, 2, 2L, 9L));
         when(purchaseOrderRepository.findByIdForUpdate(4L)).thenReturn(Optional.empty());
 
-        assertError(() -> inboundCompleteService.completeInbound(7L, USER),
+        assertError(() -> inboundCompleteService.completeInbound(7L, ACTOR),
                 PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND.name());
         verifyNoInteractions(inboundStockPort);
     }
@@ -363,7 +360,7 @@ class InboundCompleteServiceTest {
         when(purchaseOrderRepository.findByIdForUpdate(4L))
                 .thenReturn(Optional.of(purchaseOrder(PurchaseOrderStatus.CANCELED)));
 
-        assertError(() -> inboundCompleteService.completeInbound(7L, USER), ErrorCode.CONFLICT.name());
+        assertError(() -> inboundCompleteService.completeInbound(7L, ACTOR), ErrorCode.CONFLICT.name());
         verifyNoInteractions(inboundStockPort);
     }
 
@@ -376,7 +373,7 @@ class InboundCompleteServiceTest {
         when(inboundStockPort.receive(anyLong(), anyLong(), anyList())).thenReturn(List.of(
                 new ReceivedStock(2L, 31L, false, 101L), new ReceivedStock(9L, 31L, true, 105L)));
 
-        assertError(() -> inboundCompleteService.completeInbound(7L, USER), ErrorCode.CONFLICT.name());
+        assertError(() -> inboundCompleteService.completeInbound(7L, ACTOR), ErrorCode.CONFLICT.name());
         verify(purchaseOrderRepository, never()).saveLines(anyList());
         verify(inboundRepository, never()).save(any(Inbound.class));
     }
@@ -390,10 +387,21 @@ class InboundCompleteServiceTest {
         when(inboundStockPort.receive(anyLong(), anyLong(), anyList()))
                 .thenThrow(new BusinessException(InventoryErrorCode.LOT_NOT_AVAILABLE));
 
-        assertError(() -> inboundCompleteService.completeInbound(7L, USER),
+        assertError(() -> inboundCompleteService.completeInbound(7L, ACTOR),
                 InventoryErrorCode.LOT_NOT_AVAILABLE.name());
         verify(purchaseOrderRepository, never()).saveLines(anyList());
         verify(purchaseOrderRepository, never()).save(any(PurchaseOrder.class));
         verify(inboundRepository, never()).save(any(Inbound.class));
+    }
+
+
+    @Test
+    @DisplayName("입고 완료는 입고 창고가 담당 창고가 아니면 403이고 재고에 반영하지 않는다")
+    void complete_otherWarehouse_forbidden() {
+        AuthenticatedUser other = new AuthenticatedUser(6L, UserRole.WAREHOUSE_MANAGER, List.of(9L), List.of());
+        when(inboundRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(inbound(InboundStatus.INSPECTING)));
+
+        assertError(() -> inboundCompleteService.completeInbound(7L, other), ErrorCode.FORBIDDEN.name());
+        verifyNoInteractions(inboundStockPort);
     }
 }

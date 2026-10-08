@@ -15,7 +15,7 @@
 - 확정 필요(미결): 공급처 재활성화 방법, 같은 공급처 중복 발주 허용 범위, 확정 단계에서 항목 조정 가능 여부, 취소 발주의 항목 상태 처리, `REQUESTED` 발주 반려는 MVP 이후. 발주 번호는 `PO-yyyyMMdd-NNNN`으로 구현했다.
 - **입고** 구현 대비 차이 (2026-10-02 이전 시점):
   - 입고 목록·구역 후보 조회는 `page`·`size`·`sort`와 `pageInfo`를 지원하지 않고 `data.items` 전체를 돌려준다(페이지네이션 보류). 구역 후보 응답의 가용 용량 필드명은 `availableCapacity`다(Notion의 `requiredQuantity` 설명에 적힌 `availableQuantity`와 다름).
-  - 인증·인가가 없어 401/403과 역할·소속 창고 검사를 적용하지 않는다. 검수·완료의 처리 사용자는 쿼리 파라미터 `userId`(필수)로 받는다. 인증 연동 시 토큰의 사용자로 대체한다.
+  - 인증·인가는 #170에서 적용했다. 처리 사용자(등록·확정·취소·검수·완료)는 토큰 주체이며 `userId` 쿼리 파라미터는 받지 않는다. 역할은 보안 설정이, 담당 창고 범위와 발주 취소 권한(요청 발주는 작성자 창고 관리자만, 확정 발주는 본사만)은 서비스가 검사한다. 창고 관리자는 비활성 공급처가 목록에서 빠지고 단건 조회는 404 `SUPPLIER_NOT_FOUND`다.
   - 404는 도메인 코드를 쓴다: `INBOUND_NOT_FOUND`(입고), `PURCHASE_ORDER_NOT_FOUND`(발주), `SECTION_NOT_FOUND`(구역). 발주 항목이 없을 때만 일반 `NOT_FOUND`다.
   - 목록 필터의 존재하지 않는 값(발주 목록의 `warehouseId`·`supplierId`, 입고 목록의 `warehouseId`·`purchaseOrderId`)은 404가 아니라 빈 목록을 돌려준다(보류). 공급처 목록에는 대상 ID 필터가 없다.
   - 응답의 `receivedByName`(단건)은 처리자(`receivedBy`)의 이름이다. 사용자 테이블을 ID로 조인해 채우며, 검수 전·취소처럼 처리자가 없으면 `null`이다. 발주의 `createdByName`(목록·단건)도 같은 방식이다. 입고 취소 사유(필수, 500자 이하)는 `StatusHistory`(`entity_type` `INBOUND`)에 저장하고, 입고 단건 응답과 취소 응답의 `cancelReason`은 이 이력에서 읽는다.
@@ -138,7 +138,7 @@
 
 - 입고 `status`: `ARRIVED`(도착) → `INSPECTING`(검수 중) → `COMPLETED`(입고 완료, 재고 반영). `ARRIVED`·`INSPECTING` → `CANCELED`. 완료 후 취소·정정 API는 없고 재고 조정으로 처리한다. 입고의 `COMPLETED`는 업무 완료를 뜻하며 재고 품질 상태(`AVAILABLE`/`DEFECTIVE`)와 다르다.
 - 입고 흐름: 도착 등록(`POST`) → 검수(`inspect`, 재호출로 검수 항목 교체, 재고 미반영) → 완료(`complete`, 재고·발주 반영). 하나의 발주에 부분 입고가 여러 번 걸칠 수 있고, 같은 발주에는 완료되지 않은 입고를 한 번에 하나만 둘 수 있다.
-- 데이터 범위(인증 연동 후): HQ_ADMIN 전체, WAREHOUSE_MANAGER는 본인이 배정된 창고(`WarehouseMember`)의 입고만(타 창고는 403).
+- 데이터 범위: HQ_ADMIN 전체, WAREHOUSE_MANAGER는 본인이 배정된 창고(`WarehouseMember`)의 입고만(타 창고는 403).
 - 입고 대상 창고는 발주의 창고를 따른다(요청으로 받지 않음).
 - 불량 구역은 구역 유형 `DEFECT`로 구분한다. 합격품은 `DEFECT`가 아닌 구역에, 불량품은 `DEFECT` 구역에만 둘 수 있다.
 
@@ -181,7 +181,7 @@
 ### PATCH /inbounds/{inboundId}/inspect (P1)
 
 - 권한: WAREHOUSE_MANAGER, 본인 담당 창고만.
-- Query: `userId`(필수, 처리 사용자. 인증 연동 전 임시)
+- 처리 사용자는 토큰 주체다(`userId` 쿼리 파라미터 없음).
 - Body: `lines[]`(1개 이상, 이번 입고의 검수 항목 **전체**. 호출할 때마다 저장된 항목을 통째로 교체)
   - `purchaseOrderLineId`(필수, 이 입고의 발주에 속한 항목), `lotNumber`(필수, ≤100), `manufacturedDate`(선택, `YYYY-MM-DD`), `expiryDate`(선택, 제조일 이후)
   - `receivedQuantity`(필수, >0 정수), `acceptedQuantity`(≥0), `defectiveQuantity`(≥0). `accepted + defective = received`
@@ -201,9 +201,9 @@
 ### PATCH /inbounds/{inboundId}/complete (P1)
 
 - 권한: WAREHOUSE_MANAGER, 본인 담당 창고만. `INSPECTING`에서만 호출할 수 있다.
-- Query: `userId`(필수, 처리 사용자. 인증 연동 전 임시). Body 없음.
+- 처리 사용자는 토큰 주체다(`userId` 쿼리 파라미터 없음). Body 없음.
 - 200. 응답: `inboundId, inboundNo, status=COMPLETED, receivedAt, receivedBy, inventory[]`(`inboundLineId, acceptedInventoryLotId, acceptedQuantity, defectiveInventoryLotId, defectiveQuantity`), `purchaseOrder`(`purchaseOrderId, status`), `purchaseOrderLines[]`(`purchaseOrderLineId, expectedQuantity, receivedQuantity, status`)
-- 에러: 400(`inboundId`·`userId` 형식·누락), 403, `INBOUND_NOT_FOUND` 404, `PURCHASE_ORDER_NOT_FOUND` 404
+- 에러: 400(`inboundId` 형식), 403, `INBOUND_NOT_FOUND` 404, `PURCHASE_ORDER_NOT_FOUND` 404
   - 409 `CONFLICT`(입고가 `INSPECTING`이 아님: 이미 완료·취소·검수 전, 발주가 `CONFIRMED`가 아님, 항목별 입고 수량이 발주 잔여 수량 초과, 재고 상태가 기존 행과 달라 충돌), 409 `INBOUND_HAS_NO_LINES`(저장된 검수 항목 없음), 409 `SECTION_NOT_ASSIGNED`(합격 수량이 있는데 합격 구역이, 불량 수량이 있는데 불량 구역이 없음), 409 `SECTION_CAPACITY_EXCEEDED`(적치하면 구역 수용량 초과), 409 `SECTION_INACTIVE`(검수 이후 적치 구역이 비활성이 됨), 409 `WAREHOUSE_INACTIVE`(적치 구역의 창고가 비활성), 409 `LOT_NOT_AVAILABLE`(검수 이후 로트가 `AVAILABLE`이 아님), 409 `SKU_NOT_ACTIVE`(비활성 SKU). `SECTION_CAPACITY_EXCEEDED`·`SECTION_INACTIVE`·`WAREHOUSE_INACTIVE`는 창고 도메인의 `WarehouseErrorCode`로, 일반 `CONFLICT`가 아니다.
 - 규칙(한 트랜잭션, 하나라도 실패하면 아무것도 반영하지 않음):
   - 검수 항목마다 합격 수량은 합격 구역의 `InventoryLot`(구역 + 로트, `UNIQUE(section_id, lot_id)`, `AVAILABLE`)에, 불량 수량은 불량 구역의 `InventoryLot`(`DEFECTIVE`)에 `on_hand_quantity`를 더한다(없으면 생성). 구역 `current_capacity`를 반영 수량만큼 늘리고, 반영한 행마다 `InventoryTransaction`(`INBOUND`, `reference_id`=입고 ID, +수량)을 남긴다. 재고 처리는 재고 도메인의 `receive`를 재사용한다.
