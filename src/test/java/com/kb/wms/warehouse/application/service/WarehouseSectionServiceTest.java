@@ -19,6 +19,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.kb.wms.common.security.AuthenticatedUser;
+import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionRegisterCommand;
@@ -406,5 +408,42 @@ class WarehouseSectionServiceTest {
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(WarehouseErrorCode.SECTION_HAS_CHILDREN.name());
         verify(warehouseSectionRepository, never()).save(any());
+    }
+
+
+    private final AuthenticatedUser manager =
+            new AuthenticatedUser(2L, UserRole.WAREHOUSE_MANAGER, List.of(1L), List.of());
+    private final AuthenticatedUser hqAdmin = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
+
+    @Test
+    @DisplayName("구역 단건은 구역이 속한 창고가 담당 창고일 때만 창고 관리자에게 보인다")
+    void getSection_withActor_checksOwningWarehouse() {
+        WarehouseSection mine = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.TEN);
+        WarehouseSection other = WarehouseSection.register(2L, null, "B-01", "2구역", "ZONE", BigDecimal.TEN);
+        when(warehouseSectionRepository.findById(10L)).thenReturn(Optional.of(mine));
+        when(warehouseSectionRepository.findById(20L)).thenReturn(Optional.of(other));
+
+        assertThat(warehouseSectionService.getSection(10L, manager)).isSameAs(mine);
+        assertThat(warehouseSectionService.getSection(20L, hqAdmin)).isSameAs(other);
+        assertThatThrownBy(() -> warehouseSectionService.getSection(20L, manager))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("구역 목록은 지정한 창고가 담당 창고일 때만 창고 관리자에게 보이고, 창고를 지정하지 않으면 본사만 가능하다")
+    void getSections_withActor_checksWarehouse() {
+        WarehouseSectionSearchCondition mine = new WarehouseSectionSearchCondition(1L, null, null, null, null);
+        when(warehouseRepository.existsById(1L)).thenReturn(true);
+        when(warehouseSectionRepository.search(mine)).thenReturn(List.of());
+
+        assertThat(warehouseSectionService.getSections(mine, manager)).isEmpty();
+        assertThatThrownBy(() -> warehouseSectionService.getSections(new WarehouseSectionSearchCondition(2L, null, null, null, null), manager))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        assertThatThrownBy(() -> warehouseSectionService.getSections(new WarehouseSectionSearchCondition(null, null, null, null, null), manager))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        verify(warehouseSectionRepository, never()).search(new WarehouseSectionSearchCondition(2L, null, null, null, null));
     }
 }

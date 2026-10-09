@@ -21,6 +21,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.inventory.adapter.out.persistence.repository.InventoryLotJpaRepository;
 import com.kb.wms.outbound.application.port.in.OutboundUseCase;
@@ -46,6 +48,12 @@ import com.kb.wms.outbound.support.OutboundTestFixture.Scenario;
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class OutboundConcurrencyTest {
 
+    private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
+
+    private static AuthenticatedUser hq(long userId) {
+        return new AuthenticatedUser(userId, UserRole.HQ_ADMIN, List.of(), List.of());
+    }
+
     private static final Long USER = 9L;
 
     @Autowired OutboundTestFixture fixture;
@@ -67,7 +75,7 @@ class OutboundConcurrencyTest {
 
         List<Throwable> results = runConcurrently(IntStream.range(0, 5)
                 .<Callable<Void>>mapToObj(i -> () -> {
-                    allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER));
+                    allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER), HQ);
                     return null;
                 }).toList());
 
@@ -85,11 +93,11 @@ class OutboundConcurrencyTest {
 
         List<Throwable> results = runConcurrently(List.of(
                 () -> {
-                    allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER));
+                    allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER), HQ);
                     return null;
                 },
                 () -> {
-                    allocationUseCase.allocate(new StockAllocateCommand(other, USER));
+                    allocationUseCase.allocate(new StockAllocateCommand(other, USER), HQ);
                     return null;
                 }));
 
@@ -102,25 +110,25 @@ class OutboundConcurrencyTest {
     @DisplayName("같은 READY 출고의 동시 취소·피킹 시작은 한쪽만 성공하고 최종 상태가 그 결과와 일치한다")
     void concurrentCancelAndStartPicking() throws Exception {
         Scenario s = fixture.create(50, 10);
-        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER));
-        Long outboundId = outboundUseCase.createOutbound(new OutboundCreateCommand(s.orderId(), null, USER))
+        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER), HQ);
+        Long outboundId = outboundUseCase.createOutbound(new OutboundCreateCommand(s.orderId(), null, USER), HQ)
                 .view().outboundId();
 
         List<Throwable> results = runConcurrently(List.of(
                 () -> {
-                    outboundUseCase.cancel(new OutboundCancelCommand(outboundId, "취소", USER));
+                    outboundUseCase.cancel(new OutboundCancelCommand(outboundId, "취소", USER), HQ);
                     return null;
                 },
                 () -> {
-                    outboundUseCase.startPicking(outboundId, USER);
+                    outboundUseCase.startPicking(outboundId, hq(USER));
                     return null;
                 },
                 () -> {
-                    outboundUseCase.cancel(new OutboundCancelCommand(outboundId, "취소", USER));
+                    outboundUseCase.cancel(new OutboundCancelCommand(outboundId, "취소", USER), HQ);
                     return null;
                 },
                 () -> {
-                    outboundUseCase.startPicking(outboundId, USER);
+                    outboundUseCase.startPicking(outboundId, hq(USER));
                     return null;
                 }));
 
@@ -135,11 +143,11 @@ class OutboundConcurrencyTest {
     @DisplayName("같은 발주의 출고를 동시에 만들면 한 번만 만들어지고 같은 할당이 두 출고에 묶이지 않는다")
     void concurrentCreateOutbound() throws Exception {
         Scenario s = fixture.create(50, 10);
-        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER));
+        allocationUseCase.allocate(new StockAllocateCommand(s.orderId(), USER), HQ);
 
         List<Throwable> results = runConcurrently(IntStream.range(0, 4)
                 .<Callable<Void>>mapToObj(i -> () -> {
-                    outboundUseCase.createOutbound(new OutboundCreateCommand(s.orderId(), null, USER));
+                    outboundUseCase.createOutbound(new OutboundCreateCommand(s.orderId(), null, USER), HQ);
                     return null;
                 }).toList());
 

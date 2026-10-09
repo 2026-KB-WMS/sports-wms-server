@@ -10,7 +10,7 @@ import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
 
 /**
  * GET /api/v1/orders/{orderId} (발주 헤더 단건) 응답.
- * 작성자 이름(createdByName)은 회원 도메인이 없어 null로 내려주고, 회원 도메인 연동 후 채운다.
+ * 작성자 이름(createdByName)은 작성자(createdBy)의 이름이다.
  */
 public record StoreOrderResponse(
         Long storeOrderId,
@@ -51,7 +51,7 @@ public record StoreOrderResponse(
                 view.lineCount(),
                 view.totalAmount(),
                 view.createdBy(),
-                null,
+                view.createdByName(),
                 view.createdAt(),
                 view.updatedAt());
     }

@@ -1,5 +1,9 @@
 package com.kb.wms.outbound.adapter.in.web;
 
+import static com.kb.wms.common.security.TestAuth.as;
+import static com.kb.wms.common.security.TestAuth.signInAsHqAdmin;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -15,6 +19,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -24,7 +29,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.outbound.application.port.in.StockAllocationUseCase;
 import com.kb.wms.outbound.application.port.in.command.StockAllocateCommand;
@@ -47,6 +54,16 @@ class AllocationControllerTest {
     @Autowired MockMvc mockMvc;
     @MockitoBean StockAllocationUseCase useCase;
 
+    @BeforeEach
+    void signIn() {
+        signInAsHqAdmin();
+    }
+
+    /** 처리 사용자 ID만 지정한 요청 주체. 서비스는 목이라 역할·범위 검사는 서비스 테스트에서 확인한다. */
+    private static RequestPostProcessor user(long userId) {
+        return as(UserRole.HQ_ADMIN, userId, java.util.List.of(), java.util.List.of());
+    }
+
     private StockAllocationSummary summary() {
         return new StockAllocationSummary(500L, 3L, "SO-20261005-0001", 31L, 2L, 5L, "SKU-A", "상품 A", 900L, 9L,
                 "LOT-A", LocalDate.of(2026, 12, 31), 4L, "A-01", 3L, 0L, AllocationStatus.ALLOCATED, NOW, null);
@@ -55,10 +72,10 @@ class AllocationControllerTest {
     @Test
     @DisplayName("할당 생성은 201과 items를 반환하고 userId를 넘긴다")
     void allocate() throws Exception {
-        when(useCase.allocate(any(StockAllocateCommand.class)))
+        when(useCase.allocate(any(StockAllocateCommand.class), any()))
                 .thenReturn(new StockAllocateResult(3L, "SO-20261005-0001", List.of(summary())));
 
-        mockMvc.perform(post("/api/v1/allocations").param("userId", "9")
+        mockMvc.perform(post("/api/v1/allocations").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON).content("{ \"storeOrderId\": 3 }"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.orderNo").value("SO-20261005-0001"))
@@ -67,7 +84,7 @@ class AllocationControllerTest {
                 .andExpect(jsonPath("$.data.items[0].releasedAt").doesNotExist());
 
         ArgumentCaptor<StockAllocateCommand> captor = ArgumentCaptor.forClass(StockAllocateCommand.class);
-        verify(useCase).allocate(captor.capture());
+        verify(useCase).allocate(captor.capture(), any());
         assertThat(captor.getValue().storeOrderId()).isEqualTo(3L);
         assertThat(captor.getValue().userId()).isEqualTo(9L);
     }
@@ -75,15 +92,15 @@ class AllocationControllerTest {
     @Test
     @DisplayName("할당 생성 발주 ID 누락은 400, 재고 부족은 409 INSUFFICIENT_STOCK")
     void allocateErrors() throws Exception {
-        mockMvc.perform(post("/api/v1/allocations").param("userId", "9")
+        mockMvc.perform(post("/api/v1/allocations").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON).content("{ }"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
         verifyNoInteractions(useCase);
 
-        when(useCase.allocate(any(StockAllocateCommand.class)))
+        when(useCase.allocate(any(StockAllocateCommand.class), any()))
                 .thenThrow(new BusinessException(OutboundErrorCode.INSUFFICIENT_STOCK));
-        mockMvc.perform(post("/api/v1/allocations").param("userId", "9")
+        mockMvc.perform(post("/api/v1/allocations").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON).content("{ \"storeOrderId\": 3 }"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("INSUFFICIENT_STOCK"));
@@ -92,7 +109,7 @@ class AllocationControllerTest {
     @Test
     @DisplayName("목록은 data.items와 필터를 전달하고 잘못된 status는 400")
     void list() throws Exception {
-        when(useCase.searchAllocations(any(StockAllocationSearchCondition.class))).thenReturn(List.of(summary()));
+        when(useCase.searchAllocations(any(StockAllocationSearchCondition.class), any())).thenReturn(List.of(summary()));
 
         mockMvc.perform(get("/api/v1/allocations").param("storeOrderId", "3").param("status", "ALLOCATED")
                         .param("keyword", "LOT"))
@@ -101,7 +118,7 @@ class AllocationControllerTest {
 
         ArgumentCaptor<StockAllocationSearchCondition> captor =
                 ArgumentCaptor.forClass(StockAllocationSearchCondition.class);
-        verify(useCase).searchAllocations(captor.capture());
+        verify(useCase).searchAllocations(captor.capture(), any());
         assertThat(captor.getValue().storeOrderId()).isEqualTo(3L);
         assertThat(captor.getValue().status()).isEqualTo(AllocationStatus.ALLOCATED);
         assertThat(captor.getValue().keyword()).isEqualTo("LOT");
@@ -112,18 +129,18 @@ class AllocationControllerTest {
     }
 
     @Test
-    @DisplayName("상세는 outboundId를 담고 allocatedByName은 null, 없는 할당은 404")
+    @DisplayName("상세는 outboundId와 allocatedByName을 담고, 없는 할당은 404")
     void detail() throws Exception {
         StockAllocationView view = new StockAllocationView(500L, AllocationStatus.ALLOCATED, 3L, 0L, NOW, 9L,
-                null, 3L, "SO-20261005-0001", 1L, "강남점", 2L, 31L, 5L, 5L, "SKU-A", "상품 A", 900L, 9L, "LOT-A",
+                "김작성", null, 3L, "SO-20261005-0001", 1L, "강남점", 2L, 31L, 5L, 5L, "SKU-A", "상품 A", 900L, 9L, "LOT-A",
                 LocalDate.of(2026, 12, 31), 4L, "A-01", "A-01 구역");
-        when(useCase.getAllocation(500L)).thenReturn(new StockAllocationDetail(view, 7L));
-        when(useCase.getAllocation(999L)).thenThrow(new BusinessException(OutboundErrorCode.ALLOCATION_NOT_FOUND));
+        when(useCase.getAllocation(eq(500L), any())).thenReturn(new StockAllocationDetail(view, 7L));
+        when(useCase.getAllocation(eq(999L), any())).thenThrow(new BusinessException(OutboundErrorCode.ALLOCATION_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/allocations/500"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.outboundId").value(7))
-                .andExpect(jsonPath("$.data.allocatedByName").doesNotExist())
+                .andExpect(jsonPath("$.data.allocatedByName").value("김작성"))
                 .andExpect(jsonPath("$.data.storeName").value("강남점"));
         mockMvc.perform(get("/api/v1/allocations/999"))
                 .andExpect(status().isNotFound())
@@ -133,20 +150,20 @@ class AllocationControllerTest {
     @Test
     @DisplayName("해제는 사유를 넘기고 inventory를 반환, 사유 누락은 400, 출고 연결은 409")
     void release() throws Exception {
-        when(useCase.release(new StockAllocationReleaseCommand(500L, "사유", 9L))).thenReturn(
+        when(useCase.release(eq(new StockAllocationReleaseCommand(500L, "사유", 9L)), any())).thenReturn(
                 new StockAllocationReleaseResult(500L, AllocationStatus.RELEASED, 3L, NOW, 900L, 50L, 0L, 50L));
-        when(useCase.release(new StockAllocationReleaseCommand(501L, "사유", 9L)))
+        when(useCase.release(eq(new StockAllocationReleaseCommand(501L, "사유", 9L)), any()))
                 .thenThrow(new BusinessException(OutboundErrorCode.ALLOCATION_IN_OUTBOUND));
 
-        mockMvc.perform(patch("/api/v1/allocations/500/release").param("userId", "9")
+        mockMvc.perform(patch("/api/v1/allocations/500/release").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON).content("{ \"reason\": \"사유\" }"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("RELEASED"))
                 .andExpect(jsonPath("$.data.inventory.availableQuantity").value(50));
-        mockMvc.perform(patch("/api/v1/allocations/500/release").param("userId", "9")
+        mockMvc.perform(patch("/api/v1/allocations/500/release").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON).content("{ }"))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(patch("/api/v1/allocations/501/release").param("userId", "9")
+        mockMvc.perform(patch("/api/v1/allocations/501/release").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON).content("{ \"reason\": \"사유\" }"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("ALLOCATION_IN_OUTBOUND"));

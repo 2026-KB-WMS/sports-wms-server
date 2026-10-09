@@ -1,5 +1,10 @@
 package com.kb.wms.inbound.adapter.out.persistence;
 
+import com.kb.wms.auth.application.port.out.UserRepository;
+import com.kb.wms.auth.domain.entity.User;
+import com.kb.wms.auth.domain.enums.UserRole;
+import jakarta.persistence.EntityManager;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -50,6 +55,8 @@ import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class PurchaseOrderPersistenceAdapterTest {
 
+    @Autowired UserRepository userRepository;
+    @Autowired EntityManager entityManager;
     @Autowired PurchaseOrderRepository purchaseOrderRepository;
     @Autowired PurchaseOrderQueryRepository queryRepository;
     @Autowired SupplierRepository supplierRepository;
@@ -208,6 +215,19 @@ class PurchaseOrderPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("창고 범위(담당 창고 목록)로 좁히고, 빈 목록이면 비어 있다")
+    void search_byWarehouseScope() {
+        assertThat(queryRepository.search(new PurchaseOrderSearchCondition(
+                null, null, null, null, null, null, List.of(seoul))))
+                .extracting(PurchaseOrderSummary::purchaseOrderId).containsExactlyInAnyOrder(po1, po3);
+        assertThat(queryRepository.search(new PurchaseOrderSearchCondition(
+                null, null, null, null, null, null, List.of(seoul, busan)))).hasSize(
+                queryRepository.search(condition(null, null, null, null, null, null)).size());
+        assertThat(queryRepository.search(new PurchaseOrderSearchCondition(
+                null, null, null, null, null, null, List.of()))).isEmpty();
+    }
+
+    @Test
     @DisplayName("창고·공급처로 필터링한다")
     void search_byWarehouseAndSupplier() {
         assertThat(queryRepository.search(condition(null, seoul, null, null, null, null)))
@@ -313,7 +333,7 @@ class PurchaseOrderPersistenceAdapterTest {
 
     private PurchaseOrderSearchCondition condition(PurchaseOrderStatus status, Long warehouseId, Long supplierId,
                                                    String keyword, LocalDateTime from, LocalDateTime to) {
-        return new PurchaseOrderSearchCondition(status, warehouseId, supplierId, keyword, from, to);
+        return PurchaseOrderSearchCondition.unscoped(status, warehouseId, supplierId, keyword, from, to);
     }
 
     private PurchaseOrderSummary byId(List<PurchaseOrderSummary> list, Long id) {
@@ -360,5 +380,28 @@ class PurchaseOrderPersistenceAdapterTest {
                 .toList();
         purchaseOrderRepository.saveLines(withId);
         return id;
+    }
+
+    @Test
+    @DisplayName("작성자 이름을 사용자 테이블 조인으로 상세·목록에 담고, 사용자가 없으면 이름만 null이다")
+    void createdByName() {
+        User writer = userRepository.save(User.signUp("po_writer", "hashed", "김작성", "po_writer@example.com",
+                "010-1234-5678", UserRole.WAREHOUSE_MANAGER));
+        entityManager.createQuery(
+                        "update PurchaseOrderJpaEntity po set po.createdBy = :userId where po.purchaseOrderId = :id")
+                .setParameter("userId", writer.getUserId()).setParameter("id", po1).executeUpdate();
+        // 방금 만든 사용자와 절대 겹치지 않는 존재하지 않는 사용자 ID
+        long nobody = writer.getUserId() + 1_000_000L;
+        entityManager.createQuery(
+                        "update PurchaseOrderJpaEntity po set po.createdBy = :userId where po.purchaseOrderId = :id")
+                .setParameter("userId", nobody).setParameter("id", po2).executeUpdate();
+        entityManager.clear();
+
+        assertThat(queryRepository.findView(po1).orElseThrow().createdByName()).isEqualTo("김작성");
+        List<PurchaseOrderSummary> result = queryRepository.search(condition(null, null, null, null, null, null));
+        assertThat(byId(result, po1).createdByName()).isEqualTo("김작성");
+        assertThat(byId(result, po2).createdBy()).isEqualTo(nobody);
+        assertThat(byId(result, po2).createdByName()).isNull();
+        assertThat(queryRepository.findView(po2).orElseThrow().createdByName()).isNull();
     }
 }

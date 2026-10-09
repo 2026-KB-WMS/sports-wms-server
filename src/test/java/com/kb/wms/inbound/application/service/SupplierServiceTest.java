@@ -17,6 +17,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inbound.application.port.in.command.SupplierRegisterCommand;
@@ -29,6 +31,8 @@ import com.kb.wms.inbound.exception.SupplierErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class SupplierServiceTest {
+
+    private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
 
     @Mock
     private SupplierRepository supplierRepository;
@@ -78,7 +82,7 @@ class SupplierServiceTest {
         SupplierSearchCondition condition = new SupplierSearchCondition("공급", true);
         when(supplierRepository.search(condition)).thenReturn(List.of(newSupplier()));
 
-        List<Supplier> result = supplierService.getSuppliers(condition);
+        List<Supplier> result = supplierService.getSuppliers(condition, HQ);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getSupplierCode()).isEqualTo("SUP-001");
@@ -89,7 +93,7 @@ class SupplierServiceTest {
     void getSupplier_success() {
         when(supplierRepository.findById(1L)).thenReturn(Optional.of(newSupplier()));
 
-        Supplier result = supplierService.getSupplier(1L);
+        Supplier result = supplierService.getSupplier(1L, HQ);
 
         assertThat(result.getSupplierCode()).isEqualTo("SUP-001");
     }
@@ -99,7 +103,7 @@ class SupplierServiceTest {
     void getSupplier_notFound() {
         when(supplierRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> supplierService.getSupplier(999L))
+        assertThatThrownBy(() -> supplierService.getSupplier(999L, HQ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(SupplierErrorCode.SUPPLIER_NOT_FOUND.name());
@@ -254,5 +258,33 @@ class SupplierServiceTest {
                 .isEqualTo(SupplierErrorCode.SUPPLIER_IN_USE.name());
         assertThat(active.isActive()).isTrue();
         verify(supplierRepository, never()).save(any());
+    }
+
+
+    private static final AuthenticatedUser MANAGER =
+            new AuthenticatedUser(5L, UserRole.WAREHOUSE_MANAGER, List.of(1L), List.of());
+
+    @Test
+    @DisplayName("창고 관리자는 isActive 필터와 상관없이 활성 공급처만 조회한다. 본사는 그대로 조회한다")
+    void getSuppliers_warehouseManager_onlyActive() {
+        when(supplierRepository.search(new SupplierSearchCondition("공급", true))).thenReturn(List.of());
+        when(supplierRepository.search(new SupplierSearchCondition("공급", false))).thenReturn(List.of(newSupplier()));
+
+        assertThat(supplierService.getSuppliers(new SupplierSearchCondition("공급", false), MANAGER)).isEmpty();
+        assertThat(supplierService.getSuppliers(new SupplierSearchCondition("공급", false), HQ)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("비활성 공급처 단건은 창고 관리자에게 404이고 본사에는 보인다")
+    void getSupplier_inactive_hiddenFromWarehouseManager() {
+        Supplier inactive = newSupplier();
+        inactive.deactivate();
+        when(supplierRepository.findById(1L)).thenReturn(Optional.of(inactive));
+
+        assertThatThrownBy(() -> supplierService.getSupplier(1L, MANAGER))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(SupplierErrorCode.SUPPLIER_NOT_FOUND.name());
+        assertThat(supplierService.getSupplier(1L, HQ)).isSameAs(inactive);
     }
 }

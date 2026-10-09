@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.warehouse.application.port.in.WarehouseSectionUseCase;
@@ -77,6 +78,24 @@ public class WarehouseSectionService implements WarehouseSectionUseCase {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "허용되지 않은 구역 유형입니다.");
         }
         return warehouseSectionRepository.search(condition);
+    }
+
+    @Override
+    public List<WarehouseSection> getSections(WarehouseSectionSearchCondition condition,
+                                              AuthenticatedUser actor) {
+        if (condition.warehouseId() != null) {
+            actor.requireWarehouseAccess(condition.warehouseId());
+        } else if (!actor.isHqAdmin()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        return getSections(condition);
+    }
+
+    @Override
+    public WarehouseSection getSection(Long sectionId, AuthenticatedUser actor) {
+        WarehouseSection section = getSection(sectionId);
+        actor.requireWarehouseAccess(section.getWarehouseId());
+        return section;
     }
 
     @Override

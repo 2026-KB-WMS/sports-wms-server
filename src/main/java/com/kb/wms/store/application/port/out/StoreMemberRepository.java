@@ -3,6 +3,7 @@ package com.kb.wms.store.application.port.out;
 import java.util.List;
 import java.util.Optional;
 
+import com.kb.wms.store.application.port.in.result.StoreMemberView;
 import com.kb.wms.store.domain.entity.StoreMember;
 
 /**
@@ -15,9 +16,10 @@ public interface StoreMemberRepository {
     Optional<StoreMember> findById(Long storeMemberId);
 
     /**
-     * storeId·userId가 null이면 해당 조건을 무시하고 조회한다. 배정 일시 내림차순.
+     * 사용자의 이름·로그인 아이디를 붙여 조회한다. 조건이 null이면 무시하고, keyword는 이름·로그인 아이디
+     * 부분 일치(대소문자 무시)다. 배정 일시 내림차순.
      */
-    List<StoreMember> findAll(Long storeId, Long userId);
+    List<StoreMemberView> search(Long storeId, Long userId, String keyword);
 
     /** 사용자가 배정된 지점 소속 목록. 배정 일시 내림차순. */
     List<StoreMember> findByUserId(Long userId);

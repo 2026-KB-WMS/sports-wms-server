@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inventory.application.port.in.InventoryQueryUseCase;
@@ -37,34 +38,45 @@ public class InventoryQueryService implements InventoryQueryUseCase {
     private final LotRepository lotRepository;
 
     @Override
-    public List<InventorySkuSummary> getInventories(InventorySearchCondition condition) {
+    public List<InventorySkuSummary> getInventories(InventorySearchCondition condition, AuthenticatedUser actor) {
+        List<Long> scope = actor.warehouseScope(condition.warehouseId());
         validateSkuId(condition.skuId());
         validateWarehouseId(condition.warehouseId());
-        return inventoryQueryRepository.findSkuSummaries(condition);
+        return inventoryQueryRepository.findSkuSummaries(new InventorySearchCondition(
+                condition.skuId(), condition.warehouseId(), condition.keyword(), scope));
     }
 
     @Override
-    public List<InventoryLotView> getInventoriesByLot(InventoryLotSearchCondition condition) {
+    public List<InventoryLotView> getInventoriesByLot(InventoryLotSearchCondition condition, AuthenticatedUser actor) {
+        List<Long> scope = scopeOf(actor, condition.warehouseId(), condition.sectionId());
         validateSkuId(condition.skuId());
         validateWarehouseId(condition.warehouseId());
         validateSectionId(condition.sectionId());
-        return inventoryQueryRepository.findLotViews(condition);
+        return inventoryQueryRepository.findLotViews(new InventoryLotSearchCondition(
+                condition.skuId(), condition.warehouseId(), condition.sectionId(), condition.lotId(),
+                condition.expiringBefore(), condition.qualityStatus(), condition.includeEmpty(), scope));
     }
 
     @Override
-    public InventoryDetail getInventory(Long inventoryLotId) {
-        return inventoryQueryRepository.findDetail(inventoryLotId)
+    public InventoryDetail getInventory(Long inventoryLotId, AuthenticatedUser actor) {
+        InventoryDetail detail = inventoryQueryRepository.findDetail(inventoryLotId)
                 .orElseThrow(() -> new BusinessException(InventoryErrorCode.INVENTORY_NOT_FOUND));
+        actor.requireWarehouseAccess(detail.warehouseId());
+        return detail;
     }
 
     @Override
-    public List<LowStockItem> getLowStock(LowStockSearchCondition condition) {
+    public List<LowStockItem> getLowStock(LowStockSearchCondition condition, AuthenticatedUser actor) {
+        List<Long> scope = actor.warehouseScope(condition.warehouseId());
         validateWarehouseId(condition.warehouseId());
-        return inventoryQueryRepository.findLowStock(condition);
+        return inventoryQueryRepository.findLowStock(
+                new LowStockSearchCondition(condition.warehouseId(), condition.keyword(), scope));
     }
 
     @Override
-    public List<InventoryTransactionView> getTransactions(InventoryTransactionSearchCondition condition) {
+    public List<InventoryTransactionView> getTransactions(InventoryTransactionSearchCondition condition,
+                                                          AuthenticatedUser actor) {
+        List<Long> scope = scopeOf(actor, condition.warehouseId(), condition.sectionId());
         validatePeriod(condition);
         if (condition.referenceId() != null && condition.referenceType() == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "referenceId는 referenceType과 함께 지정해야 합니다.");
@@ -73,17 +85,19 @@ public class InventoryQueryService implements InventoryQueryUseCase {
         validateSectionId(condition.sectionId());
         validateSkuId(condition.skuId());
         validateLotId(condition.lotId());
-        return inventoryQueryRepository.findTransactions(condition);
+        return inventoryQueryRepository.findTransactions(new InventoryTransactionSearchCondition(
+                condition.inventoryLotId(), condition.warehouseId(), condition.sectionId(), condition.skuId(),
+                condition.lotId(), condition.transactionType(), condition.referenceType(), condition.referenceId(),
+                condition.createdFrom(), condition.createdTo(), scope));
     }
 
     @Override
     public List<InventoryTransactionView> getTransactionsOf(Long inventoryLotId,
-                                                            InventoryTransactionSearchCondition condition) {
+                                                            InventoryTransactionSearchCondition condition,
+                                                            AuthenticatedUser actor) {
         validatePeriod(condition);
-        if (!inventoryLotRepository.existsById(inventoryLotId)) {
-            throw new BusinessException(InventoryErrorCode.INVENTORY_NOT_FOUND);
-        }
-        return inventoryQueryRepository.findTransactions(new InventoryTransactionSearchCondition(
+        getInventory(inventoryLotId, actor);
+        return inventoryQueryRepository.findTransactions(InventoryTransactionSearchCondition.unscoped(
                 inventoryLotId, null, null, null, null, condition.transactionType(), null, null,
                 condition.createdFrom(), condition.createdTo()));
     }
@@ -101,6 +115,17 @@ public class InventoryQueryService implements InventoryQueryUseCase {
     @Override
     public boolean hasStockInWarehouse(Long warehouseId) {
         return inventoryQueryRepository.existsStockInWarehouse(warehouseId);
+    }
+
+    /**
+     * 목록 조회에 적용할 창고 범위. 구역을 지정했으면 그 구역의 창고도 담당 창고여야 한다(본사는 검사 없음).
+     * 없는 구역은 이후 검증에서 404가 되도록 여기서는 넘긴다.
+     */
+    private List<Long> scopeOf(AuthenticatedUser actor, Long warehouseId, Long sectionId) {
+        if (sectionId != null && !actor.isHqAdmin()) {
+            inventoryQueryRepository.findWarehouseIdOfSection(sectionId).ifPresent(actor::requireWarehouseAccess);
+        }
+        return actor.warehouseScope(warehouseId);
     }
 
     private static void validatePeriod(InventoryTransactionSearchCondition condition) {

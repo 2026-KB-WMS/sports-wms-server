@@ -8,6 +8,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -35,7 +36,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * 입고 등록·조회·취소와 검수 구역 후보 조회.
  *
- * <p>역할·소속 창고 검사는 인증 도메인 연동 시 웹 어댑터에서 적용한다.
+ * <p>역할은 SecurityConfig가, 담당 창고 범위는 이 서비스가 검사한다(ADR-012).
  * 검수(inspect)와 완료(complete)는 각각 별도 서비스로 구현한다.
  */
 @Service
@@ -59,7 +60,7 @@ public class InboundService implements InboundUseCase {
      */
     @Override
     @Transactional
-    public Long registerInbound(InboundRegisterCommand command) {
+    public Long registerInbound(InboundRegisterCommand command, AuthenticatedUser actor) {
         if (command.purchaseOrderId() == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "발주 ID는 필수입니다.");
         }
@@ -77,6 +78,7 @@ public class InboundService implements InboundUseCase {
 
         PurchaseOrder purchaseOrder = purchaseOrderRepository.findByIdForUpdate(command.purchaseOrderId())
                 .orElseThrow(() -> new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND));
+        actor.requireWarehouseAccess(purchaseOrder.getWarehouseId());
         if (!purchaseOrder.isConfirmed()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "확정된 발주만 입고를 등록할 수 있습니다. 현재 상태: " + purchaseOrder.getStatus());
@@ -94,17 +96,21 @@ public class InboundService implements InboundUseCase {
     }
 
     @Override
-    public List<InboundSummary> getInbounds(InboundSearchCondition condition) {
+    public List<InboundSummary> getInbounds(InboundSearchCondition condition, AuthenticatedUser actor) {
+        List<Long> scope = actor.warehouseScope(condition.warehouseId());
         if (condition.arrivedFrom() != null && condition.arrivedTo() != null
                 && condition.arrivedFrom().isAfter(condition.arrivedTo())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "도착 시작 일시는 종료 일시보다 늦을 수 없습니다.");
         }
-        return inboundQueryRepository.search(condition);
+        return inboundQueryRepository.search(new InboundSearchCondition(
+                condition.status(), condition.warehouseId(), condition.purchaseOrderId(), condition.keyword(),
+                condition.arrivedFrom(), condition.arrivedTo(), scope));
     }
 
     @Override
-    public InboundView getInbound(Long inboundId) {
+    public InboundView getInbound(Long inboundId, AuthenticatedUser actor) {
         InboundView view = inboundQueryRepository.findView(inboundId).orElseThrow(InboundService::notFound);
+        actor.requireWarehouseAccess(view.warehouseId());
         if (view.status() != InboundStatus.CANCELED) {
             return view;
         }
@@ -115,8 +121,8 @@ public class InboundService implements InboundUseCase {
     }
 
     @Override
-    public InboundDetails getInboundDetails(Long inboundId) {
-        InboundView view = getInbound(inboundId);
+    public InboundDetails getInboundDetails(Long inboundId, AuthenticatedUser actor) {
+        InboundView view = getInbound(inboundId, actor);
         return new InboundDetails(
                 view.inboundId(), view.inboundNo(), view.status(),
                 inboundQueryRepository.findLineViews(inboundId));
@@ -128,7 +134,7 @@ public class InboundService implements InboundUseCase {
      */
     @Override
     @Transactional
-    public Inbound cancelInbound(Long inboundId, InboundCancelCommand command) {
+    public Inbound cancelInbound(Long inboundId, InboundCancelCommand command, AuthenticatedUser actor) {
         String reason = command == null ? null : command.reason();
         if (command == null || command.userId() == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "처리 사용자는 필수입니다.");
@@ -142,6 +148,7 @@ public class InboundService implements InboundUseCase {
         }
 
         Inbound inbound = inboundRepository.findByIdForUpdate(inboundId).orElseThrow(InboundService::notFound);
+        actor.requireWarehouseAccess(inbound.getWarehouseId());
         if (!inbound.isCancelable()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "도착 또는 검수 중 상태의 입고만 취소할 수 있습니다. 현재 상태: " + inbound.getStatus());
@@ -155,16 +162,20 @@ public class InboundService implements InboundUseCase {
     }
 
     @Override
-    public List<SectionCandidate> getAssignableSections(Long inboundId, SectionCandidateCondition condition) {
+    public List<SectionCandidate> getAssignableSections(Long inboundId, SectionCandidateCondition condition,
+                                                     AuthenticatedUser actor) {
         validateSectionCondition(condition);
         Inbound inbound = findOrThrow(inboundId);
+        actor.requireWarehouseAccess(inbound.getWarehouseId());
         return inboundQueryRepository.findAssignableSections(inbound.getWarehouseId(), condition);
     }
 
     @Override
-    public List<SectionCandidate> getDefectSections(Long inboundId, SectionCandidateCondition condition) {
+    public List<SectionCandidate> getDefectSections(Long inboundId, SectionCandidateCondition condition,
+                                                 AuthenticatedUser actor) {
         validateSectionCondition(condition);
         Inbound inbound = findOrThrow(inboundId);
+        actor.requireWarehouseAccess(inbound.getWarehouseId());
         return inboundQueryRepository.findDefectSections(inbound.getWarehouseId(), condition);
     }
 

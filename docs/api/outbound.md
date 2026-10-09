@@ -15,7 +15,7 @@
 
 - Notion 상태 컬럼은 "시작 전"이다.
 - Notion 명세의 `pageInfo`(`page`·`size`·`sort`)와 일반 `NOT_FOUND`는 현재 구현 기준과 다름 → conventions.md 기준을 따른다. 목록 API는 `data.items`만 반환하고 `page`·`size`는 지원하지 않는다(페이지네이션 보류). 404는 도메인 전용 코드를 쓴다(`OUTBOUND_NOT_FOUND`, `ALLOCATION_NOT_FOUND`로 확정. 발주·창고·지점·SKU는 각 도메인 코드).
-- 인증·인가는 입고·지점 발주와 같은 방식으로 보류한다. 처리 사용자는 쿼리 파라미터 `userId`로 받고, 401/403과 역할·소속 창고 검사, `GET` 목록의 담당 창고 범위 제한은 인증 연동 때 적용한다.
+- 인증·인가는 #170에서 적용했다. 처리 사용자는 토큰 주체이며 `userId` 쿼리 파라미터는 받지 않는다. 역할은 보안 설정이, 담당 창고 범위(발주에 배정된 창고)는 서비스가 검사한다: 단건·쓰기는 비담당 창고면 403, 목록은 창고를 생략하면 담당 창고로 좁히고 비담당 창고를 지정하면 403이다.
 - 모든 상태 변경과 사유는 `StatusHistory`에 기록한다(`entity_type`은 `OUTBOUND`, `STOCK_ALLOCATION`). 응답의 `cancelReason`은 이 이력에서 읽는다.
 - 출고에는 창고 컬럼이 없다. 창고 기준 조회·권한은 지점 발주의 `warehouse_id`를 쓴다.
 - 발주 항목 `shipped_quantity`는 피킹 완료에서 누적하고, 항목 상태(`PARTIALLY_SHIPPED`·`COMPLETED`)는 배송 완료에서 전환한다(2026-10-05 결정, [domain/outbound.md](../domain/outbound.md) "결정·미결" 1번). Notion은 이 시점을 문서마다 다르게 적고 있다.
@@ -46,7 +46,7 @@
 
 ## 공통 정의
 
-- **데이터 범위**(인증 연동 후): HQ_ADMIN 전체, WAREHOUSE_MANAGER는 본인이 배정된 창고(`WarehouseMember`)에 배정된 발주의 할당·출고. 점주는 이 도메인 API를 호출할 수 없다(진행 상태는 지점 발주 조회의 `progressStage`로 본다). 범위 밖은 403.
+- **데이터 범위**: HQ_ADMIN 전체, WAREHOUSE_MANAGER는 본인이 배정된 창고(`WarehouseMember`)에 배정된 발주의 할당·출고. 점주는 이 도메인 API를 호출할 수 없다(진행 상태는 지점 발주 조회의 `progressStage`로 본다). 범위 밖은 403.
 - 할당 `status`: `ALLOCATED`(예약 중) → `PICKED`(피킹 완료, 재고 차감됨) 또는 `RELEASED`(해제).
 - 출고 `status`: `READY` → `PICKING` → `PICKED` → `SHIPPED` → `DELIVERED`. `READY`에서만 `CANCELED`로 갈 수 있다.
 - 출고 항목(`OutboundLine`)은 할당 한 건당 하나이며, 한 출고에는 취소되지 않은 출고에 아직 연결되지 않은 `ALLOCATED` 할당 전부가 묶인다.
@@ -57,7 +57,7 @@
 - 권한: WAREHOUSE_MANAGER만, 본인 담당 창고에 배정된 발주. 대상 창고는 발주의 `warehouse_id`이며 요청으로 받지 않는다.
 - Body: `storeOrderId`(필수)
 - 응답 201: `storeOrderId, orderNo, items[]`. `items[]`는 `GET /allocations`의 `data.items[]`와 같은 형식이다: `allocationId, storeOrderId, orderNo, storeOrderLineId, warehouseId, skuId, skuCode, skuName, inventoryLotId, lotId, lotNumber, expiryDate, sectionId, sectionCode, allocatedQuantity, pickedQuantity, status, allocatedAt, releasedAt(null)`
-- 에러: 400, 403, 404(발주 없음), 409 `CONFLICT`(발주 상태가 `ASSIGNED`가 아님: 보류·취소·미배정), 409 `ALREADY_ALLOCATED`(할당할 잔여 수량 없음), 409 `INSUFFICIENT_STOCK`(한 항목이라도 가용 재고 부족, `errors`에 SKU별 요청·가용 수량), 409 `LOT_NOT_AVAILABLE`, 409 `SKU_NOT_ACTIVE`(재고 도메인이 거절)
+- 에러: 400, 403, 404(발주 없음), 409 `CONFLICT`(발주 상태가 `ASSIGNED`가 아님: 보류·취소). 창고가 아직 배정되지 않은 발주(`REQUESTED`·`APPROVED`)는 창고 관리자에게 403이다(담당 창고를 판별할 수 없고 조회도 할 수 없는 발주이므로 상태 409보다 소속 403이 먼저다), 409 `ALREADY_ALLOCATED`(할당할 잔여 수량 없음), 409 `INSUFFICIENT_STOCK`(한 항목이라도 가용 재고 부족, `errors`에 SKU별 요청·가용 수량), 409 `LOT_NOT_AVAILABLE`, 409 `SKU_NOT_ACTIVE`(재고 도메인이 거절)
 - 규칙:
   - 발주 상태가 `ASSIGNED`일 때만. 보류(`ON_HOLD`) 중에는 재개 후 할당한다.
   - 항목별 할당 대상 수량은 `requestedQuantity - allocatedQuantity - shippedQuantity`(잔여 수량)다. 처음에는 요청 수량 전체, 부분 출고 뒤 다시 실행하면 남은 수량만이다.
@@ -72,7 +72,7 @@
 - 권한: HQ_ADMIN, WAREHOUSE_MANAGER(담당 창고 발주의 할당만)
 - Query: `storeOrderId`, `warehouseId`, `skuId`, `status`(`ALLOCATED`/`PICKED`/`RELEASED`), `keyword`(발주 번호·SKU 코드·로트 번호 부분 일치). `page`·`size`·`sort`는 페이지네이션 도입 때 적용(구현 대비 메모). 정렬은 고정(`allocatedAt` 내림차순, 같으면 `allocationId` 내림차순).
 - 응답: `data.items[]`: `allocationId, storeOrderId, orderNo, storeOrderLineId, warehouseId, skuId, skuCode, skuName, inventoryLotId, lotId, lotNumber, expiryDate, sectionId, sectionCode, allocatedQuantity, pickedQuantity, status, allocatedAt, releasedAt`
-- 에러: 400(`status` 값·필터 형식 오류), 403(점주, 또는 담당하지 않는 창고를 `warehouseId`로 지정), 404(존재하지 않는 `storeOrderId`·`warehouseId`·`skuId`로 필터링)
+- 에러: 400(`status` 값·필터 형식 오류), 403(점주, 또는 담당하지 않는 창고를 `warehouseId`로 지정), 404(존재하지 않는 `storeOrderId`·`warehouseId`·`skuId`로 필터링. 현재 구현은 404가 아니라 빈 목록이며, 위 "구현 대비 메모" 참고)
 - 규칙: 조회 전용. 재고 행·로트·구역 정보는 `InventoryLot`·`Lot`·`WarehouseSection`을 ID 기준 읽기 전용 조인으로 가져온다(ADR-007). `warehouseId`를 생략한 창고 관리자는 담당 창고들의 할당을 받는다.
 
 ## GET /allocations/{allocationId} (P1)
@@ -80,7 +80,7 @@
 - 권한: HQ_ADMIN, WAREHOUSE_MANAGER(담당 창고 발주의 할당만)
 - 응답: `allocationId, status, allocatedQuantity, pickedQuantity, allocatedAt, allocatedBy, allocatedByName, releasedAt, storeOrderId, orderNo, storeId, storeName, warehouseId, storeOrderLineId, requestedQuantity, skuId, skuCode, skuName, inventoryLotId, lotId, lotNumber, expiryDate, sectionId, sectionCode, sectionName, outboundId`
 - 에러: 400, 403, 404(`ALLOCATION_NOT_FOUND`)
-- 규칙: `outboundId`는 취소되지 않은 출고에 연결된 경우에만 값이 있고 아니면 `null`이다. 해제된 할당(`RELEASED`)도 조회할 수 있다. `allocatedByName`은 회원(User) 도메인이 없어 당분간 `null`이다.
+- 규칙: `outboundId`는 취소되지 않은 출고에 연결된 경우에만 값이 있고 아니면 `null`이다. 해제된 할당(`RELEASED`)도 조회할 수 있다. `allocatedByName`은 할당 처리자(`allocatedBy`)의 이름이고 사용자 테이블을 ID로 조인해 채운다. 처리자가 없으면 `null`이다.
 
 ## PATCH /allocations/{allocationId}/release (P2)
 
@@ -95,7 +95,7 @@
 - 권한: WAREHOUSE_MANAGER만, 본인 담당 창고에 배정된 발주. 출고 창고는 발주의 `warehouse_id`다.
 - Body: `storeOrderId`(필수), `note`(선택, ≤500)
 - 응답 201: `outboundId, outboundNo, storeOrderId, orderNo, status=READY, note, lineCount, items[], createdAt`. `items[]`: `outboundLineId, allocationId, skuId, skuCode, lotNumber, sectionCode, allocatedQuantity, shippedQuantity(0)`
-- 에러: 400, 403, 404(발주 없음), 409 `CONFLICT`(발주 상태가 `ASSIGNED`가 아님), 409 `NO_ALLOCATION`(취소되지 않은 출고에 연결되지 않은 `ALLOCATED` 할당이 없음)
+- 에러: 400, 403, 404(발주 없음), 409 `CONFLICT`(발주 상태가 `ASSIGNED`가 아님. 창고 미배정 발주는 창고 관리자에게 403), 409 `NO_ALLOCATION`(취소되지 않은 출고에 연결되지 않은 `ALLOCATED` 할당이 없음)
 - 규칙:
   - 연결되지 않은 `ALLOCATED` 할당마다 `OutboundLine` 하나를 만들고 `shipped_quantity`는 0, `confirmed_unit_supply_price`는 비워 둔다(피킹 완료 때 채움). 출고 번호는 서버가 만들며 UNIQUE다.
   - 재고 수량·할당·발주 상태는 바뀌지 않는다. 생성 이후 그 할당은 해제할 수 없다.

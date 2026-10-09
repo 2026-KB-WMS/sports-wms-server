@@ -23,6 +23,7 @@ public record PurchaseOrderSummary(
         Long lineCount,
         BigDecimal totalAmount,
         Long createdBy,
+        String createdByName,
         LocalDateTime createdAt
 ) {
 }

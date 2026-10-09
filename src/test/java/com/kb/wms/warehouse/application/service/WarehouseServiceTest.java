@@ -19,6 +19,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.kb.wms.common.security.AuthenticatedUser;
+import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.warehouse.application.port.in.WarehouseSectionCapacityUseCase;
@@ -251,5 +253,25 @@ class WarehouseServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).warehouseCode()).isEqualTo("WH-001");
         assertThat(result.get(0).memberRole()).isEqualTo("MANAGER");
+    }
+
+
+    private final AuthenticatedUser manager =
+            new AuthenticatedUser(2L, UserRole.WAREHOUSE_MANAGER, List.of(1L), List.of());
+    private final AuthenticatedUser hqAdmin = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
+
+    @Test
+    @DisplayName("창고 관리자는 담당 창고만 조회할 수 있고, 담당이 아니면 조회 전에 403 FORBIDDEN이다. 본사는 전체를 조회한다")
+    void getWarehouse_withActor_checksAssignedWarehouse() {
+        Warehouse warehouse = Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.TEN);
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(warehouse));
+        when(warehouseRepository.findById(2L)).thenReturn(Optional.of(warehouse));
+
+        assertThat(warehouseService.getWarehouse(1L, manager)).isSameAs(warehouse);
+        assertThat(warehouseService.getWarehouse(2L, hqAdmin)).isSameAs(warehouse);
+        assertThatThrownBy(() -> warehouseService.getWarehouse(2L, manager))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        verify(warehouseRepository, never()).findById(3L);
     }
 }

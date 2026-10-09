@@ -2,27 +2,31 @@ package com.kb.wms.store.adapter.in.web.dto.response;
 
 import java.time.LocalDateTime;
 
-import com.kb.wms.store.domain.entity.StoreMember;
+import com.kb.wms.store.application.port.in.result.StoreMemberView;
 
 /**
- * 지점 관리자 배정/조회 응답. User 도메인이 아직 없어 userName 등 사용자 정보는 포함하지 않는다.
+ * 지점 관리자 배정/조회 응답. 사용자 정보는 이름·로그인 아이디만 포함한다(비밀번호 등 민감 정보 제외).
  */
 public record StoreMemberResponse(
         Long storeMemberId,
         Long storeId,
         String storeName,
         Long userId,
+        String userName,
+        String loginId,
         String memberRole,
         LocalDateTime assignedAt
 ) {
 
-    public static StoreMemberResponse of(StoreMember member, String storeName) {
+    public static StoreMemberResponse of(StoreMemberView member, String storeName) {
         return new StoreMemberResponse(
-                member.getStoreMemberId(),
-                member.getStoreId(),
+                member.storeMemberId(),
+                member.storeId(),
                 storeName,
-                member.getUserId(),
-                member.getMemberRole(),
-                member.getAssignedAt());
+                member.userId(),
+                member.userName(),
+                member.loginId(),
+                member.memberRole(),
+                member.assignedAt());
     }
 }

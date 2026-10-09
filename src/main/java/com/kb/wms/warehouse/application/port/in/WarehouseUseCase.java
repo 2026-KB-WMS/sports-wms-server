@@ -2,6 +2,7 @@ package com.kb.wms.warehouse.application.port.in;
 
 import java.util.List;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseUpdateCommand;
 import com.kb.wms.warehouse.application.port.in.query.WarehouseSearchCondition;
@@ -19,6 +20,9 @@ public interface WarehouseUseCase {
     List<Warehouse> getWarehouses(WarehouseSearchCondition condition);
 
     Warehouse getWarehouse(Long warehouseId);
+
+    /** 사용자 요청용 단건 조회. 담당 창고(본사는 전체)가 아니면 403 FORBIDDEN. 다른 도메인의 내부 조회는 주체 없는 버전을 쓴다. */
+    Warehouse getWarehouse(Long warehouseId, AuthenticatedUser actor);
 
     Warehouse updateWarehouse(Long warehouseId, WarehouseUpdateCommand command);
 

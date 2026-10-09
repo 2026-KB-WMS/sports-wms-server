@@ -6,12 +6,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inventory.application.port.in.InventoryAdjustmentUseCase;
 import com.kb.wms.inventory.application.port.in.command.InventoryAdjustCommand;
 import com.kb.wms.inventory.application.port.in.result.InventoryAdjustmentResult;
 import com.kb.wms.inventory.application.port.out.InventoryLotRepository;
+import com.kb.wms.inventory.application.port.out.InventoryQueryRepository;
 import com.kb.wms.inventory.application.port.out.InventoryTransactionRepository;
 import com.kb.wms.inventory.application.port.out.SectionCapacityPort;
 import com.kb.wms.inventory.domain.entity.InventoryLot;
@@ -30,6 +32,7 @@ public class InventoryAdjustmentService implements InventoryAdjustmentUseCase {
     private final InventoryLotRepository inventoryLotRepository;
     private final InventoryTransactionRepository inventoryTransactionRepository;
     private final SectionCapacityPort sectionCapacityPort;
+    private final InventoryQueryRepository inventoryQueryRepository;
 
     /**
      * 재고 행을 잠근 뒤 화면에서 본 수량(beforeQuantity)이 현재 값과 같을 때만 조정한다.
@@ -37,11 +40,14 @@ public class InventoryAdjustmentService implements InventoryAdjustmentUseCase {
      * 수량 변경, 구역 사용 용량 증감, 이력 기록은 한 트랜잭션이다.
      */
     @Override
-    public InventoryAdjustmentResult adjust(InventoryAdjustCommand command) {
+    public InventoryAdjustmentResult adjust(InventoryAdjustCommand command, AuthenticatedUser actor) {
         validate(command);
 
         InventoryLot inventoryLot = inventoryLotRepository.findByIdForUpdate(command.inventoryLotId())
                 .orElseThrow(() -> new BusinessException(InventoryErrorCode.INVENTORY_NOT_FOUND));
+        // 담당 창고 확인은 행을 잠근 뒤 같은 트랜잭션에서 한다.
+        actor.requireWarehouseAccess(inventoryQueryRepository.findWarehouseIdOfSection(inventoryLot.getSectionId())
+                .orElseThrow(() -> new BusinessException(InventoryErrorCode.SECTION_NOT_FOUND)));
 
         long before = inventoryLot.getOnHandQuantity();
         long after = command.afterQuantity();

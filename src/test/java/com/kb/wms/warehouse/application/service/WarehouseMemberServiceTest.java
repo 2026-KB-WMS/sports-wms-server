@@ -19,9 +19,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.auth.application.port.in.UserUseCase;
+import com.kb.wms.auth.domain.entity.User;
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.auth.domain.enums.UserStatus;
+import com.kb.wms.auth.exception.AuthErrorCode;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseMemberAssignCommand;
+import com.kb.wms.warehouse.application.port.in.result.WarehouseMemberView;
 import com.kb.wms.warehouse.application.port.out.WarehouseMemberRepository;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
@@ -35,6 +41,8 @@ class WarehouseMemberServiceTest {
     private WarehouseMemberRepository warehouseMemberRepository;
     @Mock
     private WarehouseRepository warehouseRepository;
+    @Mock
+    private UserUseCase userUseCase;
 
     @InjectMocks
     private WarehouseMemberService warehouseMemberService;
@@ -42,20 +50,29 @@ class WarehouseMemberServiceTest {
     private final Warehouse activeWarehouse =
             Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.valueOf(1000));
 
+    private User user(UserRole role, UserStatus status) {
+        return User.builder().userId(10L).loginId("member01").passwordHash("hashed")
+                .name("김담당").email("member01@example.com").phone("010-1234-5678")
+                .role(role).status(status).build();
+    }
+
     @Test
     @DisplayName("창고가 활성이고 아직 배정되지 않은 사용자면 관리자 배정에 성공한다")
     void assignManager_success() {
         WarehouseMemberAssignCommand command = new WarehouseMemberAssignCommand(1L, 10L, "MANAGER");
         when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.WAREHOUSE_MANAGER, UserStatus.PENDING));
         when(warehouseMemberRepository.existsByWarehouseIdAndUserId(1L, 10L)).thenReturn(false);
         when(warehouseMemberRepository.save(any(WarehouseMember.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        WarehouseMember result = warehouseMemberService.assignManager(command);
+        WarehouseMemberView result = warehouseMemberService.assignManager(command);
 
-        assertThat(result.getWarehouseId()).isEqualTo(1L);
-        assertThat(result.getUserId()).isEqualTo(10L);
-        assertThat(result.getMemberRole()).isEqualTo("MANAGER");
+        assertThat(result.warehouseId()).isEqualTo(1L);
+        assertThat(result.userId()).isEqualTo(10L);
+        assertThat(result.memberRole()).isEqualTo("MANAGER");
+        assertThat(result.userName()).isEqualTo("김담당");
+        assertThat(result.loginId()).isEqualTo("member01");
     }
 
     @Test
@@ -103,6 +120,7 @@ class WarehouseMemberServiceTest {
     void assignManager_alreadyAssigned() {
         WarehouseMemberAssignCommand command = new WarehouseMemberAssignCommand(1L, 10L, "MANAGER");
         when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.WAREHOUSE_MANAGER, UserStatus.ACTIVE));
         when(warehouseMemberRepository.existsByWarehouseIdAndUserId(1L, 10L)).thenReturn(true);
 
         assertThatThrownBy(() -> warehouseMemberService.assignManager(command))
@@ -113,16 +131,58 @@ class WarehouseMemberServiceTest {
     }
 
     @Test
-    @DisplayName("warehouseId·userId 필터를 그대로 리포지토리에 전달한다")
-    void getManagers_passesFilters() {
-        WarehouseMember member = WarehouseMember.assign(1L, 10L, "MANAGER", null);
-        when(warehouseRepository.existsById(1L)).thenReturn(true);
-        when(warehouseMemberRepository.findAll(1L, 10L)).thenReturn(List.of(member));
+    @DisplayName("존재하지 않는 사용자면 USER_NOT_FOUND 예외를 던지고 배정하지 않는다")
+    void assignManager_userNotFound() {
+        WarehouseMemberAssignCommand command = new WarehouseMemberAssignCommand(1L, 10L, "MANAGER");
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(userUseCase.getUser(10L)).thenThrow(new BusinessException(AuthErrorCode.USER_NOT_FOUND));
 
-        List<WarehouseMember> result = warehouseMemberService.getManagers(1L, 10L);
+        assertThatThrownBy(() -> warehouseMemberService.assignManager(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(AuthErrorCode.USER_NOT_FOUND.name());
+        verify(warehouseMemberRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("대상 사용자의 역할이 WAREHOUSE_MANAGER이 아니면 VALIDATION_ERROR 예외를 던진다")
+    void assignManager_wrongUserRole() {
+        WarehouseMemberAssignCommand command = new WarehouseMemberAssignCommand(1L, 10L, "MANAGER");
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.HQ_ADMIN, UserStatus.ACTIVE));
+
+        assertThatThrownBy(() -> warehouseMemberService.assignManager(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
+        verify(warehouseMemberRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("INACTIVE 사용자면 CONFLICT 예외를 던진다")
+    void assignManager_inactiveUser() {
+        WarehouseMemberAssignCommand command = new WarehouseMemberAssignCommand(1L, 10L, "MANAGER");
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.WAREHOUSE_MANAGER, UserStatus.INACTIVE));
+
+        assertThatThrownBy(() -> warehouseMemberService.assignManager(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.CONFLICT.name());
+        verify(warehouseMemberRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("warehouseId·userId·keyword를 그대로 리포지토리에 전달한다")
+    void getManagers_passesFilters() {
+        WarehouseMemberView member = new WarehouseMemberView(5L, 1L, 10L, "김담당", "member01", "MANAGER", null);
+        when(warehouseRepository.existsById(1L)).thenReturn(true);
+        when(warehouseMemberRepository.search(1L, 10L, "김")).thenReturn(List.of(member));
+
+        List<WarehouseMemberView> result = warehouseMemberService.getManagers(1L, 10L, "김");
 
         assertThat(result).hasSize(1);
-        verify(warehouseMemberRepository).findAll(eq(1L), eq(10L));
+        verify(warehouseMemberRepository).search(eq(1L), eq(10L), eq("김"));
     }
 
     @Test
@@ -130,20 +190,20 @@ class WarehouseMemberServiceTest {
     void getManagers_warehouseNotFound() {
         when(warehouseRepository.existsById(999L)).thenReturn(false);
 
-        assertThatThrownBy(() -> warehouseMemberService.getManagers(999L, null))
+        assertThatThrownBy(() -> warehouseMemberService.getManagers(999L, null, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(WarehouseErrorCode.WAREHOUSE_NOT_FOUND.name());
-        verify(warehouseMemberRepository, never()).findAll(any(), any());
+        verify(warehouseMemberRepository, never()).search(any(), any(), any());
     }
 
     @Test
-    @DisplayName("warehouseId·userId가 없으면 전체 배정을 조회한다")
+    @DisplayName("warehouseId·userId·keyword가 없으면 전체 배정을 조회한다")
     void getManagers_withoutFilters_returnsAll() {
-        WarehouseMember member = WarehouseMember.assign(1L, 10L, "MANAGER", null);
-        when(warehouseMemberRepository.findAll(null, null)).thenReturn(List.of(member));
+        WarehouseMemberView member = new WarehouseMemberView(5L, 1L, 10L, "김담당", "member01", "MANAGER", null);
+        when(warehouseMemberRepository.search(null, null, null)).thenReturn(List.of(member));
 
-        List<WarehouseMember> result = warehouseMemberService.getManagers(null, null);
+        List<WarehouseMemberView> result = warehouseMemberService.getManagers(null, null, null);
 
         assertThat(result).hasSize(1);
     }

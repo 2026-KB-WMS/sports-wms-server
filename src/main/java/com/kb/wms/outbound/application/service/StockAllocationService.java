@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -61,13 +62,14 @@ public class StockAllocationService implements StockAllocationUseCase {
 
     @Override
     @Transactional
-    public StockAllocateResult allocate(StockAllocateCommand command) {
+    public StockAllocateResult allocate(StockAllocateCommand command, AuthenticatedUser actor) {
         requireUser(command.userId());
         if (command.storeOrderId() == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "할당할 발주를 선택해주세요.");
         }
 
         StoreOrder order = storeOrderFulfillmentUseCase.getOrderForUpdate(command.storeOrderId());
+        actor.requireWarehouseAccess(order.getWarehouseId());
         if (order.getStatus() != StoreOrderStatus.ASSIGNED) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "배정된 발주만 재고를 할당할 수 있습니다. 현재 상태: " + order.getStatus());
@@ -107,7 +109,7 @@ public class StockAllocationService implements StockAllocationUseCase {
 
     @Override
     @Transactional
-    public StockAllocationReleaseResult release(StockAllocationReleaseCommand command) {
+    public StockAllocationReleaseResult release(StockAllocationReleaseCommand command, AuthenticatedUser actor) {
         requireUser(command.userId());
         String reason = normalizeReason(command.reason());
         if (reason == null) {
@@ -121,7 +123,8 @@ public class StockAllocationService implements StockAllocationUseCase {
         // 발주 → 할당 순으로 잠그기 위해, 잠그지 않는 조회로 발주를 먼저 찾는다.
         StockAllocationView view = outboundQueryRepository.findAllocationView(command.allocationId())
                 .orElseThrow(() -> new BusinessException(OutboundErrorCode.ALLOCATION_NOT_FOUND));
-        storeOrderFulfillmentUseCase.getOrderForUpdate(view.storeOrderId());
+        StoreOrder order = storeOrderFulfillmentUseCase.getOrderForUpdate(view.storeOrderId());
+        actor.requireWarehouseAccess(order.getWarehouseId());
         StockAllocation allocation = stockAllocationRepository.findByIdForUpdate(command.allocationId())
                 .orElseThrow(() -> new BusinessException(OutboundErrorCode.ALLOCATION_NOT_FOUND));
 
@@ -150,14 +153,19 @@ public class StockAllocationService implements StockAllocationUseCase {
     }
 
     @Override
-    public List<StockAllocationSummary> searchAllocations(StockAllocationSearchCondition condition) {
-        return outboundQueryRepository.searchAllocations(condition);
+    public List<StockAllocationSummary> searchAllocations(StockAllocationSearchCondition condition,
+                                                          AuthenticatedUser actor) {
+        List<Long> scope = actor.warehouseScope(condition.warehouseId());
+        return outboundQueryRepository.searchAllocations(new StockAllocationSearchCondition(
+                condition.storeOrderId(), condition.warehouseId(), condition.skuId(), condition.status(),
+                condition.keyword(), scope));
     }
 
     @Override
-    public StockAllocationDetail getAllocation(Long allocationId) {
+    public StockAllocationDetail getAllocation(Long allocationId, AuthenticatedUser actor) {
         StockAllocationView view = outboundQueryRepository.findAllocationView(allocationId)
                 .orElseThrow(() -> new BusinessException(OutboundErrorCode.ALLOCATION_NOT_FOUND));
+        actor.requireWarehouseAccess(view.warehouseId());
         Long outboundId = outboundQueryRepository.findActiveOutboundIdByAllocationId(allocationId).orElse(null);
         return new StockAllocationDetail(view, outboundId);
     }

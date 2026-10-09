@@ -54,6 +54,9 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
     @Query("select count(w) > 0 from WarehouseJpaEntity w where w.warehouseId = :warehouseId")
     boolean existsWarehouseId(@Param("warehouseId") Long warehouseId);
 
+    @Query("select ws.warehouseId from WarehouseSectionJpaEntity ws where ws.sectionId = :sectionId")
+    Optional<Long> findWarehouseIdBySectionId(@Param("sectionId") Long sectionId);
+
     @Query("select count(ws) > 0 from WarehouseSectionJpaEntity ws where ws.sectionId = :sectionId")
     boolean existsSectionId(@Param("sectionId") Long sectionId);
 
@@ -91,6 +94,7 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
             join WarehouseSectionJpaEntity ws on ws.sectionId = il.sectionId
             where (:skuId is null or s.skuId = :skuId)
               and (:warehouseId is null or ws.warehouseId = :warehouseId)
+              and (:scoped = false or ws.warehouseId in :warehouseIds)
               and (:keyword is null
                    or lower(s.skuCode) like lower(concat('%', :keyword, '%'))
                    or lower(s.name) like lower(concat('%', :keyword, '%')))
@@ -99,6 +103,8 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
             """)
     List<InventorySkuSummary> findSkuSummaries(@Param("skuId") Long skuId,
                                                @Param("warehouseId") Long warehouseId,
+                                               @Param("scoped") boolean scoped,
+                                               @Param("warehouseIds") Collection<Long> warehouseIds,
                                                @Param("keyword") String keyword);
 
     @Query("""
@@ -116,6 +122,7 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
             join WarehouseSectionJpaEntity ws on ws.sectionId = il.sectionId
             where (:skuId is null or s.skuId = :skuId)
               and (:warehouseId is null or ws.warehouseId = :warehouseId)
+              and (:scoped = false or ws.warehouseId in :warehouseIds)
               and (:sectionId is null or il.sectionId = :sectionId)
               and (:lotId is null or il.lotId = :lotId)
               and (:expiringBefore is null or l.expiryDate <= :expiringBefore)
@@ -129,7 +136,9 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
                                         @Param("lotId") Long lotId,
                                         @Param("expiringBefore") LocalDate expiringBefore,
                                         @Param("qualityStatus") QualityStatus qualityStatus,
-                                        @Param("includeEmpty") boolean includeEmpty);
+                                        @Param("includeEmpty") boolean includeEmpty,
+                                        @Param("scoped") boolean scoped,
+                                        @Param("warehouseIds") Collection<Long> warehouseIds);
 
     @Query("""
             select new com.kb.wms.inventory.application.port.in.result.InventoryDetail(
@@ -161,6 +170,7 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
                 coalesce(sum(case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.AVAILABLE
                                    and l.status = com.kb.wms.inventory.domain.enums.LotStatus.AVAILABLE
                                    and (:warehouseId is null or ws.warehouseId = :warehouseId)
+                                   and (:scoped = false or ws.warehouseId in :warehouseIds)
                                   then il.onHandQuantity - il.allocatedQuantity else 0L end), 0L))
             from ProductSkuJpaEntity s
             left join LotJpaEntity l on l.skuId = s.skuId
@@ -175,16 +185,20 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
             having coalesce(sum(case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.AVAILABLE
                                       and l.status = com.kb.wms.inventory.domain.enums.LotStatus.AVAILABLE
                                       and (:warehouseId is null or ws.warehouseId = :warehouseId)
+                                      and (:scoped = false or ws.warehouseId in :warehouseIds)
                                      then il.onHandQuantity - il.allocatedQuantity else 0L end), 0L)
                    < s.safetyStockQuantity
             order by s.safetyStockQuantity
                      - coalesce(sum(case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.AVAILABLE
                                           and l.status = com.kb.wms.inventory.domain.enums.LotStatus.AVAILABLE
                                           and (:warehouseId is null or ws.warehouseId = :warehouseId)
+                                          and (:scoped = false or ws.warehouseId in :warehouseIds)
                                          then il.onHandQuantity - il.allocatedQuantity else 0L end), 0L) desc,
                      s.skuCode
             """)
     List<LowStockItem> findLowStock(@Param("warehouseId") Long warehouseId,
+                                    @Param("scoped") boolean scoped,
+                                    @Param("warehouseIds") Collection<Long> warehouseIds,
                                     @Param("keyword") String keyword);
 
     @Query("""

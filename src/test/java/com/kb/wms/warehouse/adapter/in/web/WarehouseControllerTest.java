@@ -1,7 +1,11 @@
 package com.kb.wms.warehouse.adapter.in.web;
 
+import static com.kb.wms.common.security.TestAuth.hqAdmin;
+import static com.kb.wms.common.security.TestAuth.warehouseManager;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -23,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseUpdateCommand;
@@ -99,7 +104,7 @@ class WarehouseControllerTest {
                 true, 100L, "MANAGER", null);
         when(warehouseUseCase.getMyWarehouses(eq(10L))).thenReturn(List.of(summary));
 
-        mockMvc.perform(get("/api/v1/warehouses/my").param("userId", "10"))
+        mockMvc.perform(get("/api/v1/warehouses/my").with(warehouseManager(10L, 1L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].warehouseCode").value("WH-001"))
                 .andExpect(jsonPath("$.data.items[0].memberRole").value("MANAGER"));
@@ -108,11 +113,26 @@ class WarehouseControllerTest {
     @Test
     @DisplayName("존재하지 않는 창고를 조회하면 404 WAREHOUSE_NOT_FOUND를 반환한다")
     void getWarehouse_notFound() throws Exception {
-        when(warehouseUseCase.getWarehouse(999L)).thenThrow(new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND));
+        when(warehouseUseCase.getWarehouse(eq(999L), any())).thenThrow(new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND));
 
-        mockMvc.perform(get("/api/v1/warehouses/{warehouseId}", 999L))
+        mockMvc.perform(get("/api/v1/warehouses/{warehouseId}", 999L).with(hqAdmin()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("WAREHOUSE_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("창고 단건 조회는 토큰 사용자를 서비스에 넘기고, 서비스의 403 FORBIDDEN을 그대로 응답한다")
+    void getWarehouse_passesPrincipal_andMapsForbidden() throws Exception {
+        when(warehouseUseCase.getWarehouse(eq(1L), any())).thenReturn(
+                Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.TEN));
+        when(warehouseUseCase.getWarehouse(eq(2L), any())).thenThrow(new BusinessException(ErrorCode.FORBIDDEN));
+
+        mockMvc.perform(get("/api/v1/warehouses/{warehouseId}", 1L).with(warehouseManager(10L, 1L)))
+                .andExpect(status().isOk());
+        verify(warehouseUseCase).getWarehouse(eq(1L), argThat(user -> user.userId().equals(10L)));
+        mockMvc.perform(get("/api/v1/warehouses/{warehouseId}", 2L).with(warehouseManager(10L, 1L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
     }
 
     @Test

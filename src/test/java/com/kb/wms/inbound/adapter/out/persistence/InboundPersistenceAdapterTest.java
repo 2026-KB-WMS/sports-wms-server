@@ -1,5 +1,10 @@
 package com.kb.wms.inbound.adapter.out.persistence;
 
+import com.kb.wms.auth.application.port.out.UserRepository;
+import com.kb.wms.auth.domain.entity.User;
+import com.kb.wms.auth.domain.enums.UserRole;
+import jakarta.persistence.EntityManager;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
@@ -65,6 +70,8 @@ class InboundPersistenceAdapterTest {
     private static final LocalDate MANUFACTURED = LocalDate.of(2026, 1, 1);
     private static final LocalDate EXPIRY = LocalDate.of(2027, 1, 1);
 
+    @Autowired UserRepository userRepository;
+    @Autowired EntityManager entityManager;
     @Autowired InboundRepository inboundRepository;
     @Autowired InboundQueryRepository queryRepository;
     @Autowired PurchaseOrderRepository purchaseOrderRepository;
@@ -288,6 +295,19 @@ class InboundPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("창고 범위(담당 창고 목록)로 좁히고, 빈 목록이면 비어 있다")
+    void search_byWarehouseScope() {
+        assertThat(queryRepository.search(new InboundSearchCondition(
+                null, null, null, null, null, null, List.of(seoul))))
+                .extracting(InboundSummary::inboundId).containsExactlyInAnyOrder(ib1, ib2, ib4);
+        assertThat(queryRepository.search(new InboundSearchCondition(
+                null, null, null, null, null, null, List.of(seoul, busan)))).hasSize(
+                queryRepository.search(condition(null, null, null, null, null, null)).size());
+        assertThat(queryRepository.search(new InboundSearchCondition(
+                null, null, null, null, null, null, List.of()))).isEmpty();
+    }
+
+    @Test
     @DisplayName("창고·발주로 필터링한다")
     void search_byWarehouseAndPurchaseOrder() {
         assertThat(queryRepository.search(condition(null, seoul, null, null, null, null)))
@@ -499,7 +519,7 @@ class InboundPersistenceAdapterTest {
 
     private InboundSearchCondition condition(InboundStatus status, Long warehouseId, Long purchaseOrderId,
                                              String keyword, LocalDateTime from, LocalDateTime to) {
-        return new InboundSearchCondition(status, warehouseId, purchaseOrderId, keyword, from, to);
+        return InboundSearchCondition.unscoped(status, warehouseId, purchaseOrderId, keyword, from, to);
     }
 
     private InboundSummary byId(List<InboundSummary> list, Long id) {
@@ -559,5 +579,18 @@ class InboundPersistenceAdapterTest {
                                     String price, String priceChangeReason) {
         return InboundLine.register(inboundId, purchaseOrderLineId, lotId, acceptedSectionId, defectSectionId,
                 received, accepted, defective, new BigDecimal(price), priceChangeReason, null, now, 7L);
+    }
+
+    @Test
+    @DisplayName("처리자 이름을 사용자 테이블 조인으로 상세에 담고, 처리자가 없거나 사용자가 없으면 null이다")
+    void receivedByName() {
+        User receiver = userRepository.save(User.signUp("ib_receiver", "hashed", "박검수", "ib_receiver@example.com",
+                "010-1234-5678", UserRole.WAREHOUSE_MANAGER));
+        entityManager.createQuery("update InboundJpaEntity i set i.receivedBy = :userId where i.inboundId = :id")
+                .setParameter("userId", receiver.getUserId()).setParameter("id", ib1).executeUpdate();
+        entityManager.clear();
+
+        assertThat(queryRepository.findView(ib1).orElseThrow().receivedByName()).isEqualTo("박검수");
+        assertThat(queryRepository.findView(ib3).orElseThrow().receivedByName()).isNull();
     }
 }

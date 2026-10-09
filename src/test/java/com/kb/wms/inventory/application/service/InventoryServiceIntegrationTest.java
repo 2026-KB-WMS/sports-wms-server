@@ -16,6 +16,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.inventory.application.port.in.InventoryAdjustmentUseCase;
 import com.kb.wms.inventory.application.port.in.InventoryQueryUseCase;
@@ -59,6 +61,8 @@ import jakarta.persistence.EntityManager;
 @Transactional
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class InventoryServiceIntegrationTest {
+
+    private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
 
     private static final long USER = 5L;
 
@@ -108,7 +112,7 @@ class InventoryServiceIntegrationTest {
         @DisplayName("감소 조정: 보유 수량·구역 사용 용량이 줄고 ADJUSTMENT 이력이 남는다")
         void decrease() {
             InventoryAdjustmentResult result = adjustmentUseCase.adjust(
-                    new InventoryAdjustCommand(invA, 100L, 97L, " 실사 결과 3개 부족 ", USER));
+                    new InventoryAdjustCommand(invA, 100L, 97L, " 실사 결과 3개 부족 ", USER), HQ);
 
             assertThat(result.transaction().getQuantityDelta()).isEqualTo(-3L);
             assertThat(result.transaction().getReferenceId()).isNull();
@@ -122,7 +126,7 @@ class InventoryServiceIntegrationTest {
         @Test
         @DisplayName("증가 조정: 구역 사용 용량이 늘어난다")
         void increase() {
-            adjustmentUseCase.adjust(new InventoryAdjustCommand(invA, 100L, 150L, "실사 초과분", USER));
+            adjustmentUseCase.adjust(new InventoryAdjustCommand(invA, 100L, 150L, "실사 초과분", USER), HQ);
             flushAndClear();
             assertThat(onHand(invA)).isEqualTo(150L);
             assertThat(currentCapacity(sectionR1)).isEqualByComparingTo("150");
@@ -131,32 +135,32 @@ class InventoryServiceIntegrationTest {
         @Test
         @DisplayName("화면에서 본 수량이 현재 값과 다르면 STALE_QUANTITY")
         void stale() {
-            assertError(() -> adjustmentUseCase.adjust(new InventoryAdjustCommand(invA, 99L, 90L, "사유", USER)),
+            assertError(() -> adjustmentUseCase.adjust(new InventoryAdjustCommand(invA, 99L, 90L, "사유", USER), HQ),
                     "STALE_QUANTITY");
         }
 
         @Test
         @DisplayName("할당 수량보다 작게 줄이면 BELOW_ALLOCATED_QUANTITY")
         void belowAllocated() {
-            assertError(() -> adjustmentUseCase.adjust(new InventoryAdjustCommand(invA, 100L, 19L, "사유", USER)),
+            assertError(() -> adjustmentUseCase.adjust(new InventoryAdjustCommand(invA, 100L, 19L, "사유", USER), HQ),
                     "BELOW_ALLOCATED_QUANTITY");
         }
 
         @Test
         @DisplayName("구역 수용량을 넘게 늘리면 SECTION_CAPACITY_EXCEEDED")
         void capacityExceeded() {
-            assertError(() -> adjustmentUseCase.adjust(new InventoryAdjustCommand(invA, 100L, 201L, "사유", USER)),
+            assertError(() -> adjustmentUseCase.adjust(new InventoryAdjustCommand(invA, 100L, 201L, "사유", USER), HQ),
                     "SECTION_CAPACITY_EXCEEDED");
         }
 
         @Test
         @DisplayName("변경 없음·사유 없음·없는 재고는 거절한다")
         void invalid() {
-            assertError(() -> adjustmentUseCase.adjust(new InventoryAdjustCommand(invA, 100L, 100L, "사유", USER)),
+            assertError(() -> adjustmentUseCase.adjust(new InventoryAdjustCommand(invA, 100L, 100L, "사유", USER), HQ),
                     "VALIDATION_ERROR");
-            assertError(() -> adjustmentUseCase.adjust(new InventoryAdjustCommand(invA, 100L, 90L, " ", USER)),
+            assertError(() -> adjustmentUseCase.adjust(new InventoryAdjustCommand(invA, 100L, 90L, " ", USER), HQ),
                     "VALIDATION_ERROR");
-            assertError(() -> adjustmentUseCase.adjust(new InventoryAdjustCommand(-1L, 100L, 90L, "사유", USER)),
+            assertError(() -> adjustmentUseCase.adjust(new InventoryAdjustCommand(-1L, 100L, 90L, "사유", USER), HQ),
                     "INVENTORY_NOT_FOUND");
         }
     }
@@ -178,8 +182,8 @@ class InventoryServiceIntegrationTest {
             assertThat(currentCapacity(sectionR1)).isEqualByComparingTo("158");
             assertThat(currentCapacity(sectionD1)).isEqualByComparingTo("2");
 
-            List<InventoryTransactionView> history = queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
-                    null, null, null, null, null, TransactionType.INBOUND, null, null, null, null));
+            List<InventoryTransactionView> history = queryUseCase.getTransactions(InventoryTransactionSearchCondition.unscoped(
+                    null, null, null, null, null, TransactionType.INBOUND, null, null, null, null), HQ);
             assertThat(history).hasSize(2)
                     .allSatisfy(t -> assertThat(t.referenceId()).isEqualTo(7L));
             assertThat(history).extracting(InventoryTransactionView::afterQuantity)
@@ -240,7 +244,7 @@ class InventoryServiceIntegrationTest {
             assertThat(onHand(invA)).isEqualTo(82L);
             assertThat(allocated(invA)).isZero();
             assertThat(currentCapacity(sectionR1)).isEqualByComparingTo("82");
-            assertThat(queryUseCase.getTransactionsOf(invA, emptyCondition()))
+            assertThat(queryUseCase.getTransactionsOf(invA, emptyCondition(), HQ))
                     .singleElement()
                     .satisfies(t -> {
                         assertThat(t.transactionType()).isEqualTo(TransactionType.OUTBOUND);
@@ -256,7 +260,7 @@ class InventoryServiceIntegrationTest {
             flushAndClear();
             assertThat(onHand(invA)).isEqualTo(100L);
             assertThat(allocated(invA)).isZero();
-            assertThat(queryUseCase.getTransactionsOf(invA, emptyCondition())).isEmpty();
+            assertThat(queryUseCase.getTransactionsOf(invA, emptyCondition(), HQ)).isEmpty();
 
             assertError(() -> stockUseCase.ship(List.of(new StockShipCommand(invA, 5, 6, 3L, USER))),
                     "VALIDATION_ERROR");
@@ -305,46 +309,46 @@ class InventoryServiceIntegrationTest {
     @Test
     @DisplayName("조회: 없는 재고·로트는 INVENTORY_NOT_FOUND·LOT_NOT_FOUND, 이력 기간이 뒤집히면 VALIDATION_ERROR")
     void queryErrors() {
-        assertError(() -> queryUseCase.getInventory(-1L), "INVENTORY_NOT_FOUND");
-        assertError(() -> queryUseCase.getTransactionsOf(-1L, emptyCondition()), "INVENTORY_NOT_FOUND");
-        assertError(() -> lotUseCase.getLot(-1L), "LOT_NOT_FOUND");
-        assertError(() -> queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
+        assertError(() -> queryUseCase.getInventory(-1L, HQ), "INVENTORY_NOT_FOUND");
+        assertError(() -> queryUseCase.getTransactionsOf(-1L, emptyCondition(), HQ), "INVENTORY_NOT_FOUND");
+        assertError(() -> lotUseCase.getLot(-1L, HQ), "LOT_NOT_FOUND");
+        assertError(() -> queryUseCase.getTransactions(InventoryTransactionSearchCondition.unscoped(
                 null, null, null, null, null, null, null, null,
-                java.time.LocalDateTime.of(2026, 9, 2, 0, 0), java.time.LocalDateTime.of(2026, 9, 1, 0, 0))),
+                java.time.LocalDateTime.of(2026, 9, 2, 0, 0), java.time.LocalDateTime.of(2026, 9, 1, 0, 0)), HQ),
                 "VALIDATION_ERROR");
-        assertThat(queryUseCase.getInventory(invA).availableQuantity()).isEqualTo(80L);
+        assertThat(queryUseCase.getInventory(invA, HQ).availableQuantity()).isEqualTo(80L);
     }
 
     @Test
     @DisplayName("존재하지 않는 필터 ID(skuId·warehouseId·sectionId·lotId)로 조회하면 각 도메인 *_NOT_FOUND")
     void queryFilterNotFound() {
-        assertError(() -> queryUseCase.getInventories(new InventorySearchCondition(-1L, null, null)), "SKU_NOT_FOUND");
-        assertError(() -> queryUseCase.getInventories(new InventorySearchCondition(null, -1L, null)), "WAREHOUSE_NOT_FOUND");
+        assertError(() -> queryUseCase.getInventories(InventorySearchCondition.unscoped(-1L, null, null), HQ), "SKU_NOT_FOUND");
+        assertError(() -> queryUseCase.getInventories(InventorySearchCondition.unscoped(null, -1L, null), HQ), "WAREHOUSE_NOT_FOUND");
 
         assertError(() -> queryUseCase.getInventoriesByLot(
-                new InventoryLotSearchCondition(-1L, null, null, null, null, null, null)), "SKU_NOT_FOUND");
+                InventoryLotSearchCondition.unscoped(-1L, null, null, null, null, null, null), HQ), "SKU_NOT_FOUND");
         assertError(() -> queryUseCase.getInventoriesByLot(
-                new InventoryLotSearchCondition(null, -1L, null, null, null, null, null)), "WAREHOUSE_NOT_FOUND");
+                InventoryLotSearchCondition.unscoped(null, -1L, null, null, null, null, null), HQ), "WAREHOUSE_NOT_FOUND");
         assertError(() -> queryUseCase.getInventoriesByLot(
-                new InventoryLotSearchCondition(null, null, -1L, null, null, null, null)), "SECTION_NOT_FOUND");
+                InventoryLotSearchCondition.unscoped(null, null, -1L, null, null, null, null), HQ), "SECTION_NOT_FOUND");
 
-        assertError(() -> queryUseCase.getLowStock(new LowStockSearchCondition(-1L, null)), "WAREHOUSE_NOT_FOUND");
+        assertError(() -> queryUseCase.getLowStock(LowStockSearchCondition.unscoped(-1L, null), HQ), "WAREHOUSE_NOT_FOUND");
 
-        assertError(() -> queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
-                null, -1L, null, null, null, null, null, null, null, null)), "WAREHOUSE_NOT_FOUND");
-        assertError(() -> queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
-                null, null, -1L, null, null, null, null, null, null, null)), "SECTION_NOT_FOUND");
-        assertError(() -> queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
-                null, null, null, -1L, null, null, null, null, null, null)), "SKU_NOT_FOUND");
-        assertError(() -> queryUseCase.getTransactions(new InventoryTransactionSearchCondition(
-                null, null, null, null, -1L, null, null, null, null, null)), "LOT_NOT_FOUND");
+        assertError(() -> queryUseCase.getTransactions(InventoryTransactionSearchCondition.unscoped(
+                null, -1L, null, null, null, null, null, null, null, null), HQ), "WAREHOUSE_NOT_FOUND");
+        assertError(() -> queryUseCase.getTransactions(InventoryTransactionSearchCondition.unscoped(
+                null, null, -1L, null, null, null, null, null, null, null), HQ), "SECTION_NOT_FOUND");
+        assertError(() -> queryUseCase.getTransactions(InventoryTransactionSearchCondition.unscoped(
+                null, null, null, -1L, null, null, null, null, null, null), HQ), "SKU_NOT_FOUND");
+        assertError(() -> queryUseCase.getTransactions(InventoryTransactionSearchCondition.unscoped(
+                null, null, null, null, -1L, null, null, null, null, null), HQ), "LOT_NOT_FOUND");
 
-        assertError(() -> lotUseCase.getLots(new LotSearchCondition(-1L, null, null, null)), "SKU_NOT_FOUND");
+        assertError(() -> lotUseCase.getLots(LotSearchCondition.unscoped(-1L, null, null, null), HQ), "SKU_NOT_FOUND");
 
         // 있는 ID는 그대로 통과한다.
-        assertThat(queryUseCase.getInventories(new InventorySearchCondition(skuId, null, null))).isNotEmpty();
+        assertThat(queryUseCase.getInventories(InventorySearchCondition.unscoped(skuId, null, null), HQ)).isNotEmpty();
         assertThat(queryUseCase.getInventoriesByLot(
-                new InventoryLotSearchCondition(null, null, sectionR1, null, null, null, null))).isNotEmpty();
+                InventoryLotSearchCondition.unscoped(null, null, sectionR1, null, null, null, null), HQ)).isNotEmpty();
     }
 
     // ---------- helpers ----------
@@ -369,7 +373,7 @@ class InventoryServiceIntegrationTest {
     }
 
     private static InventoryTransactionSearchCondition emptyCondition() {
-        return new InventoryTransactionSearchCondition(null, null, null, null, null, null, null, null, null, null);
+        return InventoryTransactionSearchCondition.unscoped(null, null, null, null, null, null, null, null, null, null);
     }
 
     private void flushAndClear() {

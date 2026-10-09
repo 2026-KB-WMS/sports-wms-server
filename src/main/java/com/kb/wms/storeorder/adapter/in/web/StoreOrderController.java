@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.storeorder.adapter.in.web.dto.request.StoreOrderAssignRequest;
@@ -47,10 +49,8 @@ import lombok.RequiredArgsConstructor;
  * POST, GET /api/v1/orders, GET .../{orderId}, GET .../{orderId}/details,
  * PATCH .../{orderId}/approve, reject, cancel, hold, resume, complete-partial, POST .../assign
  *
- * <p>인증/인가가 아직 구현되지 않아 역할별 규칙(등록은 배정된 지점의 점주, 승인·반려·배정은 본사 관리자,
- * 보류·재개·부분 종결은 담당 창고 관리자, 취소는 상태별 권한자, 데이터 범위 제한)은 적용하지 않는다.
- * 처리 사용자(userId)는 쿼리 파라미터로 받으며, 인증 연동 시 토큰의 사용자로 대체하고 이 컨트롤러에서 역할 검사를 추가한다.
- * {@code GET /orders/my}(소속 지점·창고 범위 조회)도 인증 연동 때 추가한다.
+ * <p>처리 사용자는 토큰 주체이고, 역할은 SecurityConfig가, 담당 지점·창고 범위와 취소 권한(작성자·상태별)은 서비스가 검사한다.
+ * {@code GET /orders/my}는 점주의 담당 지점·창고 관리자의 배정 창고 발주만 돌려준다.
  * 목록은 페이지네이션 없이 전체를 반환한다(공통 페이징 도입 시 추가).
  */
 @RestController
@@ -63,12 +63,12 @@ public class StoreOrderController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<StoreOrderRegisterResponse> registerStoreOrder(
-            @RequestParam Long userId,
+            @AuthenticationPrincipal AuthenticatedUser principal,
             @Valid @RequestBody StoreOrderRegisterRequest request) {
-        Long storeOrderId = storeOrderUseCase.registerStoreOrder(request.toCommand(userId));
+        Long storeOrderId = storeOrderUseCase.registerStoreOrder(request.toCommand(principal.userId()), principal);
         return ApiResponse.created(StoreOrderRegisterResponse.of(
-                storeOrderUseCase.getStoreOrder(storeOrderId).view(),
-                storeOrderUseCase.getStoreOrderDetails(storeOrderId).items()));
+                storeOrderUseCase.getStoreOrder(storeOrderId, principal).view(),
+                storeOrderUseCase.getStoreOrderDetails(storeOrderId, principal).items()));
     }
 
     @GetMapping
@@ -80,7 +80,7 @@ public class StoreOrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedTo) {
         List<StoreOrderListItemResponse> items = storeOrderUseCase
-                .getStoreOrders(new StoreOrderSearchCondition(
+                .getStoreOrders(StoreOrderSearchCondition.unscoped(
                         status, storeId, warehouseId, keyword, requestedFrom, requestedTo))
                 .stream()
                 .map(StoreOrderListItemResponse::from)
@@ -88,74 +88,96 @@ public class StoreOrderController {
         return ApiResponse.ok(ItemsResponse.of(items));
     }
 
+    @GetMapping("/my")
+    public ApiResponse<ItemsResponse<StoreOrderListItemResponse>> getMyStoreOrders(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @RequestParam(required = false) StoreOrderStatus status,
+            @RequestParam(required = false) Long storeId,
+            @RequestParam(required = false) Long warehouseId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedTo) {
+        List<StoreOrderListItemResponse> items = storeOrderUseCase
+                .getMyStoreOrders(StoreOrderSearchCondition.unscoped(
+                        status, storeId, warehouseId, keyword, requestedFrom, requestedTo), principal)
+                .stream()
+                .map(StoreOrderListItemResponse::from)
+                .toList();
+        return ApiResponse.ok(ItemsResponse.of(items));
+    }
+
     @GetMapping("/{orderId}")
-    public ApiResponse<StoreOrderResponse> getStoreOrder(@PathVariable Long orderId) {
-        return ApiResponse.ok(StoreOrderResponse.from(storeOrderUseCase.getStoreOrder(orderId)));
+    public ApiResponse<StoreOrderResponse> getStoreOrder(@AuthenticationPrincipal AuthenticatedUser principal,
+                                                      @PathVariable Long orderId) {
+        return ApiResponse.ok(StoreOrderResponse.from(storeOrderUseCase.getStoreOrder(orderId, principal)));
     }
 
     @GetMapping("/{orderId}/details")
-    public ApiResponse<StoreOrderDetailsResponse> getStoreOrderDetails(@PathVariable Long orderId) {
-        return ApiResponse.ok(StoreOrderDetailsResponse.from(storeOrderUseCase.getStoreOrderDetails(orderId)));
+    public ApiResponse<StoreOrderDetailsResponse> getStoreOrderDetails(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @PathVariable Long orderId) {
+        return ApiResponse.ok(StoreOrderDetailsResponse.from(
+                storeOrderUseCase.getStoreOrderDetails(orderId, principal)));
     }
 
     @PatchMapping("/{orderId}/approve")
     public ApiResponse<StoreOrderApproveResponse> approveStoreOrder(
             @PathVariable Long orderId,
-            @RequestParam Long userId) {
-        return ApiResponse.ok(StoreOrderApproveResponse.from(storeOrderUseCase.approveStoreOrder(orderId, userId)));
+            @AuthenticationPrincipal AuthenticatedUser principal) {
+        return ApiResponse.ok(StoreOrderApproveResponse.from(storeOrderUseCase.approveStoreOrder(orderId, principal.userId())));
     }
 
     @PatchMapping("/{orderId}/reject")
     public ApiResponse<StoreOrderStatusResponse> rejectStoreOrder(
             @PathVariable Long orderId,
-            @RequestParam Long userId,
+            @AuthenticationPrincipal AuthenticatedUser principal,
             @Valid @RequestBody StoreOrderReasonRequest request) {
         return ApiResponse.ok(StoreOrderStatusResponse.from(storeOrderUseCase.rejectStoreOrder(
-                new StoreOrderRejectCommand(orderId, request.reason(), userId))));
+                new StoreOrderRejectCommand(orderId, request.reason(), principal.userId()))));
     }
 
     @PatchMapping("/{orderId}/cancel")
     public ApiResponse<StoreOrderCancelResponse> cancelStoreOrder(
             @PathVariable Long orderId,
-            @RequestParam Long userId,
+            @AuthenticationPrincipal AuthenticatedUser principal,
             @Valid @RequestBody(required = false) StoreOrderCancelRequest request) {
         String reason = request != null ? request.reason() : null;
         return ApiResponse.ok(StoreOrderCancelResponse.from(storeOrderUseCase.cancelStoreOrder(
-                new StoreOrderCancelCommand(orderId, reason, userId))));
+                new StoreOrderCancelCommand(orderId, reason, principal.userId()), principal)));
     }
 
     @PostMapping("/assign")
     public ApiResponse<StoreOrderAssignResponse> assignStoreOrder(
-            @RequestParam Long userId,
+            @AuthenticationPrincipal AuthenticatedUser principal,
             @Valid @RequestBody StoreOrderAssignRequest request) {
         return ApiResponse.ok(StoreOrderAssignResponse.from(
-                storeOrderUseCase.assignStoreOrder(request.toCommand(userId))));
+                storeOrderUseCase.assignStoreOrder(request.toCommand(principal.userId()))));
     }
 
     @PatchMapping("/{orderId}/hold")
     public ApiResponse<StoreOrderStatusResponse> holdStoreOrder(
             @PathVariable Long orderId,
-            @RequestParam Long userId,
+            @AuthenticationPrincipal AuthenticatedUser principal,
             @Valid @RequestBody StoreOrderReasonRequest request) {
         return ApiResponse.ok(StoreOrderStatusResponse.from(storeOrderUseCase.holdStoreOrder(
-                new StoreOrderHoldCommand(orderId, request.reason(), userId))));
+                new StoreOrderHoldCommand(orderId, request.reason(), principal.userId()), principal)));
     }
 
     @PatchMapping("/{orderId}/resume")
     public ApiResponse<StoreOrderStatusResponse> resumeStoreOrder(
             @PathVariable Long orderId,
-            @RequestParam Long userId,
+            @AuthenticationPrincipal AuthenticatedUser principal,
             @Valid @RequestBody StoreOrderReasonRequest request) {
         return ApiResponse.ok(StoreOrderStatusResponse.from(storeOrderUseCase.resumeStoreOrder(
-                new StoreOrderResumeCommand(orderId, request.reason(), userId))));
+                new StoreOrderResumeCommand(orderId, request.reason(), principal.userId()), principal)));
     }
 
     @PatchMapping("/{orderId}/complete-partial")
     public ApiResponse<StoreOrderCompletePartialResponse> completePartialStoreOrder(
             @PathVariable Long orderId,
-            @RequestParam Long userId,
+            @AuthenticationPrincipal AuthenticatedUser principal,
             @Valid @RequestBody StoreOrderReasonRequest request) {
         return ApiResponse.ok(StoreOrderCompletePartialResponse.from(storeOrderUseCase.completePartialStoreOrder(
-                new StoreOrderCompletePartialCommand(orderId, request.reason(), userId))));
+                new StoreOrderCompletePartialCommand(orderId, request.reason(), principal.userId()), principal)));
     }
 }

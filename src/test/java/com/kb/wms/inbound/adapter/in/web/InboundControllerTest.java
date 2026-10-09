@@ -1,5 +1,6 @@
 package com.kb.wms.inbound.adapter.in.web;
 
+import static com.kb.wms.common.security.TestAuth.signInAs;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -17,6 +18,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -27,6 +29,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inbound.application.port.in.InboundCompleteUseCase;
@@ -77,6 +80,12 @@ class InboundControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @BeforeEach
+    void signIn() {
+        // 처리 사용자는 토큰 주체다. 서비스는 목이라 담당 창고 범위는 서비스 테스트에서 확인한다.
+        signInAs(UserRole.WAREHOUSE_MANAGER, 5L, java.util.List.of(1L), java.util.List.of());
+    }
+
     @MockitoBean
     private InboundUseCase inboundUseCase;
 
@@ -92,7 +101,7 @@ class InboundControllerTest {
         return new InboundView(
                 7L, "IB-20260925-0001", 4L, "PO-20260921-0001", PurchaseOrderStatus.CONFIRMED, 3L, "공급처 A",
                 1L, "서울 물류센터", status, LocalDateTime.of(2026, 9, 25, 9, 10),
-                null, null, "1차 입고", 1L, LocalDateTime.of(2026, 9, 25, 9, 12),
+                null, null, null, "1차 입고", 1L, LocalDateTime.of(2026, 9, 25, 9, 12),
                 LocalDateTime.of(2026, 9, 25, 11, 0));
     }
 
@@ -134,11 +143,10 @@ class InboundControllerTest {
     @Test
     @DisplayName("입고를 등록하면 201과 명세의 등록 응답(헤더)을 반환한다")
     void register_success() throws Exception {
-        when(inboundUseCase.registerInbound(any(InboundRegisterCommand.class))).thenReturn(7L);
-        when(inboundUseCase.getInbound(7L)).thenReturn(view(InboundStatus.ARRIVED));
+        when(inboundUseCase.registerInbound(any(InboundRegisterCommand.class), any())).thenReturn(7L);
+        when(inboundUseCase.getInbound(eq(7L), any())).thenReturn(view(InboundStatus.ARRIVED));
 
         mockMvc.perform(post("/api/v1/inbounds")
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "purchaseOrderId": 4, "arrivedAt": "2026-09-25T09:10:00", "note": "1차 입고" }
@@ -156,7 +164,7 @@ class InboundControllerTest {
                 .andExpect(jsonPath("$.data.note").value("1차 입고"));
 
         ArgumentCaptor<InboundRegisterCommand> captor = ArgumentCaptor.forClass(InboundRegisterCommand.class);
-        verify(inboundUseCase).registerInbound(captor.capture());
+        verify(inboundUseCase).registerInbound(captor.capture(), any());
         assertThat(captor.getValue().purchaseOrderId()).isEqualTo(4L);
         assertThat(captor.getValue().arrivedAt()).isEqualTo(LocalDateTime.of(2026, 9, 25, 9, 10));
         assertThat(captor.getValue().note()).isEqualTo("1차 입고");
@@ -166,14 +174,12 @@ class InboundControllerTest {
     @DisplayName("발주 ID가 없거나 비고가 1000자를 넘으면 400 VALIDATION_ERROR이고 서비스를 호출하지 않는다")
     void register_validation() throws Exception {
         mockMvc.perform(post("/api/v1/inbounds")
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"note\": \"비고\" }"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
 
         mockMvc.perform(post("/api/v1/inbounds")
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"purchaseOrderId\": 4, \"note\": \"" + "가".repeat(1001) + "\" }"))
                 .andExpect(status().isBadRequest())
@@ -185,11 +191,10 @@ class InboundControllerTest {
     @Test
     @DisplayName("같은 발주에 진행 중인 입고가 있으면 409 INBOUND_IN_PROGRESS를 반환한다")
     void register_inProgress() throws Exception {
-        when(inboundUseCase.registerInbound(any(InboundRegisterCommand.class)))
+        when(inboundUseCase.registerInbound(any(InboundRegisterCommand.class), any()))
                 .thenThrow(new BusinessException(InboundErrorCode.INBOUND_IN_PROGRESS));
 
         mockMvc.perform(post("/api/v1/inbounds")
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"purchaseOrderId\": 4 }"))
                 .andExpect(status().isConflict())
@@ -202,7 +207,7 @@ class InboundControllerTest {
     @Test
     @DisplayName("입고 목록은 data.items로 반환하고 필터를 조회 조건으로 넘긴다")
     void list_success() throws Exception {
-        when(inboundUseCase.getInbounds(any(InboundSearchCondition.class))).thenReturn(List.of(summary()));
+        when(inboundUseCase.getInbounds(any(InboundSearchCondition.class), any())).thenReturn(List.of(summary()));
 
         mockMvc.perform(get("/api/v1/inbounds")
                         .param("status", "INSPECTING")
@@ -218,7 +223,7 @@ class InboundControllerTest {
                 .andExpect(jsonPath("$.data.items[0].lineCount").value(1));
 
         ArgumentCaptor<InboundSearchCondition> captor = ArgumentCaptor.forClass(InboundSearchCondition.class);
-        verify(inboundUseCase).getInbounds(captor.capture());
+        verify(inboundUseCase).getInbounds(captor.capture(), any());
         InboundSearchCondition condition = captor.getValue();
         assertThat(condition.status()).isEqualTo(InboundStatus.INSPECTING);
         assertThat(condition.warehouseId()).isEqualTo(1L);
@@ -240,7 +245,7 @@ class InboundControllerTest {
     @Test
     @DisplayName("입고 단건을 조회하면 명세의 단건 응답을 반환한다")
     void get_success() throws Exception {
-        when(inboundUseCase.getInbound(7L)).thenReturn(view(InboundStatus.INSPECTING));
+        when(inboundUseCase.getInbound(eq(7L), any())).thenReturn(view(InboundStatus.INSPECTING));
 
         mockMvc.perform(get("/api/v1/inbounds/7"))
                 .andExpect(status().isOk())
@@ -255,7 +260,7 @@ class InboundControllerTest {
     @Test
     @DisplayName("없는 입고를 조회하면 404 INBOUND_NOT_FOUND를 반환한다")
     void get_notFound() throws Exception {
-        when(inboundUseCase.getInbound(999L)).thenThrow(new BusinessException(InboundErrorCode.INBOUND_NOT_FOUND));
+        when(inboundUseCase.getInbound(eq(999L), any())).thenThrow(new BusinessException(InboundErrorCode.INBOUND_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/inbounds/999"))
                 .andExpect(status().isNotFound())
@@ -274,7 +279,7 @@ class InboundControllerTest {
     @Test
     @DisplayName("입고 상세는 검수 항목을 items로 반환한다")
     void details_success() throws Exception {
-        when(inboundUseCase.getInboundDetails(7L)).thenReturn(new InboundDetails(
+        when(inboundUseCase.getInboundDetails(eq(7L), any())).thenReturn(new InboundDetails(
                 7L, "IB-20260925-0001", InboundStatus.INSPECTING, List.of(lineView())));
 
         mockMvc.perform(get("/api/v1/inbounds/7/details"))
@@ -295,13 +300,12 @@ class InboundControllerTest {
     @Test
     @DisplayName("검수하면 요청 항목을 명령으로 넘기고 저장된 검수 항목과 상태를 반환한다")
     void inspect_success() throws Exception {
-        when(inboundInspectUseCase.inspectInbound(eq(7L), any(InboundInspectCommand.class)))
+        when(inboundInspectUseCase.inspectInbound(eq(7L), any(InboundInspectCommand.class), any()))
                 .thenReturn(inbound(InboundStatus.INSPECTING));
-        when(inboundUseCase.getInboundDetails(7L)).thenReturn(new InboundDetails(
+        when(inboundUseCase.getInboundDetails(eq(7L), any())).thenReturn(new InboundDetails(
                 7L, "IB-20260925-0001", InboundStatus.INSPECTING, List.of(lineView())));
 
         mockMvc.perform(patch("/api/v1/inbounds/7/inspect")
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(INSPECT_BODY))
                 .andExpect(status().isOk())
@@ -316,7 +320,7 @@ class InboundControllerTest {
                 .andExpect(jsonPath("$.data.updatedAt").exists());
 
         ArgumentCaptor<InboundInspectCommand> captor = ArgumentCaptor.forClass(InboundInspectCommand.class);
-        verify(inboundInspectUseCase).inspectInbound(eq(7L), captor.capture());
+        verify(inboundInspectUseCase).inspectInbound(eq(7L), captor.capture(), any());
         assertThat(captor.getValue().userId()).isEqualTo(5L);
         assertThat(captor.getValue().lines()).hasSize(1);
         InboundInspectCommand.Line line = captor.getValue().lines().get(0);
@@ -352,7 +356,6 @@ class InboundControllerTest {
 
         for (String body : invalidBodies) {
             mockMvc.perform(patch("/api/v1/inbounds/7/inspect")
-                            .param("userId", "5")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
                     .andExpect(status().isBadRequest())
@@ -381,24 +384,12 @@ class InboundControllerTest {
     }
 
     @Test
-    @DisplayName("처리 사용자 파라미터가 없으면 400을 반환한다")
-    void inspect_missingUserId() throws Exception {
-        mockMvc.perform(patch("/api/v1/inbounds/7/inspect")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(INSPECT_BODY))
-                .andExpect(status().isBadRequest());
-
-        verifyNoInteractions(inboundInspectUseCase);
-    }
-
-    @Test
     @DisplayName("로트 원가가 기존 로트와 다르면 409 LOT_UNIT_COST_MISMATCH를 반환한다")
     void inspect_lotConflict() throws Exception {
-        when(inboundInspectUseCase.inspectInbound(eq(7L), any(InboundInspectCommand.class)))
+        when(inboundInspectUseCase.inspectInbound(eq(7L), any(InboundInspectCommand.class), any()))
                 .thenThrow(new BusinessException(InventoryErrorCode.LOT_UNIT_COST_MISMATCH));
 
         mockMvc.perform(patch("/api/v1/inbounds/7/inspect")
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(INSPECT_BODY))
                 .andExpect(status().isConflict())
@@ -410,14 +401,14 @@ class InboundControllerTest {
     @Test
     @DisplayName("입고를 완료하면 반영된 재고와 발주·발주 항목 상태를 반환한다")
     void complete_success() throws Exception {
-        when(inboundCompleteUseCase.completeInbound(7L, 5L)).thenReturn(new InboundCompleteResult(
+        when(inboundCompleteUseCase.completeInbound(eq(7L), any())).thenReturn(new InboundCompleteResult(
                 inbound(InboundStatus.COMPLETED),
                 List.of(new InboundCompleteResult.ReflectedInventory(21L, 101L, 58L, 105L, 2L)),
                 4L, PurchaseOrderStatus.CONFIRMED,
                 List.of(new InboundCompleteResult.PurchaseOrderLineProgress(
                         11L, 100L, 60L, PurchaseOrderLineStatus.PARTIALLY_RECEIVED))));
 
-        mockMvc.perform(patch("/api/v1/inbounds/7/complete").param("userId", "5"))
+        mockMvc.perform(patch("/api/v1/inbounds/7/complete"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.inboundId").value(7))
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"))
@@ -439,21 +430,12 @@ class InboundControllerTest {
     @Test
     @DisplayName("구역이 지정되지 않았으면 409 SECTION_NOT_ASSIGNED를 반환한다")
     void complete_sectionNotAssigned() throws Exception {
-        when(inboundCompleteUseCase.completeInbound(7L, 5L))
+        when(inboundCompleteUseCase.completeInbound(eq(7L), any()))
                 .thenThrow(new BusinessException(InboundErrorCode.SECTION_NOT_ASSIGNED));
 
-        mockMvc.perform(patch("/api/v1/inbounds/7/complete").param("userId", "5"))
+        mockMvc.perform(patch("/api/v1/inbounds/7/complete"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("SECTION_NOT_ASSIGNED"));
-    }
-
-    @Test
-    @DisplayName("처리 사용자 파라미터가 없으면 완료 요청은 400을 반환한다")
-    void complete_missingUserId() throws Exception {
-        mockMvc.perform(patch("/api/v1/inbounds/7/complete"))
-                .andExpect(status().isBadRequest());
-
-        verifyNoInteractions(inboundCompleteUseCase);
     }
 
     // ---------- 취소 ----------
@@ -461,13 +443,12 @@ class InboundControllerTest {
     @Test
     @DisplayName("입고를 취소하면 취소 상태와 발주 상태를 반환한다")
     void cancel_success() throws Exception {
-        when(inboundUseCase.cancelInbound(eq(7L), any(InboundCancelCommand.class)))
+        when(inboundUseCase.cancelInbound(eq(7L), any(InboundCancelCommand.class), any()))
                 .thenReturn(inbound(InboundStatus.CANCELED));
-        when(inboundUseCase.getInbound(7L))
+        when(inboundUseCase.getInbound(eq(7L), any()))
                 .thenReturn(view(InboundStatus.CANCELED).withCancelReason("발주와 다른 상품이 도착해 전량 반송"));
 
         mockMvc.perform(patch("/api/v1/inbounds/7/cancel")
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"reason\": \"발주와 다른 상품이 도착해 전량 반송\" }"))
                 .andExpect(status().isOk())
@@ -480,37 +461,15 @@ class InboundControllerTest {
                 .andExpect(jsonPath("$.data.updatedAt").exists());
 
         ArgumentCaptor<InboundCancelCommand> captor = ArgumentCaptor.forClass(InboundCancelCommand.class);
-        verify(inboundUseCase).cancelInbound(eq(7L), captor.capture());
+        verify(inboundUseCase).cancelInbound(eq(7L), captor.capture(), any());
         assertThat(captor.getValue().reason()).isEqualTo("발주와 다른 상품이 도착해 전량 반송");
         assertThat(captor.getValue().userId()).isEqualTo(5L);
     }
 
     @Test
-    @DisplayName("취소 처리 사용자 파라미터가 없으면 400을 반환하고 유스케이스를 호출하지 않는다")
-    void cancel_missingUserId() throws Exception {
-        mockMvc.perform(patch("/api/v1/inbounds/7/cancel")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{ \"reason\": \"사유\" }"))
-                .andExpect(status().isBadRequest());
-
-        verifyNoInteractions(inboundUseCase);
-    }
-
-    @Test
-    @DisplayName("등록 처리 사용자 파라미터가 없으면 400을 반환하고 유스케이스를 호출하지 않는다")
-    void register_missingUserId() throws Exception {
-        mockMvc.perform(post("/api/v1/inbounds")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{ \"purchaseOrderId\": 4 }"))
-                .andExpect(status().isBadRequest());
-
-        verifyNoInteractions(inboundUseCase);
-    }
-
-    @Test
     @DisplayName("취소된 입고 단건을 조회하면 cancelReason을 반환한다")
     void getInbound_canceled_returnsCancelReason() throws Exception {
-        when(inboundUseCase.getInbound(7L))
+        when(inboundUseCase.getInbound(eq(7L), any()))
                 .thenReturn(view(InboundStatus.CANCELED).withCancelReason("잘못된 발주에 등록"));
 
         mockMvc.perform(get("/api/v1/inbounds/7"))
@@ -525,7 +484,6 @@ class InboundControllerTest {
         for (String body : List.of("{ }", "{ \"reason\": \"  \" }",
                 "{ \"reason\": \"" + "가".repeat(501) + "\" }")) {
             mockMvc.perform(patch("/api/v1/inbounds/7/cancel")
-                        .param("userId", "5")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
                     .andExpect(status().isBadRequest())
@@ -537,11 +495,10 @@ class InboundControllerTest {
     @Test
     @DisplayName("완료된 입고를 취소하면 409 CONFLICT를 반환한다")
     void cancel_conflict() throws Exception {
-        when(inboundUseCase.cancelInbound(eq(7L), any(InboundCancelCommand.class)))
+        when(inboundUseCase.cancelInbound(eq(7L), any(InboundCancelCommand.class), any()))
                 .thenThrow(new BusinessException(ErrorCode.CONFLICT, "완료된 입고는 취소할 수 없습니다."));
 
         mockMvc.perform(patch("/api/v1/inbounds/7/cancel")
-                        .param("userId", "5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"reason\": \"사유\" }"))
                 .andExpect(status().isConflict())
@@ -553,8 +510,8 @@ class InboundControllerTest {
     @Test
     @DisplayName("합격 구역 후보는 입고 ID·창고 ID와 items를 반환하고 조건을 넘긴다")
     void assignableSections_success() throws Exception {
-        when(inboundUseCase.getInbound(7L)).thenReturn(view(InboundStatus.INSPECTING));
-        when(inboundUseCase.getAssignableSections(eq(7L), any(SectionCandidateCondition.class)))
+        when(inboundUseCase.getInbound(eq(7L), any())).thenReturn(view(InboundStatus.INSPECTING));
+        when(inboundUseCase.getAssignableSections(eq(7L), any(SectionCandidateCondition.class), any()))
                 .thenReturn(List.of(candidate(2L, "RACK")));
 
         mockMvc.perform(get("/api/v1/inbounds/7/assignable-sections")
@@ -571,7 +528,7 @@ class InboundControllerTest {
                 .andExpect(jsonPath("$.data.items[0].availableCapacity").value(680));
 
         ArgumentCaptor<SectionCandidateCondition> captor = ArgumentCaptor.forClass(SectionCandidateCondition.class);
-        verify(inboundUseCase).getAssignableSections(eq(7L), captor.capture());
+        verify(inboundUseCase).getAssignableSections(eq(7L), captor.capture(), any());
         assertThat(captor.getValue().requiredQuantity()).isEqualByComparingTo("58");
         assertThat(captor.getValue().keyword()).isEqualTo("A-01");
     }
@@ -579,8 +536,8 @@ class InboundControllerTest {
     @Test
     @DisplayName("불량 구역 후보도 같은 응답 형식으로 반환한다")
     void defectSections_success() throws Exception {
-        when(inboundUseCase.getInbound(7L)).thenReturn(view(InboundStatus.INSPECTING));
-        when(inboundUseCase.getDefectSections(eq(7L), any(SectionCandidateCondition.class)))
+        when(inboundUseCase.getInbound(eq(7L), any())).thenReturn(view(InboundStatus.INSPECTING));
+        when(inboundUseCase.getDefectSections(eq(7L), any(SectionCandidateCondition.class), any()))
                 .thenReturn(List.of(candidate(9L, "DEFECT")));
 
         mockMvc.perform(get("/api/v1/inbounds/7/defect-sections"))
@@ -594,7 +551,7 @@ class InboundControllerTest {
     @Test
     @DisplayName("없는 입고의 구역 후보를 조회하면 404 INBOUND_NOT_FOUND를 반환한다")
     void sections_notFound() throws Exception {
-        when(inboundUseCase.getInbound(999L)).thenThrow(new BusinessException(InboundErrorCode.INBOUND_NOT_FOUND));
+        when(inboundUseCase.getInbound(eq(999L), any())).thenThrow(new BusinessException(InboundErrorCode.INBOUND_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/inbounds/999/assignable-sections"))
                 .andExpect(status().isNotFound())

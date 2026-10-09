@@ -25,6 +25,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -52,6 +54,11 @@ import com.kb.wms.inbound.exception.SupplierErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class PurchaseOrderServiceTest {
+
+    // 발주 5번 사용자가 만든 요청 발주의 작성자(창고 관리자)
+    private static final AuthenticatedUser AUTHOR =
+            new AuthenticatedUser(5L, UserRole.WAREHOUSE_MANAGER, List.of(1L), List.of());
+    private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
 
     @Mock
     private PurchaseOrderRepository purchaseOrderRepository;
@@ -119,7 +126,7 @@ class PurchaseOrderServiceTest {
     private static PurchaseOrderView viewWithStatus(PurchaseOrderStatus status) {
         return new PurchaseOrderView(
                 4L, "PO-20261002-0001", 1L, "서울 물류센터", 3L, "공급처 A", status,
-                null, null, 1L, BigDecimal.valueOf(6000000), 5L, null, null);
+                null, null, 1L, BigDecimal.valueOf(6000000), 5L, null, null, null);
     }
 
     /** 저장 시 발주 ID를 채워 돌려주는 목 동작 */
@@ -152,7 +159,7 @@ class PurchaseOrderServiceTest {
         stubSaveAssigningId(4L);
 
         Long id = purchaseOrderService.registerPurchaseOrder(
-                registerCommand(expectedAt, "정기 보충 발주", line(1L, 100), line(2L, 10)));
+                registerCommand(expectedAt, "정기 보충 발주", line(1L, 100), line(2L, 10)), HQ);
 
         assertThat(id).isEqualTo(4L);
         verify(warehouseAvailabilityPort).requireActive(1L);
@@ -197,7 +204,7 @@ class PurchaseOrderServiceTest {
         when(purchaseOrderRepository.countByPurchaseOrderNoPrefix(anyString())).thenReturn(0L);
         stubSaveAssigningId(4L);
 
-        purchaseOrderService.registerPurchaseOrder(registerCommand(null, null, line(1L, 1)));
+        purchaseOrderService.registerPurchaseOrder(registerCommand(null, null, line(1L, 1)), HQ);
 
         ArgumentCaptor<PurchaseOrder> headerCaptor = ArgumentCaptor.forClass(PurchaseOrder.class);
         verify(purchaseOrderRepository).save(headerCaptor.capture());
@@ -209,7 +216,7 @@ class PurchaseOrderServiceTest {
     @Test
     @DisplayName("발주 항목이 비어 있으면 VALIDATION_ERROR를 던진다")
     void register_emptyLines() {
-        assertError(() -> purchaseOrderService.registerPurchaseOrder(registerCommand(null, null)),
+        assertError(() -> purchaseOrderService.registerPurchaseOrder(registerCommand(null, null), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(purchaseOrderRepository, warehouseAvailabilityPort, skuPurchasePricePort);
     }
@@ -218,7 +225,7 @@ class PurchaseOrderServiceTest {
     @DisplayName("발주 수량이 0 이하면 VALIDATION_ERROR를 던진다")
     void register_nonPositiveQuantity() {
         assertError(() -> purchaseOrderService.registerPurchaseOrder(
-                        registerCommand(null, null, line(1L, 0))),
+                        registerCommand(null, null, line(1L, 0)), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(purchaseOrderRepository, warehouseAvailabilityPort, skuPurchasePricePort);
     }
@@ -227,7 +234,7 @@ class PurchaseOrderServiceTest {
     @DisplayName("같은 SKU를 두 번 넣으면 VALIDATION_ERROR를 던진다")
     void register_duplicateSku() {
         assertError(() -> purchaseOrderService.registerPurchaseOrder(
-                        registerCommand(null, null, line(1L, 10), line(1L, 20))),
+                        registerCommand(null, null, line(1L, 10), line(1L, 20)), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(purchaseOrderRepository, warehouseAvailabilityPort, skuPurchasePricePort);
     }
@@ -236,7 +243,7 @@ class PurchaseOrderServiceTest {
     @DisplayName("입고 예정 일시가 과거면 VALIDATION_ERROR를 던진다")
     void register_expectedAtInPast() {
         assertError(() -> purchaseOrderService.registerPurchaseOrder(
-                        registerCommand(LocalDateTime.now().minusMinutes(1), null, line(1L, 10))),
+                        registerCommand(LocalDateTime.now().minusMinutes(1), null, line(1L, 10)), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(purchaseOrderRepository, warehouseAvailabilityPort, skuPurchasePricePort);
     }
@@ -245,7 +252,7 @@ class PurchaseOrderServiceTest {
     @DisplayName("비고가 1000자를 넘으면 VALIDATION_ERROR를 던진다")
     void register_noteTooLong() {
         assertError(() -> purchaseOrderService.registerPurchaseOrder(
-                        registerCommand(null, "가".repeat(1001), line(1L, 10))),
+                        registerCommand(null, "가".repeat(1001), line(1L, 10)), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(purchaseOrderRepository, warehouseAvailabilityPort, skuPurchasePricePort);
     }
@@ -257,7 +264,7 @@ class PurchaseOrderServiceTest {
                 .when(warehouseAvailabilityPort).requireActive(1L);
 
         assertError(() -> purchaseOrderService.registerPurchaseOrder(
-                        registerCommand(null, null, line(1L, 10))),
+                        registerCommand(null, null, line(1L, 10)), HQ),
                 ErrorCode.CONFLICT.name());
         verify(purchaseOrderRepository, never()).save(any());
     }
@@ -268,7 +275,7 @@ class PurchaseOrderServiceTest {
         when(supplierRepository.findById(3L)).thenReturn(Optional.empty());
 
         assertError(() -> purchaseOrderService.registerPurchaseOrder(
-                        registerCommand(null, null, line(1L, 10))),
+                        registerCommand(null, null, line(1L, 10)), HQ),
                 SupplierErrorCode.SUPPLIER_NOT_FOUND.name());
         verify(purchaseOrderRepository, never()).save(any());
     }
@@ -279,7 +286,7 @@ class PurchaseOrderServiceTest {
         when(supplierRepository.findById(3L)).thenReturn(Optional.of(inactiveSupplier()));
 
         assertError(() -> purchaseOrderService.registerPurchaseOrder(
-                        registerCommand(null, null, line(1L, 10))),
+                        registerCommand(null, null, line(1L, 10)), HQ),
                 ErrorCode.CONFLICT.name());
         verify(purchaseOrderRepository, never()).save(any());
     }
@@ -292,7 +299,7 @@ class PurchaseOrderServiceTest {
                 .thenThrow(new BusinessException(PurchaseOrderErrorCode.PURCHASE_PRICE_MISSING));
 
         assertError(() -> purchaseOrderService.registerPurchaseOrder(
-                        registerCommand(null, null, line(1L, 10))),
+                        registerCommand(null, null, line(1L, 10)), HQ),
                 PurchaseOrderErrorCode.PURCHASE_PRICE_MISSING.name());
         verify(purchaseOrderRepository, never()).save(any());
         verify(purchaseOrderRepository, never()).saveLines(any());
@@ -367,7 +374,7 @@ class PurchaseOrderServiceTest {
                 .thenReturn(Optional.of(purchaseOrder(4L, PurchaseOrderStatus.REQUESTED)));
         when(purchaseOrderRepository.save(any(PurchaseOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        PurchaseOrder result = purchaseOrderService.cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand(null, 5L));
+        PurchaseOrder result = purchaseOrderService.cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand(null, 5L), AUTHOR);
 
         assertThat(result.getStatus()).isEqualTo(PurchaseOrderStatus.CANCELED);
         verify(statusHistoryUseCase).record(
@@ -382,7 +389,7 @@ class PurchaseOrderServiceTest {
         when(purchaseOrderRepository.save(any(PurchaseOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PurchaseOrder result = purchaseOrderService.cancelPurchaseOrder(
-                4L, new PurchaseOrderCancelCommand("공급업체 재고 부족으로 납품 불가", 5L));
+                4L, new PurchaseOrderCancelCommand("공급업체 재고 부족으로 납품 불가", 5L), HQ);
 
         assertThat(result.getStatus()).isEqualTo(PurchaseOrderStatus.CANCELED);
         verify(statusHistoryUseCase).record(StatusHistoryEntityType.PURCHASE_ORDER, 4L,
@@ -392,9 +399,9 @@ class PurchaseOrderServiceTest {
     @Test
     @DisplayName("취소 처리 사용자가 없으면 VALIDATION_ERROR를 던진다")
     void cancel_userIdRequired() {
-        assertError(() -> purchaseOrderService.cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand("사유", null)),
+        assertError(() -> purchaseOrderService.cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand("사유", null), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
-        assertError(() -> purchaseOrderService.cancelPurchaseOrder(4L, null), ErrorCode.VALIDATION_ERROR.name());
+        assertError(() -> purchaseOrderService.cancelPurchaseOrder(4L, null, HQ), ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(purchaseOrderRepository, statusHistoryUseCase);
     }
 
@@ -404,11 +411,11 @@ class PurchaseOrderServiceTest {
         PurchaseOrder confirmed = purchaseOrder(4L, PurchaseOrderStatus.CONFIRMED);
         when(purchaseOrderRepository.findByIdForUpdate(4L)).thenReturn(Optional.of(confirmed));
 
-        assertError(() -> purchaseOrderService.cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand(null, 5L)),
+        assertError(() -> purchaseOrderService.cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand(null, 5L), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
-        assertError(() -> purchaseOrderService.cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand("  ", 5L)),
+        assertError(() -> purchaseOrderService.cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand("  ", 5L), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
-        assertError(() -> purchaseOrderService.cancelPurchaseOrder(4L, null),
+        assertError(() -> purchaseOrderService.cancelPurchaseOrder(4L, null, HQ),
                 ErrorCode.VALIDATION_ERROR.name());
         assertThat(confirmed.getStatus()).isEqualTo(PurchaseOrderStatus.CONFIRMED);
         verify(purchaseOrderRepository, never()).save(any());
@@ -422,7 +429,7 @@ class PurchaseOrderServiceTest {
                 .thenReturn(Optional.of(purchaseOrder(4L, PurchaseOrderStatus.REQUESTED)));
 
         assertError(() -> purchaseOrderService.cancelPurchaseOrder(
-                        4L, new PurchaseOrderCancelCommand("가".repeat(501), 5L)),
+                        4L, new PurchaseOrderCancelCommand("가".repeat(501), 5L), AUTHOR),
                 ErrorCode.VALIDATION_ERROR.name());
         verify(purchaseOrderRepository, never()).save(any());
     }
@@ -434,7 +441,7 @@ class PurchaseOrderServiceTest {
             when(purchaseOrderRepository.findByIdForUpdate(4L)).thenReturn(Optional.of(purchaseOrder(4L, status)));
 
             assertError(() -> purchaseOrderService.cancelPurchaseOrder(
-                            4L, new PurchaseOrderCancelCommand("사유", 5L)),
+                            4L, new PurchaseOrderCancelCommand("사유", 5L), HQ),
                     ErrorCode.CONFLICT.name());
         }
         verify(purchaseOrderRepository, never()).save(any());
@@ -447,7 +454,7 @@ class PurchaseOrderServiceTest {
                 .thenReturn(Optional.of(purchaseOrder(4L, PurchaseOrderStatus.CONFIRMED)));
         when(inboundRepository.existsNotCanceledByPurchaseOrderId(4L)).thenReturn(true);
 
-        assertError(() -> purchaseOrderService.cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand("입고 전 취소", 5L)),
+        assertError(() -> purchaseOrderService.cancelPurchaseOrder(4L, new PurchaseOrderCancelCommand("입고 전 취소", 5L), HQ),
                 PurchaseOrderErrorCode.PURCHASE_ORDER_HAS_INBOUND.name());
         verify(purchaseOrderRepository, never()).save(any(PurchaseOrder.class));
     }
@@ -457,7 +464,7 @@ class PurchaseOrderServiceTest {
     void cancel_notFound() {
         when(purchaseOrderRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
 
-        assertError(() -> purchaseOrderService.cancelPurchaseOrder(999L, new PurchaseOrderCancelCommand("사유", 5L)),
+        assertError(() -> purchaseOrderService.cancelPurchaseOrder(999L, new PurchaseOrderCancelCommand("사유", 5L), HQ),
                 PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND.name());
     }
 
@@ -466,22 +473,22 @@ class PurchaseOrderServiceTest {
     @Test
     @DisplayName("목록 조회는 검색 조건을 그대로 조회 포트에 위임한다")
     void getPurchaseOrders_delegates() {
-        PurchaseOrderSearchCondition condition = new PurchaseOrderSearchCondition(
+        PurchaseOrderSearchCondition condition = PurchaseOrderSearchCondition.unscoped(
                 PurchaseOrderStatus.REQUESTED, 1L, 3L, "PO", null, null);
         List<PurchaseOrderSummary> expected = List.of();
         when(purchaseOrderQueryRepository.search(condition)).thenReturn(expected);
 
-        assertThat(purchaseOrderService.getPurchaseOrders(condition)).isSameAs(expected);
+        assertThat(purchaseOrderService.getPurchaseOrders(condition, HQ)).isSameAs(expected);
     }
 
     @Test
     @DisplayName("등록 시작 일시가 종료 일시보다 늦으면 VALIDATION_ERROR를 던진다")
     void getPurchaseOrders_invalidDateRange() {
-        PurchaseOrderSearchCondition condition = new PurchaseOrderSearchCondition(
+        PurchaseOrderSearchCondition condition = PurchaseOrderSearchCondition.unscoped(
                 null, null, null, null,
                 LocalDateTime.of(2026, 10, 2, 0, 0), LocalDateTime.of(2026, 10, 1, 0, 0));
 
-        assertError(() -> purchaseOrderService.getPurchaseOrders(condition), ErrorCode.VALIDATION_ERROR.name());
+        assertError(() -> purchaseOrderService.getPurchaseOrders(condition, HQ), ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(purchaseOrderQueryRepository);
     }
 
@@ -490,7 +497,7 @@ class PurchaseOrderServiceTest {
     void getPurchaseOrder_notFound() {
         when(purchaseOrderQueryRepository.findView(999L)).thenReturn(Optional.empty());
 
-        assertError(() -> purchaseOrderService.getPurchaseOrder(999L),
+        assertError(() -> purchaseOrderService.getPurchaseOrder(999L, HQ),
                 PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND.name());
     }
 
@@ -502,7 +509,7 @@ class PurchaseOrderServiceTest {
         when(statusHistoryUseCase.findStatusReason(StatusHistoryEntityType.PURCHASE_ORDER, 4L, "CANCELED"))
                 .thenReturn(Optional.of("공급업체 재고 부족"));
 
-        assertThat(purchaseOrderService.getPurchaseOrder(4L).cancelReason()).isEqualTo("공급업체 재고 부족");
+        assertThat(purchaseOrderService.getPurchaseOrder(4L, HQ).cancelReason()).isEqualTo("공급업체 재고 부족");
     }
 
     @Test
@@ -513,7 +520,7 @@ class PurchaseOrderServiceTest {
         when(statusHistoryUseCase.findStatusReason(StatusHistoryEntityType.PURCHASE_ORDER, 4L, "CANCELED"))
                 .thenReturn(Optional.empty());
 
-        assertThat(purchaseOrderService.getPurchaseOrder(4L).cancelReason()).isNull();
+        assertThat(purchaseOrderService.getPurchaseOrder(4L, HQ).cancelReason()).isNull();
     }
 
     @Test
@@ -522,7 +529,7 @@ class PurchaseOrderServiceTest {
         when(purchaseOrderQueryRepository.findView(4L))
                 .thenReturn(Optional.of(viewWithStatus(PurchaseOrderStatus.CONFIRMED)));
 
-        assertThat(purchaseOrderService.getPurchaseOrder(4L).cancelReason()).isNull();
+        assertThat(purchaseOrderService.getPurchaseOrder(4L, HQ).cancelReason()).isNull();
         verifyNoInteractions(statusHistoryUseCase);
     }
 
@@ -531,14 +538,14 @@ class PurchaseOrderServiceTest {
     void getPurchaseOrderDetails_success() {
         PurchaseOrderView view = new PurchaseOrderView(
                 4L, "PO-20261002-0001", 1L, "서울 물류센터", 3L, "공급처 A", PurchaseOrderStatus.CONFIRMED,
-                null, null, 1L, BigDecimal.valueOf(6000000), 5L, null, null);
+                null, null, 1L, BigDecimal.valueOf(6000000), 5L, null, null, null);
         PurchaseOrderLineView lineView = new PurchaseOrderLineView(
                 11L, 1L, "SKU-0001", "배드민턴 라켓", "EA", 100L, 60L, 40L,
                 BigDecimal.valueOf(60000), BigDecimal.valueOf(6000000), PurchaseOrderLineStatus.PARTIALLY_RECEIVED);
         when(purchaseOrderQueryRepository.findView(4L)).thenReturn(Optional.of(view));
         when(purchaseOrderQueryRepository.findLineViews(4L)).thenReturn(List.of(lineView));
 
-        PurchaseOrderDetails details = purchaseOrderService.getPurchaseOrderDetails(4L);
+        PurchaseOrderDetails details = purchaseOrderService.getPurchaseOrderDetails(4L, HQ);
 
         assertThat(details.purchaseOrderId()).isEqualTo(4L);
         assertThat(details.purchaseOrderNo()).isEqualTo("PO-20261002-0001");
@@ -551,8 +558,81 @@ class PurchaseOrderServiceTest {
     void getPurchaseOrderDetails_notFound() {
         when(purchaseOrderQueryRepository.findView(anyLong())).thenReturn(Optional.empty());
 
-        assertError(() -> purchaseOrderService.getPurchaseOrderDetails(999L),
+        assertError(() -> purchaseOrderService.getPurchaseOrderDetails(999L, HQ),
                 PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND.name());
         verify(purchaseOrderQueryRepository, never()).findLineViews(anyLong());
+    }
+
+    @Test
+    @DisplayName("요청 발주는 작성자인 창고 관리자만 취소할 수 있고, 다른 창고 관리자와 본사는 403이다")
+    void cancel_requested_onlyAuthorWarehouseManager() {
+        AuthenticatedUser otherManager = new AuthenticatedUser(6L, UserRole.WAREHOUSE_MANAGER, List.of(1L), List.of());
+        when(purchaseOrderRepository.findByIdForUpdate(4L))
+                .thenReturn(Optional.of(purchaseOrder(4L, PurchaseOrderStatus.REQUESTED)));
+
+        for (AuthenticatedUser actor : List.of(otherManager, HQ)) {
+            assertError(() -> purchaseOrderService.cancelPurchaseOrder(
+                    4L, new PurchaseOrderCancelCommand(null, actor.userId()), actor), ErrorCode.FORBIDDEN.name());
+        }
+        verify(purchaseOrderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("확정 발주는 본사 관리자만 취소할 수 있고, 작성자 창고 관리자도 403이다")
+    void cancel_confirmed_onlyHqAdmin() {
+        when(purchaseOrderRepository.findByIdForUpdate(4L))
+                .thenReturn(Optional.of(purchaseOrder(4L, PurchaseOrderStatus.CONFIRMED)));
+
+        assertError(() -> purchaseOrderService.cancelPurchaseOrder(
+                4L, new PurchaseOrderCancelCommand("사유", 5L), AUTHOR), ErrorCode.FORBIDDEN.name());
+        verify(purchaseOrderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("발주 등록은 담당 창고에만 할 수 있다")
+    void register_otherWarehouse_forbidden() {
+        AuthenticatedUser manager = new AuthenticatedUser(5L, UserRole.WAREHOUSE_MANAGER, List.of(9L), List.of());
+        PurchaseOrderRegisterCommand command = new PurchaseOrderRegisterCommand(
+                1L, 2L, null, null, 5L, List.of(new PurchaseOrderRegisterCommand.Line(3L, 10L)));
+
+        assertError(() -> purchaseOrderService.registerPurchaseOrder(command, manager), ErrorCode.FORBIDDEN.name());
+        verify(purchaseOrderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("발주 목록은 창고를 생략하면 담당 창고로 좁히고, 비담당 창고를 지정하면 403이다. 단건은 비담당 창고면 403이다")
+    void scope_listAndDetail() {
+        AuthenticatedUser manager = new AuthenticatedUser(5L, UserRole.WAREHOUSE_MANAGER, List.of(1L, 2L), List.of());
+        PurchaseOrderSearchCondition all = PurchaseOrderSearchCondition.unscoped(null, null, null, null, null, null);
+        when(purchaseOrderQueryRepository.search(
+                new PurchaseOrderSearchCondition(null, null, null, null, null, null, List.of(1L, 2L))))
+                .thenReturn(List.of());
+
+        assertThat(purchaseOrderService.getPurchaseOrders(all, manager)).isEmpty();
+        assertError(() -> purchaseOrderService.getPurchaseOrders(
+                PurchaseOrderSearchCondition.unscoped(null, 3L, null, null, null, null), manager), ErrorCode.FORBIDDEN.name());
+    }
+
+
+    @Test
+    @DisplayName("다른 창고 사용자의 취소는 발주 상태와 상관없이 403이다 (상태 409가 드러나지 않는다). 소속이 바뀐 작성자도 마찬가지다")
+    void cancel_otherWarehouse_forbiddenBeforeStateCheck() {
+        // 작성자(5번)의 소속이 창고 9로 바뀌어 발주 창고(1)의 담당이 아닌 경우
+        AuthenticatedUser movedAuthor = new AuthenticatedUser(5L, UserRole.WAREHOUSE_MANAGER, List.of(9L), List.of());
+        AuthenticatedUser otherManager = new AuthenticatedUser(6L, UserRole.WAREHOUSE_MANAGER, List.of(9L), List.of());
+
+        for (PurchaseOrderStatus status : PurchaseOrderStatus.values()) {
+            when(purchaseOrderRepository.findByIdForUpdate(4L)).thenReturn(Optional.of(purchaseOrder(4L, status)));
+            for (AuthenticatedUser actor : List.of(movedAuthor, otherManager)) {
+                assertError(() -> purchaseOrderService.cancelPurchaseOrder(
+                        4L, new PurchaseOrderCancelCommand("사유", actor.userId()), actor), ErrorCode.FORBIDDEN.name());
+            }
+        }
+        verify(purchaseOrderRepository, never()).save(any());
+        // 담당 창고의 사용자에게는 종료된 발주가 그대로 409다
+        when(purchaseOrderRepository.findByIdForUpdate(4L))
+                .thenReturn(Optional.of(purchaseOrder(4L, PurchaseOrderStatus.COMPLETED)));
+        assertError(() -> purchaseOrderService.cancelPurchaseOrder(
+                4L, new PurchaseOrderCancelCommand("사유", 1L), HQ), ErrorCode.CONFLICT.name());
     }
 }

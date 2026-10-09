@@ -1,28 +1,108 @@
 package com.kb.wms.common.config;
 
 import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpMethod;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.kb.wms.common.security.JwtAuthenticationFilter;
+import com.kb.wms.common.security.JwtProvider;
+import com.kb.wms.common.security.RestSecurityExceptionHandler;
 
 /**
- * 임시 Security 설정.
- * JWT 인증 필터가 붙기 전까지 기본 로그인 폼을 끄고 전체 요청을 허용한다.
- * TODO: JWT 인증 필터 체인 구성 후 authorizeHttpRequests에서 인증이 필요한 경로를 제한할 것.
+ * Security 설정.
+ * 토큰이 있으면 JwtAuthenticationFilter가 파싱해 인증 주체를 올린다. 가입·로그인, API 문서, 헬스 체크를 뺀
+ * 모든 요청은 로그인이 필요하고, 엔드포인트별 역할 규칙은 아래에 모았다(docs/api/authorization.md 표와 맞춘다).
+ * 규칙은 위에서부터 먼저 맞는 것이 적용되므로 구체적인 경로를 위에 둔다. 담당 창고·지점 범위와
+ * 작성자 같은 데이터 단위 검사는 서비스가 한다(ADR-012).
  */
 @Configuration
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtProvider jwtProvider,
+                                           RestSecurityExceptionHandler exceptionHandler) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(exceptionHandler)
+                        .accessDeniedHandler(exceptionHandler))
+                .addFilterBefore(new JwtAuthenticationFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class)
+                .authorizeHttpRequests(auth -> auth
+                        // 가입·로그인과 API 문서(Swagger)·헬스 체크만 토큰 없이 열어 둔다.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/signup", "/api/v1/auth/login").permitAll()
+                        .requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml", "/swagger-ui/**", "/swagger-ui.html")
+                        .permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers("/api/v1/auth/me", "/api/v1/auth/me/password").authenticated()
+                        .requestMatchers("/api/v1/users/**").hasRole("HQ_ADMIN")
+                        // 상품: 조회는 인증된 모든 역할, 등록·수정은 본사만
+                        .requestMatchers(HttpMethod.GET, "/api/v1/products/**").authenticated()
+                        .requestMatchers("/api/v1/products/**").hasRole("HQ_ADMIN")
+                        // 창고: 앞의 규칙이 먼저 적용되므로 구체적인 경로를 위에 둔다. 담당 창고 범위는 서비스가 검사한다.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/warehouses/management-types",
+                                "/api/v1/warehouses/section-types").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/warehouses/my").hasRole("WAREHOUSE_MANAGER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/warehouses", "/api/v1/warehouses/managers",
+                                "/api/v1/warehouses/sections").hasRole("HQ_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/warehouses/*", "/api/v1/warehouses/*/sections",
+                                "/api/v1/warehouses/sections/*").hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
+                        .requestMatchers("/api/v1/warehouses/**").hasRole("HQ_ADMIN")
+                        // 재고·로트: 조정은 창고 관리자만, 조회는 본사+창고 관리자(담당 창고 범위는 서비스가 적용). 점주는 불가
+                        .requestMatchers(HttpMethod.POST, "/api/v1/inventory/adjustments").hasRole("WAREHOUSE_MANAGER")
+                        .requestMatchers("/api/v1/inventory/**", "/api/v1/lots/**")
+                        .hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
+                        // 지점: 창고와 같은 순서 규칙. 담당 지점 범위는 서비스가 검사한다.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/stores/management-types").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/stores/my").hasRole("STORE_OWNER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/stores", "/api/v1/stores/managers").hasRole("HQ_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/stores/*").hasAnyRole("HQ_ADMIN", "STORE_OWNER")
+                        .requestMatchers("/api/v1/stores/**").hasRole("HQ_ADMIN")
+                        // 입고: 공급처 조회는 본사+창고 관리자(창고 관리자는 활성만), 발주 등록·입고 쓰기는 창고 관리자, 확정은 본사.
+                        // 담당 창고 범위와 발주 취소의 작성자·상태별 권한은 서비스가 검사한다.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/suppliers", "/api/v1/suppliers/*")
+                        .hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
+                        .requestMatchers("/api/v1/suppliers/**").hasRole("HQ_ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/purchase-orders/*/confirm").hasRole("HQ_ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/purchase-orders/*/cancel")
+                        .hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/purchase-orders").hasRole("WAREHOUSE_MANAGER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/purchase-orders/**", "/api/v1/inbounds/**")
+                        .hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
+                        .requestMatchers("/api/v1/inbounds/**").hasRole("WAREHOUSE_MANAGER")
+                        // 지점 발주: 등록은 점주, 전체 목록·승인·반려·배정은 본사, 보류·재개·부분 종결은 창고 관리자, 취소는 본사+점주.
+                        // 단건 조회 범위(담당 지점·배정 창고)와 취소의 작성자·상태별 권한은 서비스가 검사한다.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/orders").hasRole("STORE_OWNER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/orders").hasRole("HQ_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/orders/my").hasAnyRole("STORE_OWNER", "WAREHOUSE_MANAGER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/orders/*", "/api/v1/orders/*/details")
+                        .hasAnyRole("HQ_ADMIN", "STORE_OWNER", "WAREHOUSE_MANAGER")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/orders/*/cancel").hasAnyRole("HQ_ADMIN", "STORE_OWNER")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/orders/*/hold", "/api/v1/orders/*/resume",
+                                "/api/v1/orders/*/complete-partial").hasRole("WAREHOUSE_MANAGER")
+                        .requestMatchers("/api/v1/orders/**").hasRole("HQ_ADMIN")
+                        // 출고·재고 할당: 쓰기는 창고 관리자, 조회는 본사+창고 관리자. 점주는 불가.
+                        // 담당 창고 범위(발주에 배정된 창고)는 서비스가 검사한다.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/allocations/**", "/api/v1/outbounds/**")
+                        .hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
+                        .requestMatchers("/api/v1/allocations/**", "/api/v1/outbounds/**")
+                        .hasRole("WAREHOUSE_MANAGER")
+                        // 위에서 정하지 않은 요청은 로그인한 사용자만 호출할 수 있다.
+                        .anyRequest().authenticated());
 
         return http.build();
     }

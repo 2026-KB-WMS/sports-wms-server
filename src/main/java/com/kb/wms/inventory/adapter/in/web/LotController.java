@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inventory.adapter.in.web.dto.response.LotDetailResponse;
 import com.kb.wms.inventory.adapter.in.web.dto.response.LotSummaryResponse;
 import com.kb.wms.inventory.application.port.in.InventoryQueryUseCase;
@@ -39,27 +41,29 @@ public class LotController {
 
     @GetMapping("/api/v1/lots")
     public ApiResponse<ItemsResponse<LotSummaryResponse>> getLots(
+            @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) Long skuId,
             @RequestParam(required = false) Long supplierId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate expiringBefore,
             @RequestParam(required = false) String keyword) {
         List<LotSummaryResponse> items = lotUseCase
-                .getLots(new LotSearchCondition(skuId, supplierId, expiringBefore, keyword)).stream()
+                .getLots(LotSearchCondition.unscoped(skuId, supplierId, expiringBefore, keyword), principal).stream()
                 .map(LotSummaryResponse::from)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
     }
 
     @GetMapping("/api/v1/lots/{lotId}")
-    public ApiResponse<LotDetailResponse> getLot(@PathVariable Long lotId) {
-        LotSummary summary = lotUseCase.getLot(lotId);
+    public ApiResponse<LotDetailResponse> getLot(@AuthenticationPrincipal AuthenticatedUser principal,
+                                                 @PathVariable Long lotId) {
+        LotSummary summary = lotUseCase.getLot(lotId, principal);
         // 같은 창고를 여러 행이 공유하므로 창고명은 창고당 한 번만 조회한다.
         Map<Long, String> warehouseNames = new HashMap<>();
         List<LotDetailResponse.InventoryItem> inventory = inventoryQueryUseCase
-                .getInventoriesByLot(InventoryLotSearchCondition.ofLot(lotId)).stream()
+                .getInventoriesByLot(InventoryLotSearchCondition.ofLot(lotId), principal).stream()
                 .map(view -> toInventoryItem(view, warehouseNames))
                 .toList();
-        List<LotDetailResponse.InboundItem> inbounds = lotUseCase.getLotInbounds(lotId).stream()
+        List<LotDetailResponse.InboundItem> inbounds = lotUseCase.getLotInbounds(lotId, principal).stream()
                 .map(LotDetailResponse.InboundItem::from)
                 .toList();
         return ApiResponse.ok(LotDetailResponse.of(summary, inventory, inbounds));

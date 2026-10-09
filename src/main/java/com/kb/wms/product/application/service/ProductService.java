@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.application.port.in.ProductUseCase;
 import com.kb.wms.product.application.port.in.query.ProductSearchCondition;
 import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
@@ -15,6 +16,7 @@ import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
 import com.kb.wms.product.application.port.out.ProductSkuRepository;
+import com.kb.wms.product.application.port.out.ProductUsagePort;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.domain.entity.Product;
@@ -32,6 +34,7 @@ public class ProductService implements ProductUseCase {
     private final BrandRepository brandRepository;
     private final CategoryRepository categoryRepository;
     private final ProductSkuRepository productSkuRepository;
+    private final ProductUsagePort productUsagePort;
 
     @Override
     @Transactional
@@ -103,6 +106,10 @@ public class ProductService implements ProductUseCase {
             if (command.isActive()) {
                 product.activate();
             } else {
+                // 이미 비활성인 상품을 다시 비활성화하는 요청은 기존처럼 그대로 통과시키고, 활성 상품에만 사용 중 검사를 한다.
+                if (product.isActive() && isInUse(command.productId())) {
+                    throw new BusinessException(ProductErrorCode.PRODUCT_IN_USE);
+                }
                 product.deactivate();
                 // 재고 도메인은 sku.status만 신뢰하므로 하위 SKU도 같은 트랜잭션에서 비활성화한다.
                 productSkuRepository.findAll(command.productId()).stream()
@@ -121,5 +128,33 @@ public class ProductService implements ProductUseCase {
     public Product getProduct(Long productId) {
         return productRepository.findById(productId)
                 .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+    }
+
+    /** 점주에게는 판매 가능한(활성) 상품만 보이므로, isActive 필터가 무엇이든 활성 상품으로 고정한다. */
+    @Override
+    public List<Product> getProducts(ProductSearchCondition condition, AuthenticatedUser actor) {
+        if (actor.isStoreOwner()) {
+            return getProducts(new ProductSearchCondition(
+                    condition.brandId(), condition.categoryId(), condition.keyword(), true));
+        }
+        return getProducts(condition);
+    }
+
+    /** 점주에게 비활성 상품은 없는 것으로 보인다(404). */
+    @Override
+    public Product getProduct(Long productId, AuthenticatedUser actor) {
+        Product product = getProduct(productId);
+        if (actor.isStoreOwner() && !product.isActive()) {
+            throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);
+        }
+        return product;
+    }
+
+    private boolean isInUse(Long productId) {
+        return productUsagePort.hasStock(productId)
+                || productUsagePort.hasInProgressInbounds(productId)
+                || productUsagePort.hasInProgressPurchaseOrders(productId)
+                || productUsagePort.hasInProgressOutbounds(productId)
+                || productUsagePort.hasInProgressStoreOrders(productId);
     }
 }

@@ -8,6 +8,7 @@
 - Notion 명세의 `pageInfo`와 일반 `NOT_FOUND`는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
 - 목록 API는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고).
 - 확정 필요(미결): 안전 재고를 창고별로 둘지 여부, `InventoryTransaction.reference_id`가 문서 헤더(Inbound/Outbound)인지 항목(Line)인지, 로트 상태 변경 API(격리·폐기·만료 전환) 필요 여부.
+- 인가(#170): 재고 조정 처리자는 토큰 주체이며 `userId` 쿼리 파라미터는 받지 않는다. 담당 창고 검사는 서비스에서 한다: 목록은 `warehouseId`를 생략하면 담당 창고로 좁히고(본사는 전체), 지정한 `warehouseId`·`sectionId`(구역의 창고)가 담당이 아니면 403이다. 재고 상세·재고별 이력·조정은 재고 행의 창고가 담당이 아니면 403이다. 로트 목록은 담당 창고에 재고가 있거나 입고 완료 이력이 있는 로트만 보이며, 입고 중(검수 중)인 로트는 완료 전까지 창고 관리자 목록에 나타나지 않는다. 로트 상세는 응답을 담당 창고 항목으로 좁히고, 보이는 항목이 없으면 403이다.
 - 수량은 BIGINT(정수). Lot은 별도 생성 API 없이 입고 검수 트랜잭션에서 find-or-create(UNIQUE(sku_id, supplier_id, lot_number), ADR-004 — Notion 원문 기준).
 
 ## 엔드포인트 목록 (7 + 2)
@@ -95,12 +96,12 @@
 - Query: `skuId`, `supplierId`, `expiringBefore`(YYYY-MM-DD, 당일 포함), `keyword`(로트 번호). `sort`는 받지 않는다.
 - 정렬은 고정(`expiryDate` 오름차순, 유통기한 없는 로트는 뒤, 같으면 `lotId` 오름차순).
 - 응답 항목: `lotId, lotNumber, skuId, skuCode, skuName, supplierId, supplierName, manufacturedDate, expiryDate, status, unitCost` (수량 미포함)
-- 범위: HQ_ADMIN 전체. WAREHOUSE_MANAGER는 담당 창고에 재고(InventoryLot) 또는 입고 이력이 있는 로트만.
+- 범위: HQ_ADMIN 전체. WAREHOUSE_MANAGER는 담당 창고에 재고(InventoryLot) 또는 입고 완료 이력이 있는 로트만.
 - 에러: 400, 403(점주), 404(필터 대상 없음). 생성·수정 API 없음.
 
 ## GET /lots/{lotId} — 로트 상세 (P2)
 
 - 응답: 로트 필드 + `inventory[]`(`inventoryLotId, warehouseId, warehouseName, sectionId, sectionCode, sectionName, onHandQuantity, allocatedQuantity, qualityStatus`), `inbounds[]`(`inboundId, inboundNo, warehouseId, receivedAt, receivedQuantity, acceptedQuantity, defectiveQuantity, receivedUnitPrice`), `createdAt, updatedAt`
 - `inventory`는 구역별 InventoryLot, `inbounds`는 `InboundLine.lot_id`가 이 로트인 항목. 없으면 빈 배열.
-- WAREHOUSE_MANAGER: 담당 창고의 재고·입고 이력이 있는 로트만(없으면 403), 응답의 `inventory`/`inbounds`는 담당 창고 항목만.
+- WAREHOUSE_MANAGER: 담당 창고의 재고·입고 완료 이력이 있는 로트만(없으면 403), 응답의 `inventory`/`inbounds`는 담당 창고 항목만. 입고 이력(`inbounds`)만 따로 조회하는 API는 없으므로 403 판정은 항상 로트 단위(목록과 같은 기준)로 먼저 하고, 응답에서는 담당 창고 항목만 남긴다.
 - 에러: 404(로트 없음), 403

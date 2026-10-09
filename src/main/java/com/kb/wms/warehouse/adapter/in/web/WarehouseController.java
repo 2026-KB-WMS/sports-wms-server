@@ -3,6 +3,7 @@ package com.kb.wms.warehouse.adapter.in.web;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.warehouse.adapter.in.web.dto.request.WarehouseRegisterRequest;
 import com.kb.wms.warehouse.adapter.in.web.dto.request.WarehouseUpdateRequest;
 import com.kb.wms.warehouse.adapter.in.web.dto.response.WarehouseMembershipResponse;
@@ -30,7 +32,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * 창고 등록/조회/수정/비활성화.
  * POST, GET, PATCH /api/v1/warehouses, GET /api/v1/warehouses/my
- * 인증/인가가 아직 구현되지 않아 my 조회는 userId를 쿼리 파라미터로 받는다(추후 인증 연동 시 교체 예정).
+ * my 조회는 토큰 주체 본인의 소속 창고를 돌려주고, 단건 조회는 서비스가 담당 창고(HQ_ADMIN은 전체)만 허용한다.
  */
 @RestController
 @RequestMapping("/api/v1/warehouses")
@@ -58,16 +60,18 @@ public class WarehouseController {
     }
 
     @GetMapping("/my")
-    public ApiResponse<ItemsResponse<WarehouseMembershipResponse>> getMyWarehouses(@RequestParam Long userId) {
-        List<WarehouseMembershipResponse> items = warehouseUseCase.getMyWarehouses(userId).stream()
+    public ApiResponse<ItemsResponse<WarehouseMembershipResponse>> getMyWarehouses(
+            @AuthenticationPrincipal AuthenticatedUser principal) {
+        List<WarehouseMembershipResponse> items = warehouseUseCase.getMyWarehouses(principal.userId()).stream()
                 .map(WarehouseMembershipResponse::from)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
     }
 
     @GetMapping("/{warehouseId}")
-    public ApiResponse<WarehouseResponse> getWarehouse(@PathVariable Long warehouseId) {
-        Warehouse warehouse = warehouseUseCase.getWarehouse(warehouseId);
+    public ApiResponse<WarehouseResponse> getWarehouse(@AuthenticationPrincipal AuthenticatedUser principal,
+                                                       @PathVariable Long warehouseId) {
+        Warehouse warehouse = warehouseUseCase.getWarehouse(warehouseId, principal);
         return ApiResponse.ok(WarehouseResponse.from(warehouse));
     }
 

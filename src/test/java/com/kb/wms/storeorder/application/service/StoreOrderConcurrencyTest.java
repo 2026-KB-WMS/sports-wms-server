@@ -22,6 +22,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.adapter.out.persistence.repository.StatusHistoryJpaRepository;
@@ -54,7 +56,12 @@ import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class StoreOrderConcurrencyTest {
 
+    private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
+
     private static final long USER = 9L;
+    // 발주를 만든 점주(USER)와 같은 사용자
+    private static final AuthenticatedUser AUTHOR =
+            new AuthenticatedUser(USER, UserRole.STORE_OWNER, List.of(), List.of(1L));
 
     @Autowired private StoreOrderUseCase storeOrderUseCase;
     @Autowired private StoreOrderRepository storeOrderRepository;
@@ -131,8 +138,8 @@ class StoreOrderConcurrencyTest {
                     return null;
                 },
                 () -> {
-                    // 사유 없는 취소는 승인 전(REQUESTED)에만 가능하다. 승인이 먼저면 400으로 거절된다.
-                    storeOrderUseCase.cancelStoreOrder(new StoreOrderCancelCommand(orderId, null, USER));
+                    // 승인 전(REQUESTED) 취소는 작성자 점주만 할 수 있다. 승인이 먼저면 작성자는 권한이 없어 403으로 거절된다.
+                    storeOrderUseCase.cancelStoreOrder(new StoreOrderCancelCommand(orderId, null, USER), AUTHOR);
                     return null;
                 });
         List<Throwable> results = runConcurrently(tasks);
@@ -145,7 +152,7 @@ class StoreOrderConcurrencyTest {
             } else {
                 assertThat(result).isInstanceOf(BusinessException.class);
                 assertThat(((BusinessException) result).getErrorCodeName())
-                        .isIn(ErrorCode.CONFLICT.name(), ErrorCode.VALIDATION_ERROR.name());
+                        .isIn(ErrorCode.CONFLICT.name(), ErrorCode.VALIDATION_ERROR.name(), ErrorCode.FORBIDDEN.name());
             }
         }
         assertThat(winners).as("승인·반려·취소 중 정확히 하나만 성공한다").hasSize(1);

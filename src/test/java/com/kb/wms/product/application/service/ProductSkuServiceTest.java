@@ -20,6 +20,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
@@ -383,5 +385,43 @@ class ProductSkuServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.SKU_NOT_FOUND.name());
+    }
+
+
+    private final AuthenticatedUser storeOwner = new AuthenticatedUser(9L, UserRole.STORE_OWNER, List.of(), List.of(1L));
+    private final AuthenticatedUser hqAdmin = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
+
+    @Test
+    @DisplayName("점주의 SKU 목록은 isActive 필터와 상관없이 활성 SKU만 조회하고, 본사는 필터를 그대로 쓴다")
+    void getSkus_storeOwnerOnlyActive() {
+        when(productSkuRepository.search(new ProductSkuSearchCondition(null, null, null, "SKU", true)))
+                .thenReturn(List.of());
+        when(productSkuRepository.search(new ProductSkuSearchCondition(null, null, null, "SKU", false)))
+                .thenReturn(List.of());
+
+        productSkuService.getSkus(new ProductSkuSearchCondition(null, null, null, "SKU", false), storeOwner);
+        productSkuService.getSkus(new ProductSkuSearchCondition(null, null, null, "SKU", false), hqAdmin);
+
+        verify(productSkuRepository).search(new ProductSkuSearchCondition(null, null, null, "SKU", true));
+        verify(productSkuRepository).search(new ProductSkuSearchCondition(null, null, null, "SKU", false));
+    }
+
+    @Test
+    @DisplayName("점주가 비활성 SKU를 조회하면 404 SKU_NOT_FOUND이고, 본사와 활성 SKU는 조회된다")
+    void getSku_inactiveHiddenFromStoreOwner() {
+        ProductSku inactive = ProductSku.register(1L, "SKU-0001", "8800000000001", "라켓 A - 빨강",
+                java.math.BigDecimal.TEN, java.math.BigDecimal.valueOf(10000), java.math.BigDecimal.valueOf(15000), "EA", 10L);
+        ProductSku active = ProductSku.register(1L, "SKU-0002", "8800000000002", "라켓 A - 파랑",
+                java.math.BigDecimal.TEN, java.math.BigDecimal.valueOf(10000), java.math.BigDecimal.valueOf(15000), "EA", 10L);
+        inactive.deactivate();
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(inactive));
+        when(productSkuRepository.findById(2L)).thenReturn(Optional.of(active));
+
+        assertThatThrownBy(() -> productSkuService.getSku(1L, storeOwner))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.SKU_NOT_FOUND.name());
+        assertThat(productSkuService.getSku(1L, hqAdmin)).isSameAs(inactive);
+        assertThat(productSkuService.getSku(2L, storeOwner)).isSameAs(active);
     }
 }

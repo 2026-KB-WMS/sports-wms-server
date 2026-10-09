@@ -1,5 +1,9 @@
 package com.kb.wms.inventory.adapter.out.persistence;
 
+import com.kb.wms.auth.application.port.out.UserRepository;
+import com.kb.wms.auth.domain.entity.User;
+import com.kb.wms.auth.domain.enums.UserRole;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -60,6 +64,7 @@ import jakarta.persistence.EntityManager;
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class InventoryPersistenceAdapterTest {
 
+    @Autowired private UserRepository userRepository;
     @Autowired private InventoryQueryRepository inventoryQueryRepository;
     @Autowired private InventoryLotRepository inventoryLotRepository;
     @Autowired private InventoryTransactionRepository inventoryTransactionRepository;
@@ -113,7 +118,7 @@ class InventoryPersistenceAdapterTest {
     @DisplayName("SKU 집계: 가용 수량은 품질·로트 상태가 모두 AVAILABLE인 행만 합산하고 불량은 따로 집계한다")
     void skuSummary_allWarehouses() {
         List<InventorySkuSummary> result =
-                inventoryQueryRepository.findSkuSummaries(new InventorySearchCondition(null, null, null));
+                inventoryQueryRepository.findSkuSummaries(InventorySearchCondition.unscoped(null, null, null));
 
         assertThat(result).hasSize(1);
         InventorySkuSummary a = result.get(0);
@@ -128,13 +133,13 @@ class InventoryPersistenceAdapterTest {
     @DisplayName("SKU 집계: 창고 필터와 키워드(SKU명 부분 일치)가 적용된다")
     void skuSummary_filter() {
         List<InventorySkuSummary> result =
-                inventoryQueryRepository.findSkuSummaries(new InventorySearchCondition(null, warehouse1, "라켓"));
+                inventoryQueryRepository.findSkuSummaries(InventorySearchCondition.unscoped(null, warehouse1, "라켓"));
 
         assertThat(result).singleElement().satisfies(a -> {
             assertThat(a.totalQuantity()).isEqualTo(115L);
             assertThat(a.availableQuantity()).isEqualTo(80L);
         });
-        assertThat(inventoryQueryRepository.findSkuSummaries(new InventorySearchCondition(null, null, "셔틀콕")))
+        assertThat(inventoryQueryRepository.findSkuSummaries(InventorySearchCondition.unscoped(null, null, "셔틀콕")))
                 .isEmpty();
     }
 
@@ -142,13 +147,52 @@ class InventoryPersistenceAdapterTest {
     @DisplayName("로트 단위 조회: 유통기한 오름차순(없으면 뒤로)이고 불량·격리 행의 가용 수량은 0이다")
     void lotViews() {
         List<InventoryLotView> result = inventoryQueryRepository.findLotViews(
-                new InventoryLotSearchCondition(null, warehouse1, null, null, null, null, false));
+                InventoryLotSearchCondition.unscoped(null, warehouse1, null, null, null, null, false));
 
         assertThat(result).extracting(InventoryLotView::inventoryLotId)
                 .containsExactly(invR1LotA, invD1LotA, invR1LotQ);
         assertThat(result).extracting(InventoryLotView::availableQuantity)
                 .containsExactly(80L, 0L, 0L);
         assertThat(result.get(0).sectionCode()).isEqualTo("R1");
+    }
+
+    @Test
+    @DisplayName("창고 범위: 담당 창고 목록으로 집계·로트 단위·이력을 좁히고, 빈 목록이면 아무것도 보이지 않는다")
+    void warehouseScope_restrictsQueries() {
+        inventoryTransactionRepository.save(InventoryTransaction.record(
+                invR1LotA, TransactionType.INBOUND, 0, 100, ReferenceType.INBOUND, 6L, null, 5L));
+        inventoryTransactionRepository.save(InventoryTransaction.record(
+                invR2LotB, TransactionType.INBOUND, 0, 30, ReferenceType.INBOUND, 7L, null, 5L));
+        entityManager.flush();
+
+        // 창고2만 담당: SKU-A 집계는 창고2 재고(30)뿐이다
+        assertThat(inventoryQueryRepository.findSkuSummaries(
+                new InventorySearchCondition(null, null, null, List.of(warehouse2))))
+                .singleElement().satisfies(a -> assertThat(a.totalQuantity()).isEqualTo(30L));
+        // 두 창고 모두 담당이면 합산한다
+        assertThat(inventoryQueryRepository.findSkuSummaries(
+                new InventorySearchCondition(null, null, null, List.of(warehouse1, warehouse2))))
+                .singleElement().satisfies(a -> assertThat(a.totalQuantity()).isEqualTo(145L));
+        // 담당 창고가 없으면 비어 있다
+        assertThat(inventoryQueryRepository.findSkuSummaries(
+                new InventorySearchCondition(null, null, null, List.of()))).isEmpty();
+
+        assertThat(inventoryQueryRepository.findLotViews(new InventoryLotSearchCondition(
+                null, null, null, null, null, null, false, List.of(warehouse2))))
+                .extracting(InventoryLotView::inventoryLotId).containsExactly(invR2LotB);
+
+        assertThat(inventoryQueryRepository.findTransactions(new InventoryTransactionSearchCondition(
+                null, null, null, null, null, null, null, null, null, null, List.of(warehouse1))))
+                .singleElement().satisfies(t -> assertThat(t.referenceId()).isEqualTo(6L));
+        assertThat(inventoryQueryRepository.findTransactions(new InventoryTransactionSearchCondition(
+                null, null, null, null, null, null, null, null, null, null, List.of()))).isEmpty();
+
+        // 안전 재고 미만: 담당 창고2만 보면 SKU-A 가용 30 < 50 (부족 20), 창고1 재고는 합산되지 않는다
+        assertThat(inventoryQueryRepository.findLowStock(new LowStockSearchCondition(null, null, List.of(warehouse2))))
+                .extracting(LowStockItem::skuCode, LowStockItem::availableQuantity)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("SKU-A", 30L),
+                        org.assertj.core.groups.Tuple.tuple("SKU-B", 0L));
     }
 
     @Test
@@ -167,12 +211,12 @@ class InventoryPersistenceAdapterTest {
     @DisplayName("안전 재고 미만: 창고 범위 가용 재고로 비교하고, 재고 없는 SKU는 가용 0으로 포함, 안전재고 0은 제외")
     void lowStock() {
         // 창고1: SKU-A 가용 80 > 50 이라 제외, SKU-B 가용 0 < 10
-        assertThat(inventoryQueryRepository.findLowStock(new LowStockSearchCondition(warehouse1, null)))
+        assertThat(inventoryQueryRepository.findLowStock(LowStockSearchCondition.unscoped(warehouse1, null)))
                 .extracting(LowStockItem::skuCode, LowStockItem::availableQuantity, LowStockItem::shortageQuantity)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("SKU-B", 0L, 10L));
 
         // 창고2: SKU-A 가용 30 <= 50 (부족 20), SKU-B 부족 10 → 부족 수량 내림차순
-        assertThat(inventoryQueryRepository.findLowStock(new LowStockSearchCondition(warehouse2, null)))
+        assertThat(inventoryQueryRepository.findLowStock(LowStockSearchCondition.unscoped(warehouse2, null)))
                 .extracting(LowStockItem::skuCode, LowStockItem::shortageQuantity)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("SKU-A", 20L),
@@ -224,7 +268,7 @@ class InventoryPersistenceAdapterTest {
                 invR1LotA, TransactionType.ADJUSTMENT, 100, 97, ReferenceType.ADJUSTMENT, null, "실사 차이", 5L));
         entityManager.flush();
 
-        assertThat(inventoryQueryRepository.findTransactions(new InventoryTransactionSearchCondition(
+        assertThat(inventoryQueryRepository.findTransactions(InventoryTransactionSearchCondition.unscoped(
                 invR1LotA, null, null, null, null, null, null, null, null, null)))
                 .hasSize(2)
                 .first()
@@ -235,7 +279,7 @@ class InventoryPersistenceAdapterTest {
                     assertThat(t.lotNumber()).isEqualTo("LOT-A");
                 });
 
-        assertThat(inventoryQueryRepository.findTransactions(new InventoryTransactionSearchCondition(
+        assertThat(inventoryQueryRepository.findTransactions(InventoryTransactionSearchCondition.unscoped(
                 null, warehouse1, null, null, null, TransactionType.INBOUND, null, null, null, null)))
                 .singleElement()
                 .satisfies(t -> assertThat(t.referenceId()).isEqualTo(6L));
@@ -245,10 +289,10 @@ class InventoryPersistenceAdapterTest {
     @DisplayName("로트: 유통기한 조건·로트 번호 검색, 단건 조회, find-or-create용 유니크 키 조회")
     void lots() {
         assertThat(inventoryQueryRepository.findLots(
-                new LotSearchCondition(skuA, null, LocalDate.of(2027, 12, 31), null)))
+                LotSearchCondition.unscoped(skuA, null, LocalDate.of(2027, 12, 31), null)))
                 .extracting(l -> l.lotNumber())
                 .containsExactly("LOT-A");
-        assertThat(inventoryQueryRepository.findLots(new LotSearchCondition(null, null, null, "lot-q")))
+        assertThat(inventoryQueryRepository.findLots(LotSearchCondition.unscoped(null, null, null, "lot-q")))
                 .singleElement()
                 .satisfies(l -> assertThat(l.skuCode()).isEqualTo("SKU-A"));
         assertThat(inventoryQueryRepository.findLot(lotQ)).isPresent();
@@ -326,5 +370,27 @@ class InventoryPersistenceAdapterTest {
             il.allocate(allocated);
         }
         return inventoryLotRepository.save(il).getInventoryLotId();
+    }
+
+    @Test
+    @DisplayName("이력: 처리자 이름을 사용자 테이블 조인으로 담고, 사용자가 없으면 이름만 null이다")
+    void transactions_createdByName() {
+        User writer = userRepository.save(User.signUp("tx_writer", "hashed", "김처리", "tx_writer@example.com",
+                "010-1234-5678", UserRole.WAREHOUSE_MANAGER));
+        inventoryTransactionRepository.save(InventoryTransaction.record(
+                invR1LotA, TransactionType.INBOUND, 0, 100, ReferenceType.INBOUND, 6L, null, writer.getUserId()));
+        inventoryTransactionRepository.save(InventoryTransaction.record(
+                invR1LotA, TransactionType.ADJUSTMENT, 100, 97, ReferenceType.ADJUSTMENT, null, "실사 차이",
+                writer.getUserId() + 1_000_000L));  // 존재하지 않는 사용자 ID (방금 만든 사용자와 겹치지 않는다)
+        entityManager.flush();
+
+        var result = inventoryQueryRepository.findTransactions(InventoryTransactionSearchCondition.unscoped(
+                invR1LotA, null, null, null, null, null, null, null, null, null));
+
+        assertThat(result).hasSize(2);
+        assertThat(result.stream().filter(t -> t.transactionType() == TransactionType.INBOUND).findFirst()
+                .orElseThrow().createdByName()).isEqualTo("김처리");
+        assertThat(result.stream().filter(t -> t.transactionType() == TransactionType.ADJUSTMENT).findFirst()
+                .orElseThrow().createdByName()).isNull();
     }
 }

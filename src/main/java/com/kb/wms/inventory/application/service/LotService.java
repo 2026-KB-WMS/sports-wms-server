@@ -6,6 +6,7 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inventory.application.port.in.LotUseCase;
@@ -33,28 +34,38 @@ public class LotService implements LotUseCase {
      * 존재 확인은 조회 전용 포트(InventoryQueryRepository)의 읽기 쿼리로 하며 다른 도메인 서비스를 거치지 않는다.
      */
     @Override
-    public List<LotSummary> getLots(LotSearchCondition condition) {
+    public List<LotSummary> getLots(LotSearchCondition condition, AuthenticatedUser actor) {
         if (condition.skuId() != null && !inventoryQueryRepository.existsSku(condition.skuId())) {
             throw new BusinessException(InventoryErrorCode.SKU_NOT_FOUND);
         }
         if (condition.supplierId() != null && !inventoryQueryRepository.existsSupplier(condition.supplierId())) {
             throw new BusinessException(InventoryErrorCode.SUPPLIER_NOT_FOUND);
         }
-        return inventoryQueryRepository.findLots(condition);
+        return inventoryQueryRepository.findLots(new LotSearchCondition(condition.skuId(), condition.supplierId(),
+                condition.expiringBefore(), condition.keyword(), actor.warehouseScope(null)));
     }
 
     @Override
-    public LotSummary getLot(Long lotId) {
-        return inventoryQueryRepository.findLot(lotId)
+    public LotSummary getLot(Long lotId, AuthenticatedUser actor) {
+        LotSummary lot = inventoryQueryRepository.findLot(lotId)
                 .orElseThrow(() -> new BusinessException(InventoryErrorCode.LOT_NOT_FOUND));
+        // 목록과 같은 기준: 담당 창고에 재고 또는 입고 완료 이력이 없는 로트는 창고 관리자에게 보이지 않는다.
+        List<Long> scope = actor.warehouseScope(null);
+        if (scope != null && inventoryQueryRepository.findLot(lotId, scope).isEmpty()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        return lot;
     }
 
     @Override
-    public List<LotInboundView> getLotInbounds(Long lotId) {
+    public List<LotInboundView> getLotInbounds(Long lotId, AuthenticatedUser actor) {
         if (!lotRepository.existsById(lotId)) {
             throw new BusinessException(InventoryErrorCode.LOT_NOT_FOUND);
         }
-        return inventoryQueryRepository.findLotInbounds(lotId);
+        List<Long> scope = actor.warehouseScope(null);
+        return inventoryQueryRepository.findLotInbounds(lotId).stream()
+                .filter(inbound -> scope == null || scope.contains(inbound.warehouseId()))
+                .toList();
     }
 
     /**

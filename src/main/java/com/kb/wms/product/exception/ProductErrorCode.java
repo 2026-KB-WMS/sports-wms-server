@@ -24,6 +24,7 @@ public enum ProductErrorCode implements DomainErrorCode {
     DUPLICATE_CATEGORY_CODE(ErrorCode.CONFLICT, "이미 존재하는 카테고리 코드입니다."),
     PRODUCT_NOT_FOUND(ErrorCode.NOT_FOUND, "상품을 찾을 수 없습니다."),
     PRODUCT_INACTIVE(ErrorCode.CONFLICT, "비활성 상품입니다."),
+    PRODUCT_IN_USE(ErrorCode.CONFLICT, "재고가 남아 있거나 진행 중인 업무가 있어 비활성화할 수 없습니다."),
     DUPLICATE_PRODUCT_CODE(ErrorCode.CONFLICT, "이미 존재하는 상품 코드입니다."),
     OPTION_GROUP_NOT_FOUND(ErrorCode.NOT_FOUND, "옵션 그룹을 찾을 수 없습니다."),
     DUPLICATE_OPTION_GROUP_NAME(ErrorCode.CONFLICT, "이미 존재하는 옵션 그룹명입니다."),

@@ -18,6 +18,9 @@
 - 서비스 계층에서 다른 도메인 UseCase를 호출해 조합(ADR-005 원칙 그대로 적용) — 기각. 목록 조회 시 항목 수만큼 반복 호출이 발생해 N+1 문제가 생기고, 별도 캐싱/배치 조회 로직을 추가로 만들어야 해 복잡도가 커진다.
 - 조회 전용 별도 읽기 모델(별도 뷰 테이블/역정규화 테이블) — 기각. 현재 규모에서는 과설계이며, 동기화 로직을 추가로 관리해야 한다.
 
+## 개정 (2026-10-06, #168)
+사용자 이름(`receivedByName`, `createdByName`, `allocatedByName`, 담당자 목록의 `userName`·`loginId`)도 같은 방식으로 채운다. 재고 조회뿐 아니라 입고·창고 발주·지점 발주·출고 할당·담당자 목록의 조회 전용 JPQL이 `users` 테이블을 ID로 조인한다(사용자가 없는 행이 사라지지 않도록 이름만 필요한 곳은 `left join`). 명령(쓰기) 경로의 사용자 확인은 계속 `UserUseCase`를 거친다. 공통 상태 이력(`common.statushistory`)의 처리자 이름은 `common`이 auth 엔티티를 참조하게 되므로 조인하지 않고, 이력 패키지를 분리할 때 함께 정리한다.
+
 ## 영향
 - 조회 전용 리포지토리(InventoryQueryRepository/InventoryLotJpaRepository)는 다른 도메인의 JPA 엔티티(ProductSkuJpaEntity, WarehouseSectionJpaEntity, WarehouseJpaEntity)를 JPQL에서 직접 참조한다. 이는 명령 경로의 "ID만 참조" 원칙과 다르므로, 코드리뷰 시 "조회 전용인지" 구분해서 봐야 한다.
 - 다른 도메인의 테이블/컬럼명이 바뀌면 이 JPQL들도 함께 깨지므로, 도메인 간 결합이 조회 경로에 한해 존재한다는 점을 인지해야 한다.

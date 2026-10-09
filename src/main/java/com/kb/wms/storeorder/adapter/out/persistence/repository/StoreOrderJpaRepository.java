@@ -46,6 +46,8 @@ public interface StoreOrderJpaRepository extends JpaRepository<StoreOrderJpaEnti
             where (:status is null or o.status = :status)
               and (:storeId is null or o.storeId = :storeId)
               and (:warehouseId is null or o.warehouseId = :warehouseId)
+              and (:storeScoped = false or o.storeId in :storeIds)
+              and (:warehouseScoped = false or o.warehouseId in :warehouseIds)
               and (:keyword is null
                    or lower(o.orderNo) like lower(concat('%', :keyword, '%'))
                    or lower(s.name) like lower(concat('%', :keyword, '%')))
@@ -60,7 +62,11 @@ public interface StoreOrderJpaRepository extends JpaRepository<StoreOrderJpaEnti
                                    @Param("warehouseId") Long warehouseId,
                                    @Param("keyword") String keyword,
                                    @Param("requestedFrom") LocalDateTime requestedFrom,
-                                   @Param("requestedTo") LocalDateTime requestedTo);
+                                   @Param("requestedTo") LocalDateTime requestedTo,
+                                   @Param("storeScoped") boolean storeScoped,
+                                   @Param("storeIds") Collection<Long> storeIds,
+                                   @Param("warehouseScoped") boolean warehouseScoped,
+                                   @Param("warehouseIds") Collection<Long> warehouseIds);
 
     @Query("""
             select new com.kb.wms.storeorder.application.port.in.result.StoreOrderView(
@@ -68,14 +74,15 @@ public interface StoreOrderJpaRepository extends JpaRepository<StoreOrderJpaEnti
                 o.status, o.requestedAt, o.requestedDeliveryAt, o.note, count(l),
                 sum(l.requestedQuantity * l.requestedUnitSupplyPrice),
                 sum(case when l.shippedQuantity < l.requestedQuantity then 1L else 0L end),
-                o.createdBy, o.createdAt, o.updatedAt)
+                o.createdBy, cu.name, o.createdAt, o.updatedAt)
             from StoreOrderJpaEntity o
             join StoreJpaEntity s on s.storeId = o.storeId
             left join WarehouseJpaEntity w on w.warehouseId = o.warehouseId
             join StoreOrderLineJpaEntity l on l.storeOrderId = o.storeOrderId
+            left join UserJpaEntity cu on cu.userId = o.createdBy
             where o.storeOrderId = :storeOrderId
             group by o.storeOrderId, o.orderNo, o.storeId, s.name, o.warehouseId, w.name,
-                     o.status, o.requestedAt, o.requestedDeliveryAt, o.note, o.createdBy,
+                     o.status, o.requestedAt, o.requestedDeliveryAt, o.note, o.createdBy, cu.name,
                      o.createdAt, o.updatedAt
             """)
     Optional<StoreOrderView> findView(@Param("storeOrderId") Long storeOrderId);

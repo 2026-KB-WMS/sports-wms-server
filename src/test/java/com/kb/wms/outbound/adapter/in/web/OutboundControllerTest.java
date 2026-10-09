@@ -1,5 +1,8 @@
 package com.kb.wms.outbound.adapter.in.web;
 
+import static com.kb.wms.common.security.TestAuth.as;
+import static com.kb.wms.common.security.TestAuth.signInAsHqAdmin;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -17,6 +20,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -26,7 +30,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.outbound.application.port.in.OutboundFulfillmentUseCase;
 import com.kb.wms.outbound.application.port.in.OutboundUseCase;
@@ -60,6 +66,16 @@ class OutboundControllerTest {
     @MockitoBean OutboundUseCase outboundUseCase;
     @MockitoBean OutboundFulfillmentUseCase fulfillmentUseCase;
 
+    @BeforeEach
+    void signIn() {
+        signInAsHqAdmin();
+    }
+
+    /** 처리 사용자 ID만 지정한 요청 주체. 서비스는 목이라 역할·범위 검사는 서비스 테스트에서 확인한다. */
+    private static RequestPostProcessor user(long userId) {
+        return as(UserRole.HQ_ADMIN, userId, java.util.List.of(), java.util.List.of());
+    }
+
     private OutboundView view(OutboundStatus status) {
         return new OutboundView(7L, "OB-20261005-0001", status, 3L, "SO-20261005-0001", 1L, "강남점", 2L,
                 "서울 물류센터", null, null, null, "비고", NOW, NOW);
@@ -75,10 +91,10 @@ class OutboundControllerTest {
     @Test
     @DisplayName("출고 생성은 201과 outboundNo·lineCount·items를 반환하고 userId를 넘긴다")
     void create() throws Exception {
-        when(outboundUseCase.createOutbound(any(OutboundCreateCommand.class)))
+        when(outboundUseCase.createOutbound(any(OutboundCreateCommand.class), any()))
                 .thenReturn(new OutboundCreateResult(view(OutboundStatus.READY), List.of(line())));
 
-        mockMvc.perform(post("/api/v1/outbounds").param("userId", "9")
+        mockMvc.perform(post("/api/v1/outbounds").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"storeOrderId\": 3, \"note\": \"비고\" }"))
                 .andExpect(status().isCreated())
@@ -89,7 +105,7 @@ class OutboundControllerTest {
                 .andExpect(jsonPath("$.data.items[0].shippedQuantity").value(0));
 
         ArgumentCaptor<OutboundCreateCommand> captor = ArgumentCaptor.forClass(OutboundCreateCommand.class);
-        verify(outboundUseCase).createOutbound(captor.capture());
+        verify(outboundUseCase).createOutbound(captor.capture(), any());
         assertThat(captor.getValue().storeOrderId()).isEqualTo(3L);
         assertThat(captor.getValue().userId()).isEqualTo(9L);
     }
@@ -97,11 +113,11 @@ class OutboundControllerTest {
     @Test
     @DisplayName("출고 생성 입력 검증: 발주 ID 누락, 비고 501자는 400 VALIDATION_ERROR")
     void createInvalid() throws Exception {
-        mockMvc.perform(post("/api/v1/outbounds").param("userId", "9")
+        mockMvc.perform(post("/api/v1/outbounds").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON).content("{ }"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
-        mockMvc.perform(post("/api/v1/outbounds").param("userId", "9")
+        mockMvc.perform(post("/api/v1/outbounds").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"storeOrderId\": 3, \"note\": \"" + "가".repeat(501) + "\" }"))
                 .andExpect(status().isBadRequest())
@@ -112,7 +128,7 @@ class OutboundControllerTest {
     @Test
     @DisplayName("목록은 data.items와 필터를 전달하고 잘못된 status는 400")
     void list() throws Exception {
-        when(outboundUseCase.searchOutbounds(any(OutboundSearchCondition.class))).thenReturn(List.of(
+        when(outboundUseCase.searchOutbounds(any(OutboundSearchCondition.class), any())).thenReturn(List.of(
                 new OutboundSummary(7L, "OB-20261005-0001", 3L, "SO-20261005-0001", 1L, "강남점", 2L,
                         "서울 물류센터", OutboundStatus.READY, 2L, null, null, NOW)));
 
@@ -123,7 +139,7 @@ class OutboundControllerTest {
                 .andExpect(jsonPath("$.data.items[0].shippedAt").doesNotExist());
 
         ArgumentCaptor<OutboundSearchCondition> captor = ArgumentCaptor.forClass(OutboundSearchCondition.class);
-        verify(outboundUseCase).searchOutbounds(captor.capture());
+        verify(outboundUseCase).searchOutbounds(captor.capture(), any());
         assertThat(captor.getValue().status()).isEqualTo(OutboundStatus.READY);
         assertThat(captor.getValue().storeOrderId()).isEqualTo(3L);
 
@@ -137,9 +153,9 @@ class OutboundControllerTest {
     void details() throws Exception {
         OutboundLineView picked = new OutboundLineView(70L, 500L, 31L, 5L, "SKU-A", "상품 A", "EA", 900L, 9L,
                 "LOT-A", LocalDate.of(2026, 12, 31), 4L, "A-01", 3L, 2L, new BigDecimal("1000"));
-        when(outboundUseCase.getOutbound(7L)).thenReturn(
+        when(outboundUseCase.getOutbound(eq(7L), any())).thenReturn(
                 new OutboundDetail(view(OutboundStatus.PICKED), List.of(picked), null));
-        when(outboundUseCase.getOutbound(999L)).thenThrow(new BusinessException(OutboundErrorCode.OUTBOUND_NOT_FOUND));
+        when(outboundUseCase.getOutbound(eq(999L), any())).thenThrow(new BusinessException(OutboundErrorCode.OUTBOUND_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/outbounds/7/details"))
                 .andExpect(status().isOk())
@@ -156,18 +172,16 @@ class OutboundControllerTest {
     @Test
     @DisplayName("피킹 시작은 userId를 넘기고 PICKING을 반환, 상태 충돌은 409")
     void startPicking() throws Exception {
-        when(outboundUseCase.startPicking(7L, 9L)).thenReturn(
+        when(outboundUseCase.startPicking(eq(7L), argThat(actor -> actor.userId().equals(9L)))).thenReturn(
                 new OutboundPickingStartResult(7L, "OB-20261005-0001", OutboundStatus.PICKING, NOW));
-        when(outboundUseCase.startPicking(8L, 9L)).thenThrow(new BusinessException(OutboundErrorCode.ORDER_NOT_ASSIGNED));
+        when(outboundUseCase.startPicking(eq(8L), argThat(actor -> actor.userId().equals(9L)))).thenThrow(new BusinessException(OutboundErrorCode.ORDER_NOT_ASSIGNED));
 
-        mockMvc.perform(patch("/api/v1/outbounds/7/picking/start").param("userId", "9"))
+        mockMvc.perform(patch("/api/v1/outbounds/7/picking/start").with(user(9L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("PICKING"));
-        mockMvc.perform(patch("/api/v1/outbounds/8/picking/start").param("userId", "9"))
+        mockMvc.perform(patch("/api/v1/outbounds/8/picking/start").with(user(9L)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("ORDER_NOT_ASSIGNED"));
-        mockMvc.perform(patch("/api/v1/outbounds/7/picking/start"))
-                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -175,11 +189,11 @@ class OutboundControllerTest {
     void completePicking() throws Exception {
         PickedItem item = new PickedItem(70L, 500L, 3L, 2L, new BigDecimal("1000"),
                 new InventoryState(900L, 47L, 0L));
-        when(fulfillmentUseCase.completePicking(any(OutboundPickingCompleteCommand.class))).thenReturn(
+        when(fulfillmentUseCase.completePicking(any(OutboundPickingCompleteCommand.class), any())).thenReturn(
                 new OutboundPickingCompleteResult(7L, "OB-20261005-0001", OutboundStatus.PICKED, true,
                         List.of(item), NOW));
 
-        mockMvc.perform(patch("/api/v1/outbounds/7/picking/complete").param("userId", "9")
+        mockMvc.perform(patch("/api/v1/outbounds/7/picking/complete").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"lines\": [ { \"outboundLineId\": 70, \"pickedQuantity\": 2 } ] }"))
                 .andExpect(status().isOk())
@@ -191,7 +205,7 @@ class OutboundControllerTest {
 
         ArgumentCaptor<OutboundPickingCompleteCommand> captor =
                 ArgumentCaptor.forClass(OutboundPickingCompleteCommand.class);
-        verify(fulfillmentUseCase).completePicking(captor.capture());
+        verify(fulfillmentUseCase).completePicking(captor.capture(), any());
         assertThat(captor.getValue().outboundId()).isEqualTo(7L);
         assertThat(captor.getValue().userId()).isEqualTo(9L);
         assertThat(captor.getValue().lines()).hasSize(1);
@@ -205,7 +219,7 @@ class OutboundControllerTest {
                 "{ \"lines\": [ { \"outboundLineId\": 70, \"pickedQuantity\": -1 } ] }",
                 "{ \"lines\": [ { \"pickedQuantity\": 1 } ] }",
                 "{ \"lines\": [ { \"outboundLineId\": 70 } ] }")) {
-            mockMvc.perform(patch("/api/v1/outbounds/7/picking/complete").param("userId", "9")
+            mockMvc.perform(patch("/api/v1/outbounds/7/picking/complete").with(user(9L))
                             .contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
@@ -216,10 +230,10 @@ class OutboundControllerTest {
     @Test
     @DisplayName("피킹 완료 NOTHING_PICKED는 409")
     void completePickingNothingPicked() throws Exception {
-        when(fulfillmentUseCase.completePicking(any(OutboundPickingCompleteCommand.class)))
+        when(fulfillmentUseCase.completePicking(any(OutboundPickingCompleteCommand.class), any()))
                 .thenThrow(new BusinessException(OutboundErrorCode.NOTHING_PICKED));
 
-        mockMvc.perform(patch("/api/v1/outbounds/7/picking/complete").param("userId", "9")
+        mockMvc.perform(patch("/api/v1/outbounds/7/picking/complete").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"lines\": [ { \"outboundLineId\": 70, \"pickedQuantity\": 0 } ] }"))
                 .andExpect(status().isConflict())
@@ -229,17 +243,17 @@ class OutboundControllerTest {
     @Test
     @DisplayName("배송 시작은 shippedAt·shippedBy를, 배송 완료는 storeOrder 상태를 반환한다")
     void shipAndDeliver() throws Exception {
-        when(fulfillmentUseCase.ship(7L, 9L)).thenReturn(
+        when(fulfillmentUseCase.ship(eq(7L), argThat(actor -> actor.userId().equals(9L)))).thenReturn(
                 new OutboundShipResult(7L, "OB-20261005-0001", OutboundStatus.SHIPPED, NOW, 9L, NOW));
-        when(fulfillmentUseCase.deliver(7L, 9L)).thenReturn(
+        when(fulfillmentUseCase.deliver(eq(7L), argThat(actor -> actor.userId().equals(9L)))).thenReturn(
                 new OutboundDeliverResult(7L, "OB-20261005-0001", OutboundStatus.DELIVERED, NOW, 3L,
                         StoreOrderStatus.COMPLETED, NOW));
 
-        mockMvc.perform(patch("/api/v1/outbounds/7/ship").param("userId", "9"))
+        mockMvc.perform(patch("/api/v1/outbounds/7/ship").with(user(9L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("SHIPPED"))
                 .andExpect(jsonPath("$.data.shippedBy").value(9));
-        mockMvc.perform(patch("/api/v1/outbounds/7/deliver").param("userId", "9"))
+        mockMvc.perform(patch("/api/v1/outbounds/7/deliver").with(user(9L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("DELIVERED"))
                 .andExpect(jsonPath("$.data.storeOrder.storeOrderId").value(3))
@@ -249,20 +263,20 @@ class OutboundControllerTest {
     @Test
     @DisplayName("출고 취소는 사유를 넘기고 사유 누락·501자는 400")
     void cancel() throws Exception {
-        when(outboundUseCase.cancel(any(OutboundCancelCommand.class))).thenReturn(
+        when(outboundUseCase.cancel(any(OutboundCancelCommand.class), any())).thenReturn(
                 new OutboundCancelResult(7L, "OB-20261005-0001", OutboundStatus.CANCELED, "오배정", NOW));
 
-        mockMvc.perform(patch("/api/v1/outbounds/7/cancel").param("userId", "9")
+        mockMvc.perform(patch("/api/v1/outbounds/7/cancel").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON).content("{ \"reason\": \"오배정\" }"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CANCELED"))
                 .andExpect(jsonPath("$.data.cancelReason").value("오배정"));
-        verify(outboundUseCase).cancel(eq(new OutboundCancelCommand(7L, "오배정", 9L)));
+        verify(outboundUseCase).cancel(eq(new OutboundCancelCommand(7L, "오배정", 9L)), any());
 
-        mockMvc.perform(patch("/api/v1/outbounds/7/cancel").param("userId", "9")
+        mockMvc.perform(patch("/api/v1/outbounds/7/cancel").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON).content("{ \"reason\": \" \" }"))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(patch("/api/v1/outbounds/7/cancel").param("userId", "9")
+        mockMvc.perform(patch("/api/v1/outbounds/7/cancel").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"reason\": \"" + "가".repeat(501) + "\" }"))
                 .andExpect(status().isBadRequest());

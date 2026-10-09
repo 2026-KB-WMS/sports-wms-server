@@ -21,6 +21,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inbound.adapter.out.persistence.repository.InboundJpaRepository;
@@ -68,6 +70,8 @@ import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class InboundCompleteConcurrencyTest {
 
+    private static final AuthenticatedUser ACTOR =
+            new AuthenticatedUser(5L, UserRole.HQ_ADMIN, List.of(), List.of());
     private static final long USER = 5L;
     private static final long RECEIVED = 10L;
     private static final long ACCEPTED = 8L;
@@ -164,7 +168,7 @@ class InboundCompleteConcurrencyTest {
 
         List<Throwable> failures = runConcurrently(targets.stream()
                 .<Callable<Void>>map(inboundId -> () -> {
-                    completeUseCase.completeInbound(inboundId, USER);
+                    completeUseCase.completeInbound(inboundId, ACTOR);
                     return null;
                 })
                 .toList());
@@ -197,7 +201,7 @@ class InboundCompleteConcurrencyTest {
 
         List<Throwable> failures = runConcurrently(java.util.stream.IntStream.range(0, threadCount)
                 .<Callable<Void>>mapToObj(i -> () -> {
-                    completeUseCase.completeInbound(inboundId, USER);
+                    completeUseCase.completeInbound(inboundId, ACTOR);
                     return null;
                 })
                 .toList());

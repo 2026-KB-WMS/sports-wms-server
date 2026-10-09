@@ -8,7 +8,7 @@ import com.kb.wms.outbound.application.port.in.result.StockAllocationView;
 import com.kb.wms.outbound.domain.enums.AllocationStatus;
 
 /**
- * GET /api/v1/allocations/{allocationId} 응답. 회원 도메인이 없어 {@code allocatedByName}은 당분간 null이다.
+ * GET /api/v1/allocations/{allocationId} 응답. {@code allocatedByName}은 할당 처리자의 이름이다.
  * {@code outboundId}는 취소되지 않은 출고에 연결된 경우에만 값이 있다.
  */
 public record StockAllocationDetailResponse(
@@ -43,7 +43,7 @@ public record StockAllocationDetailResponse(
     public static StockAllocationDetailResponse from(StockAllocationDetail detail) {
         StockAllocationView v = detail.view();
         return new StockAllocationDetailResponse(v.allocationId(), v.status(), v.allocatedQuantity(),
-                v.pickedQuantity(), v.allocatedAt(), v.allocatedBy(), null, v.releasedAt(), v.storeOrderId(),
+                v.pickedQuantity(), v.allocatedAt(), v.allocatedBy(), v.allocatedByName(), v.releasedAt(), v.storeOrderId(),
                 v.orderNo(), v.storeId(), v.storeName(), v.warehouseId(), v.storeOrderLineId(),
                 v.requestedQuantity(), v.skuId(), v.skuCode(), v.skuName(), v.inventoryLotId(), v.lotId(),
                 v.lotNumber(), v.expiryDate(), v.sectionId(), v.sectionCode(), v.sectionName(),

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.warehouse.adapter.in.web.dto.request.WarehouseSectionRegisterRequest;
 import com.kb.wms.warehouse.adapter.in.web.dto.request.WarehouseSectionUpdateRequest;
 import com.kb.wms.warehouse.adapter.in.web.dto.response.WarehouseSectionResponse;
@@ -51,6 +53,7 @@ public class WarehouseSectionController {
 
     @GetMapping("/api/v1/warehouses/sections")
     public ApiResponse<ItemsResponse<WarehouseSectionResponse>> getAllSections(
+            @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) Long parentSectionId,
             @RequestParam(required = false) String sectionType,
@@ -58,7 +61,7 @@ public class WarehouseSectionController {
             @RequestParam(required = false) Boolean isActive) {
         List<WarehouseSectionResponse> items = warehouseSectionUseCase
                 .getSections(new WarehouseSectionSearchCondition(
-                        warehouseId, parentSectionId, sectionType, keyword, isActive)).stream()
+                        warehouseId, parentSectionId, sectionType, keyword, isActive), principal).stream()
                 .map(this::toResponse)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
@@ -66,6 +69,7 @@ public class WarehouseSectionController {
 
     @GetMapping("/api/v1/warehouses/{warehouseId}/sections")
     public ApiResponse<ItemsResponse<WarehouseSectionResponse>> getSectionsByWarehouse(
+            @AuthenticationPrincipal AuthenticatedUser principal,
             @PathVariable Long warehouseId,
             @RequestParam(required = false) Long parentSectionId,
             @RequestParam(required = false) String sectionType,
@@ -73,15 +77,16 @@ public class WarehouseSectionController {
             @RequestParam(required = false) Boolean isActive) {
         List<WarehouseSectionResponse> items = warehouseSectionUseCase
                 .getSections(new WarehouseSectionSearchCondition(
-                        warehouseId, parentSectionId, sectionType, keyword, isActive)).stream()
+                        warehouseId, parentSectionId, sectionType, keyword, isActive), principal).stream()
                 .map(this::toResponse)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
     }
 
     @GetMapping("/api/v1/warehouses/sections/{sectionId}")
-    public ApiResponse<WarehouseSectionResponse> getSection(@PathVariable Long sectionId) {
-        WarehouseSection section = warehouseSectionUseCase.getSection(sectionId);
+    public ApiResponse<WarehouseSectionResponse> getSection(@AuthenticationPrincipal AuthenticatedUser principal,
+                                                            @PathVariable Long sectionId) {
+        WarehouseSection section = warehouseSectionUseCase.getSection(sectionId, principal);
         return ApiResponse.ok(toResponse(section));
     }
 

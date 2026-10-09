@@ -2,6 +2,7 @@ package com.kb.wms.inbound.adapter.out.persistence.repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -59,6 +60,7 @@ public interface InboundJpaRepository extends JpaRepository<InboundJpaEntity, Lo
             left join InboundLineJpaEntity l on l.inboundId = i.inboundId
             where (:status is null or i.status = :status)
               and (:warehouseId is null or i.warehouseId = :warehouseId)
+              and (:scoped = false or i.warehouseId in :warehouseIds)
               and (:purchaseOrderId is null or i.purchaseOrderId = :purchaseOrderId)
               and (:keyword is null
                    or lower(i.inboundNo) like lower(concat('%', :keyword, '%'))
@@ -74,21 +76,24 @@ public interface InboundJpaRepository extends JpaRepository<InboundJpaEntity, Lo
                                 @Param("purchaseOrderId") Long purchaseOrderId,
                                 @Param("keyword") String keyword,
                                 @Param("arrivedFrom") LocalDateTime arrivedFrom,
-                                @Param("arrivedTo") LocalDateTime arrivedTo);
+                                @Param("arrivedTo") LocalDateTime arrivedTo,
+                                @Param("scoped") boolean scoped,
+                                @Param("warehouseIds") Collection<Long> warehouseIds);
 
     @Query("""
             select new com.kb.wms.inbound.application.port.in.result.InboundView(
                 i.inboundId, i.inboundNo, i.purchaseOrderId, po.purchaseOrderNo, po.status, po.supplierId, s.name,
-                i.warehouseId, w.name, i.status, i.arrivedAt, i.receivedAt, i.receivedBy, i.note, count(l),
+                i.warehouseId, w.name, i.status, i.arrivedAt, i.receivedAt, i.receivedBy, ru.name, i.note, count(l),
                 i.createdAt, i.updatedAt)
             from InboundJpaEntity i
             join PurchaseOrderJpaEntity po on po.purchaseOrderId = i.purchaseOrderId
             join SupplierJpaEntity s on s.supplierId = po.supplierId
             join WarehouseJpaEntity w on w.warehouseId = i.warehouseId
             left join InboundLineJpaEntity l on l.inboundId = i.inboundId
+            left join UserJpaEntity ru on ru.userId = i.receivedBy
             where i.inboundId = :inboundId
             group by i.inboundId, i.inboundNo, i.purchaseOrderId, po.purchaseOrderNo, po.status, po.supplierId, s.name,
-                     i.warehouseId, w.name, i.status, i.arrivedAt, i.receivedAt, i.receivedBy, i.note,
+                     i.warehouseId, w.name, i.status, i.arrivedAt, i.receivedAt, i.receivedBy, ru.name, i.note,
                      i.createdAt, i.updatedAt
             """)
     Optional<InboundView> findView(@Param("inboundId") Long inboundId);

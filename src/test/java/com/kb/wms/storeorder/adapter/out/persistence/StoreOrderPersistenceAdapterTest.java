@@ -1,5 +1,9 @@
 package com.kb.wms.storeorder.adapter.out.persistence;
 
+import com.kb.wms.auth.application.port.out.UserRepository;
+import com.kb.wms.auth.domain.entity.User;
+import com.kb.wms.auth.domain.enums.UserRole;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -55,6 +59,7 @@ import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class StoreOrderPersistenceAdapterTest {
 
+    @Autowired UserRepository userRepository;
     @Autowired StoreOrderRepository storeOrderRepository;
     @Autowired StoreOrderQueryRepository queryRepository;
     @Autowired StoreJpaRepository storeJpaRepository;
@@ -91,7 +96,7 @@ class StoreOrderPersistenceAdapterTest {
 
     private StoreOrderSearchCondition condition(StoreOrderStatus status, Long storeId, Long warehouseId,
                                                 String keyword, LocalDateTime from, LocalDateTime to) {
-        return new StoreOrderSearchCondition(status, storeId, warehouseId, keyword, from, to);
+        return StoreOrderSearchCondition.unscoped(status, storeId, warehouseId, keyword, from, to);
     }
 
     private StoreOrderSearchCondition noCondition() {
@@ -235,6 +240,31 @@ class StoreOrderPersistenceAdapterTest {
         List<StoreOrderSummary> result = queryRepository.search(noCondition());
 
         assertThat(result).extracting(StoreOrderSummary::storeOrderId).containsExactly(so3, so2, so1);
+    }
+
+    @Test
+    @DisplayName("지점 범위(점주의 담당 지점)로 좁히고, 빈 범위면 아무것도 보이지 않는다")
+    void search_byStoreScope() {
+        assertThat(queryRepository.search(new StoreOrderSearchCondition(
+                null, null, null, null, null, null, List.of(gangnam), null)))
+                .extracting(StoreOrderSummary::storeOrderId).containsExactly(so2, so1);
+        assertThat(queryRepository.search(new StoreOrderSearchCondition(
+                null, null, null, null, null, null, List.of(gangnam, busanStore), null))).hasSize(3);
+        assertThat(queryRepository.search(new StoreOrderSearchCondition(
+                null, null, null, null, null, null, List.of(), null))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("창고 범위(창고 관리자의 담당 창고)로 좁히면 창고 배정 전 발주는 제외된다")
+    void search_byWarehouseScope_excludesUnassigned() {
+        assertThat(queryRepository.search(new StoreOrderSearchCondition(
+                null, null, null, null, null, null, null, List.of(seoul))))
+                .extracting(StoreOrderSummary::storeOrderId).containsExactly(so2);
+        assertThat(queryRepository.search(new StoreOrderSearchCondition(
+                null, null, null, null, null, null, null, List.of(seoul, busan))))
+                .extracting(StoreOrderSummary::storeOrderId).containsExactly(so3, so2);
+        assertThat(queryRepository.search(new StoreOrderSearchCondition(
+                null, null, null, null, null, null, null, List.of()))).isEmpty();
     }
 
     @Test
@@ -461,5 +491,24 @@ class StoreOrderPersistenceAdapterTest {
                 .toList();
         storeOrderRepository.saveLines(withId);
         return id;
+    }
+
+    @Test
+    @DisplayName("작성자 이름을 사용자 테이블 조인으로 단건 뷰에 담고, 사용자가 없으면 이름만 null이다")
+    void findView_createdByName() {
+        User writer = userRepository.save(User.signUp("so_writer", "hashed", "김점주", "so_writer@example.com",
+                "010-1234-5678", UserRole.STORE_OWNER));
+        entityManager.createQuery("update StoreOrderJpaEntity o set o.createdBy = :userId where o.storeOrderId = :id")
+                .setParameter("userId", writer.getUserId()).setParameter("id", so2).executeUpdate();
+        // 방금 만든 사용자와 절대 겹치지 않는 존재하지 않는 사용자 ID
+        long nobody = writer.getUserId() + 1_000_000L;
+        entityManager.createQuery("update StoreOrderJpaEntity o set o.createdBy = :userId where o.storeOrderId = :id")
+                .setParameter("userId", nobody).setParameter("id", so1).executeUpdate();
+        entityManager.clear();
+
+        assertThat(queryRepository.findView(so2).orElseThrow().createdByName()).isEqualTo("김점주");
+        StoreOrderView other = queryRepository.findView(so1).orElseThrow();
+        assertThat(other.createdBy()).isEqualTo(nobody);
+        assertThat(other.createdByName()).isNull();
     }
 }

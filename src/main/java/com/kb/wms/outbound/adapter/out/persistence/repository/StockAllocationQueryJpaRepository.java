@@ -32,6 +32,7 @@ public interface StockAllocationQueryJpaRepository extends Repository<StockAlloc
             join WarehouseSectionJpaEntity sec on sec.sectionId = il.sectionId
             where (:storeOrderId is null or o.storeOrderId = :storeOrderId)
               and (:warehouseId is null or o.warehouseId = :warehouseId)
+              and (:scoped = false or o.warehouseId in :warehouseIds)
               and (:skuId is null or k.skuId = :skuId)
               and (:status is null or a.status = :status)
               and (:keyword is null
@@ -44,7 +45,9 @@ public interface StockAllocationQueryJpaRepository extends Repository<StockAlloc
                                         @Param("warehouseId") Long warehouseId,
                                         @Param("skuId") Long skuId,
                                         @Param("status") AllocationStatus status,
-                                        @Param("keyword") String keyword);
+                                        @Param("keyword") String keyword,
+                                        @Param("scoped") boolean scoped,
+                                        @Param("warehouseIds") Collection<Long> warehouseIds);
 
     @Query("""
             select new com.kb.wms.outbound.application.port.in.result.StockAllocationSummary(
@@ -67,7 +70,7 @@ public interface StockAllocationQueryJpaRepository extends Repository<StockAlloc
     @Query("""
             select new com.kb.wms.outbound.application.port.in.result.StockAllocationView(
                 a.allocationId, a.status, a.allocatedQuantity, a.pickedQuantity, a.allocatedAt, a.allocatedBy,
-                a.releasedAt, o.storeOrderId, o.orderNo, o.storeId, st.name, o.warehouseId, a.storeOrderLineId,
+                ab.name, a.releasedAt, o.storeOrderId, o.orderNo, o.storeId, st.name, o.warehouseId, a.storeOrderLineId,
                 sl.requestedQuantity, k.skuId, k.skuCode, k.name, a.inventoryLotId, lot.lotId, lot.lotNumber,
                 lot.expiryDate, sec.sectionId, sec.sectionCode, sec.name)
             from StockAllocationJpaEntity a
@@ -78,6 +81,7 @@ public interface StockAllocationQueryJpaRepository extends Repository<StockAlloc
             join InventoryLotJpaEntity il on il.inventoryLotId = a.inventoryLotId
             join LotJpaEntity lot on lot.lotId = il.lotId
             join WarehouseSectionJpaEntity sec on sec.sectionId = il.sectionId
+            left join UserJpaEntity ab on ab.userId = a.allocatedBy
             where a.allocationId = :allocationId
             """)
     Optional<StockAllocationView> findView(@Param("allocationId") Long allocationId);

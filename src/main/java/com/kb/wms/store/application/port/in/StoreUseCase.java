@@ -2,6 +2,7 @@ package com.kb.wms.store.application.port.in;
 
 import java.util.List;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.store.application.port.in.command.StoreRegisterCommand;
 import com.kb.wms.store.application.port.in.command.StoreUpdateCommand;
 import com.kb.wms.store.application.port.in.query.StoreSearchCondition;
@@ -19,6 +20,9 @@ public interface StoreUseCase {
     List<Store> getStores(StoreSearchCondition condition);
 
     Store getStore(Long storeId);
+
+    /** 사용자 요청용 단건 조회. 담당 지점(본사는 전체)이 아니면 403 FORBIDDEN. 다른 도메인의 내부 조회는 주체 없는 버전을 쓴다. */
+    Store getStore(Long storeId, AuthenticatedUser actor);
 
     Store updateStore(Long storeId, StoreUpdateCommand command);
 

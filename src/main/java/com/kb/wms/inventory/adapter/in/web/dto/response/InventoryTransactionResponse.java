@@ -8,7 +8,7 @@ import com.kb.wms.inventory.domain.enums.TransactionType;
 
 /**
  * GET /api/v1/inventory/transactions, GET /api/v1/inventory/{inventoryId}/transactions 목록 항목.
- * createdByName은 User(회원) 테이블이 생기면 채운다. 지금은 createdBy(ID)만 내려준다.
+ * createdByName은 처리자(createdBy)의 이름이다.
  */
 public record InventoryTransactionResponse(
         Long transactionId,
@@ -28,6 +28,7 @@ public record InventoryTransactionResponse(
         Long referenceId,
         String reason,
         Long createdBy,
+        String createdByName,
         LocalDateTime createdAt
 ) {
 
@@ -50,6 +51,7 @@ public record InventoryTransactionResponse(
                 view.referenceId(),
                 view.reason(),
                 view.createdBy(),
+                view.createdByName(),
                 view.createdAt());
     }
 }

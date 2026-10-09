@@ -21,6 +21,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.inventory.adapter.out.persistence.repository.InventoryLotJpaRepository;
 import com.kb.wms.inventory.adapter.out.persistence.repository.LotJpaRepository;
@@ -53,6 +55,8 @@ import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 @SpringBootTest
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class InventoryConcurrencyTest {
+
+    private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
 
     private static final long USER = 5L;
 
@@ -164,7 +168,7 @@ class InventoryConcurrencyTest {
             ready.countDown();
             start.await();
             try {
-                adjustmentUseCase.adjust(new InventoryAdjustCommand(inventoryLotId, 100L, 150L, "동시 조정 증가", USER));
+                adjustmentUseCase.adjust(new InventoryAdjustCommand(inventoryLotId, 100L, 150L, "동시 조정 증가", USER), HQ);
                 return 150L;
             } catch (BusinessException e) {
                 assertThat(e.getErrorCodeName()).isEqualTo(InventoryErrorCode.STALE_QUANTITY.name());
@@ -175,7 +179,7 @@ class InventoryConcurrencyTest {
             ready.countDown();
             start.await();
             try {
-                adjustmentUseCase.adjust(new InventoryAdjustCommand(inventoryLotId, 100L, 80L, "동시 조정 감소", USER));
+                adjustmentUseCase.adjust(new InventoryAdjustCommand(inventoryLotId, 100L, 80L, "동시 조정 감소", USER), HQ);
                 return 80L;
             } catch (BusinessException e) {
                 assertThat(e.getErrorCodeName()).isEqualTo(InventoryErrorCode.STALE_QUANTITY.name());

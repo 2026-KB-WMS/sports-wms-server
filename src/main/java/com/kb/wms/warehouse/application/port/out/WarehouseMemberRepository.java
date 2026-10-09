@@ -3,6 +3,7 @@ package com.kb.wms.warehouse.application.port.out;
 import java.util.List;
 import java.util.Optional;
 
+import com.kb.wms.warehouse.application.port.in.result.WarehouseMemberView;
 import com.kb.wms.warehouse.domain.entity.WarehouseMember;
 
 /**
@@ -15,9 +16,10 @@ public interface WarehouseMemberRepository {
     Optional<WarehouseMember> findById(Long warehouseMemberId);
 
     /**
-     * warehouseId·userId가 null이면 해당 조건을 무시하고 조회한다.
+     * 사용자의 이름·로그인 아이디를 붙여 조회한다. 조건이 null이면 무시하고, keyword는 이름·로그인 아이디
+     * 부분 일치(대소문자 무시)다.
      */
-    List<WarehouseMember> findAll(Long warehouseId, Long userId);
+    List<WarehouseMemberView> search(Long warehouseId, Long userId, String keyword);
 
     List<WarehouseMember> findByUserId(Long userId);
 

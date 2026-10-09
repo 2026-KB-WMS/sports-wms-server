@@ -10,6 +10,7 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -38,7 +39,7 @@ import lombok.RequiredArgsConstructor;
  * 입고 완료. 재고 반영부터 입고 상태 전환까지 한 트랜잭션이다.
  *
  * <p>잠금 순서: 입고 행 → 발주 행 → 발주 항목 행 → (재고 도메인) 구역 행 → 재고 행.
- * 역할·소속 창고 검사는 인증 도메인 연동 시 웹 어댑터에서 적용한다.
+ * 역할은 SecurityConfig가, 담당 창고 범위는 이 서비스가 입고 행을 잠근 직후 검사한다(ADR-012).
  */
 @Service
 @RequiredArgsConstructor
@@ -52,13 +53,12 @@ public class InboundCompleteService implements InboundCompleteUseCase {
 
     @Override
     @Transactional
-    public InboundCompleteResult completeInbound(Long inboundId, Long userId) {
-        if (userId == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "처리 사용자는 필수입니다.");
-        }
+    public InboundCompleteResult completeInbound(Long inboundId, AuthenticatedUser actor) {
+        Long userId = actor.userId();
 
         Inbound inbound = inboundRepository.findByIdForUpdate(inboundId)
                 .orElseThrow(() -> new BusinessException(InboundErrorCode.INBOUND_NOT_FOUND));
+        actor.requireWarehouseAccess(inbound.getWarehouseId());
         if (!inbound.isInspecting()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "검수 중 상태의 입고만 완료 처리할 수 있습니다. 현재 상태: " + inbound.getStatus());

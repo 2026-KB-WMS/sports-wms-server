@@ -13,6 +13,7 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
@@ -38,7 +39,7 @@ import lombok.RequiredArgsConstructor;
  * 입고 검수. 호출마다 검수 항목 전체를 교체하고, 항목마다 로트를 찾거나 만든다(ADR-004).
  * 재고·구역 사용량·발주 항목은 바꾸지 않는다(완료 처리에서 반영).
  *
- * <p>역할·소속 창고 검사는 인증 도메인 연동 시 웹 어댑터에서 적용한다.
+ * <p>역할은 SecurityConfig가, 담당 창고 범위는 이 서비스가 입고 행을 잠근 직후 검사한다(ADR-012).
  */
 @Service
 @RequiredArgsConstructor
@@ -58,11 +59,12 @@ public class InboundInspectService implements InboundInspectUseCase {
 
     @Override
     @Transactional
-    public Inbound inspectInbound(Long inboundId, InboundInspectCommand command) {
+    public Inbound inspectInbound(Long inboundId, InboundInspectCommand command, AuthenticatedUser actor) {
         validateRequest(command);
 
         Inbound inbound = inboundRepository.findByIdForUpdate(inboundId)
                 .orElseThrow(() -> new BusinessException(InboundErrorCode.INBOUND_NOT_FOUND));
+        actor.requireWarehouseAccess(inbound.getWarehouseId());
         if (!inbound.isInspectable()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "도착 또는 검수 중 상태의 입고만 검수할 수 있습니다. 현재 상태: " + inbound.getStatus());

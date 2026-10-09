@@ -5,8 +5,10 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.kb.wms.common.persistence.SearchKeyword;
 import com.kb.wms.store.adapter.out.persistence.entity.StoreMemberJpaEntity;
 import com.kb.wms.store.adapter.out.persistence.repository.StoreMemberJpaRepository;
+import com.kb.wms.store.application.port.in.result.StoreMemberView;
 import com.kb.wms.store.application.port.out.StoreMemberRepository;
 import com.kb.wms.store.domain.entity.StoreMember;
 
@@ -30,10 +32,8 @@ public class StoreMemberPersistenceAdapter implements StoreMemberRepository {
     }
 
     @Override
-    public List<StoreMember> findAll(Long storeId, Long userId) {
-        return storeMemberJpaRepository.findAllByFilter(storeId, userId).stream()
-                .map(StoreMemberJpaEntity::toDomain)
-                .toList();
+    public List<StoreMemberView> search(Long storeId, Long userId, String keyword) {
+        return storeMemberJpaRepository.search(storeId, userId, SearchKeyword.normalize(keyword));
     }
 
     @Override

@@ -20,7 +20,7 @@ import com.kb.wms.warehouse.adapter.in.web.dto.response.WarehouseMemberReleaseRe
 import com.kb.wms.warehouse.adapter.in.web.dto.response.WarehouseMemberResponse;
 import com.kb.wms.warehouse.application.port.in.WarehouseMemberUseCase;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
-import com.kb.wms.warehouse.domain.entity.WarehouseMember;
+import com.kb.wms.warehouse.application.port.in.result.WarehouseMemberView;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -41,15 +41,17 @@ public class WarehouseMemberController {
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<WarehouseMemberResponse> assignManager(
             @Valid @RequestBody WarehouseMemberAssignRequest request) {
-        WarehouseMember member = warehouseMemberUseCase.assignManager(request.toCommand());
+        WarehouseMemberView member = warehouseMemberUseCase.assignManager(request.toCommand());
         return ApiResponse.created(toResponse(member));
     }
 
     @GetMapping
     public ApiResponse<ItemsResponse<WarehouseMemberResponse>> getManagers(
             @RequestParam(required = false) Long warehouseId,
-            @RequestParam(required = false) Long userId) {
-        List<WarehouseMemberResponse> items = warehouseMemberUseCase.getManagers(warehouseId, userId).stream()
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String keyword) {
+        List<WarehouseMemberResponse> items =
+                warehouseMemberUseCase.getManagers(warehouseId, userId, keyword).stream()
                 .map(this::toResponse)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
@@ -61,8 +63,8 @@ public class WarehouseMemberController {
         return ApiResponse.ok(new WarehouseMemberReleaseResponse(warehouseMemberId));
     }
 
-    private WarehouseMemberResponse toResponse(WarehouseMember member) {
-        String warehouseName = warehouseUseCase.getWarehouse(member.getWarehouseId()).getName();
+    private WarehouseMemberResponse toResponse(WarehouseMemberView member) {
+        String warehouseName = warehouseUseCase.getWarehouse(member.warehouseId()).getName();
         return WarehouseMemberResponse.of(member, warehouseName);
     }
 }
