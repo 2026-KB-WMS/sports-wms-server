@@ -6,7 +6,7 @@
 
 ## 범위
 
-- 이 문서는 **구현 완료된** 5개(가입·로그인·내 정보·사용자 목록·사용자 수정)를 포함한다.
+- 이 문서는 **구현 완료된** 6개(가입·로그인·내 정보·비밀번호 변경·사용자 목록·사용자 수정)를 포함한다.
 - Notion에 있던 `GET /users/{userId}`(사용자 단건 조회)는 **구현하지 않았다**. 아래 "구현 대비 메모" 참고.
 
 ## 구현 대비 메모
@@ -19,16 +19,17 @@
 - **`PATCH /users/{userId}` 추가 규칙(명세에 없이 서비스에 넣음)**: 소속(창고·지점 멤버)이 있는 사용자의 `role` 변경은 409 `AFFILIATION_ASSIGNED`, 창고 관리자·점주를 소속 없이 `ACTIVE`로 만들면 409 `AFFILIATION_REQUIRED`, 허용되지 않는 상태 전이는 409 `INVALID_USER_STATUS_TRANSITION`. 상태가 바뀌면 `StatusHistory`(`entity_type` `USER`)에 이전·이후 상태와 처리자를 기록한다(사유는 받지 않는다).
 - **상태 전이 허용 범위(Notion 미결을 구현에서 확정)**: 재활성화(`INACTIVE`→`ACTIVE`)와 가입 반려(`PENDING`→`INACTIVE`)를 둘 다 허용한다. `approve`/`deactivate` 별도 엔드포인트로 나누지 않고 `PATCH`의 `status` 하나로 처리한다. `PENDING`으로 되돌리기와 같은 상태로의 변경은 409.
 - **토큰 정책(Notion 미결을 ADR-011로 확정)**: 액세스 토큰(JWT, HS256)만 발급, 만료 3600초, 리프레시 토큰·로그아웃 없음. 비활성화·역할 변경 뒤에도 발급된 토큰은 만료까지 유효하다(즉시 무효화 없음). 로그인 실패 횟수 제한·rate limiting은 두지 않았다(보류).
-- **최초 본사 관리자**: 가입 API는 `HQ_ADMIN`을 만들 수 없고 가입 승인은 `HQ_ADMIN`만 할 수 있으므로, 본사 관리자가 하나도 없을 때만 앱 시작 시 환경변수(`WMS_ADMIN_LOGIN_ID`, `WMS_ADMIN_PASSWORD`, `WMS_ADMIN_NAME`, `WMS_ADMIN_EMAIL`, `WMS_ADMIN_PHONE`)로 `ACTIVE` 관리자를 만든다([ADR-013](../adr/013-initial-hq-admin-from-environment.md), #189). 설정이 비었거나 잘못돼도 기동은 막지 않고 로그만 남긴다. 비밀번호 변경 API가 없어 이 비밀번호를 바꿀 방법은 아직 없다(보류).
+- **최초 본사 관리자**: 가입 API는 `HQ_ADMIN`을 만들 수 없고 가입 승인은 `HQ_ADMIN`만 할 수 있으므로, 본사 관리자가 하나도 없을 때만 앱 시작 시 환경변수(`WMS_ADMIN_LOGIN_ID`, `WMS_ADMIN_PASSWORD`, `WMS_ADMIN_NAME`, `WMS_ADMIN_EMAIL`, `WMS_ADMIN_PHONE`)로 `ACTIVE` 관리자를 만든다([ADR-013](../adr/013-initial-hq-admin-from-environment.md), #189). 설정이 비었거나 잘못돼도 기동은 막지 않고 로그만 남긴다. 환경변수 비밀번호는 `PATCH /auth/me/password`(#193)로 로그인한 뒤 바꾼다. 관리자가 다른 사용자의 비밀번호를 재설정하는 API는 없다(보류).
 - 확정 필요(미결): 로그인 실패 횟수 제한, 비활성화된 계정의 유효 토큰으로 `GET /auth/me` 호출 시 처리(현재는 조회됨), 가입 시 소속 선택 필드 추가 여부(현재는 가입 후 본사가 배정), 가입 반려 사유 기록.
 
-## 엔드포인트 목록 (5)
+## 엔드포인트 목록 (6)
 
 | Method | Path | 권한 | 설명 |
 |---|---|---|---|
 | POST | /auth/signup | 없음 | 가입 신청(PENDING) |
 | POST | /auth/login | 없음 | 로그인, 액세스 토큰 발급 |
 | GET | /auth/me | 로그인한 모든 역할 | 내 정보 |
+| PATCH | /auth/me/password | 로그인한 모든 역할 | 본인 비밀번호 변경 |
 | GET | /users | HQ_ADMIN | 사용자 목록 |
 | PATCH | /users/{userId} | HQ_ADMIN | 사용자 정보·역할·상태 수정 |
 
@@ -85,6 +86,30 @@
 - 오류: 401 `UNAUTHORIZED`(토큰 없음·만료·위조), 404 `USER_NOT_FOUND`(토큰의 사용자가 삭제된 경우).
 - 계정이 비활성화돼도 이미 발급된 토큰으로는 만료까지 조회된다([ADR-011](../adr/011-jwt-access-token-only.md)).
 
+## PATCH /auth/me/password (P1)
+
+- `Authorization: Bearer {accessToken}` 필수. 변경 대상은 토큰 주체 본인이다. 관리자가 다른 사용자의 비밀번호를 재설정하는 기능은 없다.
+- Body (전부 필수)
+
+| 필드 | 타입 | 규칙 |
+|---|---|---|
+| currentPassword | string | 공백 불가. 현재 비밀번호와 일치해야 한다 |
+| newPassword | string | 가입과 같은 규칙(8자 이상, 영문·숫자·특수문자 포함, 72바이트 이하). 현재 비밀번호와 달라야 한다 |
+
+- 200. 응답 `data`는 `null`이고 메시지는 "비밀번호가 변경되었습니다."이다.
+- 오류
+
+| HTTP | 오류 코드 | 조건 |
+|---|---|---|
+| 400 | VALIDATION_ERROR | 필드 누락·공백, 새 비밀번호 형식 위반, 새 비밀번호가 현재와 같음 |
+| 400 | CURRENT_PASSWORD_MISMATCH | 현재 비밀번호 불일치. 401이 아니라 400이다(클라이언트가 토큰 만료로 보고 로그아웃시키지 않도록) |
+| 401 | UNAUTHORIZED | 토큰 없음·만료 |
+| 403 | ACCOUNT_INACTIVE | 비활성화된 계정(만료 전 토큰이 남아 있어도 변경 불가) |
+| 404 | USER_NOT_FOUND | 토큰의 사용자가 삭제된 경우 |
+
+- 사용자 행을 잠그고 한 트랜잭션으로 처리한다. 새 비밀번호는 BCrypt로 저장한다.
+- 이미 발급된 토큰은 비밀번호를 바꿔도 만료까지 유효하다([ADR-011](../adr/011-jwt-access-token-only.md)).
+
 ## GET /users (P0)
 
 - `HQ_ADMIN` 전용. 본사 관리자가 계정 현황을 보거나 가입 승인 대기 목록(`status=PENDING`)을 찾을 때 쓴다.
@@ -129,5 +154,5 @@
 | 409 | AFFILIATION_ASSIGNED | 소속이 배정된 사용자의 `role` 변경(소속을 먼저 회수) |
 
 - 본인 계정은 `name`·`email`·`phone`만 바꿀 수 있다. 본인 값과 같은 `role`·`status`를 보내는 것은 변경이 아니므로 무시한다.
-- 수정은 대상 행을 잠그고 한 트랜잭션으로 처리하며 `updated_at`을 갱신한다. 비밀번호 변경은 이 API의 범위가 아니다.
+- 수정은 대상 행을 잠그고 한 트랜잭션으로 처리하며 `updated_at`을 갱신한다. 비밀번호 변경은 이 API가 아니라 `PATCH /auth/me/password`다.
 - 상태 전이 규칙은 [docs/domain/auth.md](../domain/auth.md) 참고.

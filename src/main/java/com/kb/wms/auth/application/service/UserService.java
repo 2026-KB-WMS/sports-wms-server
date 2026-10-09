@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.auth.application.port.in.UserUseCase;
+import com.kb.wms.auth.application.port.in.command.ChangePasswordCommand;
 import com.kb.wms.auth.application.port.in.command.InitialHqAdminCommand;
 import com.kb.wms.auth.application.port.in.command.UserSignupCommand;
 import com.kb.wms.auth.application.port.in.command.UserUpdateCommand;
@@ -72,6 +73,31 @@ public class UserService implements UserUseCase {
     public User getUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.USER_NOT_FOUND));
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(ChangePasswordCommand command) {
+        if (command.currentPassword() == null || command.currentPassword().isBlank()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "현재 비밀번호를 입력해주세요.");
+        }
+        validatePassword(command.newPassword());
+
+        User user = userRepository.findByIdForUpdate(command.userId())
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.USER_NOT_FOUND));
+        // 비활성 계정은 만료 전 토큰이 남아 있어도 바꿀 수 없다. 로그인과 같은 판단이다.
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new BusinessException(AuthErrorCode.ACCOUNT_INACTIVE);
+        }
+        if (!passwordEncoder.matches(command.currentPassword(), user.getPasswordHash())) {
+            throw new BusinessException(AuthErrorCode.CURRENT_PASSWORD_MISMATCH);
+        }
+        if (passwordEncoder.matches(command.newPassword(), user.getPasswordHash())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "새 비밀번호는 현재 비밀번호와 달라야 합니다.");
+        }
+
+        user.changePasswordHash(passwordEncoder.encode(command.newPassword()));
+        userRepository.save(user);
     }
 
     @Override

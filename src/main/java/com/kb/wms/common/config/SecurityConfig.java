@@ -48,7 +48,7 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml", "/swagger-ui/**", "/swagger-ui.html")
                         .permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
-                        .requestMatchers("/api/v1/auth/me").authenticated()
+                        .requestMatchers("/api/v1/auth/me", "/api/v1/auth/me/password").authenticated()
                         .requestMatchers("/api/v1/users/**").hasRole("HQ_ADMIN")
                         // 상품: 조회는 인증된 모든 역할, 등록·수정은 본사만
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/**").authenticated()

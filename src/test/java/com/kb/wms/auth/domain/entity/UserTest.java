@@ -79,6 +79,18 @@ class UserTest {
     }
 
     @Test
+    @DisplayName("비밀번호 해시를 바꾸고, 빈 값은 거절한다")
+    void changePasswordHash() {
+        User u = User.createHqAdmin("hq_admin01", "hashed", "홍길동", "admin@example.com", "010-1111-2222");
+
+        u.changePasswordHash("new-hashed");
+
+        assertThat(u.getPasswordHash()).isEqualTo("new-hashed");
+        assertThatThrownBy(() -> u.changePasswordHash(" ")).isInstanceOf(IllegalArgumentException.class);
+        assertThat(u.getPasswordHash()).isEqualTo("new-hashed");
+    }
+
+    @Test
     @DisplayName("빌더로 복원할 때 상태가 없으면 PENDING이 기본값")
     void builderDefaultStatus() {
         User u = User.builder().loginId("id").build();
