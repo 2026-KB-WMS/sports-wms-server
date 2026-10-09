@@ -29,6 +29,7 @@ import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
 import com.kb.wms.product.application.port.out.ProductSkuRepository;
+import com.kb.wms.product.application.port.out.ProductUsagePort;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.domain.entity.Product;
@@ -46,6 +47,8 @@ class ProductServiceTest {
     private CategoryRepository categoryRepository;
     @Mock
     private ProductSkuRepository productSkuRepository;
+    @Mock
+    private ProductUsagePort productUsagePort;
 
     @InjectMocks
     private ProductService productService;
@@ -298,6 +301,60 @@ class ProductServiceTest {
         Product result = productService.updateProduct(command);
 
         assertThat(result.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("재고가 남아 있으면 PRODUCT_IN_USE 409이고 상품·SKU 상태는 바뀌지 않는다")
+    void updateProduct_deactivate_blockedByStock() {
+        Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(productUsagePort.hasStock(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> productService.updateProduct(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.PRODUCT_IN_USE.name());
+
+        assertThat(existing.isActive()).isTrue();
+        verify(productSkuRepository, never()).findAll(any());
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("진행 중인 입고·창고 발주·출고·지점 발주가 하나라도 있으면 PRODUCT_IN_USE 409이다")
+    void updateProduct_deactivate_blockedByInProgressWork() {
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false);
+        for (int i = 0; i < 4; i++) {
+            Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
+            when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+            when(productUsagePort.hasInProgressInbounds(1L)).thenReturn(i == 0);
+            when(productUsagePort.hasInProgressPurchaseOrders(1L)).thenReturn(i == 1);
+            when(productUsagePort.hasInProgressOutbounds(1L)).thenReturn(i == 2);
+            when(productUsagePort.hasInProgressStoreOrders(1L)).thenReturn(i == 3);
+
+            assertThatThrownBy(() -> productService.updateProduct(command))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                    .isEqualTo(ProductErrorCode.PRODUCT_IN_USE.name());
+            assertThat(existing.isActive()).isTrue();
+        }
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("이미 비활성인 상품을 다시 비활성화하는 요청은 사용 중 검사 없이 기존처럼 통과한다")
+    void updateProduct_deactivate_alreadyInactiveSkipsUsageCheck() {
+        Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
+        existing.deactivate();
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Product result = productService.updateProduct(command);
+
+        assertThat(result.isActive()).isFalse();
+        verify(productUsagePort, never()).hasStock(any());
     }
 
     @Test
