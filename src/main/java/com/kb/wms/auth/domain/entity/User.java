@@ -95,7 +95,13 @@ public class User {
                 .build();
     }
 
-    // loginId와 비밀번호는 가입 후 수정할 수 없으므로 변경 메서드를 두지 않는다.
+    // loginId는 가입 후 수정할 수 없으므로 변경 메서드를 두지 않는다.
+
+    /** 본인 비밀번호 변경. 형식 검증과 현재 비밀번호 확인은 서비스가 하고, 여기서는 새 해시만 받는다. */
+    public void changePasswordHash(String passwordHash) {
+        requireText(passwordHash, "비밀번호는 필수입니다.");
+        this.passwordHash = passwordHash;
+    }
 
     public void changeName(String name) {
         requireText(name, "이름은 필수입니다.");

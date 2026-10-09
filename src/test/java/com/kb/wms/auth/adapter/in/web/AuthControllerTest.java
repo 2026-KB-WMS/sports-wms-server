@@ -2,11 +2,13 @@ package com.kb.wms.auth.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -28,6 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.kb.wms.auth.application.port.in.AuthUseCase;
 import com.kb.wms.auth.application.port.in.UserUseCase;
+import com.kb.wms.auth.application.port.in.command.ChangePasswordCommand;
 import com.kb.wms.auth.application.port.in.command.LoginCommand;
 import com.kb.wms.auth.application.port.in.command.UserSignupCommand;
 import com.kb.wms.auth.application.port.in.result.LoginResult;
@@ -279,6 +282,65 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
 
         verifyNoInteractions(userUseCase);
+    }
+
+    @Test
+    @DisplayName("비밀번호 변경은 토큰 주체 본인에게 적용하고 응답에 비밀번호를 싣지 않는다")
+    void changePassword_success() throws Exception {
+        mockMvc.perform(patch("/api/v1/auth/me/password")
+                        .with(authentication(principal(UserRole.STORE_OWNER)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"currentPassword": "Old@pass1", "newPassword": "New@pass1"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").doesNotExist());
+
+        ArgumentCaptor<ChangePasswordCommand> captor = ArgumentCaptor.forClass(ChangePasswordCommand.class);
+        verify(userUseCase).changePassword(captor.capture());
+        assertThat(captor.getValue().userId()).isEqualTo(12L);
+        assertThat(captor.getValue().currentPassword()).isEqualTo("Old@pass1");
+        assertThat(captor.getValue().newPassword()).isEqualTo("New@pass1");
+    }
+
+    @Test
+    @DisplayName("비밀번호 변경에 토큰이 없으면 401, 필드가 비면 400이다")
+    void changePassword_unauthorizedAndInvalid() throws Exception {
+        mockMvc.perform(patch("/api/v1/auth/me/password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"currentPassword": "Old@pass1", "newPassword": "New@pass1"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+
+        mockMvc.perform(patch("/api/v1/auth/me/password")
+                        .with(authentication(principal(UserRole.STORE_OWNER)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"currentPassword": "", "newPassword": "New@pass1"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+
+        verifyNoInteractions(userUseCase);
+    }
+
+    @Test
+    @DisplayName("현재 비밀번호가 다르면 400 CURRENT_PASSWORD_MISMATCH를 반환한다")
+    void changePassword_currentMismatch() throws Exception {
+        doThrow(new BusinessException(AuthErrorCode.CURRENT_PASSWORD_MISMATCH))
+                .when(userUseCase).changePassword(any(ChangePasswordCommand.class));
+
+        mockMvc.perform(patch("/api/v1/auth/me/password")
+                        .with(authentication(principal(UserRole.HQ_ADMIN)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"currentPassword": "Wrong@pass1", "newPassword": "New@pass1"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("CURRENT_PASSWORD_MISMATCH"));
     }
 
     @Test

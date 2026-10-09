@@ -29,7 +29,7 @@
 | 엔드포인트 | 역할 |
 |---|---|
 | POST /auth/signup, POST /auth/login | 인증 없음 |
-| GET /auth/me | 전체 (본인 고정) |
+| GET /auth/me, PATCH /auth/me/password | 전체 (본인 고정) |
 | GET /users, PATCH /users/{userId} | HQ_ADMIN |
 
 ## 상품 (product)

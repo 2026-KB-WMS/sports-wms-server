@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.kb.wms.auth.application.port.in.command.ChangePasswordCommand;
 import com.kb.wms.auth.application.port.in.command.UserSignupCommand;
 import com.kb.wms.auth.application.port.in.command.UserUpdateCommand;
 import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
@@ -414,6 +415,68 @@ class UserServiceTest {
         assertErrorCode(() -> userService.updateUser(new UserUpdateCommand(
                         ADMIN_ID, ADMIN_ID, null, null, null, null, null, UserRole.STORE_OWNER, null)),
                 ErrorCode.VALIDATION_ERROR.name());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("현재 비밀번호가 맞으면 새 비밀번호를 해시해 저장한다")
+    void changePassword_success() {
+        User user = userWith(USER_ID, UserRole.STORE_OWNER, UserStatus.ACTIVE);
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("Old@pass1", "hashed")).thenReturn(true);
+        when(passwordEncoder.matches("New@pass1", "hashed")).thenReturn(false);
+        when(passwordEncoder.encode("New@pass1")).thenReturn("new-hashed");
+
+        userService.changePassword(new ChangePasswordCommand(USER_ID, "Old@pass1", "New@pass1"));
+
+        assertThat(user.getPasswordHash()).isEqualTo("new-hashed");
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    @DisplayName("현재 비밀번호가 다르면 400 CURRENT_PASSWORD_MISMATCH이고 저장하지 않는다")
+    void changePassword_currentMismatch() {
+        User user = userWith(USER_ID, UserRole.STORE_OWNER, UserStatus.ACTIVE);
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("Wrong@pass1", "hashed")).thenReturn(false);
+
+        assertErrorCode(() -> userService.changePassword(new ChangePasswordCommand(USER_ID, "Wrong@pass1", "New@pass1")),
+                AuthErrorCode.CURRENT_PASSWORD_MISMATCH.name());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("새 비밀번호가 현재와 같으면 400이다")
+    void changePassword_sameAsCurrent() {
+        User user = userWith(USER_ID, UserRole.STORE_OWNER, UserStatus.ACTIVE);
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("Old@pass1", "hashed")).thenReturn(true);
+
+        assertErrorCode(() -> userService.changePassword(new ChangePasswordCommand(USER_ID, "Old@pass1", "Old@pass1")),
+                ErrorCode.VALIDATION_ERROR.name());
+        verify(userRepository, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"short1!", "onlyletters!", "12345678!", "NoSpecial123", "Aa1!" + "가나다라마바사아자차카타파하하하하하하하하하하하하하"})
+    @DisplayName("새 비밀번호가 형식을 어기면 400이고 사용자를 조회하지도 않는다")
+    void changePassword_invalidNewPassword(String newPassword) {
+        assertErrorCode(() -> userService.changePassword(new ChangePasswordCommand(USER_ID, "Old@pass1", newPassword)),
+                ErrorCode.VALIDATION_ERROR.name());
+        verify(userRepository, never()).findByIdForUpdate(any());
+    }
+
+    @Test
+    @DisplayName("비활성 계정은 403 ACCOUNT_INACTIVE, 없는 사용자는 404 USER_NOT_FOUND")
+    void changePassword_inactiveOrMissing() {
+        when(userRepository.findByIdForUpdate(USER_ID))
+                .thenReturn(Optional.of(userWith(USER_ID, UserRole.STORE_OWNER, UserStatus.INACTIVE)));
+        assertErrorCode(() -> userService.changePassword(new ChangePasswordCommand(USER_ID, "Old@pass1", "New@pass1")),
+                AuthErrorCode.ACCOUNT_INACTIVE.name());
+
+        when(userRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
+        assertErrorCode(() -> userService.changePassword(new ChangePasswordCommand(99L, "Old@pass1", "New@pass1")),
+                AuthErrorCode.USER_NOT_FOUND.name());
         verify(userRepository, never()).save(any());
     }
 
