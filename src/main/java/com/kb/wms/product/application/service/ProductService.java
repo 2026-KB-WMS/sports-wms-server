@@ -16,6 +16,7 @@ import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
 import com.kb.wms.product.application.port.out.ProductSkuRepository;
+import com.kb.wms.product.application.port.out.ProductUsagePort;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.domain.entity.Product;
@@ -33,6 +34,7 @@ public class ProductService implements ProductUseCase {
     private final BrandRepository brandRepository;
     private final CategoryRepository categoryRepository;
     private final ProductSkuRepository productSkuRepository;
+    private final ProductUsagePort productUsagePort;
 
     @Override
     @Transactional
@@ -104,6 +106,10 @@ public class ProductService implements ProductUseCase {
             if (command.isActive()) {
                 product.activate();
             } else {
+                // 이미 비활성인 상품을 다시 비활성화하는 요청은 기존처럼 그대로 통과시키고, 활성 상품에만 사용 중 검사를 한다.
+                if (product.isActive() && isInUse(command.productId())) {
+                    throw new BusinessException(ProductErrorCode.PRODUCT_IN_USE);
+                }
                 product.deactivate();
                 // 재고 도메인은 sku.status만 신뢰하므로 하위 SKU도 같은 트랜잭션에서 비활성화한다.
                 productSkuRepository.findAll(command.productId()).stream()
@@ -142,5 +148,13 @@ public class ProductService implements ProductUseCase {
             throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);
         }
         return product;
+    }
+
+    private boolean isInUse(Long productId) {
+        return productUsagePort.hasStock(productId)
+                || productUsagePort.hasInProgressInbounds(productId)
+                || productUsagePort.hasInProgressPurchaseOrders(productId)
+                || productUsagePort.hasInProgressOutbounds(productId)
+                || productUsagePort.hasInProgressStoreOrders(productId);
     }
 }

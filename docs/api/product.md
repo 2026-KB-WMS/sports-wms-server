@@ -7,6 +7,7 @@
 
 - 코드에만 있고 Notion 명세가 없던 엔드포인트: `PATCH /api/v1/products/skus/{skuId}/status` (SKU 활성/비활성). 아래 "PATCH /products/skus/{skuId}/status" 절에 코드 기준으로 명세를 보강했다.
 - 상품 비활성화(`PATCH /products/{productId}`의 `isActive=false`)는 같은 트랜잭션에서 하위 ACTIVE SKU를 모두 비활성화한다(구현됨). 상품을 다시 활성화해도 SKU는 자동으로 활성화되지 않는다(SKU 상태 변경 API로 개별 복구).
+- 상품 비활성화 차단(#194): 상품의 SKU에 재고(보유·할당 수량 > 0)가 있거나 진행 중인 입고(`ARRIVED`·`INSPECTING`)·창고 발주(`REQUESTED`·`CONFIRMED`)·출고(`READY`·`PICKING`·`PICKED`·`SHIPPED`)·지점 발주(`REQUESTED`·`APPROVED`·`ASSIGNED`·`ON_HOLD`) 항목이 있으면 409 `PRODUCT_IN_USE`다(창고 비활성화 `WAREHOUSE_IN_USE`와 같은 상태 기준). 출고는 SKU를 직접 갖지 않아 출고가 속한 지점 발주의 항목으로 판단한다. SKU 단건 비활성화(`PATCH /products/skus/{skuId}/status`)에는 이 검사를 적용하지 않았다(보류). 검사와 비활성화 사이에 새 재고·발주가 생기는 경합은 막지 않는다(창고 구역처럼 행을 잠그지 않음).
 - 목록 API(상품·브랜드·카테고리·SKU)는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고).
 - Notion 명세의 `pageInfo`, 일반 `NOT_FOUND`는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
 - 점주(STORE_OWNER) 제한(#182): 상품·SKU 목록은 `isActive` 필터와 상관없이 활성 항목만, 비활성 상품·SKU 단건은 404(`PRODUCT_NOT_FOUND`/`SKU_NOT_FOUND`)다. SKU 목록·단건 응답에서 `currentPurchasePrice`·`safetyStockQuantity` 필드는 점주에게 생략한다. 값이 없는(미설정) 경우도 필드를 생략하므로, 본사·창고 관리자 응답에서도 `null` 대신 필드가 빠진다. SKU의 점주 제한(활성만)은 명세에 명시돼 있지 않아 상품과 같게 적용했다.
@@ -61,7 +62,8 @@
 - `productCode`는 수정 불가(포함 시 400).
 - 변경 대상 brand/category는 활성이어야 함, 아니면 409(`BRAND_INACTIVE`/`CATEGORY_INACTIVE`).
 - 멱등. 상품 비활성화(`isActive=false`) 시 하위 ACTIVE SKU를 같은 트랜잭션에서 함께 비활성화한다(재고 도메인은 SKU 상태만 보기 때문). 이미 비활성인 SKU는 그대로 두며, 상품을 다시 활성화(`isActive=true`)해도 SKU는 자동으로 활성화되지 않는다.
-- 에러: `PRODUCT_NOT_FOUND`, `BRAND_NOT_FOUND`, `CATEGORY_NOT_FOUND` 404
+- 비활성화(`isActive=false`)는 재고가 남아 있거나 진행 중인 입고·창고 발주·출고·지점 발주가 있으면 409 `PRODUCT_IN_USE`이고 상품·SKU 상태는 바뀌지 않는다. 이미 비활성인 상품에 다시 `false`를 보내는 요청은 검사 없이 기존처럼 성공한다.
+- 에러: `PRODUCT_NOT_FOUND`, `BRAND_NOT_FOUND`, `CATEGORY_NOT_FOUND` 404, `BRAND_INACTIVE`·`CATEGORY_INACTIVE`·`PRODUCT_IN_USE` 409
 
 ## GET /products/brands, POST /products/brands
 
