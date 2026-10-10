@@ -25,6 +25,7 @@ import com.kb.wms.inbound.application.port.in.result.SectionCandidate;
 import com.kb.wms.inbound.application.port.out.InboundQueryRepository;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
+import com.kb.wms.inbound.application.port.out.WarehouseAvailabilityPort;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
@@ -52,6 +53,7 @@ public class InboundService implements InboundUseCase {
     private final InboundRepository inboundRepository;
     private final InboundQueryRepository inboundQueryRepository;
     private final PurchaseOrderRepository purchaseOrderRepository;
+    private final WarehouseAvailabilityPort warehouseAvailabilityPort;
     private final StatusHistoryUseCase statusHistoryUseCase;
 
     /**
@@ -101,6 +103,14 @@ public class InboundService implements InboundUseCase {
         if (condition.arrivedFrom() != null && condition.arrivedTo() != null
                 && condition.arrivedFrom().isAfter(condition.arrivedTo())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "도착 시작 일시는 종료 일시보다 늦을 수 없습니다.");
+        }
+        // 담당 창고 범위 검사(403)를 통과한 뒤에만 존재 여부를 확인해, 비담당자에게 존재 여부를 흘리지 않는다.
+        if (condition.warehouseId() != null) {
+            warehouseAvailabilityPort.requireExists(condition.warehouseId());
+        }
+        if (condition.purchaseOrderId() != null
+                && purchaseOrderRepository.findById(condition.purchaseOrderId()).isEmpty()) {
+            throw new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND);
         }
         return inboundQueryRepository.search(new InboundSearchCondition(
                 condition.status(), condition.warehouseId(), condition.purchaseOrderId(), condition.keyword(),

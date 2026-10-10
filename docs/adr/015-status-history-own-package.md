@@ -21,5 +21,8 @@
 
 ## 영향
 - `src/main`, `src/test`의 `common/statushistory` 디렉터리와 import 약 39개 파일이 바뀐다.
-- `StatusHistory.changedByName`(예: 지점 발주 상세의 `statusHistory[].changedByName`)은 여전히 `null`이다. 패키지가 분리되었으므로 `users` 조인으로 채우는 일은 후속 작업이다(ADR-007).
+- `StatusHistory.changedByName`(예: 지점 발주 상세의 `statusHistory[].changedByName`)은 이 변경 시점에는 여전히 `null`이었다. 패키지가 분리되었으므로 `users` 조인으로 채우는 일은 후속 작업이었고, #213에서 처리했다(아래 개정).
 - `AGENTS.md`의 도메인 목록에 `statushistory`를 추가한다.
+
+## 개정 (2026-10-10, #213)
+상태 이력 조회 쿼리(`StatusHistoryJpaRepository.findViewsByEntity`)가 `users`를 ID로 `left join`해 처리자 이름을 채운다(ADR-007 방식). 결과는 `statushistory`의 `StatusHistoryView`이고, 지점 발주 상세가 `findHistoryViews`를 써서 `statusHistory[].changedByName`을 응답한다. 사용자가 없으면 이름만 `null`이고 이력 행은 유지한다. 도메인 모델 `StatusHistory`와 기록 경로는 바뀌지 않는다.

@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
+import com.kb.wms.statushistory.application.port.in.result.StatusHistoryView;
 import com.kb.wms.statushistory.application.port.out.StatusHistoryRepository;
 import com.kb.wms.statushistory.domain.entity.StatusHistory;
 import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
@@ -35,6 +36,11 @@ public class StatusHistoryService implements StatusHistoryUseCase {
     @Override
     public List<StatusHistory> findHistory(StatusHistoryEntityType entityType, Long entityId) {
         return statusHistoryRepository.findByEntity(entityType, entityId);
+    }
+
+    @Override
+    public List<StatusHistoryView> findHistoryViews(StatusHistoryEntityType entityType, Long entityId) {
+        return statusHistoryRepository.findViewsByEntity(entityType, entityId);
     }
 
     @Override

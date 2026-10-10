@@ -191,9 +191,9 @@ public class StoreOrderService implements StoreOrderUseCase {
         StoreOrderOutboundStatus latest = storeOrderOutboundPort.findLatestOutboundStatus(storeOrderId).orElse(null);
 
         List<StoreOrderStatusHistoryView> history = statusHistoryUseCase
-                .findHistory(StatusHistoryEntityType.STORE_ORDER, storeOrderId).stream()
+                .findHistoryViews(StatusHistoryEntityType.STORE_ORDER, storeOrderId).stream()
                 .map(h -> new StoreOrderStatusHistoryView(
-                        h.getFromStatus(), h.getToStatus(), h.getReason(), h.getChangedBy(), h.getChangedAt()))
+                        h.fromStatus(), h.toStatus(), h.reason(), h.changedBy(), h.changedByName(), h.changedAt()))
                 .toList();
 
         return new StoreOrderDetails(

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import com.kb.wms.statushistory.adapter.out.persistence.entity.StatusHistoryJpaEntity;
 import com.kb.wms.statushistory.adapter.out.persistence.repository.StatusHistoryJpaRepository;
+import com.kb.wms.statushistory.application.port.in.result.StatusHistoryView;
 import com.kb.wms.statushistory.application.port.out.StatusHistoryRepository;
 import com.kb.wms.statushistory.domain.entity.StatusHistory;
 import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
@@ -31,6 +32,11 @@ public class StatusHistoryPersistenceAdapter implements StatusHistoryRepository 
                 .stream()
                 .map(StatusHistoryJpaEntity::toDomain)
                 .toList();
+    }
+
+    @Override
+    public List<StatusHistoryView> findViewsByEntity(StatusHistoryEntityType entityType, Long entityId) {
+        return statusHistoryJpaRepository.findViewsByEntity(entityType, entityId);
     }
 
     @Override

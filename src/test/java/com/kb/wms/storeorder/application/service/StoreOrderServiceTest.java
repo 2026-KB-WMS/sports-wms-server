@@ -29,7 +29,7 @@ import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.entity.StatusHistory;
+import com.kb.wms.statushistory.application.port.in.result.StatusHistoryView;
 import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand;
@@ -376,9 +376,9 @@ class StoreOrderServiceTest {
         when(storeOrderQueryRepository.findLineViews(7L)).thenReturn(List.of(lineView));
         when(storeOrderOutboundPort.findOutbounds(7L)).thenReturn(List.of());
         LocalDateTime at = LocalDateTime.of(2026, 10, 4, 9, 0);
-        when(statusHistoryUseCase.findHistory(StatusHistoryEntityType.STORE_ORDER, 7L)).thenReturn(List.of(
-                StatusHistory.record(StatusHistoryEntityType.STORE_ORDER, 7L, null, "REQUESTED", null, 5L, at),
-                StatusHistory.record(StatusHistoryEntityType.STORE_ORDER, 7L, "REQUESTED", "APPROVED", null, 2L, at)));
+        when(statusHistoryUseCase.findHistoryViews(StatusHistoryEntityType.STORE_ORDER, 7L)).thenReturn(List.of(
+                new StatusHistoryView(null, "REQUESTED", null, 5L, "점주", at),
+                new StatusHistoryView("REQUESTED", "APPROVED", null, 2L, null, at)));
 
         StoreOrderDetails details = storeOrderService.getStoreOrderDetails(7L, HQ);
 
@@ -390,7 +390,9 @@ class StoreOrderServiceTest {
         assertThat(details.statusHistory()).hasSize(2);
         assertThat(details.statusHistory().get(0).fromStatus()).isNull();
         assertThat(details.statusHistory().get(0).toStatus()).isEqualTo("REQUESTED");
+        assertThat(details.statusHistory().get(0).changedByName()).isEqualTo("점주");
         assertThat(details.statusHistory().get(1).changedBy()).isEqualTo(2L);
+        assertThat(details.statusHistory().get(1).changedByName()).isNull();
     }
 
     // ---------- 승인·반려·취소 fixtures ----------

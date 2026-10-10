@@ -18,7 +18,7 @@
   - 입고 목록·구역 후보 조회는 `page`·`size`·`sort`와 `pageInfo`를 지원하지 않고 `data.items` 전체를 돌려준다(페이지네이션 보류). 구역 후보 응답의 가용 용량 필드명은 `availableCapacity`다(Notion의 `requiredQuantity` 설명에 적힌 `availableQuantity`와 다름).
   - 인증·인가는 #170에서 적용했다. 처리 사용자(등록·확정·취소·검수·완료)는 토큰 주체이며 `userId` 쿼리 파라미터는 받지 않는다. 역할은 보안 설정이, 담당 창고 범위와 발주 취소 권한(요청 발주는 작성자 창고 관리자만, 확정 발주는 본사만)은 서비스가 검사한다. 창고 관리자는 비활성 공급처가 목록에서 빠지고 단건 조회는 404 `SUPPLIER_NOT_FOUND`다.
   - 404는 도메인 코드를 쓴다: `INBOUND_NOT_FOUND`(입고), `PURCHASE_ORDER_NOT_FOUND`(발주), `SECTION_NOT_FOUND`(구역). 발주 항목이 없을 때만 일반 `NOT_FOUND`다.
-  - 목록 필터의 존재하지 않는 값(발주 목록의 `warehouseId`·`supplierId`, 입고 목록의 `warehouseId`·`purchaseOrderId`)은 404가 아니라 빈 목록을 돌려준다(보류). 공급처 목록에는 대상 ID 필터가 없다.
+  - 목록 필터의 존재하지 않는 값(발주 목록의 `warehouseId`·`supplierId`, 입고 목록의 `warehouseId`·`purchaseOrderId`)은 도메인 전용 404(`WAREHOUSE_NOT_FOUND`·`SUPPLIER_NOT_FOUND`·`PURCHASE_ORDER_NOT_FOUND`)다(#213). 담당 창고 범위 검사(403)가 먼저다. 공급처 목록에는 대상 ID 필터가 없다.
   - 응답의 `receivedByName`(단건)은 처리자(`receivedBy`)의 이름이다. 사용자 테이블을 ID로 조인해 채우며, 검수 전·취소처럼 처리자가 없으면 `null`이다. 발주의 `createdByName`(목록·단건)도 같은 방식이다. 입고 취소 사유(필수, 500자 이하)는 `StatusHistory`(`entity_type` `INBOUND`)에 저장하고, 입고 단건 응답과 취소 응답의 `cancelReason`은 이 이력에서 읽는다.
   - 입고 번호는 `IB-yyyyMMdd-NNNN`(일자별 일련번호)로 구현했다.
   - 명세에 없이 서비스에 넣은 규칙: 같은 입고 안에서 (발주 항목, 로트) 중복은 400, 입고 완료 시 발주가 `CONFIRMED`가 아니거나 발주 항목별 입고 수량이 남은 수량을 넘으면 409 `CONFLICT`.
@@ -114,7 +114,7 @@
 - Query: `status`(REQUESTED/CONFIRMED/COMPLETED/CANCELED), `warehouseId`, `supplierId`, `keyword`(발주 번호), `createdFrom`, `createdTo`(ISO-8601, 양 끝 포함: `>= createdFrom`, `<= createdTo`). `sort`는 받지 않는다.
 - 정렬은 고정(등록 일시 `createdAt` 내림차순, 같으면 `purchaseOrderId` 내림차순).
 - 응답 항목: `purchaseOrderId, purchaseOrderNo, warehouseId, warehouseName, supplierId, supplierName, status, expectedAt, lineCount, totalAmount, createdBy, createdByName, createdAt` (항목별 수량·단가는 `/details`)
-- 에러: 400(status 값/일시 형식/from>to), 403(비담당 창고). 존재하지 않는 `warehouseId`·`supplierId` 필터는 404가 아니라 빈 목록을 돌려준다.
+- 에러: 400(status 값/일시 형식/from>to), 403(비담당 창고), 404 `WAREHOUSE_NOT_FOUND`/`SUPPLIER_NOT_FOUND`(존재하지 않는 `warehouseId`·`supplierId` 필터).
 
 ### GET /purchase-orders/{purchaseOrderId} (P1)
 
@@ -164,7 +164,7 @@
 - Query: `status`(ARRIVED/INSPECTING/COMPLETED/CANCELED), `warehouseId`, `purchaseOrderId`, `keyword`(입고 번호·발주 번호, 대소문자 무시 부분 일치), `arrivedFrom`, `arrivedTo`(ISO-8601, 이상·이하)
 - 정렬: 도착 일시 내림차순(같으면 입고 ID 내림차순). 검수 항목이 없는 입고도 포함한다.
 - 응답 항목: `inboundId, inboundNo, purchaseOrderId, purchaseOrderNo, supplierId, supplierName, warehouseId, warehouseName, status, arrivedAt, receivedAt, receivedBy, lineCount`(검수 항목 수, `ARRIVED`면 0)
-- 에러: 400(status 값·일시 형식 오류. `arrivedFrom`이 `arrivedTo`보다 늦음), 403(비담당 창고)
+- 에러: 400(status 값·일시 형식 오류. `arrivedFrom`이 `arrivedTo`보다 늦음), 403(비담당 창고), 404 `WAREHOUSE_NOT_FOUND`/`PURCHASE_ORDER_NOT_FOUND`(존재하지 않는 `warehouseId`·`purchaseOrderId` 필터)
 
 ### GET /inbounds/{inboundId} (P1)
 
