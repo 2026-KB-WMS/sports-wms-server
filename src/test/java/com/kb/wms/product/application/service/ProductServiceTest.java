@@ -361,8 +361,8 @@ class ProductServiceTest {
     @DisplayName("상품을 비활성화하면 활성 상태인 하위 SKU도 함께 비활성화되어 저장된다")
     void updateProduct_deactivate_cascadesToSkus() {
         Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
-        ProductSku activeSku = ProductSku.register(1L, "SKU-1", null, "SKU 1", null, null, null, null, 0L);
-        ProductSku inactiveSku = ProductSku.register(1L, "SKU-2", null, "SKU 2", null, null, null, null, 0L);
+        ProductSku activeSku = ProductSku.register(1L, "SKU-1", null, "SKU 1", null, java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, null, 0L);
+        ProductSku inactiveSku = ProductSku.register(1L, "SKU-2", null, "SKU 2", null, java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, null, 0L);
         inactiveSku.deactivate();
         ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false);
         when(productRepository.findById(1L)).thenReturn(Optional.of(existing));

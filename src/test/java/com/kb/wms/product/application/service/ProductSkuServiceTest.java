@@ -24,6 +24,7 @@ import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
+import com.kb.wms.product.application.port.in.command.ProductSkuUpdateCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
 import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
 import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
@@ -35,6 +36,7 @@ import com.kb.wms.product.application.port.out.ProductRepository;
 import com.kb.wms.product.application.port.out.ProductSkuRepository;
 import com.kb.wms.product.application.port.out.ProductUsagePort;
 import com.kb.wms.product.application.port.out.SkuOptionValueRepository;
+import com.kb.wms.product.application.port.out.SkuPriceHistoryRepository;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.domain.entity.OptionGroup;
@@ -42,6 +44,7 @@ import com.kb.wms.product.domain.entity.OptionValue;
 import com.kb.wms.product.domain.entity.Product;
 import com.kb.wms.product.domain.entity.ProductSku;
 import com.kb.wms.product.domain.entity.SkuOptionValue;
+import com.kb.wms.product.domain.entity.SkuPriceHistory;
 import com.kb.wms.product.exception.ProductErrorCode;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,6 +66,8 @@ class ProductSkuServiceTest {
     private CategoryRepository categoryRepository;
     @Mock
     private ProductUsagePort productUsagePort;
+    @Mock
+    private SkuPriceHistoryRepository skuPriceHistoryRepository;
 
     @InjectMocks
     private ProductSkuService productSkuService;
@@ -75,6 +80,141 @@ class ProductSkuServiceTest {
 
     private Product mockActiveProduct() {
         return Product.register(1L, 1L, "P-0001", "상품", null);
+    }
+
+    private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
+
+    private ProductSkuUpdateCommand updateCommand(String name, String barcode, BigDecimal purchase, BigDecimal supply) {
+        return new ProductSkuUpdateCommand(1L, name, barcode, null, purchase, supply, null);
+    }
+
+    private ProductSku skuWithPrices() {
+        ProductSku sku = ProductSku.register(1L, "SKU-0001", "8800000000001", "라켓", null,
+                BigDecimal.valueOf(10000), BigDecimal.valueOf(15000), "EA", 0L);
+        // 영속화 전 도메인 객체에는 ID가 없으므로, 저장된 SKU처럼 ID를 채운다.
+        org.springframework.test.util.ReflectionTestUtils.setField(sku, "skuId", 1L);
+        return sku;
+    }
+
+    @Test
+    @DisplayName("SKU 등록은 단가가 없으면 도메인에서 거부한다")
+    void registerSku_priceRequired() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(mockActiveProduct()));
+        ProductSkuRegisterCommand withoutPrice = new ProductSkuRegisterCommand(1L, "SKU-0001", null, "라켓",
+                null, null, BigDecimal.valueOf(15000), "EA", 0L);
+
+        assertThatThrownBy(() -> productSkuService.registerSku(withoutPrice))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(productSkuRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("단가를 바꾸면 이전·이후 단가와 처리자를 이력으로 남긴다")
+    void updateSku_priceChange_recordsHistory() {
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(skuWithPrices()));
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductSku result = productSkuService.updateSku(
+                updateCommand(null, null, BigDecimal.valueOf(12000), null), HQ);
+
+        assertThat(result.getCurrentPurchasePrice()).isEqualByComparingTo("12000");
+        assertThat(result.getCurrentSupplyPrice()).isEqualByComparingTo("15000");
+        org.mockito.ArgumentCaptor<SkuPriceHistory> captor = org.mockito.ArgumentCaptor.forClass(SkuPriceHistory.class);
+        verify(skuPriceHistoryRepository).save(captor.capture());
+        SkuPriceHistory history = captor.getValue();
+        assertThat(history.getPreviousPurchasePrice()).isEqualByComparingTo("10000");
+        assertThat(history.getNewPurchasePrice()).isEqualByComparingTo("12000");
+        assertThat(history.getPreviousSupplyPrice()).isEqualByComparingTo("15000");
+        assertThat(history.getNewSupplyPrice()).isEqualByComparingTo("15000");
+        assertThat(history.getChangedBy()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("단가가 아닌 필드만 바꾸면 이력을 남기지 않는다")
+    void updateSku_nonPriceChange_noHistory() {
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(skuWithPrices()));
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductSku result = productSkuService.updateSku(updateCommand("라켓 새 이름", null, null, null), HQ);
+
+        assertThat(result.getName()).isEqualTo("라켓 새 이름");
+        verify(skuPriceHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("같은 단가를 다시 보내면 이력을 남기지 않는다")
+    void updateSku_samePrice_noHistory() {
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(skuWithPrices()));
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        productSkuService.updateSku(updateCommand(null, null, BigDecimal.valueOf(10000), BigDecimal.valueOf(15000)), HQ);
+
+        verify(skuPriceHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("단가를 0으로 바꿀 수 있다")
+    void updateSku_zeroPriceAllowed() {
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(skuWithPrices()));
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductSku result = productSkuService.updateSku(updateCommand(null, null, BigDecimal.ZERO, null), HQ);
+
+        assertThat(result.getCurrentPurchasePrice()).isEqualByComparingTo("0");
+        verify(skuPriceHistoryRepository).save(any(SkuPriceHistory.class));
+    }
+
+    @Test
+    @DisplayName("비활성 SKU도 수정할 수 있다")
+    void updateSku_inactiveAllowed() {
+        ProductSku inactive = skuWithPrices();
+        inactive.deactivate();
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(inactive));
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductSku result = productSkuService.updateSku(updateCommand(null, null, null, BigDecimal.valueOf(1)), HQ);
+
+        assertThat(result.isActive()).isFalse();
+        assertThat(result.getCurrentSupplyPrice()).isEqualByComparingTo("1");
+    }
+
+    @Test
+    @DisplayName("수정할 필드가 하나도 없으면 VALIDATION_ERROR를 던진다")
+    void updateSku_noChanges() {
+        assertThatThrownBy(() -> productSkuService.updateSku(updateCommand(null, null, null, null), HQ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo("VALIDATION_ERROR");
+        verify(productSkuRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("없는 SKU를 수정하면 SKU_NOT_FOUND를 던진다")
+    void updateSku_notFound() {
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productSkuService.updateSku(updateCommand("이름", null, null, null), HQ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.SKU_NOT_FOUND.name());
+    }
+
+    @Test
+    @DisplayName("다른 SKU가 쓰는 바코드로 바꾸면 DUPLICATE_BARCODE를 던지고, 자기 바코드는 허용한다")
+    void updateSku_barcodeDuplicate() {
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(skuWithPrices()));
+        when(productSkuRepository.existsByBarcode("8800000000999")).thenReturn(true);
+
+        assertThatThrownBy(() -> productSkuService.updateSku(updateCommand(null, "8800000000999", null, null), HQ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.DUPLICATE_BARCODE.name());
+        verify(productSkuRepository, never()).save(any());
+
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        // 자기 자신의 바코드를 그대로 보내면 중복 조회 없이 통과한다.
+        productSkuService.updateSku(updateCommand(null, "8800000000001", BigDecimal.valueOf(1), null), HQ);
+        verify(productSkuRepository, never()).existsByBarcode("8800000000001");
     }
 
     @Test
@@ -335,7 +475,7 @@ class ProductSkuServiceTest {
     }
 
     private ProductSku sku() {
-        return ProductSku.register(1L, "SKU-0001", null, "라켓", null, null, null, null, 0L);
+        return ProductSku.register(1L, "SKU-0001", null, "라켓", null, java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, null, 0L);
     }
 
     @Test

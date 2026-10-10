@@ -57,6 +57,8 @@ public class ProductSku {
                                         BigDecimal weight, BigDecimal currentPurchasePrice,
                                         BigDecimal currentSupplyPrice, String unit,
                                         Long safetyStockQuantity) {
+        requirePrice(currentPurchasePrice, "매입 단가");
+        requirePrice(currentSupplyPrice, "공급 단가");
         return ProductSku.builder()
                 .productId(productId)
                 .skuCode(skuCode)
@@ -69,6 +71,39 @@ public class ProductSku {
                 .safetyStockQuantity(safetyStockQuantity)
                 .status(ProductStatus.ACTIVE)
                 .build();
+    }
+
+    /**
+     * 값이 있는 필드만 바꾼다. 단가는 0 이상이어야 한다. skuCode·productId·unit·상태는 여기서 바꾸지 않는다.
+     */
+    public void update(String name, String barcode, BigDecimal weight, BigDecimal currentPurchasePrice,
+                       BigDecimal currentSupplyPrice, Long safetyStockQuantity) {
+        if (name != null) {
+            this.name = name;
+        }
+        if (barcode != null) {
+            this.barcode = barcode;
+        }
+        if (weight != null) {
+            this.weight = weight;
+        }
+        if (currentPurchasePrice != null) {
+            requirePrice(currentPurchasePrice, "매입 단가");
+            this.currentPurchasePrice = currentPurchasePrice;
+        }
+        if (currentSupplyPrice != null) {
+            requirePrice(currentSupplyPrice, "공급 단가");
+            this.currentSupplyPrice = currentSupplyPrice;
+        }
+        if (safetyStockQuantity != null) {
+            this.safetyStockQuantity = safetyStockQuantity;
+        }
+    }
+
+    private static void requirePrice(BigDecimal price, String label) {
+        if (price == null || price.signum() < 0) {
+            throw new IllegalArgumentException(label + "는 0 이상이어야 합니다.");
+        }
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.kb.wms.product.application.service;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -14,9 +15,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.application.port.in.ProductSkuUseCase;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
+import com.kb.wms.product.application.port.in.command.ProductSkuUpdateCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
 import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
 import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
@@ -28,11 +31,13 @@ import com.kb.wms.product.application.port.out.ProductRepository;
 import com.kb.wms.product.application.port.out.ProductSkuRepository;
 import com.kb.wms.product.application.port.out.ProductUsagePort;
 import com.kb.wms.product.application.port.out.SkuOptionValueRepository;
+import com.kb.wms.product.application.port.out.SkuPriceHistoryRepository;
 import com.kb.wms.product.domain.entity.OptionGroup;
 import com.kb.wms.product.domain.entity.OptionValue;
 import com.kb.wms.product.domain.entity.Product;
 import com.kb.wms.product.domain.entity.ProductSku;
 import com.kb.wms.product.domain.entity.SkuOptionValue;
+import com.kb.wms.product.domain.entity.SkuPriceHistory;
 import com.kb.wms.product.exception.ProductErrorCode;
 
 import lombok.RequiredArgsConstructor;
@@ -56,6 +61,7 @@ public class ProductSkuService implements ProductSkuUseCase {
     private final BrandRepository brandRepository;
     private final CategoryRepository categoryRepository;
     private final ProductUsagePort productUsagePort;
+    private final SkuPriceHistoryRepository skuPriceHistoryRepository;
 
     @Override
     @Transactional
@@ -77,6 +83,36 @@ public class ProductSkuService implements ProductSkuUseCase {
                 command.weight(), command.currentPurchasePrice(), command.currentSupplyPrice(),
                 command.unit(), command.safetyStockQuantity());
         return productSkuRepository.save(sku);
+    }
+
+    @Override
+    @Transactional
+    public ProductSku updateSku(ProductSkuUpdateCommand command, AuthenticatedUser actor) {
+        if (command.hasNoChanges()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "수정할 필드를 하나 이상 입력해주세요.");
+        }
+        ProductSku sku = productSkuRepository.findById(command.skuId())
+                .orElseThrow(() -> new BusinessException(ProductErrorCode.SKU_NOT_FOUND));
+        // 자기 자신의 바코드와 같은 값을 다시 보내는 요청은 중복으로 보지 않는다.
+        if (command.barcode() != null && !command.barcode().equals(sku.getBarcode())
+                && productSkuRepository.existsByBarcode(command.barcode())) {
+            throw new BusinessException(ProductErrorCode.DUPLICATE_BARCODE);
+        }
+
+        BigDecimal previousPurchasePrice = sku.getCurrentPurchasePrice();
+        BigDecimal previousSupplyPrice = sku.getCurrentSupplyPrice();
+        sku.update(command.skuName(), command.barcode(), command.weight(), command.currentPurchasePrice(),
+                command.currentSupplyPrice(), command.safetyStockQuantity());
+        ProductSku saved = productSkuRepository.save(sku);
+
+        boolean priceChanged = previousPurchasePrice.compareTo(saved.getCurrentPurchasePrice()) != 0
+                || previousSupplyPrice.compareTo(saved.getCurrentSupplyPrice()) != 0;
+        if (priceChanged) {
+            skuPriceHistoryRepository.save(SkuPriceHistory.record(saved.getSkuId(),
+                    previousPurchasePrice, saved.getCurrentPurchasePrice(),
+                    previousSupplyPrice, saved.getCurrentSupplyPrice(), actor.userId()));
+        }
+        return saved;
     }
 
     @Override

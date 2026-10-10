@@ -150,7 +150,7 @@ class OutboundQueryPersistenceAdapterTest {
 
     private Long sku(String code, String name) {
         return skuJpaRepository.save(ProductSkuJpaEntity.builder()
-                .productId(1L).skuCode(code).name(name).unit("EA")
+                .productId(1L).skuCode(code).name(name).unit("EA").currentPurchasePrice(java.math.BigDecimal.ZERO).currentSupplyPrice(java.math.BigDecimal.ZERO)
                 .safetyStockQuantity(0L).status(ProductStatus.ACTIVE).build()).getSkuId();
     }
 

@@ -78,7 +78,7 @@ class LotSupplierInboundQueryTest {
     @BeforeEach
     void setUp() {
         Long skuId = productSkuJpaRepository.save(ProductSkuJpaEntity.builder()
-                .productId(1L).skuCode("SKU-L").name("상품L").unit("EA")
+                .productId(1L).skuCode("SKU-L").name("상품L").unit("EA").currentPurchasePrice(java.math.BigDecimal.ZERO).currentSupplyPrice(java.math.BigDecimal.ZERO)
                 .safetyStockQuantity(0L).status(ProductStatus.ACTIVE)
                 .build()).getSkuId();
         warehouseId = warehouseJpaRepository.save(WarehouseJpaEntity.builder()

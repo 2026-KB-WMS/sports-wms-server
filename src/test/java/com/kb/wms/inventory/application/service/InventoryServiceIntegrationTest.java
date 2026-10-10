@@ -87,7 +87,7 @@ class InventoryServiceIntegrationTest {
     @BeforeEach
     void setUp() {
         skuId = productSkuJpaRepository.save(ProductSkuJpaEntity.builder()
-                .productId(1L).skuCode("SKU-A").name("라켓 A").unit("EA")
+                .productId(1L).skuCode("SKU-A").name("라켓 A").unit("EA").currentPurchasePrice(java.math.BigDecimal.ZERO).currentSupplyPrice(java.math.BigDecimal.ZERO)
                 .safetyStockQuantity(0L).status(ProductStatus.ACTIVE).build()).getSkuId();
         Long warehouseId = warehouseJpaRepository.save(WarehouseJpaEntity.builder()
                 .warehouseCode("WH-1").name("서울").address("주소").totalCapacity(BigDecimal.valueOf(1000))

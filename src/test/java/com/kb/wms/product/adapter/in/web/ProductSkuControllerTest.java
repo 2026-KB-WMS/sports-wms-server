@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -32,7 +33,9 @@ import com.kb.wms.product.application.port.in.BrandQueryUseCase;
 import com.kb.wms.product.application.port.in.CategoryUseCase;
 import com.kb.wms.product.application.port.in.ProductSkuUseCase;
 import com.kb.wms.product.application.port.in.ProductUseCase;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
+import com.kb.wms.product.application.port.in.command.ProductSkuUpdateCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
 import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
 import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
@@ -93,6 +96,86 @@ class ProductSkuControllerTest {
     }
 
     @Test
+    @DisplayName("매입 단가나 공급 단가가 없으면 SKU 등록은 400 VALIDATION_ERROR다")
+    void registerSku_priceRequired() throws Exception {
+        for (SkuRequest request : List.of(
+                new SkuRequest(1L, "SKU-0001", null, "라켓", null, null, BigDecimal.valueOf(15000), null, null),
+                new SkuRequest(1L, "SKU-0001", null, "라켓", null, BigDecimal.valueOf(10000), null, null, null))) {
+            mockMvc.perform(post("/api/v1/products/skus")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        }
+    }
+
+    @Test
+    @DisplayName("단가가 0이어도 SKU를 등록할 수 있다")
+    void registerSku_zeroPriceAllowed() throws Exception {
+        when(productSkuUseCase.registerSku(any(ProductSkuRegisterCommand.class))).thenReturn(mockSku());
+
+        mockMvc.perform(post("/api/v1/products/skus")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SkuRequest(
+                                1L, "SKU-0001", null, "라켓", null, BigDecimal.ZERO, BigDecimal.ZERO, null, null))))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("SKU 수정에 성공하면 200과 수정된 SKU를 반환하고 처리 사용자를 함께 넘긴다")
+    void updateSku_success() throws Exception {
+        when(productSkuUseCase.updateSku(any(ProductSkuUpdateCommand.class), any(AuthenticatedUser.class)))
+                .thenReturn(mockSku());
+
+        mockMvc.perform(patch("/api/v1/products/skus/1")
+                        .with(hqAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPurchasePrice\": 12000, \"currentSupplyPrice\": 18000}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.skuCode").value("SKU-0001"))
+                .andExpect(jsonPath("$.data.currentPurchasePrice").value(10000));
+    }
+
+    @Test
+    @DisplayName("SKU 수정에서 skuCode·productId·unit·isActive를 보내면 400 VALIDATION_ERROR다")
+    void updateSku_immutableFieldsRejected() throws Exception {
+        for (String body : List.of("{\"skuCode\": \"NEW\"}", "{\"productId\": 2}", "{\"unit\": \"BOX\"}",
+                "{\"isActive\": false}")) {
+            mockMvc.perform(patch("/api/v1/products/skus/1")
+                            .with(hqAdmin())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        }
+    }
+
+    @Test
+    @DisplayName("SKU 수정에서 단가가 음수이면 400 VALIDATION_ERROR다")
+    void updateSku_negativePrice() throws Exception {
+        mockMvc.perform(patch("/api/v1/products/skus/1")
+                        .with(hqAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentSupplyPrice\": -1}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    @DisplayName("없는 SKU를 수정하면 404 SKU_NOT_FOUND다")
+    void updateSku_notFound() throws Exception {
+        when(productSkuUseCase.updateSku(any(ProductSkuUpdateCommand.class), any(AuthenticatedUser.class)))
+                .thenThrow(new BusinessException(ProductErrorCode.SKU_NOT_FOUND));
+
+        mockMvc.perform(patch("/api/v1/products/skus/999")
+                        .with(hqAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"skuName\": \"새 이름\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("SKU_NOT_FOUND"));
+    }
+
+    @Test
     @DisplayName("비활성 상품에 SKU를 등록하면 409 PRODUCT_INACTIVE를 반환한다")
     void registerSku_productInactive() throws Exception {
         when(productSkuUseCase.registerSku(any(ProductSkuRegisterCommand.class)))
@@ -101,7 +184,8 @@ class ProductSkuControllerTest {
         mockMvc.perform(post("/api/v1/products/skus")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new SkuRequest(
-                                1L, "SKU-0001", null, "라켓 A - 빨강", null, null, null, null, null))))
+                                1L, "SKU-0001", null, "라켓 A - 빨강", null,
+                                BigDecimal.valueOf(10000), BigDecimal.valueOf(15000), null, null))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("PRODUCT_INACTIVE"));
     }

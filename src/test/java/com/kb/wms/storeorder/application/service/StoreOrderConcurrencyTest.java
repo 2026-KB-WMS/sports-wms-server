@@ -82,7 +82,7 @@ class StoreOrderConcurrencyTest {
                 .storeCode("ST-SOCONC").name("발주 동시성 테스트 지점").address("주소").contactNumber("02-1234-5678")
                 .status(StoreStatus.ACTIVE).build()).getStoreId();
         skuId = productSkuJpaRepository.save(ProductSkuJpaEntity.builder()
-                .productId(1L).skuCode("SKU-SOCONC").name("발주 동시성 테스트 상품").unit("EA")
+                .productId(1L).skuCode("SKU-SOCONC").name("발주 동시성 테스트 상품").unit("EA").currentPurchasePrice(java.math.BigDecimal.ZERO).currentSupplyPrice(java.math.BigDecimal.ZERO)
                 .safetyStockQuantity(0L).status(ProductStatus.ACTIVE).build()).getSkuId();
     }
 
