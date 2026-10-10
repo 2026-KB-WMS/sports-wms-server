@@ -83,4 +83,22 @@ class WarehouseSectionPersistenceAdapterTest {
 
         assertThat(warehouseSectionRepository.sumActiveCapacity(wh, null, null)).isEqualByComparingTo("0");
     }
+
+    @Test
+    @DisplayName("하위 구역 존재 여부는 비활성 하위 구역도 포함하고, 삭제하면 사라진다")
+    void existsChild_includesInactiveAndDelete() {
+        Long wh = warehouse("WH-DEL-1");
+        WarehouseSection parent = section(wh, null, "A", 100);
+        WarehouseSection child = section(wh, parent.getSectionId(), "A-1", 10);
+        child.deactivate();
+        warehouseSectionRepository.save(child);
+
+        assertThat(warehouseSectionRepository.existsActiveChild(parent.getSectionId())).isFalse();
+        assertThat(warehouseSectionRepository.existsChild(parent.getSectionId())).isTrue();
+
+        warehouseSectionRepository.deleteById(child.getSectionId());
+
+        assertThat(warehouseSectionRepository.existsChild(parent.getSectionId())).isFalse();
+        assertThat(warehouseSectionRepository.findById(child.getSectionId())).isEmpty();
+    }
 }

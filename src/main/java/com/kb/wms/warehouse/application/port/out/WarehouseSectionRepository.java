@@ -39,4 +39,9 @@ public interface WarehouseSectionRepository {
 
     /** 활성 상태의 직속 하위 구역이 있는지 */
     boolean existsActiveChild(Long parentSectionId);
+
+    /** 상태와 무관하게 직속 하위 구역이 하나라도 있는지(삭제 가능 여부 판단) */
+    boolean existsChild(Long parentSectionId);
+
+    void deleteById(Long sectionId);
 }

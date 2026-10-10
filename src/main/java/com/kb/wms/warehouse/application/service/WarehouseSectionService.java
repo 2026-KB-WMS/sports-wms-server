@@ -16,6 +16,7 @@ import com.kb.wms.warehouse.application.port.in.query.WarehouseSectionSearchCond
 import com.kb.wms.warehouse.application.port.out.StockPresencePort;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
 import com.kb.wms.warehouse.application.port.out.WarehouseSectionRepository;
+import com.kb.wms.warehouse.application.port.out.WarehouseUsagePort;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
 import com.kb.wms.warehouse.domain.entity.WarehouseSection;
 import com.kb.wms.warehouse.domain.enums.WarehouseSectionType;
@@ -31,6 +32,7 @@ public class WarehouseSectionService implements WarehouseSectionUseCase {
     private final WarehouseSectionRepository warehouseSectionRepository;
     private final WarehouseRepository warehouseRepository;
     private final StockPresencePort stockPresencePort;
+    private final WarehouseUsagePort warehouseUsagePort;
 
     @Override
     @Transactional
@@ -176,6 +178,26 @@ public class WarehouseSectionService implements WarehouseSectionUseCase {
         }
         section.deactivate();
         return warehouseSectionRepository.save(section);
+    }
+
+    @Override
+    @Transactional
+    public void deleteSection(Long sectionId) {
+        // 구역 행을 잠가, 확인과 삭제 사이에 입고 적치(구역 행을 먼저 잠금)가 끼어들지 못하게 한다.
+        warehouseSectionRepository.findByIdForUpdate(sectionId)
+                .orElseThrow(() -> new BusinessException(WarehouseErrorCode.SECTION_NOT_FOUND));
+        if (stockPresencePort.hasStockInSection(sectionId)) {
+            throw new BusinessException(WarehouseErrorCode.SECTION_HAS_INVENTORY,
+                    "재고가 남아 있는 구역은 삭제할 수 없습니다.");
+        }
+        if (warehouseSectionRepository.existsChild(sectionId)) {
+            throw new BusinessException(WarehouseErrorCode.SECTION_HAS_CHILDREN,
+                    "하위 구역이 있어 삭제할 수 없습니다.");
+        }
+        if (warehouseUsagePort.isSectionReferenced(sectionId)) {
+            throw new BusinessException(WarehouseErrorCode.SECTION_IN_USE);
+        }
+        warehouseSectionRepository.deleteById(sectionId);
     }
 
     @Override

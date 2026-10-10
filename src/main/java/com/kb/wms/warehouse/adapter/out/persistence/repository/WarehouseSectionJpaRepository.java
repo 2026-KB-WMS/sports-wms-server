@@ -20,6 +20,8 @@ public interface WarehouseSectionJpaRepository extends JpaRepository<WarehouseSe
 
     boolean existsByParentSectionIdAndStatus(Long parentSectionId, WarehouseStatus status);
 
+    boolean existsByParentSectionId(Long parentSectionId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from WarehouseSectionJpaEntity s where s.sectionId = :sectionId")
     Optional<WarehouseSectionJpaEntity> findByIdForUpdate(@Param("sectionId") Long sectionId);

@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +21,7 @@ import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.warehouse.adapter.in.web.dto.request.WarehouseSectionRegisterRequest;
 import com.kb.wms.warehouse.adapter.in.web.dto.request.WarehouseSectionUpdateRequest;
+import com.kb.wms.warehouse.adapter.in.web.dto.response.WarehouseSectionDeleteResponse;
 import com.kb.wms.warehouse.adapter.in.web.dto.response.WarehouseSectionResponse;
 import com.kb.wms.warehouse.application.port.in.WarehouseSectionUseCase;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
@@ -32,7 +34,8 @@ import lombok.RequiredArgsConstructor;
 /**
  * 창고 구역 등록/조회/수정/비활성화.
  * POST /api/v1/warehouses/sections, GET /api/v1/warehouses/sections,
- * GET /api/v1/warehouses/{warehouseId}/sections, PATCH /api/v1/warehouses/sections/{sectionId}(/deactivate)
+ * GET /api/v1/warehouses/{warehouseId}/sections, PATCH /api/v1/warehouses/sections/{sectionId}(/deactivate),
+ * DELETE /api/v1/warehouses/sections/{sectionId}
  * 서로 다른 두 기준 경로(/warehouses/sections, /warehouses/{warehouseId}/sections)를 함께 다루기 위해
  * 클래스 레벨 @RequestMapping 없이 메서드마다 전체 경로를 명시한다.
  */
@@ -108,6 +111,12 @@ public class WarehouseSectionController {
     public ApiResponse<WarehouseSectionResponse> activateSection(@PathVariable Long sectionId) {
         WarehouseSection section = warehouseSectionUseCase.activateSection(sectionId);
         return ApiResponse.ok(toResponse(section));
+    }
+
+    @DeleteMapping("/api/v1/warehouses/sections/{sectionId}")
+    public ApiResponse<WarehouseSectionDeleteResponse> deleteSection(@PathVariable Long sectionId) {
+        warehouseSectionUseCase.deleteSection(sectionId);
+        return ApiResponse.ok(new WarehouseSectionDeleteResponse(sectionId));
     }
 
     /** 목록에서는 창고명·상위 구역 코드를 창고·상위 구역당 한 번만 조회한다. */

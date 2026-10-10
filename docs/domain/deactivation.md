@@ -99,7 +99,7 @@
 
 ## 명세와 코드 차이 (임의로 고치지 않고 알림)
 
-- **`SECTION_IN_USE`**: 구역 **삭제**(`DELETE /warehouses/sections/{id}`, 미구현) 명세의 에러다(`InventoryLot`·검수 구역 참조). 비활성화와는 무관하며 비활성화는 `SECTION_HAS_INVENTORY`·`SECTION_HAS_CHILDREN`만 검사하는 게 명세와 같다. 삭제 API를 구현할 때 쓰인다.
+- **`SECTION_IN_USE`**: 구역 **삭제**(`DELETE /warehouses/sections/{id}`, #214) 전용 에러다(`InventoryLot`·검수 구역 참조). 비활성화는 `SECTION_HAS_INVENTORY`·`SECTION_HAS_CHILDREN`만 검사하는 게 명세와 같다. 삭제는 비활성화와 달리 비활성 하위 구역도 `SECTION_HAS_CHILDREN`으로 막는다.
 - 계정은 소속 배정이나 진행 중 업무가 있어도 비활성화되는데, 지점·창고와 달리 막는 조건이 없다. 의도인지 확인이 필요하다.
 
 ## 근거 코드

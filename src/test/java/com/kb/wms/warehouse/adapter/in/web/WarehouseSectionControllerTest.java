@@ -4,8 +4,10 @@ import static com.kb.wms.common.security.TestAuth.hqAdmin;
 import static com.kb.wms.common.security.TestAuth.warehouseManager;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -224,5 +226,15 @@ class WarehouseSectionControllerTest {
         mockMvc.perform(patch("/api/v1/warehouses/sections/{sectionId}/deactivate", 1L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.isActive").value(false));
+    }
+
+    @Test
+    @DisplayName("구역을 삭제하면 200과 삭제한 sectionId를 반환한다")
+    void deleteSection_success() throws Exception {
+        mockMvc.perform(delete("/api/v1/warehouses/sections/{sectionId}", 7L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.sectionId").value(7));
+
+        verify(warehouseSectionUseCase).deleteSection(7L);
     }
 }
