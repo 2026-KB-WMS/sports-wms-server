@@ -25,3 +25,4 @@
 | [011](011-jwt-access-token-only.md) | 액세스 토큰만 발급하는 JWT 인증 (HS256, jjwt) | Accepted | 2026-10-06 |
 | [012](012-authorization-check-placement.md) | 인가 검사 위치 — 역할은 보안 설정, 소속·작성자는 서비스 | Accepted | 2026-10-08 |
 | [013](013-initial-hq-admin-from-environment.md) | 최초 본사 관리자는 시작 시 환경변수로 생성 | Accepted | 2026-10-08 |
+| [014](014-reactivation-and-sku-deactivation-guard.md) | 재활성화 API는 상위 확인 후 허용하고, SKU 비활성화에도 사용 중 가드를 둔다 | Accepted | 2026-10-10 |
