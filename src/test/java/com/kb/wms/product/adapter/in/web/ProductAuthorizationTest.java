@@ -25,6 +25,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.config.SecurityConfig;
 import com.kb.wms.common.security.AuthenticatedUser;
+import com.kb.wms.common.security.AuthenticatedUserResolver;
 import com.kb.wms.common.security.JwtProvider;
 import com.kb.wms.common.security.RestSecurityExceptionHandler;
 import com.kb.wms.product.application.port.in.BrandQueryUseCase;
@@ -51,6 +52,8 @@ class ProductAuthorizationTest {
     // SecurityConfig가 필터를 만들 때 필요하다. 요청에는 Authorization 헤더를 싣지 않아 파싱은 일어나지 않는다.
     @MockitoBean
     private JwtProvider jwtProvider;
+    @MockitoBean
+    private AuthenticatedUserResolver authenticatedUserResolver;
 
     private RequestPostProcessor as(UserRole role) {
         AuthenticatedUser user = new AuthenticatedUser(1L, role, List.of(), List.of());

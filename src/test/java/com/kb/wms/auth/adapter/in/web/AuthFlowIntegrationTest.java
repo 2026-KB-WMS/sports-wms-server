@@ -139,8 +139,8 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("이미 발급된 토큰은 계정이 비활성화돼도 만료까지 유효하다 (ADR-011: 즉시 무효화는 하지 않는다)")
-    void issuedTokenSurvivesDeactivation() throws Exception {
+    @DisplayName("이미 발급된 토큰도 계정이 비활성화되면 다음 요청부터 401이고, 다시 활성화하면 같은 토큰이 통한다 (ADR-016)")
+    void issuedTokenRejectedAfterDeactivation() throws Exception {
         signUp();
         changeStatus(UserStatus.ACTIVE);
         String token = loginAndGetToken();
@@ -148,7 +148,13 @@ class AuthFlowIntegrationTest {
         changeStatus(UserStatus.INACTIVE);
 
         mockMvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
         login(PASSWORD).andExpect(status().isForbidden());
+
+        changeStatus(UserStatus.ACTIVE);
+
+        mockMvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
     }
 }

@@ -10,14 +10,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.kb.wms.auth.application.port.in.AuthUseCase;
 import com.kb.wms.auth.application.port.in.command.LoginCommand;
 import com.kb.wms.auth.application.port.in.result.LoginResult;
-import com.kb.wms.auth.application.port.in.result.UserAffiliation;
-import com.kb.wms.auth.application.port.out.UserQueryRepository;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
 import com.kb.wms.auth.exception.AuthErrorCode;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.security.JwtProvider;
 
 import lombok.RequiredArgsConstructor;
@@ -30,7 +27,6 @@ public class AuthService implements AuthUseCase {
     private static final String INVALID_CREDENTIALS_MESSAGE = "아이디 또는 비밀번호가 올바르지 않습니다.";
 
     private final UserRepository userRepository;
-    private final UserQueryRepository userQueryRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
 
@@ -65,12 +61,10 @@ public class AuthService implements AuthUseCase {
             case ACTIVE -> { }
         }
 
-        UserAffiliation affiliation = userQueryRepository.findAffiliation(user.getUserId());
         user.recordLogin(LocalDateTime.now());
         User saved = userRepository.save(user);
 
-        String accessToken = jwtProvider.createAccessToken(new AuthenticatedUser(
-                saved.getUserId(), saved.getRole(), affiliation.warehouseIds(), affiliation.storeIds()));
+        String accessToken = jwtProvider.createAccessToken(saved.getUserId());
         return new LoginResult(accessToken, jwtProvider.getAccessTokenValiditySeconds(), saved);
     }
 

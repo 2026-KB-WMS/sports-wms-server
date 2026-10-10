@@ -21,6 +21,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.kb.wms.common.config.SecurityConfig;
+import com.kb.wms.common.security.AuthenticatedUserResolver;
 import com.kb.wms.common.security.JwtProvider;
 import com.kb.wms.common.security.RestSecurityExceptionHandler;
 import com.kb.wms.inventory.application.port.in.InventoryAdjustmentUseCase;
@@ -53,6 +54,8 @@ class InventoryAuthorizationTest {
     private WarehouseSectionUseCase warehouseSectionUseCase;
     @MockitoBean
     private JwtProvider jwtProvider;
+    @MockitoBean
+    private AuthenticatedUserResolver authenticatedUserResolver;
 
     @Test
     @DisplayName("토큰이 없으면 401")

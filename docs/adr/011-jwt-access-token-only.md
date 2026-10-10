@@ -1,6 +1,6 @@
 # ADR-011: 액세스 토큰만 발급하는 JWT 인증 (HS256, jjwt)
 
-- 상태: Accepted
+- 상태: Accepted (개정: 클레임과 소속·역할·상태 반영 방식은 [ADR-016](016-reload-user-per-request.md)이 대체)
 - 날짜: 2026-10-06
 
 ## 컨텍스트
@@ -8,7 +8,7 @@
 
 ## 결정
 - 액세스 토큰(JWT, HS256)만 발급하고 만료는 1시간(`wms.jwt.access-token-validity-seconds`)이다. 리프레시 토큰과 로그아웃은 만들지 않는다.
-- 클레임은 `sub`(userId), `role`, `warehouseIds`, `storeIds`다. 비활성화·소속 변경 뒤에도 클레임을 신뢰하고 만료까지 유지한다(즉시 무효화는 하지 않는다).
+- ~~클레임은 `sub`(userId), `role`, `warehouseIds`, `storeIds`다. 비활성화·소속 변경 뒤에도 클레임을 신뢰하고 만료까지 유지한다.~~ → ADR-016: 클레임은 `sub`(userId)만 두고, 역할·상태·소속은 요청마다 DB에서 읽어 즉시 반영한다.
 - 서명 키는 `wms.jwt.secret`(32바이트 이상)이며 prod 프로파일에서는 `JWT_SECRET` 환경변수로만 받는다. 키가 짧으면 기동이 실패한다. 기본 프로파일의 키는 로컬 개발용이다.
 - 라이브러리는 jjwt 0.12.6을 쓰고 JSON 처리는 `jjwt-gson`으로 한다. Spring Boot 4는 Jackson 3(`tools.jackson`)을 쓰는데 `jjwt-jackson`은 Jackson 2에 의존하기 때문이다.
 - `JwtAuthenticationFilter`는 유효한 Bearer 토큰이면 `AuthenticatedUser`를 SecurityContext에 올리고, 없거나 유효하지 않으면 그대로 넘긴다. 거절은 `authorizeHttpRequests` 규칙이 한다. 인증·인가 실패 응답(401/403)은 `RestSecurityExceptionHandler`가 공통 오류 포맷으로 쓴다.

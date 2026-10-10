@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.config.SecurityConfig;
+import com.kb.wms.common.security.AuthenticatedUserResolver;
 import com.kb.wms.common.security.JwtProvider;
 import com.kb.wms.common.security.RestSecurityExceptionHandler;
 import com.kb.wms.inbound.application.port.in.InboundCompleteUseCase;
@@ -43,6 +44,8 @@ class PurchaseOrderAuthorizationTest {
     private PurchaseOrderUseCase purchaseOrderUseCase;
     @MockitoBean
     private JwtProvider jwtProvider;
+    @MockitoBean
+    private AuthenticatedUserResolver authenticatedUserResolver;
 
     private static RequestPostProcessor hq() {
         return as(UserRole.HQ_ADMIN, 1L, List.of(), List.of());

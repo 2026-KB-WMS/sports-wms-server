@@ -27,3 +27,4 @@
 | [013](013-initial-hq-admin-from-environment.md) | 최초 본사 관리자는 시작 시 환경변수로 생성 | Accepted | 2026-10-08 |
 | [014](014-reactivation-and-sku-deactivation-guard.md) | 재활성화 API는 상위 확인 후 허용하고, SKU 비활성화에도 사용 중 가드를 둔다 | Accepted | 2026-10-10 |
 | [015](015-status-history-own-package.md) | 상태 이력은 `common`이 아닌 독립 도메인 패키지(`statushistory`)로 둔다 | Accepted | 2026-10-10 |
+| [016](016-reload-user-per-request.md) | 토큰은 사용자 ID만 담고, 역할·상태·소속은 요청마다 DB에서 읽는다 | Accepted | 2026-10-10 |

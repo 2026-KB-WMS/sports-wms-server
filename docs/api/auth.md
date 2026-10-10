@@ -18,7 +18,7 @@
 - **비밀번호 규칙**(Notion에서 미결이던 항목, 구현에서 확정): 8자 이상, 영문·숫자·특수문자 각 1자 이상, UTF-8 72바이트 이하(BCrypt 한계). 해시는 BCrypt.
 - **`PATCH /users/{userId}` 추가 규칙(명세에 없이 서비스에 넣음)**: 소속(창고·지점 멤버)이 있는 사용자의 `role` 변경은 409 `AFFILIATION_ASSIGNED`, 창고 관리자·점주를 소속 없이 `ACTIVE`로 만들면 409 `AFFILIATION_REQUIRED`, 허용되지 않는 상태 전이는 409 `INVALID_USER_STATUS_TRANSITION`. 상태가 바뀌면 `StatusHistory`(`entity_type` `USER`)에 이전·이후 상태와 처리자를 기록한다(사유는 받지 않는다).
 - **상태 전이 허용 범위(Notion 미결을 구현에서 확정)**: 재활성화(`INACTIVE`→`ACTIVE`)와 가입 반려(`PENDING`→`INACTIVE`)를 둘 다 허용한다. `approve`/`deactivate` 별도 엔드포인트로 나누지 않고 `PATCH`의 `status` 하나로 처리한다. `PENDING`으로 되돌리기와 같은 상태로의 변경은 409.
-- **토큰 정책(Notion 미결을 ADR-011로 확정)**: 액세스 토큰(JWT, HS256)만 발급, 만료 3600초, 리프레시 토큰·로그아웃 없음. 비활성화·역할 변경 뒤에도 발급된 토큰은 만료까지 유효하다(즉시 무효화 없음). 로그인 실패 횟수 제한·rate limiting은 두지 않았다(보류).
+- **토큰 정책(Notion 미결을 ADR-011로 확정)**: 액세스 토큰(JWT, HS256)만 발급, 만료 3600초, 리프레시 토큰·로그아웃 없음. 토큰에는 사용자 ID만 담고 역할·상태·소속은 요청마다 DB에서 읽으므로, 비활성화·역할·소속 변경이 다음 요청부터 반영된다([ADR-016](../adr/016-reload-user-per-request.md)). 로그인 실패 횟수 제한·rate limiting은 두지 않았다(보류).
 - **최초 본사 관리자**: 가입 API는 `HQ_ADMIN`을 만들 수 없고 가입 승인은 `HQ_ADMIN`만 할 수 있으므로, 본사 관리자가 하나도 없을 때만 앱 시작 시 환경변수(`WMS_ADMIN_LOGIN_ID`, `WMS_ADMIN_PASSWORD`, `WMS_ADMIN_NAME`, `WMS_ADMIN_EMAIL`, `WMS_ADMIN_PHONE`)로 `ACTIVE` 관리자를 만든다([ADR-013](../adr/013-initial-hq-admin-from-environment.md), #189). 설정이 비었거나 잘못돼도 기동은 막지 않고 로그만 남긴다. 환경변수 비밀번호는 `PATCH /auth/me/password`(#193)로 로그인한 뒤 바꾼다. 관리자가 다른 사용자의 비밀번호를 재설정하는 API는 없다(보류).
 - 확정 필요(미결): 로그인 실패 횟수 제한, 비활성화된 계정의 유효 토큰으로 `GET /auth/me` 호출 시 처리(현재는 조회됨), 가입 시 소속 선택 필드 추가 여부(현재는 가입 후 본사가 배정), 가입 반려 사유 기록.
 
@@ -67,7 +67,7 @@
 }
 ```
 
-- 토큰 클레임: `sub`(userId), `role`, `warehouseIds`, `storeIds`. 로그인 성공 시 `lastLoginAt`을 갱신한다.
+- 토큰 클레임: `sub`(userId)만. 역할·소속은 요청마다 DB에서 읽는다. 로그인 성공 시 `lastLoginAt`을 갱신한다.
 - 오류
 
 | HTTP | 오류 코드 | 조건 |
@@ -84,7 +84,7 @@
 - `Authorization: Bearer {accessToken}` 필수. 조회 대상은 토큰 주체 본인이다.
 - 200. 응답: `userId, loginId, name, email, phone, role, status, lastLoginAt`. 창고·지점 소속은 포함하지 않는다(창고 관리자는 `GET /warehouses/my`, 점주는 `GET /stores/my`).
 - 오류: 401 `UNAUTHORIZED`(토큰 없음·만료·위조), 404 `USER_NOT_FOUND`(토큰의 사용자가 삭제된 경우).
-- 계정이 비활성화돼도 이미 발급된 토큰으로는 만료까지 조회된다([ADR-011](../adr/011-jwt-access-token-only.md)).
+- 계정이 비활성화되면 이미 발급된 토큰도 다음 요청부터 401이다([ADR-016](../adr/016-reload-user-per-request.md)).
 
 ## PATCH /auth/me/password (P1)
 
