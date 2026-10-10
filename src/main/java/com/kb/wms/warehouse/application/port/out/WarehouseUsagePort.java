@@ -20,4 +20,10 @@ public interface WarehouseUsagePort {
 
     /** 이 창고에 배정된 종결되지 않은 지점 발주(REQUESTED·APPROVED·ASSIGNED·ON_HOLD)가 있으면 true. */
     boolean hasInProgressStoreOrders(Long warehouseId);
+
+    /**
+     * 구역을 참조하는 행이 있으면 true. 재고 로트 행(수량 0 포함)과 입고 검수 항목의 합격·불량 구역 지정을 본다.
+     * 입고 상태와 무관하게 세므로, 완료된 입고가 참조한 구역도 삭제할 수 없다. 구역 삭제 전 확인에 쓴다.
+     */
+    boolean isSectionReferenced(Long sectionId);
 }

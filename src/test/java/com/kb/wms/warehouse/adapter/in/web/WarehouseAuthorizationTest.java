@@ -122,7 +122,7 @@ class WarehouseAuthorizationTest {
     }
 
     @Test
-    @DisplayName("등록·수정·비활성화·배정·회수는 본사만, 창고 관리자는 403")
+    @DisplayName("등록·수정·비활성화·삭제·배정·회수는 본사만, 창고 관리자는 403")
     void writes_hqOnly() throws Exception {
         for (var request : List.of(
                 post("/api/v1/warehouses"),
@@ -131,6 +131,7 @@ class WarehouseAuthorizationTest {
                 post("/api/v1/warehouses/sections"),
                 patch("/api/v1/warehouses/sections/1"),
                 patch("/api/v1/warehouses/sections/1/deactivate"),
+                delete("/api/v1/warehouses/sections/1"),
                 post("/api/v1/warehouses/managers"),
                 delete("/api/v1/warehouses/managers/1"))) {
             mockMvc.perform(request.contentType(MediaType.APPLICATION_JSON).content("{}").with(manager()))

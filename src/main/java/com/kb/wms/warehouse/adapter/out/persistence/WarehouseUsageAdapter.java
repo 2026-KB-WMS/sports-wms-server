@@ -66,6 +66,24 @@ public class WarehouseUsageAdapter implements WarehouseUsagePort {
                 """, warehouseId, STORE_ORDER_IN_PROGRESS);
     }
 
+    @Override
+    public boolean isSectionReferenced(Long sectionId) {
+        Long lotRows = entityManager.createQuery(
+                        "select count(il) from InventoryLotJpaEntity il where il.sectionId = :sectionId", Long.class)
+                .setParameter("sectionId", sectionId)
+                .getSingleResult();
+        if (lotRows != null && lotRows > 0) {
+            return true;
+        }
+        Long inboundLines = entityManager.createQuery("""
+                        select count(l) from InboundLineJpaEntity l
+                        where l.acceptedSectionId = :sectionId or l.defectSectionId = :sectionId
+                        """, Long.class)
+                .setParameter("sectionId", sectionId)
+                .getSingleResult();
+        return inboundLines != null && inboundLines > 0;
+    }
+
     private boolean exists(String jpql, Long warehouseId, Set<?> statuses) {
         Long count = entityManager.createQuery(jpql, Long.class)
                 .setParameter("warehouseId", warehouseId)

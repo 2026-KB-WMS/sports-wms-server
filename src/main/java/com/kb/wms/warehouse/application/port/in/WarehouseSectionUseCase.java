@@ -35,6 +35,12 @@ public interface WarehouseSectionUseCase {
     WarehouseSection deactivateSection(Long sectionId);
 
     /**
+     * 잘못 등록한 구역을 삭제한다. 재고(보유·할당)가 있으면 409 SECTION_HAS_INVENTORY, 하위 구역이 있으면(비활성 포함)
+     * 409 SECTION_HAS_CHILDREN, 재고 로트나 입고 검수 항목이 참조하면 409 SECTION_IN_USE. 이력이 남는 구역은 비활성화를 쓴다.
+     */
+    void deleteSection(Long sectionId);
+
+    /**
      * 비활성 구역을 다시 활성화한다. 이미 활성이면 409 CONFLICT, 창고나 상위 구역이 비활성이면 409 CONFLICT.
      * 비활성 창고 아래에 활성 구역이 생기지 않게 상위부터 활성화해야 한다.
      */

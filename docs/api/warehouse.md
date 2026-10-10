@@ -5,7 +5,7 @@
 
 ## 구현 대비 메모
 
-- `DELETE /warehouses/sections/{sectionId}`는 Notion 명세(상태 "시작 전")만 있고 **코드에는 미구현**. 구현 시 아래 명세 참고(구역 비활성화 `deactivate`로 대체 가능 여부 재검토).
+- `DELETE /warehouses/sections/{sectionId}`는 #214에서 구현했다. 아래 명세와 "구현 대비 메모"가 같다.
 - Notion 명세의 `pageInfo`와 일반 `NOT_FOUND`/`CONFLICT` 코드는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
 - 목록 API는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고). `GET /warehouses/my`는 토큰 주체(`userId`)의 소속 창고를 돌려주며 `userId` 쿼리 파라미터는 받지 않는다(#170에서 인증 적용). 창고·구역 단건과 창고별 구역 목록의 담당 창고 검사는 서비스가 토큰의 `warehouseIds`로 한다.
 - 창고·구역 재활성화는 `PATCH .../activate`로 한다([ADR-014](../adr/014-reactivation-and-sku-deactivation-guard.md)). 구역은 창고와 상위 구역이 활성일 때만 가능하다.
@@ -34,7 +34,7 @@
 | PATCH | /warehouses/sections/{sectionId} | HQ_ADMIN | 구역 수정 |
 | PATCH | /warehouses/sections/{sectionId}/deactivate | HQ_ADMIN | 구역 비활성화 |
 | PATCH | /warehouses/sections/{sectionId}/activate | HQ_ADMIN | 구역 재활성화 |
-| DELETE | /warehouses/sections/{sectionId} | HQ_ADMIN | 구역 삭제 (**미구현**) |
+| DELETE | /warehouses/sections/{sectionId} | HQ_ADMIN | 구역 삭제 |
 | GET | /warehouses/{warehouseId}/sections | HQ_ADMIN, WAREHOUSE_MANAGER(담당 창고) | 창고별 구역 목록 |
 
 공통 에러: 400 `VALIDATION_ERROR`, 401 `UNAUTHORIZED`, 403 `FORBIDDEN`(권한 없는 역할, 또는 창고 관리자가 비담당 창고 접근).
@@ -152,8 +152,8 @@
 - 에러: 404 `SECTION_NOT_FOUND`, 409 `CONFLICT`(이미 ACTIVE, 창고가 INACTIVE, 상위 구역이 INACTIVE), 409 `PARENT_CAPACITY_EXCEEDED`(활성화하면 같은 상위 아래 합이 상위 한도를 넘음)
 - 비활성 창고 아래나 비활성 상위 구역 아래에는 활성 구역이 생기지 않도록, 창고와 상위 구역을 먼저 활성화해야 한다. 구역 행 잠금 사용.
 
-### DELETE /warehouses/sections/{sectionId} (P2, 미구현)
+### DELETE /warehouses/sections/{sectionId} (P2)
 
-- 재고·이력·하위 구역이 전혀 없는 구역(잘못 등록)만 삭제 가능. 응답 200 `{sectionId}`.
-- 에러: 404, 409 `SECTION_HAS_INVENTORY`, 409 `SECTION_HAS_CHILDREN`, 409 `SECTION_IN_USE`(InventoryLot·입고 검수 `accepted_section_id`/`defect_section_id` 참조 → 비활성화 사용)
-- 재고 검사와 삭제는 같은 트랜잭션 + 구역 행 잠금.
+- 재고·이력·하위 구역이 전혀 없는 구역(잘못 등록)만 하드 삭제한다. 응답 200 `{sectionId}`.
+- 에러: 404 `SECTION_NOT_FOUND`, 409 `SECTION_HAS_INVENTORY`(보유·할당 수량 > 0), 409 `SECTION_HAS_CHILDREN`(상태와 무관하게 하위 구역이 있음. 비활성화와 달리 비활성 하위 구역도 막는다), 409 `SECTION_IN_USE`(`inventory_lot` 행(수량 0 포함) 또는 입고 검수 항목의 `accepted_section_id`/`defect_section_id`가 참조. 완료·취소된 입고가 참조해도 막는다 → 비활성화 사용)
+- 검사 순서는 재고 → 하위 구역 → 참조다. 검사와 삭제는 같은 트랜잭션에서 구역 행을 잠그고 처리한다.

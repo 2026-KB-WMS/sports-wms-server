@@ -25,6 +25,7 @@ public enum WarehouseErrorCode implements DomainErrorCode {
     WAREHOUSE_INACTIVE(ErrorCode.CONFLICT, "비활성 창고의 구역에는 재고를 적치할 수 없습니다."),
     SECTION_HAS_INVENTORY(ErrorCode.CONFLICT, "재고가 남아 있는 구역은 비활성화할 수 없습니다."),
     SECTION_HAS_CHILDREN(ErrorCode.CONFLICT, "활성 상태의 하위 구역이 있어 비활성화할 수 없습니다."),
+    SECTION_IN_USE(ErrorCode.CONFLICT, "재고 로트나 입고 검수 항목이 참조하는 구역은 삭제할 수 없습니다. 비활성화를 사용하세요."),
     WAREHOUSE_IN_USE(ErrorCode.CONFLICT, "재고가 남아 있거나 진행 중인 업무가 있어 비활성화할 수 없습니다."),
     MEMBER_NOT_FOUND(ErrorCode.NOT_FOUND, "창고 소속 정보를 찾을 수 없습니다."),
     ALREADY_ASSIGNED(ErrorCode.CONFLICT, "이미 해당 창고에 배정된 사용자입니다.");

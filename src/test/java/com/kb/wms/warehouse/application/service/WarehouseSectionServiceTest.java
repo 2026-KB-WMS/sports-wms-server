@@ -29,6 +29,7 @@ import com.kb.wms.warehouse.application.port.in.query.WarehouseSectionSearchCond
 import com.kb.wms.warehouse.application.port.out.StockPresencePort;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
 import com.kb.wms.warehouse.application.port.out.WarehouseSectionRepository;
+import com.kb.wms.warehouse.application.port.out.WarehouseUsagePort;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
 import com.kb.wms.warehouse.domain.entity.WarehouseSection;
 import com.kb.wms.warehouse.exception.WarehouseErrorCode;
@@ -42,6 +43,8 @@ class WarehouseSectionServiceTest {
     private WarehouseRepository warehouseRepository;
     @Mock
     private StockPresencePort stockPresencePort;
+    @Mock
+    private WarehouseUsagePort warehouseUsagePort;
 
     @InjectMocks
     private WarehouseSectionService warehouseSectionService;
@@ -410,6 +413,71 @@ class WarehouseSectionServiceTest {
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(WarehouseErrorCode.SECTION_HAS_CHILDREN.name());
         verify(warehouseSectionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 구역을 삭제하면 SECTION_NOT_FOUND 예외를 던진다")
+    void deleteSection_notFound() {
+        when(warehouseSectionRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> warehouseSectionService.deleteSection(999L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.SECTION_NOT_FOUND.name());
+        verify(warehouseSectionRepository, never()).deleteById(any());
+    }
+
+    @Test
+    @DisplayName("재고(보유·할당)가 남아 있는 구역을 삭제하면 SECTION_HAS_INVENTORY 예외를 던진다")
+    void deleteSection_hasInventory() {
+        WarehouseSection section = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(section));
+        when(stockPresencePort.hasStockInSection(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> warehouseSectionService.deleteSection(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.SECTION_HAS_INVENTORY.name());
+        verify(warehouseSectionRepository, never()).deleteById(any());
+    }
+
+    @Test
+    @DisplayName("하위 구역이 있으면 비활성 하위 구역만 남아 있어도 SECTION_HAS_CHILDREN 예외를 던진다")
+    void deleteSection_hasChildren() {
+        WarehouseSection section = WarehouseSection.register(1L, null, "A", "A구역", "ZONE", BigDecimal.valueOf(100));
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(section));
+        when(warehouseSectionRepository.existsChild(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> warehouseSectionService.deleteSection(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.SECTION_HAS_CHILDREN.name());
+        verify(warehouseSectionRepository, never()).deleteById(any());
+    }
+
+    @Test
+    @DisplayName("재고 로트나 입고 검수 항목이 참조하는 구역을 삭제하면 SECTION_IN_USE 예외를 던진다")
+    void deleteSection_inUse() {
+        WarehouseSection section = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(section));
+        when(warehouseUsagePort.isSectionReferenced(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> warehouseSectionService.deleteSection(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.SECTION_IN_USE.name());
+        verify(warehouseSectionRepository, never()).deleteById(any());
+    }
+
+    @Test
+    @DisplayName("재고·하위 구역·참조가 없는 구역은 삭제된다")
+    void deleteSection_success() {
+        WarehouseSection section = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(section));
+
+        warehouseSectionService.deleteSection(1L);
+
+        verify(warehouseSectionRepository).deleteById(1L);
     }
 
     @Test

@@ -30,7 +30,7 @@
 2. Notion 원본 페이지 맨 위에 "레포 `docs/...`로 이전됨" 안내와 링크를 남기고, 내용 갱신은 레포에서만 한다.
 3. 옮긴 문서 상단에는 이전 날짜와 Notion 원본 수정일을 적는다.
 4. 명세와 코드가 다르면 임의로 한쪽을 고치지 말고 불일치를 먼저 보고한다 (`spec-reviewer`).
-5. 이전 시점에 발견한 차이는 각 문서 상단 "구현 대비 메모"에 기록한다. 알려진 차이: 상품 `PATCH /products/skus/{skuId}/status`는 코드에만 있음(명세는 `api/product.md`에 보강함), 창고 `DELETE /warehouses/sections/{sectionId}`는 명세에만 있음(미구현), Notion 상태 컬럼이 실제 구현 상태와 다름(지점·입고 등), Notion의 `pageInfo`·일반 `NOT_FOUND`는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름. 출고는 Notion 개발 일정 페이지가 처음에 7개만 적고 있었으나(출고 취소·재고 할당 4개 누락) 지금은 명세와 같은 12개로 갱신되어 있다. 인증은 Notion의 `GET /users/{userId}`가 코드에 없다([`api/auth.md`](api/auth.md) 메모).
+5. 이전 시점에 발견한 차이는 각 문서 상단 "구현 대비 메모"에 기록한다. 알려진 차이: 상품 `PATCH /products/skus/{skuId}/status`는 코드에만 있음(명세는 `api/product.md`에 보강함), Notion 상태 컬럼이 실제 구현 상태와 다름(지점·입고 등), Notion의 `pageInfo`·일반 `NOT_FOUND`는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름. 출고는 Notion 개발 일정 페이지가 처음에 7개만 적고 있었으나(출고 취소·재고 할당 4개 누락) 지금은 명세와 같은 12개로 갱신되어 있다. 인증은 Notion의 `GET /users/{userId}`가 코드에 없다([`api/auth.md`](api/auth.md) 메모).
 
 ## 구조
 ```

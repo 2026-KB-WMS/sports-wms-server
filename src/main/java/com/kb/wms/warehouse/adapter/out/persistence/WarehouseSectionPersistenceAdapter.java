@@ -74,4 +74,14 @@ public class WarehouseSectionPersistenceAdapter implements WarehouseSectionRepos
     public boolean existsActiveChild(Long parentSectionId) {
         return warehouseSectionJpaRepository.existsByParentSectionIdAndStatus(parentSectionId, WarehouseStatus.ACTIVE);
     }
+
+    @Override
+    public boolean existsChild(Long parentSectionId) {
+        return warehouseSectionJpaRepository.existsByParentSectionId(parentSectionId);
+    }
+
+    @Override
+    public void deleteById(Long sectionId) {
+        warehouseSectionJpaRepository.deleteById(sectionId);
+    }
 }
