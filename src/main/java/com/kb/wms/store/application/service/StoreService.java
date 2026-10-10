@@ -122,6 +122,24 @@ public class StoreService implements StoreUseCase {
     }
 
     @Override
+    @Transactional
+    public Store activateStore(Long storeId, Long userId) {
+        if (userId == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "요청 사용자는 필수입니다.");
+        }
+        Store store = storeRepository.findById(storeId)
+                .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
+        if (store.isActive()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 활성화된 지점입니다.");
+        }
+        store.activate();
+        Store saved = storeRepository.save(store);
+        statusHistoryUseCase.record(StatusHistoryEntityType.STORE, storeId,
+                StoreStatus.INACTIVE.name(), StoreStatus.ACTIVE.name(), null, userId);
+        return saved;
+    }
+
+    @Override
     public List<StoreMembershipSummary> getMyStores(Long userId) {
         List<StoreMember> memberships = storeMemberRepository.findByUserId(userId);
         return memberships.stream()

@@ -8,9 +8,10 @@
 - `DELETE /warehouses/sections/{sectionId}`는 Notion 명세(상태 "시작 전")만 있고 **코드에는 미구현**. 구현 시 아래 명세 참고(구역 비활성화 `deactivate`로 대체 가능 여부 재검토).
 - Notion 명세의 `pageInfo`와 일반 `NOT_FOUND`/`CONFLICT` 코드는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
 - 목록 API는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고). `GET /warehouses/my`는 토큰 주체(`userId`)의 소속 창고를 돌려주며 `userId` 쿼리 파라미터는 받지 않는다(#170에서 인증 적용). 창고·구역 단건과 창고별 구역 목록의 담당 창고 검사는 서비스가 토큰의 `warehouseIds`로 한다.
-- 확정 필요(미결): 창고/구역 재활성화 방법, `memberRole` 허용 값(예시 `MANAGER`), `sectionType` 허용 값(`DEFECT` 확정, `ZONE`/`RACK` 예시), 하위 구역 수용량 합 ↔ 상위 구역/창고 `totalCapacity` 관계 검증, 토큰의 소속 정보 갱신 시점, 관리자 0명이 되는 회수 허용 여부, "진행 중 업무" 범위.
+- 창고·구역 재활성화는 `PATCH .../activate`로 한다([ADR-014](../adr/014-reactivation-and-sku-deactivation-guard.md)). 구역은 창고와 상위 구역이 활성일 때만 가능하다.
+- 확정 필요(미결): `memberRole` 허용 값(예시 `MANAGER`), `sectionType` 허용 값(`DEFECT` 확정, `ZONE`/`RACK` 예시), 하위 구역 수용량 합 ↔ 상위 구역/창고 `totalCapacity` 관계 검증, 토큰의 소속 정보 갱신 시점, 관리자 0명이 되는 회수 허용 여부, "진행 중 업무" 범위.
 
-## 엔드포인트 목록 (18)
+## 엔드포인트 목록 (20)
 
 | Method | Path | 권한 | 설명 |
 |---|---|---|---|
@@ -19,6 +20,7 @@
 | GET | /warehouses/{warehouseId} | HQ_ADMIN, WAREHOUSE_MANAGER(담당 창고) | 창고 상세 |
 | PATCH | /warehouses/{warehouseId} | HQ_ADMIN | 창고 정보 수정 |
 | PATCH | /warehouses/{warehouseId}/deactivate | HQ_ADMIN | 창고 비활성화 |
+| PATCH | /warehouses/{warehouseId}/activate | HQ_ADMIN | 창고 재활성화 |
 | GET | /warehouses/my | WAREHOUSE_MANAGER | 내 소속 창고 |
 | GET | /warehouses/management-types | 인증 사용자 | 관리자 역할 코드 목록 |
 | GET | /warehouses/managers | HQ_ADMIN | 창고 관리자 배정 목록 |
@@ -30,11 +32,12 @@
 | GET | /warehouses/sections/{sectionId} | HQ_ADMIN, WAREHOUSE_MANAGER(담당 창고) | 구역 상세 |
 | PATCH | /warehouses/sections/{sectionId} | HQ_ADMIN | 구역 수정 |
 | PATCH | /warehouses/sections/{sectionId}/deactivate | HQ_ADMIN | 구역 비활성화 |
+| PATCH | /warehouses/sections/{sectionId}/activate | HQ_ADMIN | 구역 재활성화 |
 | DELETE | /warehouses/sections/{sectionId} | HQ_ADMIN | 구역 삭제 (**미구현**) |
 | GET | /warehouses/{warehouseId}/sections | HQ_ADMIN, WAREHOUSE_MANAGER(담당 창고) | 창고별 구역 목록 |
 
 공통 에러: 400 `VALIDATION_ERROR`, 401 `UNAUTHORIZED`, 403 `FORBIDDEN`(권한 없는 역할, 또는 창고 관리자가 비담당 창고 접근).
-`isActive` = `status == 'ACTIVE'`. 상태 전이는 ACTIVE→INACTIVE만, 이미 INACTIVE면 409.
+`isActive` = `status == 'ACTIVE'`. 상태 전이는 `deactivate`(ACTIVE→INACTIVE)와 `activate`(INACTIVE→ACTIVE)뿐이며, 이미 같은 상태면 409 `CONFLICT`.
 
 ## 창고
 
@@ -66,6 +69,12 @@
 - 응답: `warehouseId, warehouseCode, warehouseName, isActive=false, updatedAt`. 실제로는 창고 상세와 같은 전체 필드(`address, contactNumber, totalCapacity, createdAt`도 포함)를 내려준다(위 필드의 상위 집합).
 - 에러: 이미 INACTIVE 409 `CONFLICT`, 재고 잔량(보유·할당) 또는 진행 중 입고·출고·발주 배정 존재 시 409 `WAREHOUSE_IN_USE`
 - 비활성화 후 신규 구역 등록·관리자 배정·발주 배정 차단, 기존 이력 보존. 조건 확인과 상태 변경은 같은 트랜잭션.
+
+### PATCH /warehouses/{warehouseId}/activate
+
+- 응답: 창고 상세와 같은 전체 필드, `isActive=true`.
+- 에러: 404 `WAREHOUSE_NOT_FOUND`, 409 `CONFLICT`(이미 ACTIVE)
+- 구역은 자동으로 활성화되지 않는다. 필요한 구역은 `PATCH /warehouses/sections/{sectionId}/activate`로 개별 복구한다.
 
 ### GET /warehouses/my
 
@@ -135,6 +144,12 @@
 - 응답: `sectionId, warehouseId, sectionCode, sectionName, isActive=false, updatedAt`
 - 에러: 409 `CONFLICT`(이미 INACTIVE), 409 `SECTION_HAS_INVENTORY`(보유·할당 수량 잔존), 409 `SECTION_HAS_CHILDREN`(활성 하위 구역 존재)
 - 비활성 구역: 신규 하위 구역 등록·입고 적치·재고 증가 조정 차단. 이력은 보존. 구역 행 잠금 사용.
+
+### PATCH /warehouses/sections/{sectionId}/activate
+
+- 응답: 구역 상세와 같은 필드, `isActive=true`.
+- 에러: 404 `SECTION_NOT_FOUND`, 409 `CONFLICT`(이미 ACTIVE, 창고가 INACTIVE, 상위 구역이 INACTIVE)
+- 비활성 창고 아래나 비활성 상위 구역 아래에는 활성 구역이 생기지 않도록, 창고와 상위 구역을 먼저 활성화해야 한다. 구역 행 잠금 사용.
 
 ### DELETE /warehouses/sections/{sectionId} (P2, 미구현)
 

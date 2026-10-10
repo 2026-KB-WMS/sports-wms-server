@@ -34,6 +34,7 @@ public enum ProductErrorCode implements DomainErrorCode {
     OPTION_GROUP_CONFLICT(ErrorCode.CONFLICT, "같은 옵션 그룹에서는 하나의 옵션 값만 연결할 수 있습니다."),
     SKU_NOT_FOUND(ErrorCode.NOT_FOUND, "SKU를 찾을 수 없습니다."),
     SKU_INACTIVE(ErrorCode.CONFLICT, "비활성 SKU입니다."),
+    SKU_IN_USE(ErrorCode.CONFLICT, "재고가 남아 있거나 진행 중인 업무가 있어 비활성화할 수 없습니다."),
     DUPLICATE_SKU_CODE(ErrorCode.CONFLICT, "이미 존재하는 SKU 코드입니다."),
     DUPLICATE_BARCODE(ErrorCode.CONFLICT, "이미 존재하는 바코드입니다.");
 

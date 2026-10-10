@@ -33,4 +33,10 @@ public interface WarehouseSectionUseCase {
     WarehouseSection updateSection(Long sectionId, WarehouseSectionUpdateCommand command);
 
     WarehouseSection deactivateSection(Long sectionId);
+
+    /**
+     * 비활성 구역을 다시 활성화한다. 이미 활성이면 409 CONFLICT, 창고나 상위 구역이 비활성이면 409 CONFLICT.
+     * 비활성 창고 아래에 활성 구역이 생기지 않게 상위부터 활성화해야 한다.
+     */
+    WarehouseSection activateSection(Long sectionId);
 }

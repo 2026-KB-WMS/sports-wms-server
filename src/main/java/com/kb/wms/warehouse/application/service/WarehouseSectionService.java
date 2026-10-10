@@ -159,4 +159,29 @@ public class WarehouseSectionService implements WarehouseSectionUseCase {
         section.deactivate();
         return warehouseSectionRepository.save(section);
     }
+
+    @Override
+    @Transactional
+    public WarehouseSection activateSection(Long sectionId) {
+        // 창고 비활성화가 구역 행을 잠그고 확인하므로, 같은 행을 잠가 서로 끼어들지 못하게 한다.
+        WarehouseSection section = warehouseSectionRepository.findByIdForUpdate(sectionId)
+                .orElseThrow(() -> new BusinessException(WarehouseErrorCode.SECTION_NOT_FOUND));
+        if (section.isActive()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 활성화된 구역입니다.");
+        }
+        Warehouse warehouse = warehouseRepository.findById(section.getWarehouseId())
+                .orElseThrow(() -> new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND));
+        if (!warehouse.isActive()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "비활성 창고의 구역은 활성화할 수 없습니다.");
+        }
+        if (section.getParentSectionId() != null) {
+            WarehouseSection parent = warehouseSectionRepository.findById(section.getParentSectionId())
+                    .orElseThrow(() -> new BusinessException(WarehouseErrorCode.PARENT_SECTION_NOT_FOUND));
+            if (!parent.isActive()) {
+                throw new BusinessException(ErrorCode.CONFLICT, "비활성 상위 구역의 하위 구역은 활성화할 수 없습니다.");
+            }
+        }
+        section.activate();
+        return warehouseSectionRepository.save(section);
+    }
 }

@@ -10,9 +10,10 @@
 - 목록 API는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고). `GET /stores/my`는 토큰 주체(`userId`)의 소속 지점을 돌려주며 `userId` 쿼리 파라미터를 받지 않는다(#170에서 인증 적용). 지점 비활성화의 처리자(`changed_by`)도 토큰 주체이며 `userId` 파라미터를 받지 않는다. 지점 단건의 담당 지점 검사는 서비스가 토큰의 `storeIds`로 한다.
 - 지점 비활성화의 `STORE_IN_USE` 검사는 구현했다(#141). 지점 행을 잠그지 않아 같은 순간의 발주 등록과는 경합할 수 있다(그렇게 생긴 발주는 승인할 수 없고 취소·반려만 가능).
 - `GET /stores/managers`의 404는 존재하지 않는 `storeId`에만 적용한다. 존재하지 않는 `userId`는 404 없이 빈 `items`를 반환한다.
-- 확정 필요(미결): 지점 재활성화 방법, 토큰의 소속 정보 갱신 시점, 점주 0명이 되는 회수 허용 여부, 진행 중 발주가 있는 점주의 회수 차단 여부.
+- 지점 재활성화는 `PATCH /stores/{storeId}/activate`로 한다([ADR-014](../adr/014-reactivation-and-sku-deactivation-guard.md)). 상태 이력(`StatusHistory`, `INACTIVE`→`ACTIVE`)에 처리자를 기록하며 사유는 받지 않는다.
+- 확정 필요(미결): 토큰의 소속 정보 갱신 시점, 점주 0명이 되는 회수 허용 여부, 진행 중 발주가 있는 점주의 회수 차단 여부.
 
-## 엔드포인트 목록 (10)
+## 엔드포인트 목록 (11)
 
 | Method | Path | 권한 | 설명 |
 |---|---|---|---|
@@ -21,13 +22,14 @@
 | GET | /stores/{storeId} | HQ_ADMIN, STORE_OWNER(담당 지점) | 지점 상세 |
 | PATCH | /stores/{storeId} | HQ_ADMIN | 지점 정보 수정 |
 | PATCH | /stores/{storeId}/deactivate | HQ_ADMIN | 지점 비활성화 |
+| PATCH | /stores/{storeId}/activate | HQ_ADMIN | 지점 재활성화 |
 | GET | /stores/my | STORE_OWNER | 내 소속 지점 |
 | GET | /stores/management-types | 인증 사용자 | 지점 내 역할 코드 목록 |
 | GET | /stores/managers | HQ_ADMIN | 지점 담당자 배정 목록 |
 | POST | /stores/assign | HQ_ADMIN | 지점 담당자 배정 |
 | DELETE | /stores/managers/{storeMemberId} | HQ_ADMIN | 배정 회수(하드 삭제) |
 
-공통 에러: 400 `VALIDATION_ERROR`, 401 `UNAUTHORIZED`, 403 `FORBIDDEN`. `isActive` = `status == 'ACTIVE'`. 상태 전이는 ACTIVE→INACTIVE만, 이미 INACTIVE면 409.
+공통 에러: 400 `VALIDATION_ERROR`, 401 `UNAUTHORIZED`, 403 `FORBIDDEN`. `isActive` = `status == 'ACTIVE'`. 상태 전이는 `deactivate`(ACTIVE→INACTIVE)와 `activate`(INACTIVE→ACTIVE)뿐이며, 이미 같은 상태면 409 `CONFLICT`.
 
 ## POST /stores (P0)
 
@@ -57,6 +59,12 @@
 - 응답: `storeId, storeCode, storeName, isActive=false, updatedAt`. 실제로는 지점 상세와 같은 전체 필드(`address, contactName, contactNumber, createdAt`도 포함)를 내려준다(위 필드의 상위 집합).
 - 에러: 409 `CONFLICT`(이미 INACTIVE), 409 `STORE_IN_USE`(진행 중 지점 발주 `REQUESTED`/`APPROVED`/`ASSIGNED`/`ON_HOLD` 존재; `COMPLETED`/`CANCELED`/`REJECTED`는 무시)
 - 비활성화 후 신규 지점 발주 등록·점주 배정 차단. 기존 이력·배정 데이터 보존. 조건 확인과 상태 변경은 같은 트랜잭션.
+
+## PATCH /stores/{storeId}/activate
+
+- 응답: 지점 상세와 같은 전체 필드, `isActive=true`. Body 없음.
+- 에러: 404 `STORE_NOT_FOUND`, 409 `CONFLICT`(이미 ACTIVE)
+- 배정 데이터와 이력은 비활성화 중에도 보존되어 있어 그대로 다시 쓰인다.
 
 ## GET /stores/my (P2)
 

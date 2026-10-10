@@ -28,6 +28,9 @@ public interface WarehouseUseCase {
 
     Warehouse deactivateWarehouse(Long warehouseId);
 
+    /** 비활성 창고를 다시 활성화한다. 이미 활성이면 409 CONFLICT. */
+    Warehouse activateWarehouse(Long warehouseId);
+
     /**
      * 로그인한 창고 관리자가 배정된 창고를 모두 조회한다.
      * 한 사용자가 여러 창고에 배정될 수 있어 목록으로 반환하며, 창고 정보와 배정(WarehouseMember) 정보를 함께 담는다.

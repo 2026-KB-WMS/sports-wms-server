@@ -121,6 +121,18 @@ public class WarehouseService implements WarehouseUseCase {
     }
 
     @Override
+    @Transactional
+    public Warehouse activateWarehouse(Long warehouseId) {
+        Warehouse warehouse = warehouseRepository.findById(warehouseId)
+                .orElseThrow(() -> new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND));
+        if (warehouse.isActive()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 활성화된 창고입니다.");
+        }
+        warehouse.activate();
+        return warehouseRepository.save(warehouse);
+    }
+
+    @Override
     public List<WarehouseMembershipSummary> getMyWarehouses(Long userId) {
         List<WarehouseMember> memberships = warehouseMemberRepository.findByUserId(userId);
         return memberships.stream()

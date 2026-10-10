@@ -99,6 +99,24 @@ class ProductUsageAdapterTest {
     }
 
     @Test
+    @DisplayName("SKU 단위 확인은 같은 상품의 다른 SKU 사용 여부와 무관하게 그 SKU만 본다")
+    void isSkuInUse() {
+        ProductSkuJpaEntity withStock = sku(30L, "S-STOCK");
+        ProductSkuJpaEntity withOrder = sku(30L, "S-ORDER");
+        ProductSkuJpaEntity idle = sku(30L, "S-IDLE");
+        ProductSkuJpaEntity closed = sku(30L, "S-CLOSED");
+        stock(withStock, 3L, 0L);
+        storeOrder(withOrder, "SO-20261010-0001", StoreOrderStatus.APPROVED);
+        storeOrder(closed, "SO-20261010-0002", StoreOrderStatus.CANCELED);
+        em.flush();
+
+        assertThat(productUsagePort.isSkuInUse(withStock.getSkuId())).isTrue();
+        assertThat(productUsagePort.isSkuInUse(withOrder.getSkuId())).isTrue();
+        assertThat(productUsagePort.isSkuInUse(idle.getSkuId())).isFalse();
+        assertThat(productUsagePort.isSkuInUse(closed.getSkuId())).isFalse();
+    }
+
+    @Test
     @DisplayName("관련 데이터가 없으면 입고·창고 발주·출고 조회는 false이고 쿼리는 정상 실행된다")
     void emptyQueries() {
         assertThat(productUsagePort.hasInProgressInbounds(1L)).isFalse();

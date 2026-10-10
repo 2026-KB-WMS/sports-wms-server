@@ -26,6 +26,7 @@ import com.kb.wms.product.application.port.out.OptionGroupRepository;
 import com.kb.wms.product.application.port.out.OptionValueRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
 import com.kb.wms.product.application.port.out.ProductSkuRepository;
+import com.kb.wms.product.application.port.out.ProductUsagePort;
 import com.kb.wms.product.application.port.out.SkuOptionValueRepository;
 import com.kb.wms.product.domain.entity.OptionGroup;
 import com.kb.wms.product.domain.entity.OptionValue;
@@ -54,6 +55,7 @@ public class ProductSkuService implements ProductSkuUseCase {
     private final OptionGroupRepository optionGroupRepository;
     private final BrandRepository brandRepository;
     private final CategoryRepository categoryRepository;
+    private final ProductUsagePort productUsagePort;
 
     @Override
     @Transactional
@@ -130,6 +132,10 @@ public class ProductSkuService implements ProductSkuUseCase {
             }
             sku.activate();
         } else {
+            // 이미 비활성인 SKU를 다시 비활성화하는 요청은 그대로 통과시키고, 활성 SKU에만 사용 중 검사를 한다.
+            if (sku.isActive() && productUsagePort.isSkuInUse(skuId)) {
+                throw new BusinessException(ProductErrorCode.SKU_IN_USE);
+            }
             sku.deactivate();
         }
         return productSkuRepository.save(sku);

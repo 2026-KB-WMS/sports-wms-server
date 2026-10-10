@@ -80,6 +80,14 @@ public class Store {
         this.status = StoreStatus.INACTIVE;
     }
 
+    /** 지점 재활성화. 이미 활성이면 예외 (서비스에서 먼저 검사해 409로 변환한다). */
+    public void activate() {
+        if (isActive()) {
+            throw new IllegalStateException("이미 활성화된 지점입니다.");
+        }
+        this.status = StoreStatus.ACTIVE;
+    }
+
     public boolean isActive() {
         return this.status == StoreStatus.ACTIVE;
     }

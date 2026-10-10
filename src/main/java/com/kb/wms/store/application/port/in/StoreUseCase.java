@@ -32,6 +32,9 @@ public interface StoreUseCase {
      */
     Store deactivateStore(Long storeId, String reason, Long userId);
 
+    /** 비활성 지점을 다시 활성화하고 상태 이력에 기록한다. 이미 활성이면 409 CONFLICT. userId는 처리자(changed_by)이다. */
+    Store activateStore(Long storeId, Long userId);
+
     /**
      * 로그인한 점주가 배정된 지점을 모두 조회한다.
      * 한 사용자가 여러 지점에 배정될 수 있어 목록으로 반환하며, 지점 정보와 배정(StoreMember) 정보를 함께 담는다.

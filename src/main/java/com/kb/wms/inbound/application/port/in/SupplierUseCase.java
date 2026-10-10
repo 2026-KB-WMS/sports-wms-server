@@ -23,4 +23,7 @@ public interface SupplierUseCase {
     Supplier updateSupplier(Long supplierId, SupplierUpdateCommand command);
 
     Supplier deactivateSupplier(Long supplierId);
+
+    /** 비활성 공급처를 다시 활성화한다. 이미 활성이면 409 CONFLICT. */
+    Supplier activateSupplier(Long supplierId);
 }

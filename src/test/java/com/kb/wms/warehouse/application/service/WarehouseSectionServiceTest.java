@@ -410,6 +410,97 @@ class WarehouseSectionServiceTest {
         verify(warehouseSectionRepository, never()).save(any());
     }
 
+    @Test
+    @DisplayName("창고가 활성이고 상위 구역이 없으면 비활성 구역을 활성화한다")
+    void activateSection_root_success() {
+        WarehouseSection inactive = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
+        inactive.deactivate();
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(inactive));
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseSectionRepository.save(any(WarehouseSection.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        WarehouseSection result = warehouseSectionService.activateSection(1L);
+
+        assertThat(result.isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("상위 구역이 활성이면 하위 구역을 활성화한다")
+    void activateSection_withActiveParent_success() {
+        WarehouseSection parent = WarehouseSection.register(1L, null, "A", "A구역", "ZONE", BigDecimal.valueOf(500));
+        WarehouseSection child = WarehouseSection.register(1L, 10L, "A-01", "A-1랙", "RACK", BigDecimal.valueOf(50));
+        child.deactivate();
+        when(warehouseSectionRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(child));
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseSectionRepository.findById(10L)).thenReturn(Optional.of(parent));
+        when(warehouseSectionRepository.save(any(WarehouseSection.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(warehouseSectionService.activateSection(11L).isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 구역을 활성화하면 SECTION_NOT_FOUND 예외를 던진다")
+    void activateSection_notFound() {
+        when(warehouseSectionRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> warehouseSectionService.activateSection(999L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.SECTION_NOT_FOUND.name());
+    }
+
+    @Test
+    @DisplayName("이미 활성인 구역을 활성화하면 CONFLICT 예외를 던진다")
+    void activateSection_alreadyActive_throwsConflict() {
+        WarehouseSection active = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(active));
+
+        assertThatThrownBy(() -> warehouseSectionService.activateSection(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.CONFLICT.name());
+        verify(warehouseSectionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("창고가 비활성이면 구역을 활성화할 수 없다")
+    void activateSection_inactiveWarehouse_throwsConflict() {
+        WarehouseSection inactive = WarehouseSection.register(2L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
+        inactive.deactivate();
+        Warehouse inactiveWarehouse =
+                Warehouse.register("WH-002", "부산 물류센터", "부산시 해운대구", "051-1234-5678", BigDecimal.TEN);
+        inactiveWarehouse.deactivate();
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(inactive));
+        when(warehouseRepository.findById(2L)).thenReturn(Optional.of(inactiveWarehouse));
+
+        assertThatThrownBy(() -> warehouseSectionService.activateSection(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.CONFLICT.name());
+        verify(warehouseSectionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("상위 구역이 비활성이면 하위 구역을 활성화할 수 없다")
+    void activateSection_inactiveParent_throwsConflict() {
+        WarehouseSection inactiveParent =
+                WarehouseSection.register(1L, null, "A", "A구역", "ZONE", BigDecimal.valueOf(500));
+        inactiveParent.deactivate();
+        WarehouseSection child = WarehouseSection.register(1L, 10L, "A-01", "A-1랙", "RACK", BigDecimal.valueOf(50));
+        child.deactivate();
+        when(warehouseSectionRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(child));
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseSectionRepository.findById(10L)).thenReturn(Optional.of(inactiveParent));
+
+        assertThatThrownBy(() -> warehouseSectionService.activateSection(11L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.CONFLICT.name());
+        verify(warehouseSectionRepository, never()).save(any());
+    }
+
 
     private final AuthenticatedUser manager =
             new AuthenticatedUser(2L, UserRole.WAREHOUSE_MANAGER, List.of(1L), List.of());

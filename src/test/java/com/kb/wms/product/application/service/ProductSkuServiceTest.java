@@ -33,6 +33,7 @@ import com.kb.wms.product.application.port.out.OptionGroupRepository;
 import com.kb.wms.product.application.port.out.OptionValueRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
 import com.kb.wms.product.application.port.out.ProductSkuRepository;
+import com.kb.wms.product.application.port.out.ProductUsagePort;
 import com.kb.wms.product.application.port.out.SkuOptionValueRepository;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.domain.entity.Category;
@@ -60,6 +61,8 @@ class ProductSkuServiceTest {
     private BrandRepository brandRepository;
     @Mock
     private CategoryRepository categoryRepository;
+    @Mock
+    private ProductUsagePort productUsagePort;
 
     @InjectMocks
     private ProductSkuService productSkuService;
@@ -345,6 +348,33 @@ class ProductSkuServiceTest {
         ProductSku result = productSkuService.changeSkuStatus(1L, false);
 
         assertThat(result.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("재고가 남아 있거나 진행 중인 업무가 있는 SKU는 비활성화할 수 없다")
+    void changeSkuStatus_deactivate_inUse() {
+        ProductSku sku = sku();
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(sku));
+        when(productUsagePort.isSkuInUse(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> productSkuService.changeSkuStatus(1L, false))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.SKU_IN_USE.name());
+        assertThat(sku.isActive()).isTrue();
+        verify(productSkuRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("이미 비활성인 SKU를 다시 비활성화하면 사용 중 검사 없이 그대로 통과한다")
+    void changeSkuStatus_deactivate_alreadyInactive() {
+        ProductSku sku = sku();
+        sku.deactivate();
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(sku));
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(productSkuService.changeSkuStatus(1L, false).isActive()).isFalse();
+        verify(productUsagePort, never()).isSkuInUse(any());
     }
 
     @Test
