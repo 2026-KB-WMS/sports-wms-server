@@ -126,7 +126,7 @@ class OutboundFulfillmentServiceIntegrationTest {
 
     private Long sku(String code) {
         return skuJpaRepository.save(ProductSkuJpaEntity.builder()
-                .productId(1L).skuCode(code).name(code).unit("EA")
+                .productId(1L).skuCode(code).name(code).unit("EA").currentPurchasePrice(java.math.BigDecimal.ZERO).currentSupplyPrice(java.math.BigDecimal.ZERO)
                 .safetyStockQuantity(0L).status(ProductStatus.ACTIVE).build()).getSkuId();
     }
 
@@ -252,10 +252,16 @@ class OutboundFulfillmentServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("공급 단가가 발주 항목에도 SKU에도 없으면 SUPPLY_PRICE_MISSING")
-    void supplyPriceMissing() {
+    @DisplayName("발주 항목에 공급 단가가 없으면 SKU 현재 공급 단가로 확정한다 (SKU 단가는 필수라 SUPPLY_PRICE_MISSING은 나지 않는다)")
+    void supplyPriceFallsBackToSkuPrice() {
         Long outboundId = pickingOutbound();
         StoreOrderLineJpaEntity entity = storeOrderLineJpaRepository.findById(lineA).orElseThrow();
+        ProductSkuJpaEntity sku = skuJpaRepository.findById(entity.getSkuId()).orElseThrow();
+        skuJpaRepository.save(ProductSkuJpaEntity.builder()
+                .skuId(sku.getSkuId()).productId(sku.getProductId()).skuCode(sku.getSkuCode()).name(sku.getName())
+                .unit(sku.getUnit()).safetyStockQuantity(sku.getSafetyStockQuantity()).status(sku.getStatus())
+                .currentPurchasePrice(sku.getCurrentPurchasePrice())
+                .currentSupplyPrice(new BigDecimal("7000")).build());
         storeOrderLineJpaRepository.save(StoreOrderLineJpaEntity.builder()
                 .storeOrderLineId(entity.getStoreOrderLineId()).storeOrderId(order).skuId(entity.getSkuId())
                 .requestedQuantity(3L).allocatedQuantity(entity.getAllocatedQuantity())
@@ -264,8 +270,10 @@ class OutboundFulfillmentServiceIntegrationTest {
         entityManager.flush();
         entityManager.clear();
 
-        assertThatThrownBy(() -> useCase.completePicking(pick(outboundId, 3, 2), HQ))
-                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("SUPPLY_PRICE_MISSING"));
+        var result = useCase.completePicking(pick(outboundId, 3, 2), HQ);
+
+        assertThat(result.items().stream().map(i -> i.confirmedUnitSupplyPrice().intValue()).toList())
+                .contains(7000);
     }
 
     @Test

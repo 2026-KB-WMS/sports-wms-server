@@ -110,7 +110,7 @@ class InboundCompleteConcurrencyTest {
     @BeforeEach
     void setUp() {
         skuId = productSkuJpaRepository.save(ProductSkuJpaEntity.builder()
-                .productId(1L).skuCode("SKU-IBCONC").name("입고 동시성 테스트 상품").unit("EA")
+                .productId(1L).skuCode("SKU-IBCONC").name("입고 동시성 테스트 상품").unit("EA").currentPurchasePrice(java.math.BigDecimal.ZERO).currentSupplyPrice(java.math.BigDecimal.ZERO)
                 .safetyStockQuantity(0L).status(ProductStatus.ACTIVE).build()).getSkuId();
         warehouseId = warehouseJpaRepository.save(WarehouseJpaEntity.builder()
                 .warehouseCode("WH-IBCONC").name("입고 동시성 테스트 창고").address("주소")

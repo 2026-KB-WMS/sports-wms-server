@@ -72,7 +72,7 @@ public class OutboundTestFixture {
                 .capacity(BigDecimal.valueOf(100000)).currentCapacity(BigDecimal.valueOf(onHand))
                 .status(WarehouseStatus.ACTIVE).build()).getSectionId();
         Long sku = skuJpaRepository.save(ProductSkuJpaEntity.builder()
-                .productId(1L).skuCode("SKU-F" + n).name("상품" + n).unit("EA")
+                .productId(1L).skuCode("SKU-F" + n).name("상품" + n).unit("EA").currentPurchasePrice(java.math.BigDecimal.ZERO).currentSupplyPrice(java.math.BigDecimal.ZERO)
                 .safetyStockQuantity(0L).status(ProductStatus.ACTIVE).build()).getSkuId();
         Long lot = lotJpaRepository.save(LotJpaEntity.builder()
                 .skuId(sku).supplierId(1L).lotNumber("LOT-F" + n).expiryDate(LocalDate.of(2026, 12, 31))

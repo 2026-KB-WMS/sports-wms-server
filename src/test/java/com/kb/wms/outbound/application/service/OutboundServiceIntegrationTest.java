@@ -120,7 +120,7 @@ class OutboundServiceIntegrationTest {
 
     private Long sku(String code) {
         return skuJpaRepository.save(ProductSkuJpaEntity.builder()
-                .productId(1L).skuCode(code).name(code).unit("EA")
+                .productId(1L).skuCode(code).name(code).unit("EA").currentPurchasePrice(java.math.BigDecimal.ZERO).currentSupplyPrice(java.math.BigDecimal.ZERO)
                 .safetyStockQuantity(0L).status(ProductStatus.ACTIVE).build()).getSkuId();
     }
 

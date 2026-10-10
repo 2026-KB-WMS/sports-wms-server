@@ -77,9 +77,9 @@ class ListSearchQueryIntegrationTest {
         productB = productRepository.save(inactiveProduct);
 
         productSkuRepository.save(ProductSku.register(productA.getProductId(), "SKU-RED", "8800000000001", "라켓 빨강",
-                null, null, null, "EA", 0L));
+                null, java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, "EA", 0L));
         ProductSku inactiveSku = ProductSku.register(productB.getProductId(), "SKU-SHOE-270", null, "신발 270",
-                null, null, null, "EA", 0L);
+                null, java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, "EA", 0L);
         inactiveSku.deactivate();
         productSkuRepository.save(inactiveSku);
     }

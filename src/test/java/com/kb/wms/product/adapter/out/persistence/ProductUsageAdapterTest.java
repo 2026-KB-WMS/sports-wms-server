@@ -41,7 +41,7 @@ class ProductUsageAdapterTest {
 
     private ProductSkuJpaEntity sku(Long productId, String code) {
         ProductSkuJpaEntity sku = ProductSkuJpaEntity.builder()
-                .productId(productId).skuCode(code).name("SKU " + code).unit("EA")
+                .productId(productId).skuCode(code).name("SKU " + code).unit("EA").currentPurchasePrice(java.math.BigDecimal.ZERO).currentSupplyPrice(java.math.BigDecimal.ZERO)
                 .safetyStockQuantity(0L).status(ProductStatus.ACTIVE).build();
         em.persist(sku);
         return sku;
