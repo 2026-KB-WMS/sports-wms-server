@@ -4,6 +4,7 @@ import static com.kb.wms.common.security.TestAuth.hqAdmin;
 import static com.kb.wms.common.security.TestAuth.warehouseManager;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -74,6 +75,32 @@ class WarehouseSectionControllerTest {
                 .andExpect(jsonPath("$.data.sectionCode").value("A-01"))
                 .andExpect(jsonPath("$.data.warehouseName").value("서울 물류센터"))
                 .andExpect(jsonPath("$.data.parentSectionCode").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("수용량 없이 구역을 등록하면 400 VALIDATION_ERROR를 반환한다")
+    void registerSection_capacityRequired() throws Exception {
+        mockMvc.perform(post("/api/v1/warehouses/sections")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new TestRegisterRequest(1L, null, "A-01", "1구역", "ZONE", null))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        verifyNoInteractions(warehouseSectionUseCase);
+    }
+
+    @Test
+    @DisplayName("상위 수용량을 넘기면 409 PARENT_CAPACITY_EXCEEDED를 반환한다")
+    void registerSection_parentCapacityExceeded() throws Exception {
+        when(warehouseSectionUseCase.registerSection(any(WarehouseSectionRegisterCommand.class)))
+                .thenThrow(new BusinessException(WarehouseErrorCode.PARENT_CAPACITY_EXCEEDED));
+
+        mockMvc.perform(post("/api/v1/warehouses/sections")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new TestRegisterRequest(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100)))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("PARENT_CAPACITY_EXCEEDED"));
     }
 
     @Test

@@ -117,14 +117,14 @@ class WarehouseServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
-        verify(warehouseRepository, never()).findById(any());
+        verify(warehouseRepository, never()).findByIdForUpdate(any());
     }
 
     @Test
     @DisplayName("존재하지 않는 창고를 수정하면 WAREHOUSE_NOT_FOUND 예외를 던진다")
     void updateWarehouse_notFound() {
         WarehouseUpdateCommand command = new WarehouseUpdateCommand("새 이름", null, null, null);
-        when(warehouseRepository.findById(999L)).thenReturn(Optional.empty());
+        when(warehouseRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> warehouseService.updateWarehouse(999L, command))
                 .isInstanceOf(BusinessException.class)
@@ -137,7 +137,7 @@ class WarehouseServiceTest {
     void updateWarehouse_partialUpdate_success() {
         Warehouse existing = Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.TEN);
         WarehouseUpdateCommand command = new WarehouseUpdateCommand("새 이름", null, null, null);
-        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
         when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Warehouse result = warehouseService.updateWarehouse(1L, command);
@@ -145,6 +145,33 @@ class WarehouseServiceTest {
         assertThat(result.getName()).isEqualTo("새 이름");
         assertThat(result.getAddress()).isEqualTo("서울시 강남구");
         verify(warehouseRepository).save(existing);
+    }
+
+    @Test
+    @DisplayName("전체 수용량을 최상위 활성 구역 합보다 작게 변경하면 CAPACITY_BELOW_CHILDREN 예외를 던진다")
+    void updateWarehouse_totalCapacityBelowSections() {
+        Warehouse existing = Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.valueOf(200));
+        WarehouseUpdateCommand command = new WarehouseUpdateCommand(null, null, null, BigDecimal.valueOf(99));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
+        when(warehouseSectionRepository.sumActiveCapacity(1L, null, null)).thenReturn(BigDecimal.valueOf(100));
+
+        assertThatThrownBy(() -> warehouseService.updateWarehouse(1L, command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.CAPACITY_BELOW_CHILDREN.name());
+        verify(warehouseRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("전체 수용량을 최상위 활성 구역 합과 같게 변경하는 것은 허용한다")
+    void updateWarehouse_totalCapacityEqualToSections_success() {
+        Warehouse existing = Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.valueOf(200));
+        WarehouseUpdateCommand command = new WarehouseUpdateCommand(null, null, null, BigDecimal.valueOf(100));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
+        when(warehouseSectionRepository.sumActiveCapacity(1L, null, null)).thenReturn(BigDecimal.valueOf(100));
+        when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(warehouseService.updateWarehouse(1L, command).getTotalCapacity()).isEqualByComparingTo("100");
     }
 
     @Test

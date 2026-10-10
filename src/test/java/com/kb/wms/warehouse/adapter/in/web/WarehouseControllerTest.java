@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -68,6 +69,31 @@ class WarehouseControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.warehouseCode").value("WH-001"))
                 .andExpect(jsonPath("$.data.warehouseName").value("서울 물류센터"));
+    }
+
+    @Test
+    @DisplayName("전체 수용량 없이 창고를 등록하면 400 VALIDATION_ERROR를 반환한다")
+    void registerWarehouse_totalCapacityRequired() throws Exception {
+        mockMvc.perform(post("/api/v1/warehouses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TestRegisterRequest(
+                                "WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", null))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        verifyNoInteractions(warehouseUseCase);
+    }
+
+    @Test
+    @DisplayName("전체 수용량 0으로 창고를 등록할 수 있다")
+    void registerWarehouse_zeroTotalCapacityAllowed() throws Exception {
+        Warehouse warehouse = Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.ZERO);
+        when(warehouseUseCase.registerWarehouse(any(WarehouseRegisterCommand.class))).thenReturn(warehouse);
+
+        mockMvc.perform(post("/api/v1/warehouses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TestRegisterRequest(
+                                "WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.ZERO))))
+                .andExpect(status().isCreated());
     }
 
     @Test
