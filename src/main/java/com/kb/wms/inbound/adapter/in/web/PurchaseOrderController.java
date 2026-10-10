@@ -33,6 +33,7 @@ import com.kb.wms.inbound.application.port.in.result.PurchaseOrderView;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -43,6 +44,7 @@ import lombok.RequiredArgsConstructor;
  * <p>처리 사용자는 토큰 주체이고, 역할은 SecurityConfig가, 담당 창고 범위와 취소 권한(작성자·상태별)은 서비스가 검사한다.
  * 목록은 페이지네이션 없이 전체를 반환한다(공통 페이징 도입 시 추가).
  */
+@Tag(name = "창고 발주")
 @RestController
 @RequestMapping("/api/v1/purchase-orders")
 @RequiredArgsConstructor

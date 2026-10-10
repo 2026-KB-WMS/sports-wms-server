@@ -22,6 +22,7 @@ import com.kb.wms.warehouse.application.port.in.WarehouseMemberUseCase;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 import com.kb.wms.warehouse.application.port.in.result.WarehouseMemberView;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -29,6 +30,7 @@ import lombok.RequiredArgsConstructor;
  * 창고 관리자 배정/조회/배정해제.
  * POST, GET /api/v1/warehouses/managers, DELETE /api/v1/warehouses/managers/{warehouseMemberId}
  */
+@Tag(name = "창고 관리자")
 @RestController
 @RequestMapping("/api/v1/warehouses/managers")
 @RequiredArgsConstructor

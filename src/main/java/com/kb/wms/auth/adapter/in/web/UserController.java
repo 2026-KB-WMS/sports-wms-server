@@ -22,6 +22,7 @@ import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.common.security.AuthenticatedUser;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -30,6 +31,7 @@ import lombok.RequiredArgsConstructor;
  * GET /api/v1/users, PATCH /api/v1/users/{userId}
  * 페이지네이션은 전 도메인 일괄 도입 시 적용한다.
  */
+@Tag(name = "계정 관리")
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor

@@ -21,6 +21,7 @@ import com.kb.wms.auth.application.port.in.UserUseCase;
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.security.AuthenticatedUser;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -28,6 +29,7 @@ import lombok.RequiredArgsConstructor;
  * 가입·로그인·내 정보·비밀번호 변경.
  * POST /api/v1/auth/signup, POST /api/v1/auth/login, GET /api/v1/auth/me, PATCH /api/v1/auth/me/password
  */
+@Tag(name = "인증")
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor

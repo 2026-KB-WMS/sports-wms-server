@@ -16,6 +16,7 @@ import com.kb.wms.product.adapter.in.web.dto.response.ProductOptionGroupsRespons
 import com.kb.wms.product.application.port.in.OptionGroupUseCase;
 import com.kb.wms.product.domain.entity.OptionGroup;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -23,6 +24,7 @@ import lombok.RequiredArgsConstructor;
  * 옵션 그룹 등록, 상품별 옵션 그룹 조회.
  * POST /api/v1/products/option-groups, GET /api/v1/products/{productId}/option-groups
  */
+@Tag(name = "상품 옵션")
 @RestController
 @RequiredArgsConstructor
 public class OptionGroupController {

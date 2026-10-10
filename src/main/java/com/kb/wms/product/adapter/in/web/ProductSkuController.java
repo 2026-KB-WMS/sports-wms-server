@@ -38,6 +38,7 @@ import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
 import com.kb.wms.product.domain.entity.Product;
 import com.kb.wms.product.domain.entity.ProductSku;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -46,6 +47,7 @@ import lombok.RequiredArgsConstructor;
  * POST/GET /api/v1/products/skus, GET /api/v1/products/skus/{skuId}, POST /api/v1/products/skus/{skuId}/options
  * 페이지네이션·역할별 응답 차등은 아직 적용하지 않는다(#20 1단계).
  */
+@Tag(name = "SKU")
 @RestController
 @RequestMapping("/api/v1/products/skus")
 @RequiredArgsConstructor

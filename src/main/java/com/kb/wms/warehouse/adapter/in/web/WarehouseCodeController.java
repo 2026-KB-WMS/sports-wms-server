@@ -11,12 +11,14 @@ import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.warehouse.adapter.in.web.dto.response.CodeItemResponse;
 import com.kb.wms.warehouse.application.port.in.WarehouseCodeUseCase;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 /**
  * 창고 도메인 고정 코드 목록 조회.
  * GET /api/v1/warehouses/management-types, GET /api/v1/warehouses/section-types
  */
+@Tag(name = "창고 코드")
 @RestController
 @RequestMapping("/api/v1/warehouses")
 @RequiredArgsConstructor

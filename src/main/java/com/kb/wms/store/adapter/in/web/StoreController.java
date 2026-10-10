@@ -27,6 +27,7 @@ import com.kb.wms.store.application.port.in.StoreUseCase;
 import com.kb.wms.store.application.port.in.query.StoreSearchCondition;
 import com.kb.wms.store.domain.entity.Store;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -35,6 +36,7 @@ import lombok.RequiredArgsConstructor;
  * POST, GET, PATCH /api/v1/stores, GET /api/v1/stores/my
  * my 조회와 비활성화 처리자는 토큰 주체이고, 단건 조회는 서비스가 담당 지점(HQ_ADMIN은 전체)만 허용한다.
  */
+@Tag(name = "지점")
 @RestController
 @RequestMapping("/api/v1/stores")
 @RequiredArgsConstructor

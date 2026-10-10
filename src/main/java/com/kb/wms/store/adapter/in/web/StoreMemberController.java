@@ -22,6 +22,7 @@ import com.kb.wms.store.application.port.in.StoreMemberUseCase;
 import com.kb.wms.store.application.port.in.StoreUseCase;
 import com.kb.wms.store.application.port.in.result.StoreMemberView;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -29,6 +30,7 @@ import lombok.RequiredArgsConstructor;
  * 지점 관리자(점주) 배정/조회/배정해제.
  * POST /api/v1/stores/assign, GET /api/v1/stores/managers, DELETE /api/v1/stores/managers/{storeMemberId}
  */
+@Tag(name = "지점 담당자")
 @RestController
 @RequestMapping("/api/v1/stores")
 @RequiredArgsConstructor

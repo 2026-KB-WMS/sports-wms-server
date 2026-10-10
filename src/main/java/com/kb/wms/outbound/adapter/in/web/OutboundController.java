@@ -36,6 +36,7 @@ import com.kb.wms.outbound.application.port.in.command.OutboundCancelCommand;
 import com.kb.wms.outbound.application.port.in.query.OutboundSearchCondition;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -47,6 +48,7 @@ import lombok.RequiredArgsConstructor;
  * <p>처리 사용자는 토큰 주체이고, 역할(쓰기는 창고 관리자, 조회는 본사와 창고 관리자)은 SecurityConfig가,
  * 담당 창고 범위(발주에 배정된 창고)는 서비스가 검사한다. 목록은 페이지네이션 없이 전체를 반환한다.
  */
+@Tag(name = "출고")
 @RestController
 @RequestMapping("/api/v1/outbounds")
 @RequiredArgsConstructor

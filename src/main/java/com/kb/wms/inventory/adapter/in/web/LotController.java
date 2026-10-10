@@ -28,6 +28,7 @@ import com.kb.wms.inventory.application.port.in.result.InventoryLotView;
 import com.kb.wms.inventory.application.port.in.result.LotSummary;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -35,6 +36,7 @@ import lombok.RequiredArgsConstructor;
  * 로트 마스터 조회·상태 변경. GET /api/v1/lots, /lots/{lotId}, PATCH /lots/{lotId}/status
  * 로트는 별도 생성 API 없이 입고 검수 트랜잭션 안에서 만들어진다(ADR-004).
  */
+@Tag(name = "로트")
 @RestController
 @RequiredArgsConstructor
 public class LotController {

@@ -27,6 +27,7 @@ import com.kb.wms.product.application.port.in.ProductUseCase;
 import com.kb.wms.product.application.port.in.query.ProductSearchCondition;
 import com.kb.wms.product.domain.entity.Product;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -35,6 +36,7 @@ import lombok.RequiredArgsConstructor;
  * POST /api/v1/products, GET /api/v1/products, GET /api/v1/products/{productId}
  * 페이지네이션·역할별 응답 차등은 아직 적용하지 않는다(#20 1단계).
  */
+@Tag(name = "상품")
 @RestController
 @RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
