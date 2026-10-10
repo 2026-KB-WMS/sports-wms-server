@@ -14,8 +14,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
+import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 
 
 import com.kb.wms.outbound.application.port.out.OutboundRepository;
