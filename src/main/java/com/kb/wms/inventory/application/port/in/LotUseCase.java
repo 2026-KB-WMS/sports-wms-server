@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inventory.application.port.in.command.LotRegisterCommand;
+import com.kb.wms.inventory.application.port.in.command.LotStatusChangeCommand;
 import com.kb.wms.inventory.application.port.in.query.LotSearchCondition;
 import com.kb.wms.inventory.application.port.in.result.LotInboundView;
 import com.kb.wms.inventory.application.port.in.result.LotSummary;
@@ -26,6 +27,13 @@ public interface LotUseCase {
 
     /** 로트가 입고된 이력(입고 완료 건). 로트가 없으면 404 LOT_NOT_FOUND. 창고 관리자에게는 담당 창고의 입고만 보인다. */
     List<LotInboundView> getLotInbounds(Long lotId, AuthenticatedUser actor);
+
+    /**
+     * 로트 상태를 격리·해제·폐기로 바꾼다(HQ_ADMIN). 없는 로트는 404 LOT_NOT_FOUND, EXPIRED·누락 상태나 빈·초과 사유는
+     * 400, 허용되지 않은 전이는 409 INVALID_LOT_STATUS_TRANSITION, 할당이 남은 격리는 409 LOT_HAS_ALLOCATION,
+     * 수량이 남은 폐기는 409 LOT_HAS_STOCK. 처리자와 사유는 상태 이력에 남긴다.
+     */
+    void changeLotStatus(Long lotId, LotStatusChangeCommand command);
 
     /**
      * SKU + 공급처 + 로트 번호로 로트를 찾고, 없으면 AVAILABLE 상태로 새로 만든다.

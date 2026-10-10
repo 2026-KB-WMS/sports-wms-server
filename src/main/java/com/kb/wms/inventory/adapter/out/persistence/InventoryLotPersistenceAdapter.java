@@ -51,6 +51,13 @@ public class InventoryLotPersistenceAdapter implements InventoryLotRepository {
     }
 
     @Override
+    public List<InventoryLot> findAllByLotIdForUpdate(Long lotId) {
+        return inventoryLotJpaRepository.findAllByLotIdForUpdate(lotId).stream()
+                .map(InventoryLotJpaEntity::toDomain)
+                .toList();
+    }
+
+    @Override
     public boolean existsById(Long inventoryLotId) {
         return inventoryLotJpaRepository.existsById(inventoryLotId);
     }

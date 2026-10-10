@@ -247,6 +247,16 @@ class InventoryPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("로트 단위 잠금 조회: 그 로트의 모든 재고 행(품질 불량 포함)만 inventory_lot_id 오름차순으로 반환하고 로트 행도 잠금 조회된다")
+    void findAllByLotIdForUpdate() {
+        assertThat(inventoryLotRepository.findAllByLotIdForUpdate(lotA))
+                .extracting(InventoryLot::getInventoryLotId).containsExactly(invR1LotA, invD1LotA);
+        assertThat(inventoryLotRepository.findAllByLotIdForUpdate(999999L)).isEmpty();
+        assertThat(lotRepository.findByIdForUpdate(lotA)).isPresent();
+        assertThat(lotRepository.findByIdForUpdate(999999L)).isEmpty();
+    }
+
+    @Test
     @DisplayName("잠금 조회 후 수량을 바꿔 저장하면 반영된다")
     void lockAndSave() {
         InventoryLot il = inventoryLotRepository.findByIdForUpdate(invR1LotA).orElseThrow();

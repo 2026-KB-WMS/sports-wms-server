@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -13,9 +14,15 @@ import com.kb.wms.inventory.adapter.out.persistence.entity.LotJpaEntity;
 import com.kb.wms.inventory.application.port.in.result.LotInboundView;
 import com.kb.wms.inventory.application.port.in.result.LotSummary;
 
+import jakarta.persistence.LockModeType;
+
 public interface LotJpaRepository extends JpaRepository<LotJpaEntity, Long> {
 
     Optional<LotJpaEntity> findBySkuIdAndSupplierIdAndLotNumber(Long skuId, Long supplierId, String lotNumber);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select l from LotJpaEntity l where l.lotId = :lotId")
+    Optional<LotJpaEntity> findByIdForUpdate(@Param("lotId") Long lotId);
 
     /**
      * 로트 + SKU + 공급처명 조회 (lotId가 있으면 단건 조회에도 사용).

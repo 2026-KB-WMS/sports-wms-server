@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -26,13 +27,18 @@ import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inventory.application.port.in.command.LotRegisterCommand;
+import com.kb.wms.inventory.application.port.in.command.LotStatusChangeCommand;
 import com.kb.wms.inventory.application.port.in.query.LotSearchCondition;
 import com.kb.wms.inventory.application.port.in.result.LotInboundView;
 import com.kb.wms.inventory.application.port.in.result.LotSummary;
+import com.kb.wms.inventory.application.port.out.InventoryLotRepository;
 import com.kb.wms.inventory.application.port.out.InventoryQueryRepository;
 import com.kb.wms.inventory.application.port.out.LotRepository;
+import com.kb.wms.inventory.domain.entity.InventoryLot;
 import com.kb.wms.inventory.domain.entity.Lot;
 import com.kb.wms.inventory.exception.InventoryErrorCode;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
+import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 
 @ExtendWith(MockitoExtension.class)
 class LotServiceTest {
@@ -42,7 +48,11 @@ class LotServiceTest {
     @Mock
     private LotRepository lotRepository;
     @Mock
+    private InventoryLotRepository inventoryLotRepository;
+    @Mock
     private InventoryQueryRepository inventoryQueryRepository;
+    @Mock
+    private StatusHistoryUseCase statusHistoryUseCase;
 
     @InjectMocks
     private LotService lotService;
@@ -267,4 +277,139 @@ class LotServiceTest {
 
         assertThat(lotService.getLotInbounds(5L, manager)).containsExactly(mine);
     }
+
+    // ---------- 상태 변경 ----------
+
+    private static Lot lotIn(LotStatus status, LocalDate expiryDate) {
+        return Lot.builder().lotId(5L).skuId(2L).supplierId(3L).lotNumber("LOT-001")
+                .expiryDate(expiryDate).status(status).unitCost(BigDecimal.TEN).build();
+    }
+
+    private static InventoryLot row(long onHand, long allocated) {
+        return InventoryLot.builder().inventoryLotId(10L).sectionId(1L).lotId(5L)
+                .onHandQuantity(onHand).allocatedQuantity(allocated).build();
+    }
+
+    private static void assertCode(org.assertj.core.api.ThrowableAssert.ThrowingCallable call, String code) {
+        assertThatThrownBy(call).isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName()).isEqualTo(code);
+    }
+
+    @Test
+    @DisplayName("가용 로트를 격리하면 상태가 바뀌고 이전·이후 상태와 사유가 이력에 남는다")
+    void changeStatus_quarantine_success() {
+        when(lotRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(lotIn(LotStatus.AVAILABLE, null)));
+        when(inventoryLotRepository.findAllByLotIdForUpdate(5L)).thenReturn(List.of(row(10, 0)));
+
+        lotService.changeLotStatus(5L, new LotStatusChangeCommand(LotStatus.QUARANTINED, " 품질 이상 ", 1L));
+
+        org.mockito.ArgumentCaptor<Lot> saved = org.mockito.ArgumentCaptor.forClass(Lot.class);
+        verify(lotRepository).save(saved.capture());
+        assertThat(saved.getValue().getStatus()).isEqualTo(LotStatus.QUARANTINED);
+        verify(statusHistoryUseCase).record(StatusHistoryEntityType.LOT, 5L, "AVAILABLE", "QUARANTINED", "품질 이상", 1L);
+    }
+
+    @Test
+    @DisplayName("할당 수량이 남아 있으면 격리할 수 없다(LOT_HAS_ALLOCATION)")
+    void changeStatus_quarantine_withAllocation() {
+        when(lotRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(lotIn(LotStatus.AVAILABLE, null)));
+        when(inventoryLotRepository.findAllByLotIdForUpdate(5L)).thenReturn(List.of(row(10, 0), row(5, 2)));
+
+        assertCode(() -> lotService.changeLotStatus(5L,
+                new LotStatusChangeCommand(LotStatus.QUARANTINED, "사유", 1L)),
+                InventoryErrorCode.LOT_HAS_ALLOCATION.name());
+        verify(lotRepository, never()).save(any());
+        verifyNoInteractions(statusHistoryUseCase);
+    }
+
+    @Test
+    @DisplayName("격리 로트는 유통기한이 지나지 않았으면 가용으로 되돌린다")
+    void changeStatus_release_success() {
+        when(lotRepository.findByIdForUpdate(5L))
+                .thenReturn(Optional.of(lotIn(LotStatus.QUARANTINED, LocalDate.now().plusDays(30))));
+        when(inventoryLotRepository.findAllByLotIdForUpdate(5L)).thenReturn(List.of());
+
+        lotService.changeLotStatus(5L, new LotStatusChangeCommand(LotStatus.AVAILABLE, "재검사 통과", 1L));
+
+        verify(statusHistoryUseCase).record(StatusHistoryEntityType.LOT, 5L, "QUARANTINED", "AVAILABLE", "재검사 통과", 1L);
+    }
+
+    @Test
+    @DisplayName("유통기한이 지난 격리 로트는 가용으로 되돌릴 수 없다")
+    void changeStatus_release_expired() {
+        when(lotRepository.findByIdForUpdate(5L))
+                .thenReturn(Optional.of(lotIn(LotStatus.QUARANTINED, LocalDate.now().minusDays(1))));
+
+        assertCode(() -> lotService.changeLotStatus(5L,
+                new LotStatusChangeCommand(LotStatus.AVAILABLE, "사유", 1L)),
+                InventoryErrorCode.INVALID_LOT_STATUS_TRANSITION.name());
+        verify(lotRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("수량이 모두 0이면 만료 로트도 폐기할 수 있다")
+    void changeStatus_dispose_success() {
+        when(lotRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(lotIn(LotStatus.EXPIRED, null)));
+        when(inventoryLotRepository.findAllByLotIdForUpdate(5L)).thenReturn(List.of(row(0, 0)));
+
+        lotService.changeLotStatus(5L, new LotStatusChangeCommand(LotStatus.DISPOSED, "폐기 처리", 1L));
+
+        verify(statusHistoryUseCase).record(StatusHistoryEntityType.LOT, 5L, "EXPIRED", "DISPOSED", "폐기 처리", 1L);
+    }
+
+    @Test
+    @DisplayName("보유 수량이 남아 있으면 폐기할 수 없다(LOT_HAS_STOCK)")
+    void changeStatus_dispose_hasStock() {
+        when(lotRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(lotIn(LotStatus.AVAILABLE, null)));
+        when(inventoryLotRepository.findAllByLotIdForUpdate(5L)).thenReturn(List.of(row(0, 0), row(3, 0)));
+
+        assertCode(() -> lotService.changeLotStatus(5L,
+                new LotStatusChangeCommand(LotStatus.DISPOSED, "사유", 1L)), InventoryErrorCode.LOT_HAS_STOCK.name());
+        verify(lotRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("폐기된 로트, 같은 상태로의 변경, 만료 로트의 격리는 INVALID_LOT_STATUS_TRANSITION이다")
+    void changeStatus_invalidTransitions() {
+        when(lotRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(lotIn(LotStatus.DISPOSED, null)));
+        assertCode(() -> lotService.changeLotStatus(5L,
+                new LotStatusChangeCommand(LotStatus.AVAILABLE, "사유", 1L)),
+                InventoryErrorCode.INVALID_LOT_STATUS_TRANSITION.name());
+
+        when(lotRepository.findByIdForUpdate(6L)).thenReturn(Optional.of(lotIn(LotStatus.AVAILABLE, null)));
+        assertCode(() -> lotService.changeLotStatus(6L,
+                new LotStatusChangeCommand(LotStatus.AVAILABLE, "사유", 1L)),
+                InventoryErrorCode.INVALID_LOT_STATUS_TRANSITION.name());
+
+        when(lotRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(lotIn(LotStatus.EXPIRED, null)));
+        assertCode(() -> lotService.changeLotStatus(7L,
+                new LotStatusChangeCommand(LotStatus.QUARANTINED, "사유", 1L)),
+                InventoryErrorCode.INVALID_LOT_STATUS_TRANSITION.name());
+        verify(lotRepository, never()).save(any());
+        verifyNoInteractions(inventoryLotRepository);
+    }
+
+    @Test
+    @DisplayName("EXPIRED·누락 상태와 빈·긴 사유는 로트를 조회하기 전에 VALIDATION_ERROR다")
+    void changeStatus_validation() {
+        assertCode(() -> lotService.changeLotStatus(5L, new LotStatusChangeCommand(LotStatus.EXPIRED, "사유", 1L)),
+                ErrorCode.VALIDATION_ERROR.name());
+        assertCode(() -> lotService.changeLotStatus(5L, new LotStatusChangeCommand(null, "사유", 1L)),
+                ErrorCode.VALIDATION_ERROR.name());
+        assertCode(() -> lotService.changeLotStatus(5L, new LotStatusChangeCommand(LotStatus.DISPOSED, "  ", 1L)),
+                ErrorCode.VALIDATION_ERROR.name());
+        assertCode(() -> lotService.changeLotStatus(5L,
+                new LotStatusChangeCommand(LotStatus.DISPOSED, "가".repeat(501), 1L)), ErrorCode.VALIDATION_ERROR.name());
+        verifyNoInteractions(lotRepository);
+    }
+
+    @Test
+    @DisplayName("없는 로트는 LOT_NOT_FOUND다")
+    void changeStatus_notFound() {
+        when(lotRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
+
+        assertCode(() -> lotService.changeLotStatus(999L,
+                new LotStatusChangeCommand(LotStatus.DISPOSED, "사유", 1L)), InventoryErrorCode.LOT_NOT_FOUND.name());
+    }
 }
+

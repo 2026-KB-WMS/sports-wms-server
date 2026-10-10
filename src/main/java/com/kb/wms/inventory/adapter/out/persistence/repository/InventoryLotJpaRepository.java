@@ -46,6 +46,14 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
     Optional<InventoryLotJpaEntity> findBySectionIdAndLotIdForUpdate(@Param("sectionId") Long sectionId,
                                                                      @Param("lotId") Long lotId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select il from InventoryLotJpaEntity il
+            where il.lotId = :lotId
+            order by il.inventoryLotId
+            """)
+    List<InventoryLotJpaEntity> findAllByLotIdForUpdate(@Param("lotId") Long lotId);
+
     // ---------- 조회 전용 (다른 도메인 테이블은 ID 조인으로 읽기만) ----------
 
     @Query("select count(s) > 0 from ProductSkuJpaEntity s where s.skuId = :skuId")

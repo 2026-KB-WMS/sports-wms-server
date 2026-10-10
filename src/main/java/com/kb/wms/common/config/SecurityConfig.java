@@ -66,6 +66,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/warehouses/**").hasRole("HQ_ADMIN")
                         // 재고·로트: 조정은 창고 관리자만, 조회는 본사+창고 관리자(담당 창고 범위는 서비스가 적용). 점주는 불가
                         .requestMatchers(HttpMethod.POST, "/api/v1/inventory/adjustments").hasRole("WAREHOUSE_MANAGER")
+                        // 로트 상태 변경은 여러 창고가 공유하는 마스터를 바꾸므로 본사만
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/lots/*/status").hasRole("HQ_ADMIN")
                         .requestMatchers("/api/v1/inventory/**", "/api/v1/lots/**")
                         .hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
                         // 지점: 창고와 같은 순서 규칙. 담당 지점 범위는 서비스가 검사한다.
