@@ -51,6 +51,7 @@ import com.kb.wms.inbound.domain.enums.PurchaseOrderLineStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
 import com.kb.wms.inbound.exception.SupplierErrorCode;
+import com.kb.wms.warehouse.exception.WarehouseErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class PurchaseOrderServiceTest {
@@ -121,6 +122,42 @@ class PurchaseOrderServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(errorCodeName);
+    }
+
+    // ---------- 목록 필터 ----------
+
+    @Test
+    @DisplayName("발주 목록의 warehouseId 필터가 존재하지 않으면 창고 도메인의 404를 그대로 던지고 조회하지 않는다")
+    void getPurchaseOrders_unknownWarehouse_notFound() {
+        doThrow(new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND))
+                .when(warehouseAvailabilityPort).requireExists(999L);
+
+        assertError(() -> purchaseOrderService.getPurchaseOrders(
+                PurchaseOrderSearchCondition.unscoped(null, 999L, null, null, null, null), HQ),
+                WarehouseErrorCode.WAREHOUSE_NOT_FOUND.name());
+        verifyNoInteractions(purchaseOrderQueryRepository);
+    }
+
+    @Test
+    @DisplayName("발주 목록의 supplierId 필터가 존재하지 않으면 SUPPLIER_NOT_FOUND 404를 던지고 조회하지 않는다")
+    void getPurchaseOrders_unknownSupplier_notFound() {
+        when(supplierRepository.existsById(999L)).thenReturn(false);
+
+        assertError(() -> purchaseOrderService.getPurchaseOrders(
+                PurchaseOrderSearchCondition.unscoped(null, null, 999L, null, null, null), HQ),
+                SupplierErrorCode.SUPPLIER_NOT_FOUND.name());
+        verifyNoInteractions(purchaseOrderQueryRepository);
+    }
+
+    @Test
+    @DisplayName("발주 목록은 비담당 창고를 지정하면 존재 여부를 확인하기 전에 403이다")
+    void getPurchaseOrders_forbiddenBeforeExistenceCheck() {
+        AuthenticatedUser manager = new AuthenticatedUser(5L, UserRole.WAREHOUSE_MANAGER, List.of(1L), List.of());
+
+        assertError(() -> purchaseOrderService.getPurchaseOrders(
+                PurchaseOrderSearchCondition.unscoped(null, 3L, null, null, null, null), manager),
+                ErrorCode.FORBIDDEN.name());
+        verifyNoInteractions(warehouseAvailabilityPort, purchaseOrderQueryRepository);
     }
 
     private static PurchaseOrderView viewWithStatus(PurchaseOrderStatus status) {
@@ -476,9 +513,11 @@ class PurchaseOrderServiceTest {
         PurchaseOrderSearchCondition condition = PurchaseOrderSearchCondition.unscoped(
                 PurchaseOrderStatus.REQUESTED, 1L, 3L, "PO", null, null);
         List<PurchaseOrderSummary> expected = List.of();
+        when(supplierRepository.existsById(3L)).thenReturn(true);
         when(purchaseOrderQueryRepository.search(condition)).thenReturn(expected);
 
         assertThat(purchaseOrderService.getPurchaseOrders(condition, HQ)).isSameAs(expected);
+        verify(warehouseAvailabilityPort).requireExists(1L);
     }
 
     @Test

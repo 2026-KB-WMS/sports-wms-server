@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -42,12 +43,14 @@ import com.kb.wms.inbound.application.port.in.result.SectionCandidate;
 import com.kb.wms.inbound.application.port.out.InboundQueryRepository;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
+import com.kb.wms.inbound.application.port.out.WarehouseAvailabilityPort;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
+import com.kb.wms.warehouse.exception.WarehouseErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class InboundServiceTest {
@@ -62,6 +65,9 @@ class InboundServiceTest {
 
     @Mock
     private PurchaseOrderRepository purchaseOrderRepository;
+
+    @Mock
+    private WarehouseAvailabilityPort warehouseAvailabilityPort;
 
     @Mock
     private StatusHistoryUseCase statusHistoryUseCase;
@@ -332,10 +338,35 @@ class InboundServiceTest {
     void getInbounds_delegates() {
         InboundSearchCondition condition = InboundSearchCondition.unscoped(
                 InboundStatus.ARRIVED, 1L, 4L, "IB-", null, null);
+        when(purchaseOrderRepository.findById(4L)).thenReturn(java.util.Optional.of(purchaseOrder(PurchaseOrderStatus.CONFIRMED)));
         when(inboundQueryRepository.search(condition)).thenReturn(List.of());
 
         assertThat(inboundService.getInbounds(condition, HQ)).isEmpty();
+        verify(warehouseAvailabilityPort).requireExists(1L);
         verify(inboundQueryRepository).search(condition);
+    }
+
+    @Test
+    @DisplayName("입고 목록의 warehouseId 필터가 존재하지 않으면 창고 도메인의 404를 그대로 던지고 조회하지 않는다")
+    void getInbounds_unknownWarehouse_notFound() {
+        doThrow(new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND))
+                .when(warehouseAvailabilityPort).requireExists(999L);
+
+        assertError(() -> inboundService.getInbounds(
+                InboundSearchCondition.unscoped(null, 999L, null, null, null, null), HQ),
+                WarehouseErrorCode.WAREHOUSE_NOT_FOUND.name());
+        verifyNoInteractions(inboundQueryRepository);
+    }
+
+    @Test
+    @DisplayName("입고 목록의 purchaseOrderId 필터가 존재하지 않으면 PURCHASE_ORDER_NOT_FOUND 404를 던지고 조회하지 않는다")
+    void getInbounds_unknownPurchaseOrder_notFound() {
+        when(purchaseOrderRepository.findById(999L)).thenReturn(java.util.Optional.empty());
+
+        assertError(() -> inboundService.getInbounds(
+                InboundSearchCondition.unscoped(null, null, 999L, null, null, null), HQ),
+                PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND.name());
+        verifyNoInteractions(inboundQueryRepository);
     }
 
     @Test
@@ -465,6 +496,7 @@ class InboundServiceTest {
                 InboundSearchCondition.unscoped(null, null, null, null, null, null), MANAGER)).isEmpty();
         assertError(() -> inboundService.getInbounds(
                 InboundSearchCondition.unscoped(null, 3L, null, null, null, null), MANAGER), ErrorCode.FORBIDDEN.name());
+        verifyNoInteractions(warehouseAvailabilityPort);
     }
 
     @Test

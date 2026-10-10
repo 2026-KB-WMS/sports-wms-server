@@ -108,6 +108,13 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
                 && condition.createdFrom().isAfter(condition.createdTo())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "등록 시작 일시는 종료 일시보다 늦을 수 없습니다.");
         }
+        // 담당 창고 범위 검사(403)를 통과한 뒤에만 존재 여부를 확인해, 비담당자에게 존재 여부를 흘리지 않는다.
+        if (condition.warehouseId() != null) {
+            warehouseAvailabilityPort.requireExists(condition.warehouseId());
+        }
+        if (condition.supplierId() != null && !supplierRepository.existsById(condition.supplierId())) {
+            throw new BusinessException(SupplierErrorCode.SUPPLIER_NOT_FOUND);
+        }
         return purchaseOrderQueryRepository.search(new PurchaseOrderSearchCondition(
                 condition.status(), condition.warehouseId(), condition.supplierId(), condition.keyword(),
                 condition.createdFrom(), condition.createdTo(), scope));
