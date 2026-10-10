@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
+import com.kb.wms.product.application.port.in.command.ProductSkuUpdateCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
 import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
 import com.kb.wms.product.domain.entity.ProductSku;
@@ -17,6 +18,12 @@ import com.kb.wms.product.domain.entity.ProductSku;
 public interface ProductSkuUseCase {
 
     ProductSku registerSku(ProductSkuRegisterCommand command);
+
+    /**
+     * 값이 있는 필드만 수정한다(비활성 SKU도 가능). 바코드가 다른 SKU와 겹치면 DUPLICATE_BARCODE,
+     * 단가가 바뀌면 처리자와 함께 단가 변경 이력을 남긴다.
+     */
+    ProductSku updateSku(ProductSkuUpdateCommand command, AuthenticatedUser actor);
 
     /** 필터의 상품·브랜드·카테고리가 없으면 PRODUCT_NOT_FOUND·BRAND_NOT_FOUND·CATEGORY_NOT_FOUND */
     List<ProductSku> getSkus(ProductSkuSearchCondition condition);

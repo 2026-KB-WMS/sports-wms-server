@@ -31,9 +31,11 @@ public record ProductSkuRegisterRequest(
         @DecimalMin(value = "0", inclusive = true, message = "중량은 0 이상이어야 합니다.")
         BigDecimal weight,
 
+        @NotNull(message = "매입 단가는 필수 값입니다.")
         @PositiveOrZero(message = "매입 단가는 0 이상이어야 합니다.")
         BigDecimal currentPurchasePrice,
 
+        @NotNull(message = "공급 단가는 필수 값입니다.")
         @PositiveOrZero(message = "공급 단가는 0 이상이어야 합니다.")
         BigDecimal currentSupplyPrice,
 

@@ -21,8 +21,10 @@ import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductSkuRegisterRequest;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductSkuStatusRequest;
+import com.kb.wms.product.adapter.in.web.dto.request.ProductSkuUpdateRequest;
 import com.kb.wms.product.adapter.in.web.dto.request.SkuOptionConnectRequest;
 import com.kb.wms.product.adapter.in.web.dto.response.ProductSkuStatusResponse;
+import com.kb.wms.product.adapter.in.web.dto.response.ProductSkuUpdateResponse;
 import com.kb.wms.product.adapter.in.web.dto.response.ProductSkuCreateResponse;
 import com.kb.wms.product.adapter.in.web.dto.response.ProductSkuDetailResponse;
 import com.kb.wms.product.adapter.in.web.dto.response.ProductSkuListItemResponse;
@@ -103,6 +105,15 @@ public class ProductSkuController {
                 productSkuUseCase.getSkuOptions(sku.getSkuId()),
                 sku.isPurchaseInfoVisibleTo(principal.isStoreOwner()));
         return ApiResponse.ok(response);
+    }
+
+    @PatchMapping("/{skuId}")
+    public ApiResponse<ProductSkuUpdateResponse> updateSku(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @PathVariable Long skuId,
+            @Valid @RequestBody ProductSkuUpdateRequest request) {
+        return ApiResponse.ok(ProductSkuUpdateResponse.from(
+                productSkuUseCase.updateSku(request.toCommand(skuId), principal)));
     }
 
     @PatchMapping("/{skuId}/status")
