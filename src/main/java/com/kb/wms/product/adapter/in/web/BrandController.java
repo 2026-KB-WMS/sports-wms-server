@@ -4,6 +4,8 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.product.adapter.in.web.dto.request.BrandRegisterRequest;
+import com.kb.wms.product.adapter.in.web.dto.request.BrandUpdateRequest;
 import com.kb.wms.product.adapter.in.web.dto.response.BrandCreateResponse;
 import com.kb.wms.product.adapter.in.web.dto.response.BrandResponse;
 import com.kb.wms.product.application.port.in.BrandQueryUseCase;
@@ -24,7 +27,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 브랜드 등록/조회. POST, GET /api/v1/products/brands
+ * 브랜드 등록/수정/조회. POST, GET /api/v1/products/brands, PATCH /api/v1/products/brands/{brandId}
  */
 @RestController
 @RequestMapping("/api/v1/products/brands")
@@ -38,6 +41,13 @@ public class BrandController {
     public ApiResponse<BrandCreateResponse> registerBrand(@Valid @RequestBody BrandRegisterRequest request) {
         Brand brand = brandQueryUseCase.registerBrand(request.toCommand());
         return ApiResponse.created(BrandCreateResponse.from(brand));
+    }
+
+    @PatchMapping("/{brandId}")
+    public ApiResponse<BrandResponse> updateBrand(@PathVariable Long brandId,
+                                                  @Valid @RequestBody BrandUpdateRequest request) {
+        Brand brand = brandQueryUseCase.updateBrand(request.toCommand(brandId));
+        return ApiResponse.ok(BrandResponse.from(brand));
     }
 
     @GetMapping

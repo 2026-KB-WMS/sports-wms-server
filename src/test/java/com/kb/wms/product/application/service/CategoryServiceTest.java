@@ -18,7 +18,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.product.application.port.in.command.CategoryRegisterCommand;
+import com.kb.wms.product.application.port.in.command.CategoryUpdateCommand;
 import com.kb.wms.product.application.port.in.query.CategorySearchCondition;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.domain.entity.Category;
@@ -137,5 +139,37 @@ class CategoryServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.CATEGORY_NOT_FOUND.name());
+    }
+
+    @Test
+    @DisplayName("카테고리 이름과 정렬 순서를 부분 수정하고 코드·깊이·상위는 그대로다")
+    void updateCategory_success() {
+        Category category = Category.register(3L, "CAT-1", "러닝", 2, 1);
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(categoryRepository.save(any(Category.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Category result = categoryService.updateCategory(new CategoryUpdateCommand(1L, "트레일 러닝", 5));
+
+        assertThat(result.getName()).isEqualTo("트레일 러닝");
+        assertThat(result.getSortOrder()).isEqualTo(5);
+        assertThat(result.getCategoryCode()).isEqualTo("CAT-1");
+        assertThat(result.getDepth()).isEqualTo(2);
+        assertThat(result.getParentCategoryId()).isEqualTo(3L);
+    }
+
+    @Test
+    @DisplayName("없는 카테고리는 CATEGORY_NOT_FOUND, 수정할 필드가 없으면 VALIDATION_ERROR다")
+    void updateCategory_notFoundAndNoChanges() {
+        when(categoryRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> categoryService.updateCategory(new CategoryUpdateCommand(999L, "이름", null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.CATEGORY_NOT_FOUND.name());
+        assertThatThrownBy(() -> categoryService.updateCategory(new CategoryUpdateCommand(1L, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
+        verify(categoryRepository, never()).save(any());
     }
 }

@@ -92,6 +92,12 @@ class ProductAuthorizationTest {
             mockMvc.perform(patch("/api/v1/products/skus/1").with(as(role))
                             .contentType(MediaType.APPLICATION_JSON).content("{}"))
                     .andExpect(status().isForbidden());
+            mockMvc.perform(patch("/api/v1/products/brands/1").with(as(role))
+                            .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(patch("/api/v1/products/categories/1").with(as(role))
+                            .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isForbidden());
         }
     }
 

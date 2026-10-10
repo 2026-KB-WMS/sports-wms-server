@@ -57,6 +57,14 @@ public class    Category {
         return this.parentCategoryId == null;
     }
 
+    public void changeName(String name) {
+        this.name = name;
+    }
+
+    public void changeSortOrder(int sortOrder) {
+        this.sortOrder = sortOrder;
+    }
+
     public void deactivate() {
         this.status = ProductStatus.INACTIVE;
     }

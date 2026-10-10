@@ -19,4 +19,7 @@ public interface BrandRepository {
     List<Brand> search(BrandSearchCondition condition);
 
     boolean existsByName(String name);
+
+    /** 다른 브랜드(excludeBrandId 제외)가 같은 이름을 쓰는지 */
+    boolean existsByNameAndBrandIdNot(String name, Long excludeBrandId);
 }

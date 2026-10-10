@@ -6,9 +6,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.product.application.port.in.CategoryUseCase;
 import com.kb.wms.product.application.port.in.query.CategorySearchCondition;
 import com.kb.wms.product.application.port.in.command.CategoryRegisterCommand;
+import com.kb.wms.product.application.port.in.command.CategoryUpdateCommand;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.exception.ProductErrorCode;
@@ -41,6 +43,23 @@ public class CategoryService implements CategoryUseCase {
 
         Category category = Category.register(
                 command.parentCategoryId(), command.categoryCode(), command.name(), depth, command.sortOrder());
+        return categoryRepository.save(category);
+    }
+
+    @Override
+    @Transactional
+    public Category updateCategory(CategoryUpdateCommand command) {
+        if (command.hasNoChanges()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "수정할 필드를 하나 이상 입력해주세요.");
+        }
+        Category category = categoryRepository.findById(command.categoryId())
+                .orElseThrow(() -> new BusinessException(ProductErrorCode.CATEGORY_NOT_FOUND));
+        if (command.name() != null) {
+            category.changeName(command.name());
+        }
+        if (command.sortOrder() != null) {
+            category.changeSortOrder(command.sortOrder());
+        }
         return categoryRepository.save(category);
     }
 

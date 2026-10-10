@@ -18,7 +18,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.product.application.port.in.command.BrandRegisterCommand;
+import com.kb.wms.product.application.port.in.command.BrandUpdateCommand;
 import com.kb.wms.product.application.port.in.query.BrandSearchCondition;
 import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.domain.entity.Brand;
@@ -89,5 +91,61 @@ class BrandServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.BRAND_NOT_FOUND.name());
+    }
+
+    @Test
+    @DisplayName("브랜드 이름과 설명을 부분 수정한다")
+    void updateBrand_success() {
+        Brand brand = Brand.register("브랜드 A", "설명");
+        when(brandRepository.findById(1L)).thenReturn(Optional.of(brand));
+        when(brandRepository.existsByNameAndBrandIdNot("새 이름", 1L)).thenReturn(false);
+        when(brandRepository.save(any(Brand.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Brand result = brandService.updateBrand(new BrandUpdateCommand(1L, "새 이름", null));
+
+        assertThat(result.getName()).isEqualTo("새 이름");
+        assertThat(result.getDescription()).isEqualTo("설명");
+    }
+
+    @Test
+    @DisplayName("비활성 브랜드도 수정할 수 있고 상태는 그대로다")
+    void updateBrand_inactiveBrand_keepsStatus() {
+        Brand brand = Brand.register("브랜드 A", "설명");
+        brand.deactivate();
+        when(brandRepository.findById(1L)).thenReturn(Optional.of(brand));
+        when(brandRepository.save(any(Brand.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Brand result = brandService.updateBrand(new BrandUpdateCommand(1L, null, "새 설명"));
+
+        assertThat(result.getDescription()).isEqualTo("새 설명");
+        assertThat(result.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("다른 브랜드가 쓰는 이름으로 바꾸면 DUPLICATE_BRAND_NAME 예외를 던진다")
+    void updateBrand_duplicateName() {
+        when(brandRepository.findById(1L)).thenReturn(Optional.of(Brand.register("브랜드 A", "설명")));
+        when(brandRepository.existsByNameAndBrandIdNot("브랜드 B", 1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> brandService.updateBrand(new BrandUpdateCommand(1L, "브랜드 B", null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.DUPLICATE_BRAND_NAME.name());
+        verify(brandRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("없는 브랜드는 BRAND_NOT_FOUND, 수정할 필드가 없으면 VALIDATION_ERROR다")
+    void updateBrand_notFoundAndNoChanges() {
+        when(brandRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> brandService.updateBrand(new BrandUpdateCommand(999L, "이름", null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.BRAND_NOT_FOUND.name());
+        assertThatThrownBy(() -> brandService.updateBrand(new BrandUpdateCommand(1L, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
     }
 }

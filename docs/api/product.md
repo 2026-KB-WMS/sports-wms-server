@@ -24,8 +24,10 @@
 | PATCH | /products/{productId} | HQ_ADMIN | 상품 수정 |
 | GET | /products/brands | 전체 | 브랜드 목록 |
 | POST | /products/brands | HQ_ADMIN | 브랜드 등록 |
+| PATCH | /products/brands/{brandId} | HQ_ADMIN | 브랜드 수정(이름·설명) |
 | GET | /products/categories | 전체 | 카테고리 목록 |
 | POST | /products/categories | HQ_ADMIN | 카테고리 등록 |
+| PATCH | /products/categories/{categoryId} | HQ_ADMIN | 카테고리 수정(이름·정렬 순서) |
 | POST | /products/option-groups | HQ_ADMIN | 옵션 그룹 등록 |
 | POST | /products/option-groups/{optionGroupId}/values | HQ_ADMIN | 옵션 값 등록 |
 | GET | /products/{productId}/option-groups | 전체 | 상품의 옵션 그룹 조회 |
@@ -71,6 +73,15 @@
 - POST(HQ_ADMIN): `brandName`(≤100, unique), `description`(≤500). 에러 `DUPLICATE_BRAND_NAME` 409. 201.
 - GET: query `keyword`, `isActive`. 정렬은 고정(`brandName` 오름차순, 같으면 `brandId` 오름차순). 응답 `data.items[]`.
 
+## PATCH /products/brands/{brandId} — 브랜드 수정 (#216)
+
+- 권한: HQ_ADMIN
+- Body(부분 수정, 최소 1개 필드): `brandName`(≤100, 공백 불가), `description`(≤500). 값이 있는 필드만 바꾼다.
+- 응답: `brandId, brandName, description, isActive`(목록 항목과 같음).
+- 에러: 400(필드 없음, 이름 공백·초과, 설명 초과), 403, 404 `BRAND_NOT_FOUND`, 409 `DUPLICATE_BRAND_NAME`(다른 브랜드가 쓰는 이름. 자기 이름 그대로는 통과)
+- 비활성 브랜드도 수정할 수 있고 활성 상태는 바뀌지 않는다. 이미 연결된 상품은 영향이 없다.
+- 브랜드·카테고리의 **비활성화·재활성화 API는 두지 않는다**(2026-10-10 결정, 필요한 업무가 없음).
+
 ## GET /products/categories, POST /products/categories
 
 - POST(HQ_ADMIN): `parentCategoryId`(선택), `categoryCode`(≤50, unique), `categoryName`(≤100), `sortOrder`(기본 0). `depth`는 서버가 계산.
@@ -78,6 +89,15 @@
 - 에러: `PARENT_CATEGORY_NOT_FOUND` 404, `DUPLICATE_CATEGORY_CODE` 409, `PARENT_CATEGORY_INACTIVE` 409
 - 미결: 카테고리 최대 depth 제한.
 - GET: query `parentCategoryId`, `depth`, `keyword`, `isActive`. 정렬은 고정(`sortOrder` 오름차순, 같으면 `categoryId` 오름차순). 에러: 404 `CATEGORY_NOT_FOUND`(존재하지 않는 `parentCategoryId` 필터).
+
+## PATCH /products/categories/{categoryId} — 카테고리 수정 (#216)
+
+- 권한: HQ_ADMIN
+- Body(부분 수정, 최소 1개 필드): `categoryName`(≤100, 공백 불가), `sortOrder`(≥0). 값이 있는 필드만 바꾼다.
+- `categoryCode`와 `parentCategoryId`는 수정할 수 없다(포함 시 400). 상위를 옮기면 하위 카테고리의 `depth`가 모두 바뀌어야 해서 지원하지 않는다.
+- 응답: 목록 항목과 같은 필드(`categoryId, parentCategoryId, categoryCode, categoryName, depth, sortOrder, isActive, createdAt`).
+- 에러: 400, 403, 404 `CATEGORY_NOT_FOUND`
+- 비활성 카테고리도 수정할 수 있고 활성 상태는 바뀌지 않는다. 카테고리 비활성화 API는 두지 않는다(위 브랜드 결정과 같음).
 
 ## POST /products/option-groups
 

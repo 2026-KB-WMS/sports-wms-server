@@ -3,6 +3,7 @@ package com.kb.wms.product.adapter.in.web;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -22,6 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.BrandQueryUseCase;
 import com.kb.wms.product.application.port.in.command.BrandRegisterCommand;
+import com.kb.wms.product.application.port.in.command.BrandUpdateCommand;
 import com.kb.wms.product.application.port.in.query.BrandSearchCondition;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.exception.ProductErrorCode;
@@ -104,5 +106,47 @@ class BrandControllerTest {
         mockMvc.perform(get("/api/v1/products/brands").param("isActive", "maybe"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    @DisplayName("브랜드를 수정하면 200과 수정된 브랜드를 반환한다")
+    void updateBrand_success() throws Exception {
+        Brand brand = Brand.register("새 이름", "설명");
+        when(brandQueryUseCase.updateBrand(new BrandUpdateCommand(1L, "새 이름", null))).thenReturn(brand);
+
+        mockMvc.perform(patch("/api/v1/products/brands/{brandId}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"brandName\":\"새 이름\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.brandName").value("새 이름"))
+                .andExpect(jsonPath("$.data.isActive").value(true));
+    }
+
+    @Test
+    @DisplayName("브랜드 수정에서 이름이 공백이거나 100자를 넘으면 400 VALIDATION_ERROR다")
+    void updateBrand_validationError() throws Exception {
+        mockMvc.perform(patch("/api/v1/products/brands/{brandId}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"brandName\":\"  \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(patch("/api/v1/products/brands/{brandId}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"brandName\":\"" + "가".repeat(101) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    @DisplayName("브랜드 수정에서 다른 브랜드와 이름이 겹치면 409 DUPLICATE_BRAND_NAME이다")
+    void updateBrand_duplicate() throws Exception {
+        when(brandQueryUseCase.updateBrand(any(BrandUpdateCommand.class)))
+                .thenThrow(new BusinessException(ProductErrorCode.DUPLICATE_BRAND_NAME));
+
+        mockMvc.perform(patch("/api/v1/products/brands/{brandId}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"brandName\":\"브랜드 B\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("DUPLICATE_BRAND_NAME"));
     }
 }

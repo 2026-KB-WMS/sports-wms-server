@@ -42,6 +42,14 @@ public class Brand {
                 .build();
     }
 
+    public void changeName(String name) {
+        this.name = name;
+    }
+
+    public void changeDescription(String description) {
+        this.description = description;
+    }
+
     public void deactivate() {
         this.status = ProductStatus.INACTIVE;
     }
