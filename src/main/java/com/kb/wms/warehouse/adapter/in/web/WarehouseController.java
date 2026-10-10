@@ -88,4 +88,10 @@ public class WarehouseController {
         Warehouse warehouse = warehouseUseCase.deactivateWarehouse(warehouseId);
         return ApiResponse.ok(WarehouseResponse.from(warehouse));
     }
+
+    @PatchMapping("/{warehouseId}/activate")
+    public ApiResponse<WarehouseResponse> activateWarehouse(@PathVariable Long warehouseId) {
+        Warehouse warehouse = warehouseUseCase.activateWarehouse(warehouseId);
+        return ApiResponse.ok(WarehouseResponse.from(warehouse));
+    }
 }

@@ -110,4 +110,16 @@ public class SupplierService implements SupplierUseCase {
         supplier.deactivate();
         return supplierRepository.save(supplier);
     }
+
+    @Override
+    @Transactional
+    public Supplier activateSupplier(Long supplierId) {
+        Supplier supplier = supplierRepository.findById(supplierId)
+                .orElseThrow(() -> new BusinessException(SupplierErrorCode.SUPPLIER_NOT_FOUND));
+        if (supplier.isActive()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 활성화된 공급처입니다.");
+        }
+        supplier.activate();
+        return supplierRepository.save(supplier);
+    }
 }

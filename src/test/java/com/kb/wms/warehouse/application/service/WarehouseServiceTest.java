@@ -185,6 +185,41 @@ class WarehouseServiceTest {
     }
 
     @Test
+    @DisplayName("비활성 창고를 활성화하면 성공한다")
+    void activateWarehouse_success() {
+        Warehouse inactive = Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.TEN);
+        inactive.deactivate();
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(inactive));
+        when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(warehouseService.activateWarehouse(1L).isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 창고를 활성화하면 WAREHOUSE_NOT_FOUND 예외를 던진다")
+    void activateWarehouse_notFound() {
+        when(warehouseRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> warehouseService.activateWarehouse(999L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.WAREHOUSE_NOT_FOUND.name());
+    }
+
+    @Test
+    @DisplayName("이미 활성인 창고를 활성화하면 CONFLICT 예외를 던진다")
+    void activateWarehouse_alreadyActive_throwsConflict() {
+        Warehouse active = Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.TEN);
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(active));
+
+        assertThatThrownBy(() -> warehouseService.activateWarehouse(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.CONFLICT.name());
+        verify(warehouseRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("창고를 비활성화할 때 창고의 구역 행을 잠근 뒤 재고가 남아 있으면 WAREHOUSE_IN_USE 예외를 던진다")
     void deactivateWarehouse_hasInventory() {
         Warehouse active = Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.TEN);

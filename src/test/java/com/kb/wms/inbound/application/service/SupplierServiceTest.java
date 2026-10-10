@@ -260,6 +260,40 @@ class SupplierServiceTest {
         verify(supplierRepository, never()).save(any());
     }
 
+    @Test
+    @DisplayName("비활성 공급처를 활성화하면 성공한다")
+    void activateSupplier_success() {
+        Supplier inactive = newSupplier();
+        inactive.deactivate();
+        when(supplierRepository.findById(1L)).thenReturn(Optional.of(inactive));
+        when(supplierRepository.save(any(Supplier.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(supplierService.activateSupplier(1L).isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 공급처를 활성화하면 SUPPLIER_NOT_FOUND 예외를 던진다")
+    void activateSupplier_notFound() {
+        when(supplierRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> supplierService.activateSupplier(999L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(SupplierErrorCode.SUPPLIER_NOT_FOUND.name());
+    }
+
+    @Test
+    @DisplayName("이미 활성인 공급처를 활성화하면 CONFLICT 예외를 던진다")
+    void activateSupplier_alreadyActive_throwsConflict() {
+        when(supplierRepository.findById(1L)).thenReturn(Optional.of(newSupplier()));
+
+        assertThatThrownBy(() -> supplierService.activateSupplier(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.CONFLICT.name());
+        verify(supplierRepository, never()).save(any());
+    }
+
 
     private static final AuthenticatedUser MANAGER =
             new AuthenticatedUser(5L, UserRole.WAREHOUSE_MANAGER, List.of(1L), List.of());

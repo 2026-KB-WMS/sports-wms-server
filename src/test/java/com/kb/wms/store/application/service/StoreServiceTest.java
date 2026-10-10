@@ -204,6 +204,45 @@ class StoreServiceTest {
     }
 
     @Test
+    @DisplayName("비활성 지점을 활성화하면 상태 이력에 기록한다")
+    void activateStore_success() {
+        Store inactive = Store.register("ST-GANGNAM", "강남점", "서울시 강남구", "김점주", "02-333-1234");
+        inactive.deactivate();
+        when(storeRepository.findById(1L)).thenReturn(Optional.of(inactive));
+        when(storeRepository.save(any(Store.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Store result = storeService.activateStore(1L, 5L);
+
+        assertThat(result.isActive()).isTrue();
+        verify(statusHistoryUseCase).record(StatusHistoryEntityType.STORE, 1L, "INACTIVE", "ACTIVE", null, 5L);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 지점을 활성화하면 STORE_NOT_FOUND 예외를 던진다")
+    void activateStore_notFound() {
+        when(storeRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> storeService.activateStore(999L, 1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(StoreErrorCode.STORE_NOT_FOUND.name());
+    }
+
+    @Test
+    @DisplayName("이미 활성인 지점을 활성화하면 CONFLICT 예외를 던지고 이력을 남기지 않는다")
+    void activateStore_alreadyActive_throwsConflict() {
+        Store active = Store.register("ST-GANGNAM", "강남점", "서울시 강남구", "김점주", "02-333-1234");
+        when(storeRepository.findById(1L)).thenReturn(Optional.of(active));
+
+        assertThatThrownBy(() -> storeService.activateStore(1L, 1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.CONFLICT.name());
+        verify(storeRepository, never()).save(any());
+        verify(statusHistoryUseCase, never()).record(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     @DisplayName("본인이 배정된 지점만 지점·배정 정보를 합쳐 반환한다")
     void getMyStores_returnsOnlyOwnMemberships() {
         Store store = Store.register("ST-GANGNAM", "강남점", "서울시 강남구", "김점주", "02-333-1234");

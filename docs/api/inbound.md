@@ -12,7 +12,8 @@
 
 - Notion 상태 컬럼은 "시작 전"이지만 코드는 구현됨(상태 컬럼이 오래됨, 코드 기준).
 - Notion 명세의 `pageInfo`와 일반 `NOT_FOUND`는 현재 구현 기준과 다름 → conventions.md 기준 따름. 단 Supplier/PurchaseOrder 404는 도메인 코드(`SUPPLIER_NOT_FOUND`, `PURCHASE_ORDER_NOT_FOUND`).
-- 확정 필요(미결): 공급처 재활성화 방법, 같은 공급처 중복 발주 허용 범위, 확정 단계에서 항목 조정 가능 여부, 취소 발주의 항목 상태 처리, `REQUESTED` 발주 반려는 MVP 이후. 발주 번호는 `PO-yyyyMMdd-NNNN`으로 구현했다.
+- 공급처 재활성화는 `PATCH /suppliers/{supplierId}/activate`로 한다([ADR-014](../adr/014-reactivation-and-sku-deactivation-guard.md)).
+- 확정 필요(미결): 같은 공급처 중복 발주 허용 범위, 확정 단계에서 항목 조정 가능 여부, 취소 발주의 항목 상태 처리, `REQUESTED` 발주 반려는 MVP 이후. 발주 번호는 `PO-yyyyMMdd-NNNN`으로 구현했다.
 - **입고** 구현 대비 차이 (2026-10-02 이전 시점):
   - 입고 목록·구역 후보 조회는 `page`·`size`·`sort`와 `pageInfo`를 지원하지 않고 `data.items` 전체를 돌려준다(페이지네이션 보류). 구역 후보 응답의 가용 용량 필드명은 `availableCapacity`다(Notion의 `requiredQuantity` 설명에 적힌 `availableQuantity`와 다름).
   - 인증·인가는 #170에서 적용했다. 처리 사용자(등록·확정·취소·검수·완료)는 토큰 주체이며 `userId` 쿼리 파라미터는 받지 않는다. 역할은 보안 설정이, 담당 창고 범위와 발주 취소 권한(요청 발주는 작성자 창고 관리자만, 확정 발주는 본사만)은 서비스가 검사한다. 창고 관리자는 비활성 공급처가 목록에서 빠지고 단건 조회는 404 `SUPPLIER_NOT_FOUND`다.
@@ -23,7 +24,7 @@
   - 명세에 없이 서비스에 넣은 규칙: 같은 입고 안에서 (발주 항목, 로트) 중복은 400, 입고 완료 시 발주가 `CONFIRMED`가 아니거나 발주 항목별 입고 수량이 남은 수량을 넘으면 409 `CONFLICT`.
   - 확정 필요(미결): 발주 수량 초과 입고 허용 여부(현재 거절), 하위 구역이 있는 상위 구역에도 적치할 수 있는지, 취소된 입고를 다시 여는 방법(현재는 새 입고 등록), 같은 발주에 진행 중 입고를 여러 건 허용할지(현재 1건만).
 
-## 엔드포인트 목록 (5 + 6 + 9)
+## 엔드포인트 목록 (6 + 6 + 9)
 
 | Method | Path | 권한 | 설명 |
 |---|---|---|---|
@@ -32,6 +33,7 @@
 | GET | /suppliers/{supplierId} | HQ_ADMIN, WAREHOUSE_MANAGER | 공급처 상세 |
 | PATCH | /suppliers/{supplierId} | HQ_ADMIN | 공급처 수정 |
 | PATCH | /suppliers/{supplierId}/deactivate | HQ_ADMIN | 공급처 비활성화 |
+| PATCH | /suppliers/{supplierId}/activate | HQ_ADMIN | 공급처 재활성화 |
 | POST | /purchase-orders | WAREHOUSE_MANAGER | 창고 발주 등록(REQUESTED) |
 | GET | /purchase-orders | HQ_ADMIN, WAREHOUSE_MANAGER | 발주 목록 |
 | GET | /purchase-orders/{purchaseOrderId} | HQ_ADMIN, WAREHOUSE_MANAGER | 발주 헤더 조회 |
@@ -52,7 +54,7 @@
 
 ## 공급처 (Supplier)
 
-`isActive` = `status == 'ACTIVE'`. 상태 전이 ACTIVE→INACTIVE만.
+`isActive` = `status == 'ACTIVE'`. 상태 전이는 `deactivate`(ACTIVE→INACTIVE)와 `activate`(INACTIVE→ACTIVE)뿐이다.
 
 ### POST /suppliers (P0)
 
@@ -83,6 +85,12 @@
 - 응답: `supplierId, supplierCode, supplierName, isActive=false, updatedAt`
 - 에러: `SUPPLIER_NOT_FOUND` 404, 409 `CONFLICT`(이미 INACTIVE), 409 `SUPPLIER_IN_USE`(진행 중 발주 = `REQUESTED` 또는 `CONFIRMED` 존재; `COMPLETED`/`CANCELED` 제외)
 - 비활성화 후 신규 발주 등록 불가, 창고 관리자 목록에서 숨김. 기존 발주·입고·`Lot.supplier_id` 이력 보존. 확인과 변경은 같은 트랜잭션.
+
+### PATCH /suppliers/{supplierId}/activate
+
+- 응답: 공급처 상세와 같은 필드, `isActive=true`. Body 없음.
+- 에러: `SUPPLIER_NOT_FOUND` 404, 409 `CONFLICT`(이미 ACTIVE)
+- 활성화 후 신규 발주 등록과 `REQUESTED` 발주 확정이 다시 가능하고, 창고 관리자 목록에 다시 보인다.
 
 ## 창고 발주 (PurchaseOrder)
 

@@ -93,4 +93,12 @@ public class StoreController {
         Store store = storeUseCase.deactivateStore(storeId, reason, principal.userId());
         return ApiResponse.ok(StoreResponse.from(store));
     }
+
+    @PatchMapping("/{storeId}/activate")
+    public ApiResponse<StoreResponse> activateStore(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @PathVariable Long storeId) {
+        Store store = storeUseCase.activateStore(storeId, principal.userId());
+        return ApiResponse.ok(StoreResponse.from(store));
+    }
 }

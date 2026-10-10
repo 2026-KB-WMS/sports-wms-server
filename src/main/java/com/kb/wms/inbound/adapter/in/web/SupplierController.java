@@ -80,4 +80,10 @@ public class SupplierController {
         Supplier supplier = supplierUseCase.deactivateSupplier(supplierId);
         return ApiResponse.ok(SupplierDeactivateResponse.from(supplier));
     }
+
+    @PatchMapping("/{supplierId}/activate")
+    public ApiResponse<SupplierResponse> activateSupplier(@PathVariable Long supplierId) {
+        Supplier supplier = supplierUseCase.activateSupplier(supplierId);
+        return ApiResponse.ok(SupplierResponse.from(supplier));
+    }
 }
