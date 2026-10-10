@@ -50,10 +50,10 @@ public class ProductSkuJpaEntity extends BaseTimeEntity {
     @Column(name = "weight", precision = 12, scale = 3)
     private BigDecimal weight;
 
-    @Column(name = "current_purchase_price", precision = 18, scale = 2)
+    @Column(name = "current_purchase_price", nullable = false, precision = 18, scale = 2)
     private BigDecimal currentPurchasePrice;
 
-    @Column(name = "current_supply_price", precision = 18, scale = 2)
+    @Column(name = "current_supply_price", nullable = false, precision = 18, scale = 2)
     private BigDecimal currentSupplyPrice;
 
     @Column(name = "unit", nullable = false, length = 20)
