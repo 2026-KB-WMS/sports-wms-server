@@ -3,6 +3,7 @@ package com.kb.wms.product.adapter.in.web;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -23,6 +24,7 @@ import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.CategoryUseCase;
 import com.kb.wms.product.application.port.in.query.CategorySearchCondition;
 import com.kb.wms.product.application.port.in.command.CategoryRegisterCommand;
+import com.kb.wms.product.application.port.in.command.CategoryUpdateCommand;
 import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.exception.ProductErrorCode;
 
@@ -87,5 +89,47 @@ class CategoryControllerTest {
     }
 
     private record TestRequest(Long parentCategoryId, String categoryCode, String categoryName, Integer sortOrder) {
+    }
+
+    @Test
+    @DisplayName("카테고리를 수정하면 200과 수정된 카테고리를 반환한다")
+    void updateCategory_success() throws Exception {
+        Category category = Category.register(null, "CAT-1", "새 이름", 1, 3);
+        when(categoryUseCase.updateCategory(new CategoryUpdateCommand(1L, "새 이름", 3))).thenReturn(category);
+
+        mockMvc.perform(patch("/api/v1/products/categories/{categoryId}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"categoryName\":\"새 이름\",\"sortOrder\":3}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.categoryName").value("새 이름"))
+                .andExpect(jsonPath("$.data.sortOrder").value(3));
+    }
+
+    @Test
+    @DisplayName("카테고리 수정에서 categoryCode·parentCategoryId를 보내거나 음수 정렬 순서면 400이다")
+    void updateCategory_validationError() throws Exception {
+        for (String body : List.of(
+                "{\"categoryCode\":\"NEW\"}",
+                "{\"parentCategoryId\":2}",
+                "{\"sortOrder\":-1}",
+                "{\"categoryName\":\" \"}")) {
+            mockMvc.perform(patch("/api/v1/products/categories/{categoryId}", 1L)
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        }
+    }
+
+    @Test
+    @DisplayName("없는 카테고리를 수정하면 404 CATEGORY_NOT_FOUND다")
+    void updateCategory_notFound() throws Exception {
+        when(categoryUseCase.updateCategory(any(CategoryUpdateCommand.class)))
+                .thenThrow(new BusinessException(ProductErrorCode.CATEGORY_NOT_FOUND));
+
+        mockMvc.perform(patch("/api/v1/products/categories/{categoryId}", 999L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"categoryName\":\"이름\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("CATEGORY_NOT_FOUND"));
     }
 }

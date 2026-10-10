@@ -27,6 +27,7 @@
 | PATCH | /products/brands/{brandId} | HQ_ADMIN | 브랜드 수정(이름·설명) |
 | GET | /products/categories | 전체 | 카테고리 목록 |
 | POST | /products/categories | HQ_ADMIN | 카테고리 등록 |
+| PATCH | /products/categories/{categoryId} | HQ_ADMIN | 카테고리 수정(이름·정렬 순서) |
 | POST | /products/option-groups | HQ_ADMIN | 옵션 그룹 등록 |
 | POST | /products/option-groups/{optionGroupId}/values | HQ_ADMIN | 옵션 값 등록 |
 | GET | /products/{productId}/option-groups | 전체 | 상품의 옵션 그룹 조회 |
@@ -88,6 +89,15 @@
 - 에러: `PARENT_CATEGORY_NOT_FOUND` 404, `DUPLICATE_CATEGORY_CODE` 409, `PARENT_CATEGORY_INACTIVE` 409
 - 미결: 카테고리 최대 depth 제한.
 - GET: query `parentCategoryId`, `depth`, `keyword`, `isActive`. 정렬은 고정(`sortOrder` 오름차순, 같으면 `categoryId` 오름차순). 에러: 404 `CATEGORY_NOT_FOUND`(존재하지 않는 `parentCategoryId` 필터).
+
+## PATCH /products/categories/{categoryId} — 카테고리 수정 (#216)
+
+- 권한: HQ_ADMIN
+- Body(부분 수정, 최소 1개 필드): `categoryName`(≤100, 공백 불가), `sortOrder`(≥0). 값이 있는 필드만 바꾼다.
+- `categoryCode`와 `parentCategoryId`는 수정할 수 없다(포함 시 400). 상위를 옮기면 하위 카테고리의 `depth`가 모두 바뀌어야 해서 지원하지 않는다.
+- 응답: 목록 항목과 같은 필드(`categoryId, parentCategoryId, categoryCode, categoryName, depth, sortOrder, isActive, createdAt`).
+- 에러: 400, 403, 404 `CATEGORY_NOT_FOUND`
+- 비활성 카테고리도 수정할 수 있고 활성 상태는 바뀌지 않는다. 카테고리 비활성화 API는 두지 않는다(위 브랜드 결정과 같음).
 
 ## POST /products/option-groups
 
