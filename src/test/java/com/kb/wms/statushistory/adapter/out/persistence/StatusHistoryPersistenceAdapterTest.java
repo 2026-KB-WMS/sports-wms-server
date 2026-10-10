@@ -15,8 +15,13 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.kb.wms.auth.adapter.out.persistence.entity.UserJpaEntity;
+import com.kb.wms.auth.adapter.out.persistence.repository.UserJpaRepository;
+import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.auth.domain.enums.UserStatus;
 import com.kb.wms.statushistory.adapter.out.persistence.repository.StatusHistoryJpaRepository;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
+import com.kb.wms.statushistory.application.port.in.result.StatusHistoryView;
 import com.kb.wms.statushistory.application.port.out.StatusHistoryRepository;
 import com.kb.wms.statushistory.domain.entity.StatusHistory;
 import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
@@ -30,12 +35,16 @@ import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 class StatusHistoryPersistenceAdapterTest {
 
     private static final StatusHistoryEntityType ORDER = StatusHistoryEntityType.STORE_ORDER;
+    private static final String USER_PREFIX = "sh-name-";
 
     @Autowired
     private StatusHistoryRepository statusHistoryRepository;
 
     @Autowired
     private StatusHistoryJpaRepository statusHistoryJpaRepository;
+
+    @Autowired
+    private UserJpaRepository userJpaRepository;
 
     @Autowired
     private StatusHistoryUseCase statusHistoryUseCase;
@@ -46,6 +55,8 @@ class StatusHistoryPersistenceAdapterTest {
     @AfterEach
     void cleanUp() {
         statusHistoryJpaRepository.deleteAll();
+        userJpaRepository.deleteAll(userJpaRepository.findAll().stream()
+                .filter(user -> user.getLoginId().startsWith(USER_PREFIX)).toList());
     }
 
     private StatusHistory history(StatusHistoryEntityType type, Long entityId, String from, String to,
@@ -97,6 +108,29 @@ class StatusHistoryPersistenceAdapterTest {
     @DisplayName("이력이 없는 엔티티는 빈 목록을 돌려준다")
     void findByEntity_empty() {
         assertThat(statusHistoryRepository.findByEntity(ORDER, 999L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("이력 뷰는 처리자 이름을 채우고, 사용자가 없어도 이력 행은 유지하며 시간순으로 정렬된다")
+    void findViewsByEntity_joinsUserNameAndKeepsRowsWithoutUser() {
+        UserJpaEntity user = userJpaRepository.save(UserJpaEntity.builder()
+                .loginId(USER_PREFIX + "1").passwordHash("hash").name("홍길동")
+                .email(USER_PREFIX + "1@example.com").phone("010-0000-0000")
+                .role(UserRole.HQ_ADMIN).status(UserStatus.ACTIVE).build());
+        LocalDateTime base = LocalDateTime.of(2026, 10, 3, 9, 0);
+        statusHistoryRepository.save(StatusHistory.record(
+                ORDER, 1L, "REQUESTED", "APPROVED", null, 987654321L, base.plusHours(1)));
+        statusHistoryRepository.save(StatusHistory.record(
+                ORDER, 1L, null, "REQUESTED", null, user.getUserId(), base));
+        statusHistoryRepository.save(history(ORDER, 2L, null, "REQUESTED", null, base));
+
+        List<StatusHistoryView> views = statusHistoryUseCase.findHistoryViews(ORDER, 1L);
+
+        assertThat(views).extracting(StatusHistoryView::toStatus).containsExactly("REQUESTED", "APPROVED");
+        assertThat(views.get(0).fromStatus()).isNull();
+        assertThat(views.get(0).changedBy()).isEqualTo(user.getUserId());
+        assertThat(views.get(0).changedByName()).isEqualTo("홍길동");
+        assertThat(views.get(1).changedByName()).isNull();
     }
 
     @Test

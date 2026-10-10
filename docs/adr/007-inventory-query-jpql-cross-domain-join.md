@@ -19,7 +19,7 @@
 - 조회 전용 별도 읽기 모델(별도 뷰 테이블/역정규화 테이블) — 기각. 현재 규모에서는 과설계이며, 동기화 로직을 추가로 관리해야 한다.
 
 ## 개정 (2026-10-06, #168)
-사용자 이름(`receivedByName`, `createdByName`, `allocatedByName`, 담당자 목록의 `userName`·`loginId`)도 같은 방식으로 채운다. 재고 조회뿐 아니라 입고·창고 발주·지점 발주·출고 할당·담당자 목록의 조회 전용 JPQL이 `users` 테이블을 ID로 조인한다(사용자가 없는 행이 사라지지 않도록 이름만 필요한 곳은 `left join`). 명령(쓰기) 경로의 사용자 확인은 계속 `UserUseCase`를 거친다. 상태 이력(`statushistory`)의 처리자 이름은 당시 `common.statushistory`가 auth 엔티티를 참조하게 되므로 조인하지 않았다. 패키지는 ADR-015로 분리되었고, 이름 조인은 후속 작업이다.
+사용자 이름(`receivedByName`, `createdByName`, `allocatedByName`, 담당자 목록의 `userName`·`loginId`)도 같은 방식으로 채운다. 재고 조회뿐 아니라 입고·창고 발주·지점 발주·출고 할당·담당자 목록의 조회 전용 JPQL이 `users` 테이블을 ID로 조인한다(사용자가 없는 행이 사라지지 않도록 이름만 필요한 곳은 `left join`). 명령(쓰기) 경로의 사용자 확인은 계속 `UserUseCase`를 거친다. 상태 이력(`statushistory`)의 처리자 이름은 당시 `common.statushistory`가 auth 엔티티를 참조하게 되므로 조인하지 않았다. 패키지는 ADR-015로 분리되었고, 이름 조인은 #213에서 같은 방식(`left join`)으로 적용했다.
 
 ## 영향
 - 조회 전용 리포지토리(InventoryQueryRepository/InventoryLotJpaRepository)는 다른 도메인의 JPA 엔티티(ProductSkuJpaEntity, WarehouseSectionJpaEntity, WarehouseJpaEntity)를 JPQL에서 직접 참조한다. 이는 명령 경로의 "ID만 참조" 원칙과 다르므로, 코드리뷰 시 "조회 전용인지" 구분해서 봐야 한다.

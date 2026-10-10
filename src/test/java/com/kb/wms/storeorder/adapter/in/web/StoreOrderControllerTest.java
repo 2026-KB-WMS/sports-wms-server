@@ -358,7 +358,7 @@ class StoreOrderControllerTest {
                 .thenReturn(new StoreOrderDetails(7L, "SO-20261002-0001", StoreOrderStatus.ASSIGNED,
                         StoreOrderProgressStage.PREPARING, lines(),
                         List.of(new StoreOrderOutboundView(100L, "OB-1", StoreOrderOutboundStatus.PICKING, null, null)),
-                        List.of(new StoreOrderStatusHistoryView("REQUESTED", "APPROVED", null, 5L, T1))));
+                        List.of(new StoreOrderStatusHistoryView("REQUESTED", "APPROVED", null, 5L, "김본사", T1))));
 
         mockMvc.perform(get("/api/v1/orders/{orderId}/details", 7L))
                 .andExpect(status().isOk())
@@ -369,7 +369,8 @@ class StoreOrderControllerTest {
                 .andExpect(jsonPath("$.data.items[0].lineAmount").value(10000))
                 .andExpect(jsonPath("$.data.outbounds[0].outboundNo").value("OB-1"))
                 .andExpect(jsonPath("$.data.statusHistory[0].toStatus").value("APPROVED"))
-                .andExpect(jsonPath("$.data.statusHistory[0].changedBy").value(5));
+                .andExpect(jsonPath("$.data.statusHistory[0].changedBy").value(5))
+                .andExpect(jsonPath("$.data.statusHistory[0].changedByName").value("김본사"));
     }
 
     // ---------- 승인 ----------

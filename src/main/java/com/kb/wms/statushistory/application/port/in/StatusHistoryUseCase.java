@@ -3,6 +3,7 @@ package com.kb.wms.statushistory.application.port.in;
 import java.util.List;
 import java.util.Optional;
 
+import com.kb.wms.statushistory.application.port.in.result.StatusHistoryView;
 import com.kb.wms.statushistory.domain.entity.StatusHistory;
 import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 
@@ -21,6 +22,9 @@ public interface StatusHistoryUseCase {
 
     /** 엔티티별 이력을 시간순(오래된 것부터)으로 조회한다. */
     List<StatusHistory> findHistory(StatusHistoryEntityType entityType, Long entityId);
+
+    /** 엔티티별 이력을 처리자 이름과 함께 시간순(오래된 것부터)으로 조회한다. 응답용 조회 전용. */
+    List<StatusHistoryView> findHistoryViews(StatusHistoryEntityType entityType, Long entityId);
 
     /** 현재 상태로 바뀔 때 기록된 사유(statusReason). 이력이나 사유가 없으면 비어 있다. */
     Optional<String> findStatusReason(StatusHistoryEntityType entityType, Long entityId, String currentStatus);
