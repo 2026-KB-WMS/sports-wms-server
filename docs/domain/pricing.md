@@ -18,8 +18,8 @@
 
 | # | 단가 | 컬럼 | 값이 정해지는 시점과 출처 | 이후 변경 | 없을 때 |
 |---|---|---|---|---|---|
-| 1 | SKU 현재 매입 단가 | `product_sku.current_purchase_price` | SKU 등록 요청 본문(선택) | 수정 API 없음 | 창고 발주 등록 409 `PURCHASE_PRICE_MISSING` |
-| 2 | SKU 현재 공급 단가 | `product_sku.current_supply_price` | SKU 등록 요청 본문(선택) | 수정 API 없음 | 지점 발주 등록 409 `SUPPLY_PRICE_MISSING` |
+| 1 | SKU 현재 매입 단가 | `product_sku.current_purchase_price` | SKU 등록 요청 본문(필수) | `PATCH /products/skus/{skuId}`(HQ_ADMIN), 변경 이력 기록(ADR-017) | NOT NULL(방어용 `PURCHASE_PRICE_MISSING` 검사는 남아 있음) |
+| 2 | SKU 현재 공급 단가 | `product_sku.current_supply_price` | SKU 등록 요청 본문(필수) | `PATCH /products/skus/{skuId}`(HQ_ADMIN), 변경 이력 기록(ADR-017) | NOT NULL(방어용 `SUPPLY_PRICE_MISSING` 검사는 남아 있음) |
 | 3 | 발주 단가 | `purchase_order_line.ordered_unit_price` | 창고 발주 등록 시 #1 스냅샷. 요청에서 받지 않음 | 없음(스냅샷) | NOT NULL |
 | 4 | 입고 단가 | `inbound_line.received_unit_price` | 검수(`PATCH /inbounds/{id}/inspect`) 요청 본문, 필수 | 검수 단계에서만 | NOT NULL |
 | 5 | 로트 원가 | `lot.unit_cost` | 로트 find-or-create 때 입고 단가(#4) | 없음. 같은 로트에 다른 단가로 입고하면 409 `LOT_UNIT_COST_MISMATCH` | NOT NULL |
@@ -43,13 +43,13 @@
 
 ## 단계별 규칙
 
-**→ 창고 발주 등록(매입 단가 스냅샷).** `SkuPurchasePriceAdapter`가 상품 도메인에서 SKU를 읽는다. 비활성 SKU는 409 `CONFLICT`, 매입 단가가 없으면 409 `PURCHASE_PRICE_MISSING`이다. 이후 SKU 단가가 바뀌어도 기존 발주 단가는 그대로다.
+**→ 창고 발주 등록(매입 단가 스냅샷).** `SkuPurchasePriceAdapter`가 상품 도메인에서 SKU를 읽는다. 비활성 SKU는 409 `CONFLICT`, 매입 단가가 없으면 409 `PURCHASE_PRICE_MISSING`이지만, SKU 단가가 NOT NULL(ADR-017)이라 정상 경로에서는 나지 않는 방어용 검사다. 이후 SKU 단가가 바뀌어도 기존 발주 단가는 그대로다.
 
 **→ 입고 검수(입고 단가 입력).** 입고 단가는 항목마다 필수이고 0 이상, 소수 2자리까지다. 발주 단가와 다르면 `priceChangeReason`(500자 이하)이 필수다. 이 단가가 새 로트의 `unit_cost`가 된다.
 
 **→ 로트 원가 고정.** 로트는 SKU + 공급처 + 로트 번호로 찾고 없으면 만든다(ADR-004). 이미 있는 로트에 다른 단가로 입고하면 409 `LOT_UNIT_COST_MISMATCH`다. 단가가 다른 입고는 로트 번호를 새로 받아야 한다.
 
-**→ 지점 발주 등록(공급 단가 스냅샷).** `SkuSupplyPriceAdapter`가 SKU를 읽는다. 비활성 SKU는 409 `CONFLICT`, 공급 단가가 없으면 409 `SUPPLY_PRICE_MISSING`이다. 승인 단계는 공급 단가를 다시 검사하지 않는다.
+**→ 지점 발주 등록(공급 단가 스냅샷).** `SkuSupplyPriceAdapter`가 SKU를 읽는다. 비활성 SKU는 409 `CONFLICT`, 공급 단가가 없으면 409 `SUPPLY_PRICE_MISSING`이지만, SKU 단가가 NOT NULL(ADR-017)이라 정상 경로에서는 나지 않는 방어용 검사다. 승인 단계는 공급 단가를 다시 검사하지 않는다.
 
 **→ 피킹 완료(출고 단가 확정).** `OutboundFulfillmentService.resolvePrices`가 항목마다 발주 항목의 스냅샷 → SKU 현재 공급 단가 순으로 정하고, 둘 다 없으면 피킹 전체를 409 `SUPPLY_PRICE_MISSING`으로 거절한다. 출고 항목 금액은 이때 확정된다.
 
@@ -69,15 +69,15 @@
 
 코드 기준 확인한 사실이다. 어느 쪽도 임의로 고치지 않았다.
 
-**1 → SKU 단가를 바꾸는 API가 없다.** `ProductSku`에는 등록(`register`)과 활성/비활성만 있고 단가 수정 경로가 없다(`api/product.md`의 엔드포인트도 같다). 등록 때 단가를 잘못 넣었거나 비워 뒀다면 발주 등록이 `PURCHASE_PRICE_MISSING`·`SUPPLY_PRICE_MISSING`으로 막히고, 고치려면 DB를 직접 수정해야 한다.
+**1 → ~~SKU 단가를 바꾸는 API가 없다.~~ 해소(#207, ADR-017).** SKU 등록의 두 단가는 필수이고 DB도 `NOT NULL`이며, `PATCH /products/skus/{skuId}`로 단가를 바꾸고 변경 이력(`sku_price_history`)을 남긴다. 마이그레이션 V16이 기존 NULL 단가를 0으로 채웠으므로, 비어 있던 SKU는 수정 API로 실제 단가를 넣어야 한다.
 
 **2 → SKU 현재 매입 단가는 입고 단가로 갱신되지 않는다.** 발주 단가와 다른 입고 단가는 로트 원가에만 반영되고 #1은 그대로다. "최근 입고가"를 SKU에 반영하는 로직은 없다.
 
 **3 → 매입과 공급 사이에 연결이 없다.** 로트 원가(#5)는 공급 단가 계산이나 마진 검증에 쓰이지 않는다. 매입 단가보다 낮은 공급 단가도 막지 않는다.
 
-**4 → 출고 확정 단가의 SKU 현재값 대체는 정상 경로에서 쓰이지 않는다.** 지점 발주 등록이 단가 없는 항목을 막으므로 #6은 비어 있지 않다. DB를 직접 수정한 데이터를 위한 안전망이다.
+**4 → 출고 확정 단가의 SKU 현재값 대체는 정상 경로에서 쓰이지 않는다.** (SKU 단가가 NOT NULL이 되어 발주 항목 단가가 비어도 SKU 단가로 확정되며 `SUPPLY_PRICE_MISSING`은 나지 않는다.) 지점 발주 등록이 단가 없는 항목을 막으므로 #6은 비어 있지 않다. DB를 직접 수정한 데이터를 위한 안전망이다.
 
-**5 → 지점 발주 항목의 단가 컬럼은 NULL을 허용한다.** 데이터 사전 기준이며 도메인이 막고 있다(V11 마이그레이션 주석). 컬럼을 NOT NULL로 바꿀지는 결정이 필요하다.
+**5 → 지점 발주 항목의 단가 컬럼은 NULL을 허용한다.** 데이터 사전 기준이며 도메인이 막고 있다(V11 마이그레이션 주석). 컬럼을 NOT NULL로 바꿀지는 결정이 필요하다. (SKU 단가 컬럼은 ADR-017에서 NOT NULL이 되었다.)
 
 ## 관련 문서
 

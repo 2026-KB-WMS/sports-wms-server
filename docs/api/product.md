@@ -11,6 +11,7 @@
 - 목록 API(상품·브랜드·카테고리·SKU)는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고).
 - Notion 명세의 `pageInfo`, 일반 `NOT_FOUND`는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
 - 점주(STORE_OWNER) 제한(#182): 상품·SKU 목록은 `isActive` 필터와 상관없이 활성 항목만, 비활성 상품·SKU 단건은 404(`PRODUCT_NOT_FOUND`/`SKU_NOT_FOUND`)다. SKU 목록·단건 응답에서 `currentPurchasePrice`·`safetyStockQuantity` 필드는 점주에게 생략한다. 값이 없는(미설정) 경우도 필드를 생략하므로, 본사·창고 관리자 응답에서도 `null` 대신 필드가 빠진다. SKU의 점주 제한(활성만)은 명세에 명시돼 있지 않아 상품과 같게 적용했다.
+- SKU 단가 필수·수정(#207, [ADR-017](../adr/017-sku-price-required-and-update.md)): SKU 등록의 매입·공급 단가는 필수이고(0 이상, 0 허용) DB도 `NOT NULL`이다. 등록 후 `PATCH /products/skus/{skuId}`로 이름·바코드·중량·단가·안전재고를 수정하며, 단가가 바뀌면 처리자와 함께 이력(`sku_price_history`)을 남긴다.
 - 미결: 카테고리 최대 depth, SKU 옵션 조합 중복 허용 규칙.
 
 ## 엔드포인트 목록 (15 + 코드 전용 1)
@@ -94,9 +95,29 @@
 ## POST /products/skus — SKU 등록
 
 - 권한: HQ_ADMIN
-- Body: `productId`, `skuCode`(≤50), `barcode`(선택, ≤100, unique), `skuName`(≤200), `weight`(선택), `currentPurchasePrice`(선택), `currentSupplyPrice`(선택), `unit`(기본 `EA`), `safetyStockQuantity`(기본 0, BIGINT)
-- 에러: `PRODUCT_NOT_FOUND` 404, `PRODUCT_INACTIVE` 409, `DUPLICATE_SKU_CODE` 409, `DUPLICATE_BARCODE` 409
+- Body: `productId`, `skuCode`(≤50), `barcode`(선택, ≤100, unique), `skuName`(≤200), `weight`(선택), `currentPurchasePrice`(**필수**, 0 이상), `currentSupplyPrice`(**필수**, 0 이상), `unit`(기본 `EA`), `safetyStockQuantity`(기본 0, BIGINT)
+- 에러: 400 `VALIDATION_ERROR`(단가 누락·음수 포함), `PRODUCT_NOT_FOUND` 404, `PRODUCT_INACTIVE` 409, `DUPLICATE_SKU_CODE` 409, `DUPLICATE_BARCODE` 409
 - 미결: 동일 옵션 조합 SKU 중복 허용 규칙.
+
+## PATCH /products/skus/{skuId} — SKU 수정 (코드 추가, #207)
+
+- 권한: HQ_ADMIN(마스터 데이터, [ADR-003](../adr/003-master-data-owned-by-hq.md)). 비활성 SKU도 수정할 수 있다.
+- Body: 모든 필드가 선택이며 값이 있는 필드만 수정한다. **최소 1개 필요**(없으면 400).
+
+| 필드 | 규칙 |
+|---|---|
+| skuName | 1~200자 |
+| barcode | ≤100, 다른 SKU와 겹치면 409 `DUPLICATE_BARCODE`(자기 바코드를 다시 보내는 것은 허용). 비우기는 지원하지 않음 |
+| weight | 0 이상 |
+| currentPurchasePrice | 0 이상 |
+| currentSupplyPrice | 0 이상 |
+| safetyStockQuantity | 0 이상, BIGINT |
+
+- `skuCode`, `productId`, `unit`, `isActive`를 보내면 400 `VALIDATION_ERROR`다(상태는 `PATCH /products/skus/{skuId}/status`).
+- 200. 응답: `skuId, productId, skuCode, barcode, skuName, weight, currentPurchasePrice, currentSupplyPrice, unit, safetyStockQuantity, isActive, updatedAt`
+- 에러: 400 `VALIDATION_ERROR`, 401, 403(HQ_ADMIN이 아님), 404 `SKU_NOT_FOUND`, 409 `DUPLICATE_BARCODE`
+- 단가 이력: 매입·공급 단가 중 하나라도 실제로 바뀌면 이전·이후 단가와 처리자(토큰의 `userId`), 시각을 `sku_price_history`에 한 행 남긴다. 같은 값을 다시 보내거나 단가 외 필드만 바꾸면 남기지 않는다. 이력 조회 API는 아직 없다.
+- 이미 만든 창고 발주·지점 발주·출고 항목의 단가는 스냅샷이라 바뀌지 않는다.
 
 ## GET /products/skus — SKU 목록
 
