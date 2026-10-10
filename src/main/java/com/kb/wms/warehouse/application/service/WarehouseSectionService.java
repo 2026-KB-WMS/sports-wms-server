@@ -1,5 +1,6 @@
 package com.kb.wms.warehouse.application.service;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -38,12 +39,14 @@ public class WarehouseSectionService implements WarehouseSectionUseCase {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "허용되지 않은 구역 유형입니다.");
         }
 
-        Warehouse warehouse = warehouseRepository.findById(command.warehouseId())
+        // 같은 상위 아래 구역들의 수용량 합을 비교하므로, 동시 등록과 겹치지 않게 창고 행을 잠근다.
+        Warehouse warehouse = warehouseRepository.findByIdForUpdate(command.warehouseId())
                 .orElseThrow(() -> new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND));
         if (!warehouse.isActive()) {
             throw new BusinessException(ErrorCode.CONFLICT, "비활성 창고에는 구역을 등록할 수 없습니다.");
         }
 
+        BigDecimal upperCapacity = warehouse.getTotalCapacity();
         if (command.parentSectionId() != null) {
             WarehouseSection parent = warehouseSectionRepository.findById(command.parentSectionId())
                     .orElseThrow(() -> new BusinessException(WarehouseErrorCode.PARENT_SECTION_NOT_FOUND));
@@ -53,11 +56,14 @@ public class WarehouseSectionService implements WarehouseSectionUseCase {
             if (!parent.isActive()) {
                 throw new BusinessException(ErrorCode.CONFLICT, "비활성 상위 구역에는 하위 구역을 등록할 수 없습니다.");
             }
+            upperCapacity = parent.getCapacity();
         }
 
         if (warehouseSectionRepository.existsByWarehouseIdAndSectionCode(command.warehouseId(), command.sectionCode())) {
             throw new BusinessException(WarehouseErrorCode.DUPLICATE_SECTION_CODE);
         }
+        requireWithinUpperCapacity(command.warehouseId(), command.parentSectionId(), null,
+                upperCapacity, command.capacity());
 
         WarehouseSection section = WarehouseSection.register(
                 command.warehouseId(), command.parentSectionId(), command.sectionCode(),
@@ -135,6 +141,18 @@ public class WarehouseSectionService implements WarehouseSectionUseCase {
             if (command.capacity().compareTo(section.getCurrentCapacity()) < 0) {
                 throw new BusinessException(WarehouseErrorCode.CAPACITY_BELOW_USAGE);
             }
+            // 하위·형제 구역 합과 비교하므로 창고 행을 잠근 뒤 확인한다(구역 → 창고 순서, 등록과 같다).
+            Warehouse warehouse = warehouseRepository.findByIdForUpdate(section.getWarehouseId())
+                    .orElseThrow(() -> new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND));
+            if (command.capacity().compareTo(warehouseSectionRepository.sumActiveCapacity(
+                    section.getWarehouseId(), sectionId, null)) < 0) {
+                throw new BusinessException(WarehouseErrorCode.CAPACITY_BELOW_CHILDREN);
+            }
+            // 줄이는 변경은 상위 한도를 넘을 수 없으므로 늘릴 때, 활성 구역만 확인한다.
+            if (section.isActive() && command.capacity().compareTo(section.getCapacity()) > 0) {
+                requireWithinUpperCapacity(section.getWarehouseId(), section.getParentSectionId(), sectionId,
+                        upperCapacityOf(warehouse, section.getParentSectionId()), command.capacity());
+            }
             section.changeCapacity(command.capacity());
         }
 
@@ -169,19 +187,43 @@ public class WarehouseSectionService implements WarehouseSectionUseCase {
         if (section.isActive()) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 활성화된 구역입니다.");
         }
-        Warehouse warehouse = warehouseRepository.findById(section.getWarehouseId())
+        Warehouse warehouse = warehouseRepository.findByIdForUpdate(section.getWarehouseId())
                 .orElseThrow(() -> new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND));
         if (!warehouse.isActive()) {
             throw new BusinessException(ErrorCode.CONFLICT, "비활성 창고의 구역은 활성화할 수 없습니다.");
         }
+        BigDecimal upperCapacity = warehouse.getTotalCapacity();
         if (section.getParentSectionId() != null) {
             WarehouseSection parent = warehouseSectionRepository.findById(section.getParentSectionId())
                     .orElseThrow(() -> new BusinessException(WarehouseErrorCode.PARENT_SECTION_NOT_FOUND));
             if (!parent.isActive()) {
                 throw new BusinessException(ErrorCode.CONFLICT, "비활성 상위 구역의 하위 구역은 활성화할 수 없습니다.");
             }
+            upperCapacity = parent.getCapacity();
         }
+        // 비활성 구역은 합계에 들어 있지 않으므로, 활성화하면 형제 합에 자기 수용량이 더해진다.
+        requireWithinUpperCapacity(section.getWarehouseId(), section.getParentSectionId(), null,
+                upperCapacity, section.getCapacity());
         section.activate();
         return warehouseSectionRepository.save(section);
+    }
+
+    private BigDecimal upperCapacityOf(Warehouse warehouse, Long parentSectionId) {
+        if (parentSectionId == null) {
+            return warehouse.getTotalCapacity();
+        }
+        return warehouseSectionRepository.findById(parentSectionId)
+                .orElseThrow(() -> new BusinessException(WarehouseErrorCode.PARENT_SECTION_NOT_FOUND))
+                .getCapacity();
+    }
+
+    /** 같은 상위 아래 활성 구역들의 수용량 합에 capacity를 더해도 상위 수용량(0이면 0)을 넘지 않아야 한다. */
+    private void requireWithinUpperCapacity(Long warehouseId, Long parentSectionId, Long excludeSectionId,
+                                            BigDecimal upperCapacity, BigDecimal capacity) {
+        BigDecimal siblings = warehouseSectionRepository.sumActiveCapacity(
+                warehouseId, parentSectionId, excludeSectionId);
+        if (siblings.add(capacity).compareTo(upperCapacity) > 0) {
+            throw new BusinessException(WarehouseErrorCode.PARENT_CAPACITY_EXCEEDED);
+        }
     }
 }

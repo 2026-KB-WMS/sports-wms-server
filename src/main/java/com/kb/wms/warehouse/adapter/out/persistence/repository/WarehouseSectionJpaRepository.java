@@ -1,5 +1,6 @@
 package com.kb.wms.warehouse.adapter.out.persistence.repository;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -41,4 +42,17 @@ public interface WarehouseSectionJpaRepository extends JpaRepository<WarehouseSe
                                            @Param("status") WarehouseStatus status);
 
     List<WarehouseSectionJpaEntity> findAllByWarehouseId(Long warehouseId);
+
+    @Query("""
+            select coalesce(sum(s.capacity), 0) from WarehouseSectionJpaEntity s
+            where s.warehouseId = :warehouseId
+              and s.status = :status
+              and ((:parentSectionId is null and s.parentSectionId is null)
+                   or s.parentSectionId = :parentSectionId)
+              and (:excludeSectionId is null or s.sectionId <> :excludeSectionId)
+            """)
+    BigDecimal sumCapacity(@Param("warehouseId") Long warehouseId,
+                           @Param("parentSectionId") Long parentSectionId,
+                           @Param("excludeSectionId") Long excludeSectionId,
+                           @Param("status") WarehouseStatus status);
 }

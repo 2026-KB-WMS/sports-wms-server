@@ -15,6 +15,11 @@ public interface WarehouseRepository {
 
     Optional<Warehouse> findById(Long warehouseId);
 
+    /**
+     * SELECT ... FOR UPDATE로 조회한다. 창고 아래 구역 수용량 관계를 확인·변경할 때 트랜잭션 안에서만 호출한다.
+     */
+    Optional<Warehouse> findByIdForUpdate(Long warehouseId);
+
     /** 조건이 null이면 해당 조건은 무시한다. 생성 일시 내림차순. */
     List<Warehouse> search(WarehouseSearchCondition condition);
 

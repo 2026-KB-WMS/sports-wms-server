@@ -74,7 +74,8 @@ public class WarehouseService implements WarehouseUseCase {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "수정할 필드를 하나 이상 입력해주세요.");
         }
 
-        Warehouse warehouse = warehouseRepository.findById(warehouseId)
+        // 최상위 구역 합과 비교하므로, 구역 등록·수정과 겹치지 않게 창고 행을 잠근 뒤 확인한다.
+        Warehouse warehouse = warehouseRepository.findByIdForUpdate(warehouseId)
                 .orElseThrow(() -> new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND));
 
         if (command.name() != null) {
@@ -87,6 +88,10 @@ public class WarehouseService implements WarehouseUseCase {
             warehouse.changeContactNumber(command.contactNumber());
         }
         if (command.totalCapacity() != null) {
+            if (command.totalCapacity().compareTo(
+                    warehouseSectionRepository.sumActiveCapacity(warehouseId, null, null)) < 0) {
+                throw new BusinessException(WarehouseErrorCode.CAPACITY_BELOW_CHILDREN);
+            }
             warehouse.changeTotalCapacity(command.totalCapacity());
         }
 

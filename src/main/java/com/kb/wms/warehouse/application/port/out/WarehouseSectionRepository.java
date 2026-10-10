@@ -1,5 +1,6 @@
 package com.kb.wms.warehouse.application.port.out;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,6 +30,12 @@ public interface WarehouseSectionRepository {
     List<WarehouseSection> findAllByWarehouseId(Long warehouseId);
 
     boolean existsByWarehouseIdAndSectionCode(Long warehouseId, String sectionCode);
+
+    /**
+     * 같은 상위 구역 아래 활성 직속 구역들의 수용량 합. parentSectionId가 null이면 창고의 최상위 활성 구역 합.
+     * excludeSectionId가 있으면 그 구역은 합계에서 뺀다(자기 수용량을 바꿀 때).
+     */
+    BigDecimal sumActiveCapacity(Long warehouseId, Long parentSectionId, Long excludeSectionId);
 
     /** 활성 상태의 직속 하위 구역이 있는지 */
     boolean existsActiveChild(Long parentSectionId);

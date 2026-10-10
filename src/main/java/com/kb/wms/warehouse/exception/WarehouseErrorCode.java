@@ -19,6 +19,8 @@ public enum WarehouseErrorCode implements DomainErrorCode {
     DUPLICATE_SECTION_CODE(ErrorCode.CONFLICT, "해당 창고에 이미 존재하는 구역 코드입니다."),
     CAPACITY_BELOW_USAGE(ErrorCode.CONFLICT, "수용량은 현재 사용 용량보다 작게 설정할 수 없습니다."),
     SECTION_CAPACITY_EXCEEDED(ErrorCode.CONFLICT, "구역의 수용량을 초과합니다."),
+    PARENT_CAPACITY_EXCEEDED(ErrorCode.CONFLICT, "같은 상위 구역(또는 창고) 아래 구역들의 수용량 합이 상위 수용량을 초과합니다."),
+    CAPACITY_BELOW_CHILDREN(ErrorCode.CONFLICT, "수용량은 활성 하위 구역들의 수용량 합보다 작게 설정할 수 없습니다."),
     SECTION_INACTIVE(ErrorCode.CONFLICT, "비활성 구역에는 재고를 적치할 수 없습니다."),
     WAREHOUSE_INACTIVE(ErrorCode.CONFLICT, "비활성 창고의 구역에는 재고를 적치할 수 없습니다."),
     SECTION_HAS_INVENTORY(ErrorCode.CONFLICT, "재고가 남아 있는 구역은 비활성화할 수 없습니다."),
