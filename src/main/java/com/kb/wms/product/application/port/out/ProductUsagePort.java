@@ -23,4 +23,7 @@ public interface ProductUsagePort {
 
     /** 종결되지 않은 지점 발주(REQUESTED·APPROVED·ASSIGNED·ON_HOLD)의 항목에 이 상품의 SKU가 있으면 true. */
     boolean hasInProgressStoreOrders(Long productId);
+
+    /** 이 SKU 하나가 위 다섯 조건(재고·진행 중 입고·창고 발주·출고·지점 발주) 중 하나라도 해당하면 true. */
+    boolean isSkuInUse(Long skuId);
 }

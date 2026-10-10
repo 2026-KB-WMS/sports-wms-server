@@ -29,7 +29,10 @@ public interface ProductSkuUseCase {
     /** 사용자 요청용 단건 조회. 점주가 비활성 SKU를 조회하면 SKU_NOT_FOUND(404)다. */
     ProductSku getSku(Long skuId, AuthenticatedUser actor);
 
-    /** 활성화는 상품이 비활성이면 PRODUCT_INACTIVE로 거절한다. 이미 같은 상태면 그대로 반환한다. */
+    /**
+     * 활성화는 상품이 비활성이면 PRODUCT_INACTIVE로 거절한다. 비활성화는 활성 SKU에 재고가 남아 있거나
+     * 진행 중인 업무가 있으면 SKU_IN_USE로 거절한다. 이미 같은 상태면 그대로 반환한다.
+     */
     ProductSku changeSkuStatus(Long skuId, boolean active);
 
     void connectOptions(SkuOptionConnectCommand command);
