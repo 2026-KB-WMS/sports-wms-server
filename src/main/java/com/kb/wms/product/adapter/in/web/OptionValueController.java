@@ -13,12 +13,14 @@ import com.kb.wms.product.adapter.in.web.dto.response.OptionValueResponse;
 import com.kb.wms.product.application.port.in.OptionValueUseCase;
 import com.kb.wms.product.domain.entity.OptionValue;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
  * 옵션 값 등록. POST /api/v1/products/option-groups/{optionGroupId}/values
  */
+@Tag(name = "상품 옵션")
 @RestController
 @RequiredArgsConstructor
 public class OptionValueController {

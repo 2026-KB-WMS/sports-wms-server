@@ -28,6 +28,7 @@ import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 import com.kb.wms.warehouse.application.port.in.query.WarehouseSectionSearchCondition;
 import com.kb.wms.warehouse.domain.entity.WarehouseSection;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -39,6 +40,7 @@ import lombok.RequiredArgsConstructor;
  * 서로 다른 두 기준 경로(/warehouses/sections, /warehouses/{warehouseId}/sections)를 함께 다루기 위해
  * 클래스 레벨 @RequestMapping 없이 메서드마다 전체 경로를 명시한다.
  */
+@Tag(name = "창고 구역")
 @RestController
 @RequiredArgsConstructor
 public class WarehouseSectionController {

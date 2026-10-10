@@ -37,6 +37,7 @@ import com.kb.wms.inventory.domain.enums.QualityStatus;
 import com.kb.wms.inventory.domain.enums.ReferenceType;
 import com.kb.wms.inventory.domain.enums.TransactionType;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -46,6 +47,7 @@ import lombok.RequiredArgsConstructor;
  * 페이지네이션은 프로젝트 전체에 아직 도입하지 않아(#20 1단계) page/size/sort는 받지 않고 전체 목록을 반환한다.
  * 조정 처리자는 토큰 주체다. 담당 창고 범위 검사는 서비스가 한다.
  */
+@Tag(name = "재고")
 @RestController
 @RequiredArgsConstructor
 public class InventoryController {

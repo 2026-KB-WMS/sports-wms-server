@@ -22,6 +22,7 @@ import com.kb.wms.product.application.port.in.CategoryUseCase;
 import com.kb.wms.product.application.port.in.query.CategorySearchCondition;
 import com.kb.wms.product.domain.entity.Category;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -29,6 +30,7 @@ import lombok.RequiredArgsConstructor;
  * 카테고리 등록/수정/조회. POST, GET /api/v1/products/categories, PATCH /api/v1/products/categories/{categoryId}
  * 페이지네이션·역할별 응답 차등은 아직 적용하지 않는다(#20 1단계).
  */
+@Tag(name = "카테고리")
 @RestController
 @RequestMapping("/api/v1/products/categories")
 @RequiredArgsConstructor

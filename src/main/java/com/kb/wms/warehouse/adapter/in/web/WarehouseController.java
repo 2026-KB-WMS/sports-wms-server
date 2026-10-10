@@ -26,6 +26,7 @@ import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 import com.kb.wms.warehouse.application.port.in.query.WarehouseSearchCondition;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -34,6 +35,7 @@ import lombok.RequiredArgsConstructor;
  * POST, GET, PATCH /api/v1/warehouses, GET /api/v1/warehouses/my
  * my 조회는 토큰 주체 본인의 소속 창고를 돌려주고, 단건 조회는 서비스가 담당 창고(HQ_ADMIN은 전체)만 허용한다.
  */
+@Tag(name = "창고")
 @RestController
 @RequestMapping("/api/v1/warehouses")
 @RequiredArgsConstructor

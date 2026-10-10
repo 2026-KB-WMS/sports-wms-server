@@ -23,12 +23,14 @@ import com.kb.wms.product.application.port.in.BrandQueryUseCase;
 import com.kb.wms.product.application.port.in.query.BrandSearchCondition;
 import com.kb.wms.product.domain.entity.Brand;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
  * 브랜드 등록/수정/조회. POST, GET /api/v1/products/brands, PATCH /api/v1/products/brands/{brandId}
  */
+@Tag(name = "브랜드")
 @RestController
 @RequestMapping("/api/v1/products/brands")
 @RequiredArgsConstructor

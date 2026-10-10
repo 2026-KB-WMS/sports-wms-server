@@ -26,6 +26,7 @@ import com.kb.wms.inbound.application.port.in.SupplierUseCase;
 import com.kb.wms.inbound.application.port.in.query.SupplierSearchCondition;
 import com.kb.wms.inbound.domain.entity.Supplier;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -34,6 +35,7 @@ import lombok.RequiredArgsConstructor;
  * POST, GET, PATCH /api/v1/suppliers
  * 창고 관리자에게는 활성 공급처만 보이는 규칙(목록은 isActive=true 고정, 비활성 단건은 404)을 서비스가 처리한다.
  */
+@Tag(name = "공급처")
 @RestController
 @RequestMapping("/api/v1/suppliers")
 @RequiredArgsConstructor
