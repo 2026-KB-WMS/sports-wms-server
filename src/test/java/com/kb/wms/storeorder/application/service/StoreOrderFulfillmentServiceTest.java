@@ -23,8 +23,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.common.exception.BusinessException;
-import com.kb.wms.common.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.common.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
+import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderLinePickedCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderLineQuantityCommand;
 import com.kb.wms.storeorder.application.port.out.StoreOrderRepository;
