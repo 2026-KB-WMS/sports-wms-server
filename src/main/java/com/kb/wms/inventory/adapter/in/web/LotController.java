@@ -8,13 +8,16 @@ import java.util.Map;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.common.security.AuthenticatedUser;
+import com.kb.wms.inventory.adapter.in.web.dto.request.LotStatusChangeRequest;
 import com.kb.wms.inventory.adapter.in.web.dto.response.LotDetailResponse;
 import com.kb.wms.inventory.adapter.in.web.dto.response.LotSummaryResponse;
 import com.kb.wms.inventory.application.port.in.InventoryQueryUseCase;
@@ -25,10 +28,11 @@ import com.kb.wms.inventory.application.port.in.result.InventoryLotView;
 import com.kb.wms.inventory.application.port.in.result.LotSummary;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 로트 마스터 조회. GET /api/v1/lots, /lots/{lotId}
+ * 로트 마스터 조회·상태 변경. GET /api/v1/lots, /lots/{lotId}, PATCH /lots/{lotId}/status
  * 로트는 별도 생성 API 없이 입고 검수 트랜잭션 안에서 만들어진다(ADR-004).
  */
 @RestController
@@ -67,6 +71,14 @@ public class LotController {
                 .map(LotDetailResponse.InboundItem::from)
                 .toList();
         return ApiResponse.ok(LotDetailResponse.of(summary, inventory, inbounds));
+    }
+
+    @PatchMapping("/api/v1/lots/{lotId}/status")
+    public ApiResponse<LotSummaryResponse> changeLotStatus(@AuthenticationPrincipal AuthenticatedUser principal,
+                                                           @PathVariable Long lotId,
+                                                           @Valid @RequestBody LotStatusChangeRequest request) {
+        lotUseCase.changeLotStatus(lotId, request.toCommand(principal.userId()));
+        return ApiResponse.ok(LotSummaryResponse.from(lotUseCase.getLot(lotId, principal)));
     }
 
     private LotDetailResponse.InventoryItem toInventoryItem(InventoryLotView view, Map<Long, String> warehouseNames) {

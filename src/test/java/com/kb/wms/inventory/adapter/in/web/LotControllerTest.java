@@ -3,8 +3,11 @@ package com.kb.wms.inventory.adapter.in.web;
 import static com.kb.wms.common.security.TestAuth.signInAsHqAdmin;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -149,4 +152,51 @@ class LotControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("LOT_NOT_FOUND"));
     }
+
+    @Test
+    @DisplayName("PATCH /api/v1/lots/{lotId}/status: 상태를 바꾸고 변경된 로트를 반환한다")
+    void changeStatus_success() throws Exception {
+        LotSummary summary = new LotSummary(1L, "LOT-001", 2L, "SKU-001", "상품A", 3L, "한빛식품",
+                LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1), LotStatus.QUARANTINED,
+                BigDecimal.TEN, null, null);
+        when(lotUseCase.getLot(eq(1L), any())).thenReturn(summary);
+
+        mockMvc.perform(patch("/api/v1/lots/{lotId}/status", 1L)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"QUARANTINED\",\"reason\":\"품질 이상\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lotId").value(1))
+                .andExpect(jsonPath("$.data.status").value("QUARANTINED"));
+
+        verify(lotUseCase).changeLotStatus(eq(1L), any());
+    }
+
+    @Test
+    @DisplayName("PATCH /api/v1/lots/{lotId}/status: 상태나 사유가 없으면 400이다")
+    void changeStatus_validation() throws Exception {
+        mockMvc.perform(patch("/api/v1/lots/{lotId}/status", 1L)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"사유\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(patch("/api/v1/lots/{lotId}/status", 1L)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISPOSED\",\"reason\":\" \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/v1/lots/{lotId}/status: 허용되지 않은 전이는 409로 응답한다")
+    void changeStatus_conflict() throws Exception {
+        doThrow(new BusinessException(InventoryErrorCode.INVALID_LOT_STATUS_TRANSITION))
+                .when(lotUseCase).changeLotStatus(eq(1L), any());
+
+        mockMvc.perform(patch("/api/v1/lots/{lotId}/status", 1L)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"AVAILABLE\",\"reason\":\"사유\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_LOT_STATUS_TRANSITION"));
+    }
 }
+

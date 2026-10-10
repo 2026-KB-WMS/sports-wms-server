@@ -7,11 +7,12 @@
 
 - Notion 명세의 `pageInfo`와 일반 `NOT_FOUND`는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
 - 목록 API는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고).
-- 확정 필요(미결): 안전 재고를 창고별로 둘지 여부, `InventoryTransaction.reference_id`가 문서 헤더(Inbound/Outbound)인지 항목(Line)인지, 로트 상태 변경 API(격리·폐기·만료 전환) 필요 여부.
+- 확정 필요(미결): 안전 재고를 창고별로 둘지 여부, `InventoryTransaction.reference_id`가 문서 헤더(Inbound/Outbound)인지 항목(Line)인지.
+- 로트 상태 변경 `PATCH /lots/{lotId}/status`는 #215에서 추가했다(격리·해제·폐기). `EXPIRED`로 바꾸는 API와 만료를 자동 전환하는 작업은 없다(미결).
 - 인가(#170): 재고 조정 처리자는 토큰 주체이며 `userId` 쿼리 파라미터는 받지 않는다. 담당 창고 검사는 서비스에서 한다: 목록은 `warehouseId`를 생략하면 담당 창고로 좁히고(본사는 전체), 지정한 `warehouseId`·`sectionId`(구역의 창고)가 담당이 아니면 403이다. 재고 상세·재고별 이력·조정은 재고 행의 창고가 담당이 아니면 403이다. 로트 목록은 담당 창고에 재고가 있거나 입고 완료 이력이 있는 로트만 보이며, 입고 중(검수 중)인 로트는 완료 전까지 창고 관리자 목록에 나타나지 않는다. 로트 상세는 응답을 담당 창고 항목으로 좁히고, 보이는 항목이 없으면 403이다.
 - 수량은 BIGINT(정수). Lot은 별도 생성 API 없이 입고 검수 트랜잭션에서 find-or-create(UNIQUE(sku_id, supplier_id, lot_number), ADR-004 — Notion 원문 기준).
 
-## 엔드포인트 목록 (7 + 2)
+## 엔드포인트 목록 (7 + 3)
 
 | Method | Path | 권한 | 설명 |
 |---|---|---|---|
@@ -24,6 +25,7 @@
 | GET | /inventory/{inventoryId}/transactions | WAREHOUSE_MANAGER, HQ_ADMIN | 특정 재고 증감 이력 |
 | GET | /lots | WAREHOUSE_MANAGER, HQ_ADMIN | 로트 마스터 목록 |
 | GET | /lots/{lotId} | WAREHOUSE_MANAGER, HQ_ADMIN | 로트 상세 |
+| PATCH | /lots/{lotId}/status | HQ_ADMIN | 로트 상태 변경(격리·해제·폐기) |
 
 ## 공통 규칙
 
@@ -105,3 +107,24 @@
 - `inventory`는 구역별 InventoryLot, `inbounds`는 `InboundLine.lot_id`가 이 로트인 항목. 없으면 빈 배열.
 - WAREHOUSE_MANAGER: 담당 창고의 재고·입고 완료 이력이 있는 로트만(없으면 403), 응답의 `inventory`/`inbounds`는 담당 창고 항목만. 입고 이력(`inbounds`)만 따로 조회하는 API는 없으므로 403 판정은 항상 로트 단위(목록과 같은 기준)로 먼저 하고, 응답에서는 담당 창고 항목만 남긴다.
 - 에러: 404(로트 없음), 403
+
+## PATCH /lots/{lotId}/status — 로트 상태 변경 (P2)
+
+- Body: `status`(`AVAILABLE`/`QUARANTINED`/`DISPOSED`), `reason`(필수, 공백 불가, ≤500). `EXPIRED`와 알 수 없는 값은 400.
+- 응답: `GET /lots` 목록 항목과 같은 필드(`lotId, lotNumber, skuId, skuCode, skuName, supplierId, supplierName, manufacturedDate, expiryDate, status, unitCost`). 변경 후 상태가 담긴다.
+- 권한: HQ_ADMIN만. 로트는 여러 창고가 공유하는 마스터라 창고 관리자는 호출할 수 없다(403).
+- 허용 전이
+
+| 현재 → 목표 | 결과 |
+|---|---|
+| `AVAILABLE` → `QUARANTINED` | 격리. 이 로트의 할당 수량이 0일 때만 |
+| `QUARANTINED` → `AVAILABLE` | 해제. 유통기한이 지나지 않았을 때만 |
+| `AVAILABLE`·`QUARANTINED`·`EXPIRED` → `DISPOSED` | 폐기. 이 로트의 보유·할당 수량이 모두 0일 때만 |
+| `DISPOSED` → 어떤 상태든, `EXPIRED` → `AVAILABLE`·`QUARANTINED`, 같은 상태로 | 409 `INVALID_LOT_STATUS_TRANSITION` |
+
+- 에러: 400(`status` 누락·`EXPIRED`·알 수 없는 값, `reason` 누락·초과), 403, 404 `LOT_NOT_FOUND`, 409 `INVALID_LOT_STATUS_TRANSITION`, 409 `LOT_HAS_ALLOCATION`(격리 시 할당 수량 > 0), 409 `LOT_HAS_STOCK`(폐기 시 보유 또는 할당 수량 > 0)
+- 수량 검사는 로트 행과 이 로트의 모든 재고 행(`inventory_lot_id` 오름차순)을 잠그고 같은 트랜잭션에서 한다. 품질 상태가 `DEFECTIVE`인 재고도 보유 수량에 포함되므로 폐기 전에 실사 조정으로 0으로 정리한다.
+- 처리자와 사유는 상태 이력(`entity_type = LOT`)에 `from`→`to`로 남긴다. 이력 조회 API는 없다.
+- 부수 효과: 비가용(`QUARANTINED`·`DISPOSED`·`EXPIRED`) 로트는 입고 반영·할당이 `LOT_NOT_AVAILABLE`로 거절되고 가용 수량이 0이다(기존 동작 그대로).
+- 알려진 한계: 같은 로트를 다른 구역에 처음 입고하는 요청이 폐기와 동시에 오면, 입고가 로트 상태를 읽은 뒤 폐기가 먼저 커밋될 수 있다. 입고 경로가 로트 행을 잠그지 않기 때문이며, 그 수량은 실사 조정으로 정리한다(성능 개선 단계에서 락 순서와 함께 재검토).
+

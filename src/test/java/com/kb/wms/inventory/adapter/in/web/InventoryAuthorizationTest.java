@@ -5,6 +5,7 @@ import static com.kb.wms.common.security.TestAuth.storeOwner;
 import static com.kb.wms.common.security.TestAuth.warehouseManager;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -101,4 +102,20 @@ class InventoryAuthorizationTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
     }
+
+    @Test
+    @DisplayName("로트 상태 변경은 본사만 할 수 있고, 창고 관리자와 점주는 403이다")
+    void lotStatusChange_hqOnly() throws Exception {
+        String body = "{\"status\":\"QUARANTINED\",\"reason\":\"사유\"}";
+        mockMvc.perform(patch("/api/v1/lots/1/status").with(warehouseManager(2L, 1L))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(patch("/api/v1/lots/1/status").with(storeOwner(3L, 1L))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(patch("/api/v1/lots/1/status").with(hqAdmin())
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
+    }
 }
+

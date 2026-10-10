@@ -25,6 +25,9 @@ public enum InventoryErrorCode implements DomainErrorCode {
     INSUFFICIENT_STOCK(ErrorCode.CONFLICT, "가용 재고가 부족합니다."),
     LOT_NOT_AVAILABLE(ErrorCode.CONFLICT, "가용 상태가 아닌 로트입니다(만료·격리·폐기)."),
     SKU_NOT_ACTIVE(ErrorCode.CONFLICT, "비활성 SKU는 입고·할당할 수 없습니다."),
+    INVALID_LOT_STATUS_TRANSITION(ErrorCode.CONFLICT, "허용되지 않는 로트 상태 변경입니다."),
+    LOT_HAS_ALLOCATION(ErrorCode.CONFLICT, "할당 수량이 남아 있는 로트는 격리할 수 없습니다."),
+    LOT_HAS_STOCK(ErrorCode.CONFLICT, "보유 또는 할당 수량이 남아 있는 로트는 폐기할 수 없습니다."),
     LOT_UNIT_COST_MISMATCH(ErrorCode.CONFLICT, "기존 로트의 원가와 입고 단가가 다릅니다."),
     LOT_DATE_MISMATCH(ErrorCode.CONFLICT, "기존 로트의 제조일·유통기한과 요청 값이 다릅니다.");
 

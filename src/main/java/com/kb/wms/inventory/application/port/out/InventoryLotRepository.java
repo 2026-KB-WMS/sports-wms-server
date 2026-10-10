@@ -30,5 +30,10 @@ public interface InventoryLotRepository {
      */
     Optional<InventoryLot> findBySectionIdAndLotIdForUpdate(Long sectionId, Long lotId);
 
+    /**
+     * 한 로트의 모든 재고 행을 inventory_lot_id 오름차순으로 잠근다. 로트 상태 변경 전 수량 확인에 쓴다.
+     */
+    List<InventoryLot> findAllByLotIdForUpdate(Long lotId);
+
     boolean existsById(Long inventoryLotId);
 }

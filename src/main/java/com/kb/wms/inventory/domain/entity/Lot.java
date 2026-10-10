@@ -70,6 +70,19 @@ public class Lot {
         return this.expiryDate != null && this.expiryDate.isBefore(baseDate);
     }
 
+    /**
+     * 요청으로 바꿀 수 있는 전이인지 여부. AVAILABLE↔QUARANTINED, 그 외(EXPIRED 포함) → DISPOSED만 허용하고
+     * DISPOSED는 되돌릴 수 없다. EXPIRED는 목표가 될 수 없으며 EXPIRED에서 폐기가 아닌 전이도 없다.
+     */
+    public boolean canTransitionTo(LotStatus target) {
+        return switch (status) {
+            case AVAILABLE -> target == LotStatus.QUARANTINED || target == LotStatus.DISPOSED;
+            case QUARANTINED -> target == LotStatus.AVAILABLE || target == LotStatus.DISPOSED;
+            case EXPIRED -> target == LotStatus.DISPOSED;
+            case DISPOSED -> false;
+        };
+    }
+
     public void expire() {
         this.status = LotStatus.EXPIRED;
     }

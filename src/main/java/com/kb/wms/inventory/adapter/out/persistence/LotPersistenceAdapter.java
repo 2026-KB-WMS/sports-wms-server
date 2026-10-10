@@ -28,6 +28,11 @@ public class LotPersistenceAdapter implements LotRepository {
     }
 
     @Override
+    public Optional<Lot> findByIdForUpdate(Long lotId) {
+        return lotJpaRepository.findByIdForUpdate(lotId).map(LotJpaEntity::toDomain);
+    }
+
+    @Override
     public Optional<Lot> findBySkuIdAndSupplierIdAndLotNumber(Long skuId, Long supplierId, String lotNumber) {
         return lotJpaRepository.findBySkuIdAndSupplierIdAndLotNumber(skuId, supplierId, lotNumber)
                 .map(LotJpaEntity::toDomain);

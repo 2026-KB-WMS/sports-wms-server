@@ -13,6 +13,9 @@ public interface LotRepository {
 
     Optional<Lot> findById(Long lotId);
 
+    /** SELECT ... FOR UPDATE. 상태를 바꾸는 흐름에서만 트랜잭션 안에서 호출한다. */
+    Optional<Lot> findByIdForUpdate(Long lotId);
+
     /**
      * UNIQUE(sku_id, supplier_id, lot_number) 기준 조회 (로트 find-or-create).
      */

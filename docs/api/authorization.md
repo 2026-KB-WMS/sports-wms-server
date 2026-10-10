@@ -61,6 +61,7 @@
 |---|---|
 | GET /inventory, /inventory/by-lot, /inventory/low-stock, /inventory/transactions, /inventory/{id}, /inventory/{id}/transactions, /lots, /lots/{id} | HQ_ADMIN, WAREHOUSE_MANAGER(담당). 로트는 담당 창고에 재고가 있거나 입고 완료 이력이 있는 것만 보이며, 상세 응답의 재고·입고 이력도 담당 창고 항목만 남는다 |
 | POST /inventory/adjustments | WAREHOUSE_MANAGER(담당). HQ_ADMIN 불가 |
+| PATCH /lots/{id}/status | HQ_ADMIN만 (로트는 여러 창고가 공유하는 마스터) |
 
 ## 입고 (inbound)
 | 엔드포인트 | 역할 |
