@@ -46,4 +46,9 @@ public class BrandPersistenceAdapter implements BrandRepository {
     public boolean existsByName(String name) {
         return brandJpaRepository.existsByName(name);
     }
+
+    @Override
+    public boolean existsByNameAndBrandIdNot(String name, Long excludeBrandId) {
+        return brandJpaRepository.existsByNameAndBrandIdNot(name, excludeBrandId);
+    }
 }

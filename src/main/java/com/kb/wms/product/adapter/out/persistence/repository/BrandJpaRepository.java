@@ -13,6 +13,8 @@ public interface BrandJpaRepository extends JpaRepository<BrandJpaEntity, Long> 
 
     boolean existsByName(String name);
 
+    boolean existsByNameAndBrandIdNot(String name, Long brandId);
+
     @Query("""
             select b from BrandJpaEntity b
             where (:status is null or b.status = :status)

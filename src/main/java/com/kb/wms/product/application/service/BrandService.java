@@ -6,9 +6,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.product.application.port.in.BrandQueryUseCase;
 import com.kb.wms.product.application.port.in.query.BrandSearchCondition;
 import com.kb.wms.product.application.port.in.command.BrandRegisterCommand;
+import com.kb.wms.product.application.port.in.command.BrandUpdateCommand;
 import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.exception.ProductErrorCode;
@@ -29,6 +31,26 @@ public class BrandService implements BrandQueryUseCase {
             throw new BusinessException(ProductErrorCode.DUPLICATE_BRAND_NAME);
         }
         Brand brand = Brand.register(command.name(), command.description());
+        return brandRepository.save(brand);
+    }
+
+    @Override
+    @Transactional
+    public Brand updateBrand(BrandUpdateCommand command) {
+        if (command.hasNoChanges()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "수정할 필드를 하나 이상 입력해주세요.");
+        }
+        Brand brand = brandRepository.findById(command.brandId())
+                .orElseThrow(() -> new BusinessException(ProductErrorCode.BRAND_NOT_FOUND));
+        if (command.name() != null) {
+            if (brandRepository.existsByNameAndBrandIdNot(command.name(), command.brandId())) {
+                throw new BusinessException(ProductErrorCode.DUPLICATE_BRAND_NAME);
+            }
+            brand.changeName(command.name());
+        }
+        if (command.description() != null) {
+            brand.changeDescription(command.description());
+        }
         return brandRepository.save(brand);
     }
 

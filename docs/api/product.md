@@ -24,6 +24,7 @@
 | PATCH | /products/{productId} | HQ_ADMIN | 상품 수정 |
 | GET | /products/brands | 전체 | 브랜드 목록 |
 | POST | /products/brands | HQ_ADMIN | 브랜드 등록 |
+| PATCH | /products/brands/{brandId} | HQ_ADMIN | 브랜드 수정(이름·설명) |
 | GET | /products/categories | 전체 | 카테고리 목록 |
 | POST | /products/categories | HQ_ADMIN | 카테고리 등록 |
 | POST | /products/option-groups | HQ_ADMIN | 옵션 그룹 등록 |
@@ -70,6 +71,15 @@
 
 - POST(HQ_ADMIN): `brandName`(≤100, unique), `description`(≤500). 에러 `DUPLICATE_BRAND_NAME` 409. 201.
 - GET: query `keyword`, `isActive`. 정렬은 고정(`brandName` 오름차순, 같으면 `brandId` 오름차순). 응답 `data.items[]`.
+
+## PATCH /products/brands/{brandId} — 브랜드 수정 (#216)
+
+- 권한: HQ_ADMIN
+- Body(부분 수정, 최소 1개 필드): `brandName`(≤100, 공백 불가), `description`(≤500). 값이 있는 필드만 바꾼다.
+- 응답: `brandId, brandName, description, isActive`(목록 항목과 같음).
+- 에러: 400(필드 없음, 이름 공백·초과, 설명 초과), 403, 404 `BRAND_NOT_FOUND`, 409 `DUPLICATE_BRAND_NAME`(다른 브랜드가 쓰는 이름. 자기 이름 그대로는 통과)
+- 비활성 브랜드도 수정할 수 있고 활성 상태는 바뀌지 않는다. 이미 연결된 상품은 영향이 없다.
+- 브랜드·카테고리의 **비활성화·재활성화 API는 두지 않는다**(2026-10-10 결정, 필요한 업무가 없음).
 
 ## GET /products/categories, POST /products/categories
 
