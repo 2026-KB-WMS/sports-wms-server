@@ -54,8 +54,9 @@ class WarehouseSectionServiceTest {
     void registerSection_success() {
         WarehouseSectionRegisterCommand command =
                 new WarehouseSectionRegisterCommand(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
-        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
         when(warehouseSectionRepository.existsByWarehouseIdAndSectionCode(1L, "A-01")).thenReturn(false);
+        when(warehouseSectionRepository.sumActiveCapacity(1L, null, null)).thenReturn(BigDecimal.ZERO);
         when(warehouseSectionRepository.save(any(WarehouseSection.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -76,7 +77,7 @@ class WarehouseSectionServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
-        verify(warehouseRepository, never()).findById(any());
+        verify(warehouseRepository, never()).findByIdForUpdate(any());
     }
 
     @Test
@@ -84,7 +85,7 @@ class WarehouseSectionServiceTest {
     void registerSection_warehouseNotFound() {
         WarehouseSectionRegisterCommand command =
                 new WarehouseSectionRegisterCommand(999L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
-        when(warehouseRepository.findById(999L)).thenReturn(Optional.empty());
+        when(warehouseRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> warehouseSectionService.registerSection(command))
                 .isInstanceOf(BusinessException.class)
@@ -100,7 +101,7 @@ class WarehouseSectionServiceTest {
         inactiveWarehouse.deactivate();
         WarehouseSectionRegisterCommand command =
                 new WarehouseSectionRegisterCommand(2L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
-        when(warehouseRepository.findById(2L)).thenReturn(Optional.of(inactiveWarehouse));
+        when(warehouseRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(inactiveWarehouse));
 
         assertThatThrownBy(() -> warehouseSectionService.registerSection(command))
                 .isInstanceOf(BusinessException.class)
@@ -115,9 +116,10 @@ class WarehouseSectionServiceTest {
         WarehouseSection parent = WarehouseSection.register(1L, null, "A", "A구역", "ZONE", BigDecimal.valueOf(500));
         WarehouseSectionRegisterCommand command =
                 new WarehouseSectionRegisterCommand(1L, 10L, "A-01", "A-1랙", "RACK", BigDecimal.valueOf(50));
-        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
         when(warehouseSectionRepository.findById(10L)).thenReturn(Optional.of(parent));
         when(warehouseSectionRepository.existsByWarehouseIdAndSectionCode(1L, "A-01")).thenReturn(false);
+        when(warehouseSectionRepository.sumActiveCapacity(1L, 10L, null)).thenReturn(BigDecimal.ZERO);
         when(warehouseSectionRepository.save(any(WarehouseSection.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -132,7 +134,7 @@ class WarehouseSectionServiceTest {
     void registerSection_parentNotFound() {
         WarehouseSectionRegisterCommand command =
                 new WarehouseSectionRegisterCommand(1L, 999L, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
-        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
         when(warehouseSectionRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> warehouseSectionService.registerSection(command))
@@ -148,7 +150,7 @@ class WarehouseSectionServiceTest {
                 WarehouseSection.register(2L, null, "B", "B구역", "ZONE", BigDecimal.valueOf(500));
         WarehouseSectionRegisterCommand command =
                 new WarehouseSectionRegisterCommand(1L, 10L, "A-01", "A-1랙", "RACK", BigDecimal.valueOf(50));
-        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
         when(warehouseSectionRepository.findById(10L)).thenReturn(Optional.of(parentInOtherWarehouse));
 
         assertThatThrownBy(() -> warehouseSectionService.registerSection(command))
@@ -164,7 +166,7 @@ class WarehouseSectionServiceTest {
         inactiveParent.deactivate();
         WarehouseSectionRegisterCommand command =
                 new WarehouseSectionRegisterCommand(1L, 10L, "A-01", "A-1랙", "RACK", BigDecimal.valueOf(50));
-        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
         when(warehouseSectionRepository.findById(10L)).thenReturn(Optional.of(inactiveParent));
 
         assertThatThrownBy(() -> warehouseSectionService.registerSection(command))
@@ -178,7 +180,7 @@ class WarehouseSectionServiceTest {
     void registerSection_duplicateSectionCode() {
         WarehouseSectionRegisterCommand command =
                 new WarehouseSectionRegisterCommand(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
-        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
         when(warehouseSectionRepository.existsByWarehouseIdAndSectionCode(1L, "A-01")).thenReturn(true);
 
         assertThatThrownBy(() -> warehouseSectionService.registerSection(command))
@@ -416,7 +418,8 @@ class WarehouseSectionServiceTest {
         WarehouseSection inactive = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
         inactive.deactivate();
         when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(inactive));
-        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseSectionRepository.sumActiveCapacity(1L, null, null)).thenReturn(BigDecimal.ZERO);
         when(warehouseSectionRepository.save(any(WarehouseSection.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -432,8 +435,9 @@ class WarehouseSectionServiceTest {
         WarehouseSection child = WarehouseSection.register(1L, 10L, "A-01", "A-1랙", "RACK", BigDecimal.valueOf(50));
         child.deactivate();
         when(warehouseSectionRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(child));
-        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
         when(warehouseSectionRepository.findById(10L)).thenReturn(Optional.of(parent));
+        when(warehouseSectionRepository.sumActiveCapacity(1L, 10L, null)).thenReturn(BigDecimal.ZERO);
         when(warehouseSectionRepository.save(any(WarehouseSection.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -473,7 +477,7 @@ class WarehouseSectionServiceTest {
                 Warehouse.register("WH-002", "부산 물류센터", "부산시 해운대구", "051-1234-5678", BigDecimal.TEN);
         inactiveWarehouse.deactivate();
         when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(inactive));
-        when(warehouseRepository.findById(2L)).thenReturn(Optional.of(inactiveWarehouse));
+        when(warehouseRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(inactiveWarehouse));
 
         assertThatThrownBy(() -> warehouseSectionService.activateSection(1L))
                 .isInstanceOf(BusinessException.class)
@@ -491,7 +495,7 @@ class WarehouseSectionServiceTest {
         WarehouseSection child = WarehouseSection.register(1L, 10L, "A-01", "A-1랙", "RACK", BigDecimal.valueOf(50));
         child.deactivate();
         when(warehouseSectionRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(child));
-        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
         when(warehouseSectionRepository.findById(10L)).thenReturn(Optional.of(inactiveParent));
 
         assertThatThrownBy(() -> warehouseSectionService.activateSection(11L))
@@ -501,6 +505,141 @@ class WarehouseSectionServiceTest {
         verify(warehouseSectionRepository, never()).save(any());
     }
 
+
+    @Test
+    @DisplayName("최상위 구역 수용량 합이 창고 전체 수용량을 넘으면 PARENT_CAPACITY_EXCEEDED 예외를 던진다")
+    void registerSection_exceedsWarehouseTotalCapacity() {
+        WarehouseSectionRegisterCommand command =
+                new WarehouseSectionRegisterCommand(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseSectionRepository.existsByWarehouseIdAndSectionCode(1L, "A-01")).thenReturn(false);
+        when(warehouseSectionRepository.sumActiveCapacity(1L, null, null)).thenReturn(BigDecimal.valueOf(950));
+
+        assertThatThrownBy(() -> warehouseSectionService.registerSection(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.PARENT_CAPACITY_EXCEEDED.name());
+        verify(warehouseSectionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("형제 구역 합과 정확히 상위 구역 수용량이 같아지는 등록은 허용한다")
+    void registerSection_equalToParentCapacity_success() {
+        WarehouseSection parent = WarehouseSection.register(1L, null, "A", "A구역", "ZONE", BigDecimal.valueOf(500));
+        WarehouseSectionRegisterCommand command =
+                new WarehouseSectionRegisterCommand(1L, 10L, "A-02", "A-2랙", "RACK", BigDecimal.valueOf(100));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseSectionRepository.findById(10L)).thenReturn(Optional.of(parent));
+        when(warehouseSectionRepository.existsByWarehouseIdAndSectionCode(1L, "A-02")).thenReturn(false);
+        when(warehouseSectionRepository.sumActiveCapacity(1L, 10L, null)).thenReturn(BigDecimal.valueOf(400));
+        when(warehouseSectionRepository.save(any(WarehouseSection.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(warehouseSectionService.registerSection(command).getCapacity()).isEqualByComparingTo("100");
+    }
+
+    @Test
+    @DisplayName("하위 구역 수용량 합이 상위 구역 수용량을 넘으면 PARENT_CAPACITY_EXCEEDED 예외를 던진다")
+    void registerSection_exceedsParentCapacity() {
+        WarehouseSection parent = WarehouseSection.register(1L, null, "A", "A구역", "ZONE", BigDecimal.valueOf(500));
+        WarehouseSectionRegisterCommand command =
+                new WarehouseSectionRegisterCommand(1L, 10L, "A-02", "A-2랙", "RACK", BigDecimal.valueOf(101));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseSectionRepository.findById(10L)).thenReturn(Optional.of(parent));
+        when(warehouseSectionRepository.existsByWarehouseIdAndSectionCode(1L, "A-02")).thenReturn(false);
+        when(warehouseSectionRepository.sumActiveCapacity(1L, 10L, null)).thenReturn(BigDecimal.valueOf(400));
+
+        assertThatThrownBy(() -> warehouseSectionService.registerSection(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.PARENT_CAPACITY_EXCEEDED.name());
+    }
+
+    @Test
+    @DisplayName("창고 전체 수용량이 0이면 0보다 큰 구역을 등록할 수 없다")
+    void registerSection_warehouseTotalCapacityZero() {
+        Warehouse zeroWarehouse = Warehouse.register("WH-003", "미설정 창고", "서울시", null, BigDecimal.ZERO);
+        WarehouseSectionRegisterCommand command =
+                new WarehouseSectionRegisterCommand(3L, null, "A-01", "1구역", "ZONE", BigDecimal.ONE);
+        when(warehouseRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(zeroWarehouse));
+        when(warehouseSectionRepository.existsByWarehouseIdAndSectionCode(3L, "A-01")).thenReturn(false);
+        when(warehouseSectionRepository.sumActiveCapacity(3L, null, null)).thenReturn(BigDecimal.ZERO);
+
+        assertThatThrownBy(() -> warehouseSectionService.registerSection(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.PARENT_CAPACITY_EXCEEDED.name());
+    }
+
+    @Test
+    @DisplayName("수용량을 활성 하위 구역 합보다 작게 변경하면 CAPACITY_BELOW_CHILDREN 예외를 던진다")
+    void updateSection_capacityBelowChildren() {
+        WarehouseSection existing =
+                WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
+        WarehouseSectionUpdateCommand command = new WarehouseSectionUpdateCommand(null, null, null, BigDecimal.valueOf(50));
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseSectionRepository.sumActiveCapacity(1L, 1L, null)).thenReturn(BigDecimal.valueOf(60));
+
+        assertThatThrownBy(() -> warehouseSectionService.updateSection(1L, command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.CAPACITY_BELOW_CHILDREN.name());
+        verify(warehouseSectionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("수용량을 늘려 형제 합이 상위 구역 수용량을 넘으면 PARENT_CAPACITY_EXCEEDED 예외를 던진다")
+    void updateSection_increaseExceedsParentCapacity() {
+        WarehouseSection parent = WarehouseSection.register(1L, null, "A", "A구역", "ZONE", BigDecimal.valueOf(500));
+        WarehouseSection child = WarehouseSection.register(1L, 10L, "A-01", "A-1랙", "RACK", BigDecimal.valueOf(50));
+        WarehouseSectionUpdateCommand command = new WarehouseSectionUpdateCommand(null, null, null, BigDecimal.valueOf(200));
+        when(warehouseSectionRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(child));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseSectionRepository.sumActiveCapacity(1L, 11L, null)).thenReturn(BigDecimal.ZERO);
+        when(warehouseSectionRepository.findById(10L)).thenReturn(Optional.of(parent));
+        when(warehouseSectionRepository.sumActiveCapacity(1L, 10L, 11L)).thenReturn(BigDecimal.valueOf(400));
+
+        assertThatThrownBy(() -> warehouseSectionService.updateSection(11L, command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.PARENT_CAPACITY_EXCEEDED.name());
+        verify(warehouseSectionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("수용량을 줄이는 변경은 상위 한도를 다시 확인하지 않는다")
+    void updateSection_decrease_skipsUpperCheck() {
+        WarehouseSection existing =
+                WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
+        WarehouseSectionUpdateCommand command = new WarehouseSectionUpdateCommand(null, null, null, BigDecimal.valueOf(80));
+        when(warehouseSectionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseSectionRepository.sumActiveCapacity(1L, 1L, null)).thenReturn(BigDecimal.ZERO);
+        when(warehouseSectionRepository.save(any(WarehouseSection.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(warehouseSectionService.updateSection(1L, command).getCapacity()).isEqualByComparingTo("80");
+        verify(warehouseSectionRepository, never()).sumActiveCapacity(1L, null, 1L);
+    }
+
+    @Test
+    @DisplayName("재활성화하면 형제 합이 상위 구역 수용량을 넘는 경우 PARENT_CAPACITY_EXCEEDED 예외를 던진다")
+    void activateSection_exceedsParentCapacity() {
+        WarehouseSection parent = WarehouseSection.register(1L, null, "A", "A구역", "ZONE", BigDecimal.valueOf(500));
+        WarehouseSection child = WarehouseSection.register(1L, 10L, "A-01", "A-1랙", "RACK", BigDecimal.valueOf(50));
+        child.deactivate();
+        when(warehouseSectionRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(child));
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(warehouseSectionRepository.findById(10L)).thenReturn(Optional.of(parent));
+        when(warehouseSectionRepository.sumActiveCapacity(1L, 10L, null)).thenReturn(BigDecimal.valueOf(480));
+
+        assertThatThrownBy(() -> warehouseSectionService.activateSection(11L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(WarehouseErrorCode.PARENT_CAPACITY_EXCEEDED.name());
+        verify(warehouseSectionRepository, never()).save(any());
+    }
 
     private final AuthenticatedUser manager =
             new AuthenticatedUser(2L, UserRole.WAREHOUSE_MANAGER, List.of(1L), List.of());

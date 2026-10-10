@@ -30,6 +30,7 @@ public record WarehouseSectionRegisterRequest(
         @NotBlank(message = "구역 유형은 필수 값입니다.")
         String sectionType,
 
+        @NotNull(message = "수용량은 필수 값입니다.")
         @DecimalMin(value = "0", inclusive = true, message = "수용량은 0 이상이어야 합니다.")
         @Digits(integer = 11, fraction = 3, message = "수용량은 소수 3자리까지만 입력할 수 있습니다.")
         BigDecimal capacity

@@ -9,7 +9,8 @@
 - Notion 명세의 `pageInfo`와 일반 `NOT_FOUND`/`CONFLICT` 코드는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
 - 목록 API는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고). `GET /warehouses/my`는 토큰 주체(`userId`)의 소속 창고를 돌려주며 `userId` 쿼리 파라미터는 받지 않는다(#170에서 인증 적용). 창고·구역 단건과 창고별 구역 목록의 담당 창고 검사는 서비스가 토큰의 `warehouseIds`로 한다.
 - 창고·구역 재활성화는 `PATCH .../activate`로 한다([ADR-014](../adr/014-reactivation-and-sku-deactivation-guard.md)). 구역은 창고와 상위 구역이 활성일 때만 가능하다.
-- 확정 필요(미결): `memberRole` 허용 값(예시 `MANAGER`), `sectionType` 허용 값(`DEFECT` 확정, `ZONE`/`RACK` 예시), 하위 구역 수용량 합 ↔ 상위 구역/창고 `totalCapacity` 관계 검증, 토큰의 소속 정보 갱신 시점, 관리자 0명이 되는 회수 허용 여부, "진행 중 업무" 범위.
+- 수용량 필수·관계 검증(#211, [ADR-018](../adr/018-warehouse-capacity-required-and-hierarchy.md)): 창고 `totalCapacity`와 구역 `capacity`는 등록 시 필수(0 이상, 0 허용)다. 같은 상위 구역 아래 활성 구역들의 `capacity` 합은 상위 구역 `capacity`를, 최상위 활성 구역들의 합은 창고 `totalCapacity`를 넘을 수 없다(0은 "미설정"이 아니라 한도 0). 구역 등록·`capacity` 증가·재활성화에서 넘으면 409 `PARENT_CAPACITY_EXCEEDED`, 상위 수용량을 활성 하위 합보다 작게 줄이면 409 `CAPACITY_BELOW_CHILDREN`이다. 기존 0 수용량 창고·구역은 수정으로 값을 채워야 하위 구역을 추가할 수 있다.
+- 확정 필요(미결): `memberRole` 허용 값(예시 `MANAGER`), `sectionType` 허용 값(`DEFECT` 확정, `ZONE`/`RACK` 예시), 토큰의 소속 정보 갱신 시점, 관리자 0명이 되는 회수 허용 여부, "진행 중 업무" 범위.
 
 ## 엔드포인트 목록 (20)
 
@@ -43,9 +44,9 @@
 
 ### POST /warehouses (P0)
 
-- Body: `warehouseCode`(≤30, unique), `warehouseName`(≤100), `address`(≤500), `contactNumber`(선택, ≤30), `totalCapacity`(선택, ≥0, 소수 3자리, 기본 0)
+- Body: `warehouseCode`(≤30, unique), `warehouseName`(≤100), `address`(≤500), `contactNumber`(선택, ≤30), `totalCapacity`(**필수**, ≥0, 소수 3자리)
 - 201. 응답: `warehouseId, warehouseCode, warehouseName, address, contactNumber, totalCapacity, isActive, createdAt, updatedAt`
-- 에러: `DUPLICATE_WAREHOUSE_CODE` 409 (DB unique 위반도 동일 매핑). 등록 시 status ACTIVE.
+- 에러: 400(수용량 누락·음수 포함), `DUPLICATE_WAREHOUSE_CODE` 409 (DB unique 위반도 동일 매핑). 등록 시 status ACTIVE.
 
 ### GET /warehouses
 
@@ -60,9 +61,9 @@
 
 ### PATCH /warehouses/{warehouseId}
 
-- 부분 수정(≥1 필드): `warehouseName`, `address`, `contactNumber`(null이면 비움), `totalCapacity`
+- 부분 수정(≥1 필드): `warehouseName`, `address`, `contactNumber`(null이면 비움), `totalCapacity`(최상위 활성 구역 수용량 합 이상)
 - `warehouseCode`, `isActive` 포함 시 400(상태는 `deactivate` 사용). 비활성 창고도 수정 가능.
-- 에러: 창고 없음 404
+- 에러: 창고 없음 404, 409 `CAPACITY_BELOW_CHILDREN`(`totalCapacity`가 최상위 활성 구역 합보다 작음)
 
 ### PATCH /warehouses/{warehouseId}/deactivate
 
@@ -114,9 +115,9 @@
 
 ### POST /warehouses/sections (P0)
 
-- Body: `warehouseId`, `parentSectionId`(선택, 같은 창고의 활성 구역), `sectionCode`(≤50, 창고 내 unique), `sectionName`(≤100), `sectionType`, `capacity`(선택, ≥0, 소수 3자리, 기본 0)
+- Body: `warehouseId`, `parentSectionId`(선택, 같은 창고의 활성 구역), `sectionCode`(≤50, 창고 내 unique), `sectionName`(≤100), `sectionType`, `capacity`(**필수**, ≥0, 소수 3자리)
 - 201. 응답: `sectionId, warehouseId, parentSectionId, sectionCode, sectionName, sectionType, capacity, currentCapacity(0), availableCapacity, isActive, createdAt`
-- 에러: 400(형식/타 창고의 parent/허용되지 않은 type), 404(창고·상위 구역 없음), 409 `DUPLICATE_SECTION_CODE`, 409 `CONFLICT`(비활성 창고·상위 구역)
+- 에러: 400(형식/수용량 누락/타 창고의 parent/허용되지 않은 type), 404(창고·상위 구역 없음), 409 `DUPLICATE_SECTION_CODE`, 409 `CONFLICT`(비활성 창고·상위 구역), 409 `PARENT_CAPACITY_EXCEEDED`(같은 상위 아래 활성 구역 수용량 합이 상위 구역 또는 창고 `totalCapacity`를 넘음)
 - `availableCapacity = capacity - currentCapacity`(저장하지 않음). 수용량 초과 적치는 불가(검증은 입고 검수 시점).
 
 ### GET /warehouses/sections
@@ -135,9 +136,9 @@
 
 ### PATCH /warehouses/sections/{sectionId}
 
-- 부분 수정(≥1 필드): `sectionCode`, `sectionName`, `sectionType`, `capacity`(≥0, ≥ 현재 사용량)
+- 부분 수정(≥1 필드): `sectionCode`, `sectionName`, `sectionType`, `capacity`(≥0, ≥ 현재 사용량, ≥ 활성 하위 구역 합, 늘릴 때는 같은 상위 아래 합이 상위 한도 이내)
 - `warehouseId`, `parentSectionId` 포함 시 400. 자기 자신의 기존 코드와 같으면 변경 아님.
-- 에러: 404, 409 `DUPLICATE_SECTION_CODE`, 409 `CAPACITY_BELOW_USAGE`. 사용량 확인과 수정은 같은 트랜잭션.
+- 에러: 404, 409 `DUPLICATE_SECTION_CODE`, 409 `CAPACITY_BELOW_USAGE`, 409 `CAPACITY_BELOW_CHILDREN`, 409 `PARENT_CAPACITY_EXCEEDED`. 사용량·하위 합 확인과 수정은 같은 트랜잭션.
 
 ### PATCH /warehouses/sections/{sectionId}/deactivate
 
@@ -148,7 +149,7 @@
 ### PATCH /warehouses/sections/{sectionId}/activate
 
 - 응답: 구역 상세와 같은 필드, `isActive=true`.
-- 에러: 404 `SECTION_NOT_FOUND`, 409 `CONFLICT`(이미 ACTIVE, 창고가 INACTIVE, 상위 구역이 INACTIVE)
+- 에러: 404 `SECTION_NOT_FOUND`, 409 `CONFLICT`(이미 ACTIVE, 창고가 INACTIVE, 상위 구역이 INACTIVE), 409 `PARENT_CAPACITY_EXCEEDED`(활성화하면 같은 상위 아래 합이 상위 한도를 넘음)
 - 비활성 창고 아래나 비활성 상위 구역 아래에는 활성 구역이 생기지 않도록, 창고와 상위 구역을 먼저 활성화해야 한다. 구역 행 잠금 사용.
 
 ### DELETE /warehouses/sections/{sectionId} (P2, 미구현)

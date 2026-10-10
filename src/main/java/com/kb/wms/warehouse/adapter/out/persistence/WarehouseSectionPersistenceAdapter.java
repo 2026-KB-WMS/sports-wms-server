@@ -1,5 +1,6 @@
 package com.kb.wms.warehouse.adapter.out.persistence;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -61,6 +62,12 @@ public class WarehouseSectionPersistenceAdapter implements WarehouseSectionRepos
     @Override
     public boolean existsByWarehouseIdAndSectionCode(Long warehouseId, String sectionCode) {
         return warehouseSectionJpaRepository.existsByWarehouseIdAndSectionCode(warehouseId, sectionCode);
+    }
+
+    @Override
+    public BigDecimal sumActiveCapacity(Long warehouseId, Long parentSectionId, Long excludeSectionId) {
+        return warehouseSectionJpaRepository.sumCapacity(
+                warehouseId, parentSectionId, excludeSectionId, WarehouseStatus.ACTIVE);
     }
 
     @Override
