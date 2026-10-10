@@ -11,6 +11,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import com.kb.wms.common.security.AuthenticatedUserResolver;
 import com.kb.wms.common.security.JwtAuthenticationFilter;
 import com.kb.wms.common.security.JwtProvider;
 import com.kb.wms.common.security.RestSecurityExceptionHandler;
@@ -32,6 +33,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, JwtProvider jwtProvider,
+                                           AuthenticatedUserResolver userResolver,
                                            RestSecurityExceptionHandler exceptionHandler) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -41,7 +43,7 @@ public class SecurityConfig {
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(exceptionHandler)
                         .accessDeniedHandler(exceptionHandler))
-                .addFilterBefore(new JwtAuthenticationFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new JwtAuthenticationFilter(jwtProvider, userResolver), UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
                         // 가입·로그인과 API 문서(Swagger)·헬스 체크만 토큰 없이 열어 둔다.
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/signup", "/api/v1/auth/login").permitAll()

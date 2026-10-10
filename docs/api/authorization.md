@@ -94,4 +94,4 @@
 
 ## 메모
 - 처리 사용자(`createdBy`, `changedBy`, `receivedBy` 등)는 요청 파라미터가 아니라 토큰의 `userId`로 채운다. `userId` 쿼리 파라미터는 받지 않는다(#170에서 제거).
-- 토큰의 소속은 발급 시점 값이다. 소속이 바뀌어도 만료(1시간)까지 이전 값이 적용된다([ADR-011](../adr/011-jwt-access-token-only.md)).
+- 역할·계정 상태·소속은 토큰이 아니라 요청마다 DB에서 읽는다. 소속·역할 변경과 계정 비활성화(ACTIVE가 아니면 401)가 다음 요청부터 반영된다([ADR-016](../adr/016-reload-user-per-request.md)).

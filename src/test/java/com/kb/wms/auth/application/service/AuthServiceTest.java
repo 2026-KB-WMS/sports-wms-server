@@ -7,7 +7,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -20,8 +19,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.kb.wms.auth.application.port.in.command.LoginCommand;
 import com.kb.wms.auth.application.port.in.result.LoginResult;
-import com.kb.wms.auth.application.port.in.result.UserAffiliation;
-import com.kb.wms.auth.application.port.out.UserQueryRepository;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
 import com.kb.wms.auth.domain.enums.UserRole;
@@ -29,7 +26,6 @@ import com.kb.wms.auth.domain.enums.UserStatus;
 import com.kb.wms.auth.exception.AuthErrorCode;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.security.JwtProvider;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,8 +36,6 @@ class AuthServiceTest {
     @Mock
     private UserRepository userRepository;
     @Mock
-    private UserQueryRepository userQueryRepository;
-    @Mock
     private PasswordEncoder passwordEncoder;
 
     private final JwtProvider jwtProvider = new JwtProvider("test-only-jwt-secret-key-0123456789-0123456789", 3600);
@@ -50,7 +44,7 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(userRepository, userQueryRepository, passwordEncoder, jwtProvider);
+        authService = new AuthService(userRepository, passwordEncoder, jwtProvider);
     }
 
     private User userWith(UserStatus status) {
@@ -72,15 +66,13 @@ class AuthServiceTest {
         when(userRepository.findByLoginId("store_owner01")).thenReturn(Optional.of(user));
         when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("P@ssw0rd!", "hashed")).thenReturn(true);
-        when(userQueryRepository.findAffiliation(USER_ID)).thenReturn(new UserAffiliation(List.of(), List.of(3L)));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         LoginResult result = authService.login(new LoginCommand("store_owner01", "P@ssw0rd!"));
 
         assertThat(result.expiresIn()).isEqualTo(3600);
         assertThat(result.user().getLastLoginAt()).isNotNull();
-        assertThat(jwtProvider.parse(result.accessToken()))
-                .contains(new AuthenticatedUser(USER_ID, UserRole.STORE_OWNER, List.of(), List.of(3L)));
+        assertThat(jwtProvider.parseUserId(result.accessToken())).contains(USER_ID);
     }
 
     @Test
@@ -90,7 +82,6 @@ class AuthServiceTest {
         when(userRepository.findByLoginId("store_owner01")).thenReturn(Optional.of(user));
         when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("P@ssw0rd!", "hashed")).thenReturn(true);
-        when(userQueryRepository.findAffiliation(USER_ID)).thenReturn(new UserAffiliation(List.of(), List.of()));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         LoginResult result = authService.login(new LoginCommand(" Store_Owner01 ", "P@ssw0rd!"));

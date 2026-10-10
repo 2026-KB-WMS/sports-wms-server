@@ -3,6 +3,7 @@ package com.kb.wms.common.security;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,10 +18,16 @@ import com.kb.wms.auth.domain.enums.UserRole;
 
 class JwtAuthenticationFilterTest {
 
+    private static final Long USER_ID = 12L;
+
     private final JwtProvider jwtProvider =
             new JwtProvider("test-only-jwt-secret-key-0123456789-0123456789", 3600);
-    private final JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider);
-    private final AuthenticatedUser user = new AuthenticatedUser(12L, UserRole.STORE_OWNER, List.of(), List.of(3L));
+    private final AuthenticatedUser user = new AuthenticatedUser(USER_ID, UserRole.STORE_OWNER, List.of(), List.of(3L));
+    // 리졸버가 돌려주는 "현재 DB 기준 사용자"를 테스트에서 바꿀 수 있게 둔다. USER_ID만 존재한다.
+    private AuthenticatedUser current = user;
+    private final AuthenticatedUserResolver resolver =
+            userId -> USER_ID.equals(userId) ? Optional.ofNullable(current) : Optional.empty();
+    private final JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, resolver);
 
     @AfterEach
     void clearContext() {
@@ -37,15 +44,46 @@ class JwtAuthenticationFilterTest {
         return chain;
     }
 
+    private AuthenticatedUser principal() {
+        return (AuthenticatedUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    }
+
     @Test
-    @DisplayName("유효한 Bearer 토큰이면 인증 주체와 역할 권한을 올린다")
+    @DisplayName("유효한 Bearer 토큰이면 리졸버가 읽은 사용자와 역할 권한을 올린다")
     void validToken() throws Exception {
-        MockFilterChain chain = run("Bearer " + jwtProvider.createAccessToken(user));
+        MockFilterChain chain = run("Bearer " + jwtProvider.createAccessToken(USER_ID));
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         assertThat(authentication.getPrincipal()).isEqualTo(user);
         assertThat(authentication.getAuthorities()).extracting(Object::toString).containsExactly("ROLE_STORE_OWNER");
         assertThat(chain.getRequest()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("같은 토큰이라도 사용자의 소속이 바뀌면 다음 요청부터 바뀐 값이 반영된다")
+    void reflectsChangedAffiliation() throws Exception {
+        String token = "Bearer " + jwtProvider.createAccessToken(USER_ID);
+        run(token);
+        assertThat(principal().storeIds()).containsExactly(3L);
+
+        SecurityContextHolder.clearContext();
+        current = new AuthenticatedUser(USER_ID, UserRole.STORE_OWNER, List.of(), List.of(7L));
+        run(token);
+
+        assertThat(principal().storeIds()).containsExactly(7L);
+    }
+
+    @Test
+    @DisplayName("토큰은 유효해도 사용자를 찾을 수 없거나 비활성이면 인증 없이 그대로 넘긴다")
+    void unresolvableUser() throws Exception {
+        MockFilterChain unknown = run("Bearer " + jwtProvider.createAccessToken(99L));
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(unknown.getRequest()).isNotNull();
+
+        current = null;
+        run("Bearer " + jwtProvider.createAccessToken(USER_ID));
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     }
 
     @Test

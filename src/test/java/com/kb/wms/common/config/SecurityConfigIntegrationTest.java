@@ -1,6 +1,7 @@
 package com.kb.wms.common.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -10,7 +11,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,10 +22,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.security.AuthenticatedUser;
+import com.kb.wms.common.security.AuthenticatedUserResolver;
 import com.kb.wms.common.security.JwtProvider;
 
 import io.jsonwebtoken.Jwts;
@@ -49,8 +54,27 @@ class SecurityConfigIntegrationTest {
     private MockMvc mockMvc;
     @Autowired
     private JwtProvider jwtProvider;
+    @MockitoBean
+    private AuthenticatedUserResolver userResolver;
     @Value("${wms.jwt.secret}")
     private String jwtSecret;
+
+    private static final long HQ_ID = 1L;
+    private static final long MANAGER_ID = 2L;
+    private static final long OWNER_ID = 3L;
+    private static final long UNKNOWN_ID = 99L;
+
+    @BeforeEach
+    void stubUsers() {
+        // 토큰은 사용자 ID만 담고, 역할·소속은 필터가 리졸버(DB)에서 읽는다. 없는 사용자(UNKNOWN_ID)는 비어 있다.
+        when(userResolver.resolve(HQ_ID)).thenReturn(
+                Optional.of(new AuthenticatedUser(HQ_ID, UserRole.HQ_ADMIN, List.of(), List.of())));
+        when(userResolver.resolve(MANAGER_ID)).thenReturn(
+                Optional.of(new AuthenticatedUser(MANAGER_ID, UserRole.WAREHOUSE_MANAGER, List.of(1L), List.of())));
+        when(userResolver.resolve(OWNER_ID)).thenReturn(
+                Optional.of(new AuthenticatedUser(OWNER_ID, UserRole.STORE_OWNER, List.of(), List.of(1L))));
+        when(userResolver.resolve(UNKNOWN_ID)).thenReturn(Optional.empty());
+    }
 
     @Test
     @DisplayName("토큰이 없으면 업무 API는 401이다")
@@ -71,21 +95,17 @@ class SecurityConfigIntegrationTest {
     @Test
     @DisplayName("유효한 토큰이면 업무 API를 호출할 수 있다")
     void withValidToken() throws Exception {
-        String token = jwtProvider.createAccessToken(
-                new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of()));
+        String token = jwtProvider.createAccessToken(HQ_ID);
 
         mockMvc.perform(get(OPEN_ENDPOINT).header("Authorization", "Bearer " + token)).andExpect(status().isOk());
         mockMvc.perform(get(BRANDS).header("Authorization", "Bearer " + token)).andExpect(status().isOk());
     }
 
     /** 서버와 같은(또는 다른) 키로 서명한 토큰을 만든다. 만료 시각을 과거로 주면 만료된 토큰이 된다. */
-    private String tokenSigned(String secret, UserRole role, long expiresInMillis) {
+    private String tokenSigned(String secret, long expiresInMillis) {
         long now = System.currentTimeMillis();
         return Jwts.builder()
-                .subject("1")
-                .claim("role", role.name())
-                .claim("warehouseIds", List.of())
-                .claim("storeIds", List.of())
+                .subject(String.valueOf(HQ_ID))
                 .issuedAt(new Date(now - 7_200_000L))
                 .expiration(new Date(now + expiresInMillis))
                 .signWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)), Jwts.SIG.HS256)
@@ -95,8 +115,8 @@ class SecurityConfigIntegrationTest {
     @Test
     @DisplayName("만료된 토큰은 서명이 맞아도 401 UNAUTHORIZED이고, 같은 조건의 유효한 토큰은 통과한다")
     void expiredToken() throws Exception {
-        String expired = tokenSigned(jwtSecret, UserRole.HQ_ADMIN, -60_000L);
-        String valid = tokenSigned(jwtSecret, UserRole.HQ_ADMIN, 3_600_000L);
+        String expired = tokenSigned(jwtSecret, -60_000L);
+        String valid = tokenSigned(jwtSecret, 3_600_000L);
 
         mockMvc.perform(get(OPEN_ENDPOINT).header("Authorization", "Bearer " + expired))
                 .andExpect(status().isUnauthorized())
@@ -108,7 +128,7 @@ class SecurityConfigIntegrationTest {
     @Test
     @DisplayName("다른 키로 서명한 토큰은 클레임이 그럴듯해도 401이다")
     void tokenSignedWithOtherKey() throws Exception {
-        String forged = tokenSigned("another-secret-key-0123456789-0123456789-xyz", UserRole.HQ_ADMIN, 3_600_000L);
+        String forged = tokenSigned("another-secret-key-0123456789-0123456789-xyz", 3_600_000L);
 
         mockMvc.perform(get(OPEN_ENDPOINT).header("Authorization", "Bearer " + forged))
                 .andExpect(status().isUnauthorized())
@@ -116,20 +136,27 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    @DisplayName("점주 토큰의 페이로드에서 역할만 본사로 바꾸면(권한 상승 시도) 서명이 맞지 않아 401이다")
-    void tamperedPayloadCannotEscalateRole() throws Exception {
-        String ownerToken = tokenSigned(jwtSecret, UserRole.STORE_OWNER, 3_600_000L);
-        String[] parts = ownerToken.split("\\.");
-        String payload = new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
-        assertThat(payload).contains("STORE_OWNER");
-        String forgedPayload = Base64.getUrlEncoder().withoutPadding().encodeToString(
-                payload.replace("STORE_OWNER", "HQ_ADMIN").getBytes(StandardCharsets.UTF_8));
-        String tampered = parts[0] + "." + forgedPayload + "." + parts[2];
+    @DisplayName("토큰에 역할 클레임을 넣어도 무시하고 DB 기준 역할로 인가한다")
+    void roleComesFromDatabase_notFromToken() throws Exception {
+        long now = System.currentTimeMillis();
+        String claimsHqButOwner = Jwts.builder()
+                .subject(String.valueOf(OWNER_ID))
+                .claim("role", "HQ_ADMIN")
+                .issuedAt(new Date(now))
+                .expiration(new Date(now + 3_600_000L))
+                .signWith(Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8)), Jwts.SIG.HS256)
+                .compact();
 
-        // 원래 토큰은 역할이 달라 403, 위조한 토큰은 인증 자체가 거절돼 401
-        mockMvc.perform(get("/api/v1/users").header("Authorization", "Bearer " + ownerToken))
+        mockMvc.perform(get("/api/v1/users").header("Authorization", "Bearer " + claimsHqButOwner))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/v1/users").header("Authorization", "Bearer " + tampered))
+    }
+
+    @Test
+    @DisplayName("서명이 유효해도 사용자를 찾을 수 없거나 ACTIVE가 아니면(리졸버가 비어 있으면) 401이다")
+    void unknownOrInactiveUser() throws Exception {
+        String token = jwtProvider.createAccessToken(UNKNOWN_ID);
+
+        mockMvc.perform(get(OPEN_ENDPOINT).header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
     }
@@ -145,7 +172,12 @@ class SecurityConfigIntegrationTest {
     }
 
     private String bearer(UserRole role) {
-        return "Bearer " + jwtProvider.createAccessToken(new AuthenticatedUser(1L, role, List.of(), List.of()));
+        long userId = switch (role) {
+            case HQ_ADMIN -> HQ_ID;
+            case WAREHOUSE_MANAGER -> MANAGER_ID;
+            case STORE_OWNER -> OWNER_ID;
+        };
+        return "Bearer " + jwtProvider.createAccessToken(userId);
     }
 
     @Test
@@ -162,7 +194,7 @@ class SecurityConfigIntegrationTest {
     @DisplayName("/auth/me는 토큰이 없으면 401이고, 유효한 토큰이면 토큰 주체로 조회한다")
     void meRequiresToken() throws Exception {
         mockMvc.perform(get("/api/v1/auth/me")).andExpect(status().isUnauthorized());
-        // 토큰의 사용자(ID 1)가 DB에 없으면 404 USER_NOT_FOUND: 필터가 만든 인증 주체가 컨트롤러까지 전달됐다는 뜻이다.
+        // 토큰의 사용자(ID 2)가 DB에 없으면 404 USER_NOT_FOUND: 필터가 만든 인증 주체가 컨트롤러까지 전달됐다는 뜻이다.
         mockMvc.perform(get("/api/v1/auth/me").header("Authorization", bearer(UserRole.WAREHOUSE_MANAGER)))
                 .andExpect(status().isNotFound());
     }

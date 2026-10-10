@@ -7,9 +7,9 @@ import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 
 /**
- * 액세스 토큰 클레임에서 복원한 인증 주체. 요청 처리 중 SecurityContext의 principal로 쓰이며,
+ * 인증 필터가 토큰의 사용자 ID로 DB에서 읽어 만든 인증 주체. 요청 처리 중 SecurityContext의 principal로 쓰이며,
  * 컨트롤러에서 {@code @AuthenticationPrincipal}로 받아 서비스에 넘기는 "현재 사용자 컨텍스트"다.
- * 토큰 발급 시점의 값이므로 소속·역할이 이후에 바뀌어도 토큰이 만료될 때까지 그대로 유지된다.
+ * 요청마다 새로 만들므로 소속·역할 변경이 다음 요청부터 반영된다(ADR-016).
  * 소속 범위 검사({@code requireWarehouseAccess}, {@code requireStoreAccess})는 서비스가 대상 리소스를 읽은 뒤 호출한다.
  *
  * @param warehouseIds 배정된 창고 ID

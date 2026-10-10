@@ -42,8 +42,8 @@
 
 ## 토큰 정책 (ADR-011)
 
-- 액세스 토큰(JWT, HS256)만 발급하고 만료는 3600초(`wms.jwt.access-token-validity-seconds`)다. 클레임은 `sub`(userId), `role`, `warehouseIds`, `storeIds`다.
-- 리프레시 토큰과 로그아웃은 없다. 비활성화·역할·소속 변경 뒤에도 발급된 토큰은 만료까지 유효하며, 관리자 API도 마찬가지다.
+- 액세스 토큰(JWT, HS256)만 발급하고 만료는 3600초(`wms.jwt.access-token-validity-seconds`)다. 클레임은 `sub`(userId)만이며 역할·상태·소속은 요청마다 DB에서 읽는다([ADR-016](../adr/016-reload-user-per-request.md)).
+- 리프레시 토큰과 로그아웃은 없다. 비활성화·역할·소속 변경은 다음 요청부터 반영되고, 비밀번호를 바꿔도 이미 발급된 토큰은 만료까지 유효하다.
 - 서명 키는 `wms.jwt.secret`(32바이트 이상)이고 prod에서는 `JWT_SECRET` 환경변수로만 받는다.
 - 비밀번호는 BCrypt로 저장하고, 없는 아이디로 로그인해도 해시 비교만큼의 시간을 쓰게 해 응답 시간으로 계정 존재 여부가 드러나지 않게 한다.
 

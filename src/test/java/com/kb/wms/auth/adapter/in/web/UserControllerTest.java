@@ -37,6 +37,7 @@ import com.kb.wms.common.config.SecurityConfig;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.AuthenticatedUser;
+import com.kb.wms.common.security.AuthenticatedUserResolver;
 import com.kb.wms.common.security.JwtProvider;
 import com.kb.wms.common.security.RestSecurityExceptionHandler;
 
@@ -55,6 +56,8 @@ class UserControllerTest {
     // SecurityConfig가 필터를 만들 때 필요하다. 요청에는 Authorization 헤더를 싣지 않아 파싱은 일어나지 않는다.
     @MockitoBean
     private JwtProvider jwtProvider;
+    @MockitoBean
+    private AuthenticatedUserResolver authenticatedUserResolver;
 
     private User user(UserStatus status) {
         return User.builder()

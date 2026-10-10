@@ -3,38 +3,41 @@ package com.kb.wms.common.security;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.List;
-import java.util.Optional;
+import java.nio.charset.StandardCharsets;
+
+import javax.crypto.SecretKey;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.kb.wms.auth.domain.enums.UserRole;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 
 class JwtProviderTest {
 
     private static final String SECRET = "test-only-jwt-secret-key-0123456789-0123456789";
 
     private final JwtProvider jwtProvider = new JwtProvider(SECRET, 3600);
-    private final AuthenticatedUser user =
-            new AuthenticatedUser(12L, UserRole.WAREHOUSE_MANAGER, List.of(1L, 2L), List.of());
+    private final SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
 
     @Test
-    @DisplayName("발급한 토큰에서 사용자 ID·역할·소속 ID를 그대로 복원한다")
+    @DisplayName("발급한 토큰에서 사용자 ID를 그대로 복원한다")
     void createAndParse() {
-        String token = jwtProvider.createAccessToken(user);
+        String token = jwtProvider.createAccessToken(12L);
 
-        Optional<AuthenticatedUser> parsed = jwtProvider.parse(token);
-
-        assertThat(parsed).contains(user);
+        assertThat(jwtProvider.parseUserId(token)).contains(12L);
     }
 
     @Test
-    @DisplayName("소속이 없으면 빈 목록으로 복원한다")
-    void createAndParse_withoutAffiliation() {
-        AuthenticatedUser admin = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
+    @DisplayName("토큰에는 사용자 ID(sub)만 담고 역할·소속 클레임은 넣지 않는다")
+    void tokenCarriesOnlySubject() {
+        String token = jwtProvider.createAccessToken(12L);
 
-        assertThat(jwtProvider.parse(jwtProvider.createAccessToken(admin))).contains(admin);
+        Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+
+        assertThat(claims.getSubject()).isEqualTo("12");
+        assertThat(claims).doesNotContainKeys("role", "warehouseIds", "storeIds");
     }
 
     @Test
@@ -42,41 +45,35 @@ class JwtProviderTest {
     void parse_expired() {
         JwtProvider alreadyExpired = new JwtProvider(SECRET, -1);
 
-        assertThat(jwtProvider.parse(alreadyExpired.createAccessToken(user))).isEmpty();
+        assertThat(jwtProvider.parseUserId(alreadyExpired.createAccessToken(12L))).isEmpty();
     }
 
     @Test
     @DisplayName("다른 키로 서명했거나 변조한 토큰은 복원하지 않는다")
     void parse_invalidSignature() {
         JwtProvider otherKey = new JwtProvider("other-jwt-secret-key-0123456789-0123456789-ab", 3600);
-        String token = jwtProvider.createAccessToken(user);
+        String token = jwtProvider.createAccessToken(12L);
         String tampered = token.substring(0, token.length() - 2) + (token.endsWith("A") ? "BB" : "AA");
 
-        assertThat(jwtProvider.parse(otherKey.createAccessToken(user))).isEmpty();
-        assertThat(jwtProvider.parse(tampered)).isEmpty();
+        assertThat(jwtProvider.parseUserId(otherKey.createAccessToken(12L))).isEmpty();
+        assertThat(jwtProvider.parseUserId(tampered)).isEmpty();
     }
 
     @Test
     @DisplayName("JWT 형식이 아닌 값은 복원하지 않는다")
     void parse_garbage() {
-        assertThat(jwtProvider.parse("not-a-jwt")).isEmpty();
-        assertThat(jwtProvider.parse("")).isEmpty();
+        assertThat(jwtProvider.parseUserId("not-a-jwt")).isEmpty();
+        assertThat(jwtProvider.parseUserId("")).isEmpty();
     }
 
     @Test
-    @DisplayName("서명은 유효해도 필수 클레임이 없거나 형식이 틀리면 예외 없이 복원하지 않는다")
-    void parse_missingOrMalformedClaims() {
-        javax.crypto.SecretKey key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(
-                SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        String noRole = io.jsonwebtoken.Jwts.builder().subject("12").signWith(key).compact();
-        String badIds = io.jsonwebtoken.Jwts.builder().subject("12").claim("role", "HQ_ADMIN")
-                .claim("warehouseIds", List.of("a")).signWith(key).compact();
-        String badSubject = io.jsonwebtoken.Jwts.builder().subject("abc").claim("role", "HQ_ADMIN")
-                .signWith(key).compact();
+    @DisplayName("서명은 유효해도 sub가 없거나 숫자가 아니면 예외 없이 복원하지 않는다")
+    void parse_missingOrMalformedSubject() {
+        String noSubject = Jwts.builder().claim("role", "HQ_ADMIN").signWith(key).compact();
+        String badSubject = Jwts.builder().subject("abc").signWith(key).compact();
 
-        assertThat(jwtProvider.parse(noRole)).isEmpty();
-        assertThat(jwtProvider.parse(badIds)).isEmpty();
-        assertThat(jwtProvider.parse(badSubject)).isEmpty();
+        assertThat(jwtProvider.parseUserId(noSubject)).isEmpty();
+        assertThat(jwtProvider.parseUserId(badSubject)).isEmpty();
     }
 
     @Test
