@@ -170,7 +170,7 @@
 - Body: `reason`(필수, ≤500)
 - 응답: `storeOrderId, orderNo, status=ASSIGNED, statusReason(null), updatedAt`
 - 에러: 400, 403, 404, 409 `CONFLICT`(`ON_HOLD`가 아님: 보류 중이 아니거나 이미 재개·취소됨, 배정 창고가 비활성)
-- 규칙: 전이는 `ON_HOLD` → `ASSIGNED`만. 재고 충분 여부는 검증하지 않는다(재개 후 `POST /allocations`에서 가용 재고가 부족하면 409 `INSUFFICIENT_STOCK`이므로 다시 보류할 수 있음). 보류 중 본사가 취소했으면 재개할 수 없다(409). 재개 사유는 `StatusHistory.reason`에 저장하고 재개 후 `statusReason`은 `null`이다.
+- 규칙: 전이는 `ON_HOLD` → `ASSIGNED`만. 재고 충분 여부는 검증하지 않는다(재개 후 `POST /allocations`에서 가용 재고가 모자라면 가용만큼 부분 할당하고 `shortages`로 알리며, 전부 0이면 409 `INSUFFICIENT_STOCK`이므로 다시 보류할 수 있음). 보류 중 본사가 취소했으면 재개할 수 없다(409). 재개 사유는 `StatusHistory.reason`에 저장하고 재개 후 `statusReason`은 `null`이다.
 
 ## PATCH /orders/{orderId}/complete-partial (P2)
 

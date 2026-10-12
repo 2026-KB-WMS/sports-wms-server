@@ -8,11 +8,13 @@ import com.kb.wms.outbound.application.port.in.result.StockAllocateResult;
 public record StockAllocateResponse(
         Long storeOrderId,
         String orderNo,
-        List<StockAllocationItemResponse> items
+        List<StockAllocationItemResponse> items,
+        List<StockAllocationShortageResponse> shortages
 ) {
 
     public static StockAllocateResponse from(StockAllocateResult result) {
         return new StockAllocateResponse(result.storeOrderId(), result.orderNo(),
-                result.items().stream().map(StockAllocationItemResponse::from).toList());
+                result.items().stream().map(StockAllocationItemResponse::from).toList(),
+                result.shortages().stream().map(StockAllocationShortageResponse::from).toList());
     }
 }

@@ -92,6 +92,8 @@ class OutboundServiceIntegrationTest {
     Long store;
     Long warehouse;
     Long order;
+    Long skuA;
+    Long skuB;
 
     @BeforeEach
     void setUp() {
@@ -105,8 +107,8 @@ class OutboundServiceIntegrationTest {
                 .warehouseId(warehouse).sectionCode("A-01").name("A-01").sectionType("STORAGE")
                 .capacity(BigDecimal.valueOf(1000)).currentCapacity(BigDecimal.ZERO)
                 .status(WarehouseStatus.ACTIVE).build()).getSectionId();
-        Long skuA = sku("SKU-A");
-        Long skuB = sku("SKU-B");
+        skuA = sku("SKU-A");
+        skuB = sku("SKU-B");
         inventory(section, skuA, "LOT-A", 50);
         inventory(section, skuB, "LOT-B", 50);
 
@@ -208,6 +210,52 @@ class OutboundServiceIntegrationTest {
         assertThatThrownBy(() -> useCase.createOutbound(new OutboundCreateCommand(999_999L, null, USER), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("STORE_ORDER_NOT_FOUND"));
         assertThat(useCase.createOutbound(new OutboundCreateCommand(order, "가".repeat(500), USER), HQ).view().note()).hasSize(500);
+    }
+
+    @Test
+    @DisplayName("skuIds를 주면 그 SKU의 할당만 출고로 묶고, 나머지는 ALLOCATED로 남겨 따로 출고할 수 있다")
+    void createSelectedSku() {
+        allocate();
+
+        OutboundCreateResult first = useCase.createOutbound(
+                new OutboundCreateCommand(order, null, USER, List.of(skuA)), HQ);
+
+        assertThat(first.items()).hasSize(1).allSatisfy(i -> assertThat(i.skuId()).isEqualTo(skuA));
+
+        OutboundCreateResult second = useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ);
+
+        assertThat(second.items()).hasSize(1).allSatisfy(i -> assertThat(i.skuId()).isEqualTo(skuB));
+        assertThat(second.view().outboundNo()).endsWith("-0002");
+    }
+
+    @Test
+    @DisplayName("선택한 SKU에 묶을 할당이 없으면 NO_ALLOCATION이고, 다른 SKU의 할당은 건드리지 않는다")
+    void createSelectedSkuWithoutAllocation() {
+        allocationUseCase.allocate(new StockAllocateCommand(order, USER, List.of(skuA)), HQ);
+
+        assertThatThrownBy(() -> useCase.createOutbound(
+                new OutboundCreateCommand(order, null, USER, List.of(skuB)), HQ))
+                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("NO_ALLOCATION"));
+        assertThat(useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ).items())
+                .hasSize(1).allSatisfy(i -> assertThat(i.skuId()).isEqualTo(skuA));
+    }
+
+    @Test
+    @DisplayName("발주에 없는 SKU나 빈 skuIds는 VALIDATION_ERROR이고 출고를 만들지 않는다")
+    void createSelectedSkuInvalid() {
+        allocate();
+
+        assertThatThrownBy(() -> useCase.createOutbound(
+                new OutboundCreateCommand(order, null, USER, List.of(skuA, 999_999L)), HQ))
+                .satisfies(e -> {
+                    assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR");
+                    assertThat(e.getMessage()).contains("999999");
+                });
+        assertThatThrownBy(() -> useCase.createOutbound(
+                new OutboundCreateCommand(order, null, USER, List.of()), HQ))
+                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
+
+        assertThat(useCase.searchOutbounds(emptyCondition(), HQ)).isEmpty();
     }
 
     // ---------- 피킹 시작 ----------
