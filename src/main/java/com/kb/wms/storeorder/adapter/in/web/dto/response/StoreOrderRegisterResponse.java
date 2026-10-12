@@ -23,6 +23,7 @@ public record StoreOrderRegisterResponse(
         String note,
         BigDecimal totalAmount,
         Long createdBy,
+        String createdByName,
         List<StoreOrderLineResponse> lines,
         LocalDateTime createdAt
 ) {
@@ -40,6 +41,7 @@ public record StoreOrderRegisterResponse(
                 view.note(),
                 view.totalAmount(),
                 view.createdBy(),
+                view.createdByName(),
                 lines.stream().map(StoreOrderLineResponse::from).toList(),
                 view.createdAt());
     }

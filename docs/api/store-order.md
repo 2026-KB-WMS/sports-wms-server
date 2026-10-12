@@ -74,7 +74,7 @@
 
 - 권한: STORE_OWNER, 본인이 배정된 지점만. 창고 관리자·본사 관리자는 대신 등록할 수 없다(ST-03).
 - Body: `storeId`(배정된 지점), `requestedDeliveryAt`(선택, ISO-8601, 현재 이후), `note`(선택, ≤1000), `lines[]`(≥1, 같은 SKU 중복 불가: `skuId`(활성 SKU), `requestedQuantity`(1 이상 정수))
-- 201. 응답: `storeOrderId, orderNo, storeId, storeName, warehouseId(null), status=REQUESTED, requestedAt, requestedDeliveryAt, note, totalAmount, createdBy, lines[], createdAt`. `lines[]`: `storeOrderLineId, skuId, skuCode, skuName, unit, requestedQuantity, allocatedQuantity(0), shippedQuantity(0), remainingQuantity(요청 수량과 같음), requestedUnitSupplyPrice, lineAmount, status=REQUESTED`
+- 201. 응답: `storeOrderId, orderNo, storeId, storeName, warehouseId(null), status=REQUESTED, requestedAt, requestedDeliveryAt, note, totalAmount, createdBy, createdByName, lines[], createdAt`. `lines[]`: `storeOrderLineId, skuId, skuCode, skuName, unit, requestedQuantity, allocatedQuantity(0), shippedQuantity(0), remainingQuantity(요청 수량과 같음), requestedUnitSupplyPrice, lineAmount, status=REQUESTED`
 - 에러: 400(필수 누락, `lines` 비어 있음, 수량 1 미만·정수 아님, 같은 SKU 중복, `requestedDeliveryAt` 과거, 길이·형식), 403(STORE_OWNER가 아니거나 배정되지 않은 지점), 404(존재하지 않는 `storeId`·`skuId`), 409 `CONFLICT`(비활성 지점, 비활성 SKU 또는 비활성 상품의 SKU), 409 `SUPPLY_PRICE_MISSING`(SKU `current_supply_price` 없음)
 - 규칙:
   - 점주에게 노출되는 판매 가능 SKU(활성 상품의 활성 SKU)만 발주할 수 있다(ST-01). 발주(`StoreOrder`)와 항목(`StoreOrderLine`)을 단일 트랜잭션으로 만든다.
