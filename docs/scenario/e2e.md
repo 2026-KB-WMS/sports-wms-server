@@ -83,6 +83,8 @@
 | 6 | SKU2 재고 조회 | 할당 0 (보유는 불변) |
 | 7 | SKU1·SKU2 발주에 `skuIds`로 없는 SKU / 빈 배열 | 400 / 400 |
 | 8 | `skuIds=[SKU2]`로 할당 → 같은 요청 재호출 | 201, 항목 1건 / 409 `ALREADY_ALLOCATED` |
+| 9 | 남은 SKU1 할당 후 `POST /outbounds`에 `skuIds=[SKU1]` → `skuIds` 없이 재호출 | 201, SKU1 1건 / 201, SKU2 1건 |
+| 10 | 출고 생성에 발주에 없는 SKU | 400 |
 
 ### D. 부분 피킹 → 부분 종결
 

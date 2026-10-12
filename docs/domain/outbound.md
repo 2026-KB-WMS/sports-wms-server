@@ -36,7 +36,7 @@
 
 | 현재 | 행위 | 다음 | 수행자 | 조건 |
 |---|---|---|---|---|
-| (없음) | 출고 생성 | READY | 창고 관리자 | 발주 `ASSIGNED`, 취소되지 않은 출고에 연결되지 않은 `ALLOCATED` 할당 ≥ 1 |
+| (없음) | 출고 생성 | READY | 창고 관리자 | 발주 `ASSIGNED`, 취소되지 않은 출고에 연결되지 않은 `ALLOCATED` 할당 ≥ 1. `skuIds`로 묶을 SKU를 고를 수 있다(ADR-019) |
 | READY | 피킹 시작 | PICKING | 창고 관리자 | 발주 `ASSIGNED`, 항목 할당이 모두 `ALLOCATED` |
 | PICKING | 피킹 완료 | PICKED | 창고 관리자 | 전 항목 피킹 수량 확정(0 이상, 할당 수량 이하), 전부 0이면 거절 |
 | PICKED | 배송 시작 | SHIPPED | 창고 관리자 | 인계 완료, `shipped_at`·`shipped_by` 기록 |

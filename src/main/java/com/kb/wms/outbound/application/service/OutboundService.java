@@ -2,7 +2,11 @@ package com.kb.wms.outbound.application.service;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +38,7 @@ import com.kb.wms.outbound.domain.enums.OutboundStatus;
 import com.kb.wms.outbound.exception.OutboundErrorCode;
 import com.kb.wms.storeorder.application.port.in.StoreOrderFulfillmentUseCase;
 import com.kb.wms.storeorder.domain.entity.StoreOrder;
+import com.kb.wms.storeorder.domain.entity.StoreOrderLine;
 import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
 
 import lombok.RequiredArgsConstructor;
@@ -80,8 +85,8 @@ public class OutboundService implements OutboundUseCase {
                     "배정된 발주만 출고를 만들 수 있습니다. 현재 상태: " + order.getStatus());
         }
 
-        List<StockAllocation> allocations = stockAllocationRepository
-                .findUnlinkedAllocatedByStoreOrderIdForUpdate(order.getStoreOrderId());
+        List<StockAllocation> allocations = selectAllocations(order.getStoreOrderId(), command.skuIds(),
+                stockAllocationRepository.findUnlinkedAllocatedByStoreOrderIdForUpdate(order.getStoreOrderId()));
         if (allocations.isEmpty()) {
             throw new BusinessException(OutboundErrorCode.NO_ALLOCATION);
         }
@@ -97,6 +102,32 @@ public class OutboundService implements OutboundUseCase {
         OutboundView view = findViewOrThrow(outbound.getOutboundId());
         List<OutboundLineView> items = outboundQueryRepository.findOutboundLineViews(outbound.getOutboundId());
         return new OutboundCreateResult(view, items);
+    }
+
+    /**
+     * 요청한 SKU의 할당만 고른다. skuIds가 null이면 연결되지 않은 할당 전부다.
+     * 할당은 발주 항목(storeOrderLineId)을 가리키고, 한 발주 안에서 SKU는 중복될 수 없어 SKU로 항목이 정해진다.
+     */
+    private List<StockAllocation> selectAllocations(Long storeOrderId, List<Long> skuIds,
+                                                    List<StockAllocation> allocations) {
+        if (skuIds == null) {
+            return allocations;
+        }
+        if (skuIds.isEmpty() || skuIds.stream().anyMatch(Objects::isNull)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "출고에 묶을 SKU를 하나 이상 지정해주세요.");
+        }
+        Set<Long> requested = new HashSet<>(skuIds);
+        List<StoreOrderLine> lines = storeOrderFulfillmentUseCase.getLines(storeOrderId);
+        Set<Long> inOrder = lines.stream().map(StoreOrderLine::getSkuId).collect(Collectors.toSet());
+        List<Long> unknown = requested.stream().filter(id -> !inOrder.contains(id)).sorted().toList();
+        if (!unknown.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "발주에 없는 SKU입니다. skuId=" + unknown);
+        }
+        Set<Long> lineIds = lines.stream()
+                .filter(line -> requested.contains(line.getSkuId()))
+                .map(StoreOrderLine::getStoreOrderLineId)
+                .collect(Collectors.toSet());
+        return allocations.stream().filter(a -> lineIds.contains(a.getStoreOrderLineId())).toList();
     }
 
     @Override

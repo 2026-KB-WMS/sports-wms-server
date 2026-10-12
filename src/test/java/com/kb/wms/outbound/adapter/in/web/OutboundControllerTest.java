@@ -96,7 +96,7 @@ class OutboundControllerTest {
 
         mockMvc.perform(post("/api/v1/outbounds").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{ \"storeOrderId\": 3, \"note\": \"비고\" }"))
+                        .content("{ \"storeOrderId\": 3, \"note\": \"비고\", \"skuIds\": [5, 6] }"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.outboundNo").value("OB-20261005-0001"))
                 .andExpect(jsonPath("$.data.status").value("READY"))
@@ -108,10 +108,11 @@ class OutboundControllerTest {
         verify(outboundUseCase).createOutbound(captor.capture(), any());
         assertThat(captor.getValue().storeOrderId()).isEqualTo(3L);
         assertThat(captor.getValue().userId()).isEqualTo(9L);
+        assertThat(captor.getValue().skuIds()).containsExactly(5L, 6L);
     }
 
     @Test
-    @DisplayName("출고 생성 입력 검증: 발주 ID 누락, 비고 501자는 400 VALIDATION_ERROR")
+    @DisplayName("출고 생성 입력 검증: 발주 ID 누락, 비고 501자, 빈 skuIds·null 원소는 400 VALIDATION_ERROR")
     void createInvalid() throws Exception {
         mockMvc.perform(post("/api/v1/outbounds").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON).content("{ }"))
@@ -120,6 +121,16 @@ class OutboundControllerTest {
         mockMvc.perform(post("/api/v1/outbounds").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"storeOrderId\": 3, \"note\": \"" + "가".repeat(501) + "\" }"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(post("/api/v1/outbounds").with(user(9L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"storeOrderId\": 3, \"skuIds\": [] }"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(post("/api/v1/outbounds").with(user(9L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"storeOrderId\": 3, \"skuIds\": [5, null] }"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
         verifyNoInteractions(outboundUseCase);

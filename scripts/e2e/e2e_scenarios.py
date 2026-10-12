@@ -271,7 +271,15 @@ def run(api, admin_id, admin_pw):
     if al6:
         check("선택한 SKU2 할당 1건만", len(al6["items"]) == 1 and al6["items"][0]["skuId"] == sku2, al6["items"])
     expect("선택한 SKU 재할당(409 ALREADY_ALLOCATED)", api.call("POST", "/allocations", {"storeOrderId": o6, "skuIds": [sku2]}, token=wm1), 409, "ALREADY_ALLOCATED")
-    expect("선택 할당 발주 취소", api.call("PATCH", "/orders/%s/cancel" % o6, {"reason": "취소"}, token=admin), 200)
+    expect("나머지 SKU1 할당(201)", api.call("POST", "/allocations", {"storeOrderId": o6}, token=wm1), 201)
+    expect("출고 생성에 발주에 없는 SKU(400)", api.call("POST", "/outbounds", {"storeOrderId": o6, "skuIds": [999999999]}, token=wm1), 400)
+    ob6a = expect("SKU1만 골라 출고 생성(201)", api.call("POST", "/outbounds", {"storeOrderId": o6, "skuIds": [sku1]}, token=wm1), 201)
+    if ob6a:
+        check("출고 항목은 SKU1 1건", len(ob6a["items"]) == 1 and ob6a["items"][0]["skuId"] == sku1, ob6a["items"])
+    ob6b = expect("남은 SKU2로 출고 생성(201)", api.call("POST", "/outbounds", {"storeOrderId": o6}, token=wm1), 201)
+    if ob6b:
+        check("출고 항목은 SKU2 1건", len(ob6b["items"]) == 1 and ob6b["items"][0]["skuId"] == sku2, ob6b["items"])
+    expect("선택 출고 발주 취소", api.call("PATCH", "/orders/%s/cancel" % o6, {"reason": "취소"}, token=admin), 200)
 
     # ---------------------------------------------------------------- 시나리오 D: 부분 출고·부분 종결
     section("6. 시나리오 D: 부분 피킹 → 후속 처리 → 부분 종결")

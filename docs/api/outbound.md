@@ -23,7 +23,7 @@
 - 출고 번호는 서버가 `OB-YYYYMMDD-일련번호(4자리)`로 채번한다(당일 출고 개수 + 1, 요청으로 받지 않음). 컬럼은 `outbound_no VARCHAR(30)`(UNIQUE)이고 출고 `note`는 `VARCHAR(500)`이다. 동시 생성으로 번호가 겹치면 UNIQUE 제약이 409 `DUPLICATE_OUTBOUND_NO`로 응답한다.
 - 400 `errors`(필드별 사유)는 요청 바디 검증 실패에만 채워진다. 피킹 완료의 개수·ID 불일치·중복·할당 수량 초과와 전량 부족 `INSUFFICIENT_STOCK`의 SKU별 요청·가용 수량은 공통 `BusinessException`이 `errors`를 지원하지 않아 메시지로만 내려간다. 배열로 노출할지는 공통 예외 개선 때 정한다. 일부만 할당된 성공 응답은 `shortages[]`로 구조화해 내려간다.
 - 목록의 존재하지 않는 `storeOrderId`·`warehouseId`·`skuId` 필터는 404가 아니라 빈 목록을 돌려준다(보류).
-- 확정 필요(미결): 배송 담당자·차량·운송장 기록 여부(ERD `Outbound`에는 `note`뿐), 배송 실패·수령 거부 처리, 부족 사유를 기록할 위치(ERD에 컬럼 없음), 취소한 출고를 다시 여는 방법(현재는 새 출고 생성), 세트 상품 구성품 동시 예약. 재고 부족 시 부분 할당은 허용으로 확정했다([ADR-019](../adr/019-allocation-partial-and-sku-select.md)). 수량을 직접 지정해 할당하는 방식과, 출고 생성 때 SKU를 골라 묶는 방식은 아직 없다.
+- 확정 필요(미결): 배송 담당자·차량·운송장 기록 여부(ERD `Outbound`에는 `note`뿐), 배송 실패·수령 거부 처리, 부족 사유를 기록할 위치(ERD에 컬럼 없음), 취소한 출고를 다시 여는 방법(현재는 새 출고 생성), 세트 상품 구성품 동시 예약. 재고 부족 시 부분 할당은 허용으로 확정했다([ADR-019](../adr/019-allocation-partial-and-sku-select.md)). 수량을 직접 지정해 할당하는 방식은 아직 없다.
 
 ## 엔드포인트 목록 (12)
 
@@ -49,7 +49,7 @@
 - **데이터 범위**: HQ_ADMIN 전체, WAREHOUSE_MANAGER는 본인이 배정된 창고(`WarehouseMember`)에 배정된 발주의 할당·출고. 점주는 이 도메인 API를 호출할 수 없다(진행 상태는 지점 발주 조회의 `progressStage`로 본다). 범위 밖은 403.
 - 할당 `status`: `ALLOCATED`(예약 중) → `PICKED`(피킹 완료, 재고 차감됨) 또는 `RELEASED`(해제).
 - 출고 `status`: `READY` → `PICKING` → `PICKED` → `SHIPPED` → `DELIVERED`. `READY`에서만 `CANCELED`로 갈 수 있다.
-- 출고 항목(`OutboundLine`)은 할당 한 건당 하나이며, 한 출고에는 취소되지 않은 출고에 아직 연결되지 않은 `ALLOCATED` 할당 전부가 묶인다.
+- 출고 항목(`OutboundLine`)은 할당 한 건당 하나이며, 한 출고에는 취소되지 않은 출고에 아직 연결되지 않은 `ALLOCATED` 할당 전부(`skuIds`를 주면 그 SKU의 할당만)가 묶인다.
 - 공급 단가(`confirmedUnitSupplyPrice`, `lineAmount`)는 HQ_ADMIN과 WAREHOUSE_MANAGER에게만 제공한다.
 
 ## POST /allocations (P1)
@@ -94,11 +94,12 @@
 ## POST /outbounds (P1)
 
 - 권한: WAREHOUSE_MANAGER만, 본인 담당 창고에 배정된 발주. 출고 창고는 발주의 `warehouse_id`다.
-- Body: `storeOrderId`(필수), `note`(선택, ≤500)
+- Body: `storeOrderId`(필수), `note`(선택, ≤500), `skuIds`(선택, 정수 배열. 생략하면 연결되지 않은 할당 전부, 주면 그 SKU의 할당만 묶음)
 - 응답 201: `outboundId, outboundNo, storeOrderId, orderNo, status=READY, note, lineCount, items[], createdAt`. `items[]`: `outboundLineId, allocationId, skuId, skuCode, lotNumber, sectionCode, allocatedQuantity, shippedQuantity(0)`
-- 에러: 400, 403, 404(발주 없음), 409 `CONFLICT`(발주 상태가 `ASSIGNED`가 아님. 창고 미배정 발주는 창고 관리자에게 403), 409 `NO_ALLOCATION`(취소되지 않은 출고에 연결되지 않은 `ALLOCATED` 할당이 없음)
+- 에러: 400(`storeOrderId` 누락, `skuIds`가 빈 배열이거나 null 원소 포함, 발주에 없는 SKU), 403, 404(발주 없음), 409 `CONFLICT`(발주 상태가 `ASSIGNED`가 아님. 창고 미배정 발주는 창고 관리자에게 403), 409 `NO_ALLOCATION`(대상 범위에 취소되지 않은 출고에 연결되지 않은 `ALLOCATED` 할당이 없음)
 - 규칙:
   - 연결되지 않은 `ALLOCATED` 할당마다 `OutboundLine` 하나를 만들고 `shipped_quantity`는 0, `confirmed_unit_supply_price`는 비워 둔다(피킹 완료 때 채움). 출고 번호는 서버가 만들며 UNIQUE다.
+  - **SKU 선택**: `skuIds`를 주면 그 SKU의 할당만 이 출고에 묶고, 다른 SKU의 할당은 `ALLOCATED` 그대로 남아 나중에 따로 출고할 수 있다(ADR-019). 한 발주 안에서 SKU는 중복될 수 없어 SKU로 항목이 정해진다. 빈 배열을 "전체"로 해석하지 않는다(400). 선택한 SKU에 묶을 할당이 없으면 409 `NO_ALLOCATION`이다.
   - 재고 수량·할당·발주 상태는 바뀌지 않는다. 생성 이후 그 할당은 해제할 수 없다.
   - 부분 출고 뒤 남은 수량을 다시 할당하면 새 출고를 만들 수 있다(한 발주에 출고 여러 건).
   - 같은 할당이 두 출고에 묶이지 않도록 할당 행을 잠그고 단일 트랜잭션으로 처리한다. 같은 요청을 다시 보내면 409 `NO_ALLOCATION`이다.
