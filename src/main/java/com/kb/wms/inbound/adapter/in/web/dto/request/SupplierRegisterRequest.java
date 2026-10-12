@@ -1,5 +1,6 @@
 package com.kb.wms.inbound.adapter.in.web.dto.request;
 
+import com.kb.wms.common.validation.PhoneNumber;
 import com.kb.wms.inbound.application.port.in.command.SupplierRegisterCommand;
 
 import jakarta.validation.constraints.Email;
@@ -24,6 +25,7 @@ public record SupplierRegisterRequest(
 
         @NotBlank(message = "공급처 연락처는 필수 값입니다.")
         @Size(max = 30, message = "공급처 연락처는 최대 30자입니다.")
+        @PhoneNumber
         String contactNumber,
 
         @Email(message = "이메일 형식이 올바르지 않습니다.")

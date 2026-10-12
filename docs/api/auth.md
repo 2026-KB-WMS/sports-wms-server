@@ -46,7 +46,7 @@
 | password | string | 8자 이상, 영문·숫자·특수문자 포함, 72바이트 이하 |
 | name | string | 최대 100자 |
 | email | string | 이메일 형식, 최대 255자, 중복 불가 |
-| phone | string | 최대 30자 |
+| phone | string | 최대 30자, 전화번호 형식([conventions.md](conventions.md)) |
 | role | string | `WAREHOUSE_MANAGER` / `STORE_OWNER`만. `HQ_ADMIN`은 400 |
 
 - 201. 응답: `userId, loginId, name, email, phone, role, status(PENDING), createdAt`
@@ -134,7 +134,7 @@
 |---|---|---|
 | name | string | 최대 100자, 공백만 불가 |
 | email | string | 이메일 형식, 최대 255자, 다른 계정과 중복 불가(본인 값과 같으면 변경 아님) |
-| phone | string | 최대 30자, 공백만 불가 |
+| phone | string | 최대 30자, 전화번호 형식([conventions.md](conventions.md)) |
 | role | string | `HQ_ADMIN` / `WAREHOUSE_MANAGER` / `STORE_OWNER` |
 | status | string | `PENDING` / `ACTIVE` / `INACTIVE` (허용 전이는 아래) |
 

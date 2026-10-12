@@ -3,6 +3,7 @@ package com.kb.wms.inbound.adapter.in.web.dto.request;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.validation.PhoneNumber;
 import com.kb.wms.inbound.application.port.in.command.SupplierUpdateCommand;
 
 import jakarta.validation.constraints.Email;
@@ -30,6 +31,7 @@ public class SupplierUpdateRequest {
     private boolean managerNamePresent;
 
     @Size(max = 30, message = "공급처 연락처는 최대 30자입니다.")
+    @PhoneNumber
     private String contactNumber;
     private boolean contactNumberPresent;
 

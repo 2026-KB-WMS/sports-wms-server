@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.validation.PhoneNumber;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseUpdateCommand;
 
 import jakarta.validation.constraints.DecimalMin;
@@ -23,6 +24,7 @@ public record WarehouseUpdateRequest(
         String address,
 
         @Size(max = 30, message = "연락처는 최대 30자입니다.")
+        @PhoneNumber
         String contactNumber,
 
         @DecimalMin(value = "0", inclusive = true, message = "전체 수용량은 0 이상이어야 합니다.")
