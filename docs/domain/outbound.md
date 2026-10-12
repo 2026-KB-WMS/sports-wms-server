@@ -25,7 +25,7 @@
 
 | 현재 | 행위 | 다음 | 수행자 | 조건 |
 |---|---|---|---|---|
-| (없음) | 재고 할당 | ALLOCATED | 창고 관리자(FEFO 자동) | 발주 `ASSIGNED`, 가용 재고 ≥ 잔여 수량, 전체 항목 all-or-nothing |
+| (없음) | 재고 할당 | ALLOCATED | 창고 관리자(FEFO 자동) | 발주 `ASSIGNED`, 가용 재고 > 0. 가용만큼 부분 할당하고 부족분은 응답 `shortages`로 알린다. 대상 항목 전부 0이면 거절(ADR-019). `skuIds`로 대상 SKU를 좁힐 수 있다 |
 | ALLOCATED | 할당 해제 | RELEASED | 창고 관리자 | 취소되지 않은 출고에 연결되지 않음, 사유 필수, `released_at` 기록 |
 | ALLOCATED | 피킹 완료 | PICKED | 창고 관리자(피킹 완료 처리 시 자동) | 실제 피킹 수량 확정(`picked_quantity`), 재고 차감, 미피킹 예약분 해제 |
 
@@ -49,7 +49,7 @@
 
 ## 재고·부수 효과
 
-1. **할당**은 재고 행과 발주 항목의 `allocated_quantity`만 늘린다. 보유 수량·재고 이력은 건드리지 않는다. FEFO 순서와 all-or-nothing은 API 명세 `POST /allocations`가 기준이다.
+1. **할당**은 재고 행과 발주 항목의 `allocated_quantity`만 늘린다. 보유 수량·재고 이력은 건드리지 않는다. FEFO 순서와 부분 할당·SKU 선택 규칙은 API 명세 `POST /allocations`와 [ADR-019](../adr/019-allocation-partial-and-sku-select.md)가 기준이다.
 2. **해제**는 재고 행과 발주 항목의 `allocated_quantity`를 줄인다. 보유 수량·재고 이력은 불변이다.
 3. **피킹 완료**가 재고를 차감하는 유일한 시점이다. 한 트랜잭션으로 재고 행(보유·할당), 구역 사용 용량, `InventoryTransaction`(`OUTBOUND`), 할당(`PICKED`), 출고 항목(`shipped_quantity`, 확정 공급 단가), 발주 항목(`allocated_quantity` 감소, `shipped_quantity` 증가), 출고 상태를 함께 바꾼다. 부족분의 예약은 풀려 가용 재고로 돌아간다.
 4. **배송 시작·배송 완료**는 재고·할당을 바꾸지 않는다. 배송 완료는 조건이 맞으면 발주를 `COMPLETED`로 자동 전환한다.
@@ -83,7 +83,7 @@
 1. **발주 항목 `shipped_quantity` 누적 시점 (확정).** 문서마다 달랐다. API 명세 `picking/complete`는 피킹 완료 때 발주 항목의 `allocated_quantity`를 줄이고 `shipped_quantity`를 늘린다고 했고, 업무 상태 전이도와 `store-order.md`는 배송 완료 처리에서 갱신한다고 했다. 잔여 수량 `requested - allocated - shipped`로 다음 할당 수량을 계산하므로 `allocated`가 줄 때 `shipped`도 같이 늘어야 그 사이 같은 수량이 다시 할당되지 않는다. **결정**: 수량(`allocated`·`shipped`)은 피킹 완료에서 갱신하고, 항목 상태(`PARTIALLY_SHIPPED`·`COMPLETED`)와 발주 `COMPLETED` 전환은 배송 완료에서 처리한다. 배송 완료 때는 이 출고가 다룬 발주 항목의 상태를 `shipped_quantity`로 다시 계산한다. `store-order.md`·`api/store-order.md`의 해당 문구는 이에 맞춰 고쳤다.
 2. **락 순서와 할당의 구역 잠금 (보류, 성능 개선 때 다룬다).** `POST /allocations` 명세의 락 순서는 구역 → 재고 행이지만 `InventoryStockService.allocate`·`release`는 재고 행만 잠그고(`receive`·`ship`은 구역부터 잠근다), 발주 행의 위치는 정해지지 않았다. 지금은 확정하지 않고 기존 재고 서비스 동작을 그대로 쓴다. 출고 서비스는 상태 확인과 변경을 출고·발주 행 잠금 아래에서 하고, 재고 행 잠금은 재고 서비스에 맡긴다. 전역 락 순서 확정과 할당·해제의 구역 잠금 추가 여부는 성능 개선 단계에서 판단하며 Notion "[보류]"에 기록한다.
 3. **Notion 개발 일정 페이지의 범위는 12개로 갱신됐다.** 처음에는 12개 중 7개만 적혀 있어 `PATCH /outbounds/{id}/cancel`과 `/allocations` 4개가 빠져 있었다.
-4. 배송 실패·수령 거부, 배송 담당자·운송장 기록, 부족 사유 기록 위치, 취소한 출고 재개, 부분 할당, 세트 상품 구성품 예약은 [`api/outbound.md`](../api/outbound.md) "확정 필요"에 있다(출고 번호 형식은 `OB-YYYYMMDD-NNNN`으로 확정, `outbound_no VARCHAR(30)`).
+4. 배송 실패·수령 거부, 배송 담당자·운송장 기록, 부족 사유 기록 위치, 취소한 출고 재개, 세트 상품 구성품 예약은 [`api/outbound.md`](../api/outbound.md) "확정 필요"에 있다(출고 번호 형식은 `OB-YYYYMMDD-NNNN`으로 확정, `outbound_no VARCHAR(30)`).
 
 ## 구현 현황
 

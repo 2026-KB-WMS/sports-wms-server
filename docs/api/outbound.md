@@ -21,9 +21,9 @@
 - 발주 항목 `shipped_quantity`는 피킹 완료에서 누적하고, 항목 상태(`PARTIALLY_SHIPPED`·`COMPLETED`)는 배송 완료에서 전환한다(2026-10-05 결정, [domain/outbound.md](../domain/outbound.md) "결정·미결" 1번). Notion은 이 시점을 문서마다 다르게 적고 있다.
 - 락 순서와 할당·해제의 구역 잠금은 성능 개선 때 정한다(보류, [domain/outbound.md](../domain/outbound.md) "결정·미결" 2번).
 - 출고 번호는 서버가 `OB-YYYYMMDD-일련번호(4자리)`로 채번한다(당일 출고 개수 + 1, 요청으로 받지 않음). 컬럼은 `outbound_no VARCHAR(30)`(UNIQUE)이고 출고 `note`는 `VARCHAR(500)`이다. 동시 생성으로 번호가 겹치면 UNIQUE 제약이 409 `DUPLICATE_OUTBOUND_NO`로 응답한다.
-- 400 `errors`(필드별 사유)는 요청 바디 검증 실패에만 채워진다. 피킹 완료의 개수·ID 불일치·중복·할당 수량 초과와 `INSUFFICIENT_STOCK`의 SKU별 요청·가용 수량은 공통 `BusinessException`이 `errors`를 지원하지 않아 메시지로만 내려간다. 배열로 노출할지는 공통 예외 개선 때 정한다.
+- 400 `errors`(필드별 사유)는 요청 바디 검증 실패에만 채워진다. 피킹 완료의 개수·ID 불일치·중복·할당 수량 초과와 전량 부족 `INSUFFICIENT_STOCK`의 SKU별 요청·가용 수량은 공통 `BusinessException`이 `errors`를 지원하지 않아 메시지로만 내려간다. 배열로 노출할지는 공통 예외 개선 때 정한다. 일부만 할당된 성공 응답은 `shortages[]`로 구조화해 내려간다.
 - 목록의 존재하지 않는 `storeOrderId`·`warehouseId`·`skuId` 필터는 404가 아니라 빈 목록을 돌려준다(보류).
-- 확정 필요(미결): 배송 담당자·차량·운송장 기록 여부(ERD `Outbound`에는 `note`뿐), 배송 실패·수령 거부 처리, 부족 사유를 기록할 위치(ERD에 컬럼 없음), 취소한 출고를 다시 여는 방법(현재는 새 출고 생성), 재고 부족 시 부분 할당 허용 여부(현재 전체 실패), 세트 상품 구성품 동시 예약.
+- 확정 필요(미결): 배송 담당자·차량·운송장 기록 여부(ERD `Outbound`에는 `note`뿐), 배송 실패·수령 거부 처리, 부족 사유를 기록할 위치(ERD에 컬럼 없음), 취소한 출고를 다시 여는 방법(현재는 새 출고 생성), 세트 상품 구성품 동시 예약. 재고 부족 시 부분 할당은 허용으로 확정했다([ADR-019](../adr/019-allocation-partial-and-sku-select.md)). 수량을 직접 지정해 할당하는 방식과, 출고 생성 때 SKU를 골라 묶는 방식은 아직 없다.
 
 ## 엔드포인트 목록 (12)
 
@@ -55,14 +55,15 @@
 ## POST /allocations (P1)
 
 - 권한: WAREHOUSE_MANAGER만, 본인 담당 창고에 배정된 발주. 대상 창고는 발주의 `warehouse_id`이며 요청으로 받지 않는다.
-- Body: `storeOrderId`(필수)
-- 응답 201: `storeOrderId, orderNo, items[]`. `items[]`는 `GET /allocations`의 `data.items[]`와 같은 형식이다: `allocationId, storeOrderId, orderNo, storeOrderLineId, warehouseId, skuId, skuCode, skuName, inventoryLotId, lotId, lotNumber, expiryDate, sectionId, sectionCode, allocatedQuantity, pickedQuantity, status, allocatedAt, releasedAt(null)`
-- 에러: 400, 403, 404(발주 없음), 409 `CONFLICT`(발주 상태가 `ASSIGNED`가 아님: 보류·취소). 창고가 아직 배정되지 않은 발주(`REQUESTED`·`APPROVED`)는 창고 관리자에게 403이다(담당 창고를 판별할 수 없고 조회도 할 수 없는 발주이므로 상태 409보다 소속 403이 먼저다), 409 `ALREADY_ALLOCATED`(할당할 잔여 수량 없음), 409 `INSUFFICIENT_STOCK`(한 항목이라도 가용 재고 부족, `errors`에 SKU별 요청·가용 수량), 409 `LOT_NOT_AVAILABLE`, 409 `SKU_NOT_ACTIVE`(재고 도메인이 거절)
+- Body: `storeOrderId`(필수), `skuIds`(선택, 정수 배열. 생략하면 발주 전체, 주면 그 SKU 항목만 대상)
+- 응답 201: `storeOrderId, orderNo, items[], shortages[]`. `items[]`는 `GET /allocations`의 `data.items[]`와 같은 형식이다: `allocationId, storeOrderId, orderNo, storeOrderLineId, warehouseId, skuId, skuCode, skuName, inventoryLotId, lotId, lotNumber, expiryDate, sectionId, sectionCode, allocatedQuantity, pickedQuantity, status, allocatedAt, releasedAt(null)`. `shortages[]`는 재고가 모자라 일부만 할당한 SKU이며(`skuId, requestedQuantity, allocatedQuantity, shortageQuantity`), 부족이 없으면 빈 배열이다. `requestedQuantity`는 이번 호출에서 할당하려던 잔여 수량이다.
+- 에러: 400(`storeOrderId` 누락, `skuIds`가 빈 배열이거나 null 원소 포함, 발주에 없는 SKU), 403, 404(발주 없음), 409 `CONFLICT`(발주 상태가 `ASSIGNED`가 아님: 보류·취소). 창고가 아직 배정되지 않은 발주(`REQUESTED`·`APPROVED`)는 창고 관리자에게 403이다(담당 창고를 판별할 수 없고 조회도 할 수 없는 발주이므로 상태 409보다 소속 403이 먼저다), 409 `ALREADY_ALLOCATED`(대상 항목에 할당할 잔여 수량 없음), 409 `INSUFFICIENT_STOCK`(대상 항목 중 하나도 할당하지 못함. 메시지에 SKU별 요청·가용 수량), 409 `LOT_NOT_AVAILABLE`, 409 `SKU_NOT_ACTIVE`(재고 도메인이 거절)
 - 규칙:
   - 발주 상태가 `ASSIGNED`일 때만. 보류(`ON_HOLD`) 중에는 재개 후 할당한다.
   - 항목별 할당 대상 수량은 `requestedQuantity - allocatedQuantity - shippedQuantity`(잔여 수량)다. 처음에는 요청 수량 전체, 부분 출고 뒤 다시 실행하면 남은 수량만이다.
   - FEFO: 대상 창고의 재고 행 중 품질 `AVAILABLE`, 로트 `AVAILABLE`, 구역 활성인 행에서 유통기한이 빠른 순(없으면 뒤로) → 로트 생성이 빠른 순 → `inventoryLotId` 순으로 가용 수량(`on_hand - allocated`)을 채운다. 한 항목이 여러 재고 행에 나뉠 수 있고 행마다 `StockAllocation` 하나가 생긴다.
-  - 전체 항목을 한 번에 할당한다(all-or-nothing). 부족한 항목이 있으면 아무것도 할당하지 않는다.
+  - **부분 할당**: 재고가 모자란 항목은 가용 수량만큼만 할당하고 모자란 수량을 `shortages[]`로 알린다(ADR-019). 한 항목이 0이어도 다른 항목은 할당한다. 대상 항목 전부에서 하나도 할당하지 못하면 아무것도 만들지 않고 409 `INSUFFICIENT_STOCK`이다. 부족분은 재고가 들어온 뒤 같은 요청을 다시 보내면 남은 수량만큼 이어서 할당된다.
+  - **SKU 선택**: `skuIds`를 주면 발주 항목 중 그 SKU만 대상이다. 한 발주 안에서 SKU는 중복될 수 없어 SKU로 항목이 정해진다. 중복된 ID는 한 번만 처리하고, 선택한 SKU가 모두 이미 할당 끝났으면 409 `ALREADY_ALLOCATED`, 일부만 끝났으면 남은 것만 처리한다. 빈 배열을 "전체"로 해석하지 않는다(400).
   - 성공하면 `StockAllocation`(`ALLOCATED`, `picked_quantity` 0, 할당 사용자·일시)을 만들고 재고 행과 발주 항목의 `allocated_quantity`를 늘린다. 보유 수량은 바뀌지 않고 재고 이력(`InventoryTransaction`)은 남기지 않는다. `StatusHistory`에는 기록한다(`from_status` NULL → `ALLOCATED`).
   - 같은 요청을 다시 보내면 잔여 수량이 없어 409 `ALREADY_ALLOCATED`가 된다.
   - 재고 행과 발주 행을 비관적 락(ADR-006)으로 잠근다. 재고 쪽은 `InventoryStockUseCase.allocate`를 쓴다.

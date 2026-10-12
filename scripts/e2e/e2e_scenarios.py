@@ -235,11 +235,21 @@ def run(api, admin_id, admin_pw):
     section("5. 시나리오 C: 재고 부족 / 보류·재개 / 본사 취소")
     o2 = new_order(own1, s1, [(sku1, 100)])
     approve_assign(o2)
-    expect("재고 부족 할당(409)", api.call("POST", "/allocations", {"storeOrderId": o2}, token=wm1), 409, "INSUFFICIENT_STOCK")
+    al2 = expect("재고 부족 부분 할당(201)", api.call("POST", "/allocations", {"storeOrderId": o2}, token=wm1), 201)
+    if al2:
+        sh = al2.get("shortages") or []
+        check("SKU1 요청 100 / 할당 68 / 부족 32 보고",
+              len(sh) == 1 and sh[0]["skuId"] == sku1 and sh[0]["requestedQuantity"] == 100
+              and sh[0]["allocatedQuantity"] == 68 and sh[0]["shortageQuantity"] == 32, sh)
     expect("보류", api.call("PATCH", "/orders/%s/hold" % o2, {"reason": "재고 확보 중"}, token=wm1), 200)
     expect("보류 중 할당 불가(409)", api.call("POST", "/allocations", {"storeOrderId": o2}, token=wm1), 409)
     expect("재개", api.call("PATCH", "/orders/%s/resume" % o2, {"reason": "재개"}, token=wm1), 200)
-    c = expect("본사 취소(출고 전)", api.call("PATCH", "/orders/%s/cancel" % o2, {"reason": "테스트 취소"}, token=admin), 200)
+    # SKU1 가용이 0인 상태: 전량 부족이면 아무것도 할당하지 않고 409
+    o5 = new_order(own1, s1, [(sku1, 1)])
+    approve_assign(o5)
+    expect("가용 0이면 409 INSUFFICIENT_STOCK", api.call("POST", "/allocations", {"storeOrderId": o5}, token=wm1), 409, "INSUFFICIENT_STOCK")
+    expect("전량 부족 발주 취소", api.call("PATCH", "/orders/%s/cancel" % o5, {"reason": "재고 없음"}, token=admin), 200)
+    c = expect("본사 취소(부분 할당분 해제)", api.call("PATCH", "/orders/%s/cancel" % o2, {"reason": "테스트 취소"}, token=admin), 200)
     if c:
         check("취소 상태 CANCELED", c["status"] == "CANCELED", c["status"])
 
@@ -251,6 +261,17 @@ def run(api, admin_id, admin_pw):
         check("할당 1건 해제", c.get("releasedAllocationCount") == 1, c)
     r2 = row(sku2)
     check("취소 후 SKU2 할당 0", r2 and r2["allocatedQuantity"] == 0, r2)
+
+    # SKU를 골라 할당: 선택하지 않은 SKU1(가용 68이지만 이 호출 대상 아님)은 건드리지 않는다
+    o6 = new_order(own1, s1, [(sku2, 1), (sku1, 1)])
+    approve_assign(o6)
+    expect("발주에 없는 SKU 지정(400)", api.call("POST", "/allocations", {"storeOrderId": o6, "skuIds": [999999999]}, token=wm1), 400)
+    expect("빈 skuIds(400)", api.call("POST", "/allocations", {"storeOrderId": o6, "skuIds": []}, token=wm1), 400)
+    al6 = expect("SKU2만 선택 할당(201)", api.call("POST", "/allocations", {"storeOrderId": o6, "skuIds": [sku2]}, token=wm1), 201)
+    if al6:
+        check("선택한 SKU2 할당 1건만", len(al6["items"]) == 1 and al6["items"][0]["skuId"] == sku2, al6["items"])
+    expect("선택한 SKU 재할당(409 ALREADY_ALLOCATED)", api.call("POST", "/allocations", {"storeOrderId": o6, "skuIds": [sku2]}, token=wm1), 409, "ALREADY_ALLOCATED")
+    expect("선택 할당 발주 취소", api.call("PATCH", "/orders/%s/cancel" % o6, {"reason": "취소"}, token=admin), 200)
 
     # ---------------------------------------------------------------- 시나리오 D: 부분 출고·부분 종결
     section("6. 시나리오 D: 부분 피킹 → 후속 처리 → 부분 종결")
