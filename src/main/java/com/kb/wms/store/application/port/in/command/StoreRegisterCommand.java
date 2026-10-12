@@ -1,5 +1,7 @@
 package com.kb.wms.store.application.port.in.command;
 
+import java.math.BigDecimal;
+
 /**
  * POST /api/v1/stores 요청. 점주 배정은 포함하지 않는다(POST /stores/assign으로 별도 처리).
  *
@@ -10,6 +12,13 @@ public record StoreRegisterCommand(
         String name,
         String address,
         String contactName,
-        String contactNumber
+        String contactNumber,
+        BigDecimal latitude,
+        BigDecimal longitude
 ) {
+
+    public StoreRegisterCommand(String storeCode, String name, String address, String contactName,
+                                String contactNumber) {
+        this(storeCode, name, address, contactName, contactNumber, null, null);
+    }
 }

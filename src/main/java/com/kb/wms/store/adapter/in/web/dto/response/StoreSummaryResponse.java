@@ -1,5 +1,7 @@
 package com.kb.wms.store.adapter.in.web.dto.response;
 
+import java.math.BigDecimal;
+
 import com.kb.wms.store.domain.entity.Store;
 
 /**
@@ -10,6 +12,8 @@ public record StoreSummaryResponse(
         String storeCode,
         String storeName,
         String address,
+        BigDecimal latitude,
+        BigDecimal longitude,
         String contactName,
         String contactNumber,
         boolean isActive
@@ -21,6 +25,8 @@ public record StoreSummaryResponse(
                 store.getStoreCode(),
                 store.getName(),
                 store.getAddress(),
+                store.getLatitude(),
+                store.getLongitude(),
                 store.getContactName(),
                 store.getContactNumber(),
                 store.isActive());

@@ -1,8 +1,14 @@
 package com.kb.wms.inbound.adapter.in.web.dto.request;
 
+import java.math.BigDecimal;
+
+import com.kb.wms.common.validation.GeoCoordinates;
 import com.kb.wms.common.validation.PhoneNumber;
 import com.kb.wms.inbound.application.port.in.command.SupplierRegisterCommand;
 
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -33,10 +39,24 @@ public record SupplierRegisterRequest(
         String email,
 
         @Size(max = 500, message = "공급처 주소는 최대 500자입니다.")
-        String address
+        String address,
+
+        @DecimalMin(value = "-90", message = "위도는 -90 이상이어야 합니다.")
+        @DecimalMax(value = "90", message = "위도는 90 이하여야 합니다.")
+        BigDecimal latitude,
+
+        @DecimalMin(value = "-180", message = "경도는 -180 이상이어야 합니다.")
+        @DecimalMax(value = "180", message = "경도는 180 이하여야 합니다.")
+        BigDecimal longitude
 ) {
 
+    @AssertTrue(message = "위도와 경도는 함께 입력해야 합니다.")
+    public boolean isCoordinatePairValid() {
+        return GeoCoordinates.isPair(latitude, longitude);
+    }
+
     public SupplierRegisterCommand toCommand() {
-        return new SupplierRegisterCommand(supplierCode, supplierName, managerName, contactNumber, email, address);
+        return new SupplierRegisterCommand(supplierCode, supplierName, managerName, contactNumber, email, address,
+                latitude, longitude);
     }
 }

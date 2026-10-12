@@ -1,5 +1,6 @@
 package com.kb.wms.inbound.adapter.in.web.dto.response;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import com.kb.wms.inbound.domain.entity.Supplier;
@@ -15,6 +16,8 @@ public record SupplierResponse(
         String contactNumber,
         String email,
         String address,
+        BigDecimal latitude,
+        BigDecimal longitude,
         boolean isActive,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
@@ -29,6 +32,8 @@ public record SupplierResponse(
                 supplier.getContactNumber(),
                 supplier.getEmail(),
                 supplier.getAddress(),
+                supplier.getLatitude(),
+                supplier.getLongitude(),
                 supplier.isActive(),
                 supplier.getCreatedAt(),
                 supplier.getUpdatedAt());

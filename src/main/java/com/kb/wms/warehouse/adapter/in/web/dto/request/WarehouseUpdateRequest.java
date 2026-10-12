@@ -4,9 +4,12 @@ import java.math.BigDecimal;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.validation.GeoCoordinates;
 import com.kb.wms.common.validation.PhoneNumber;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseUpdateCommand;
 
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Size;
@@ -33,13 +36,27 @@ public record WarehouseUpdateRequest(
 
         String warehouseCode,
 
-        Boolean isActive
+        Boolean isActive,
+
+        @DecimalMin(value = "-90", message = "위도는 -90 이상이어야 합니다.")
+        @DecimalMax(value = "90", message = "위도는 90 이하여야 합니다.")
+        BigDecimal latitude,
+
+        @DecimalMin(value = "-180", message = "경도는 -180 이상이어야 합니다.")
+        @DecimalMax(value = "180", message = "경도는 180 이하여야 합니다.")
+        BigDecimal longitude
 ) {
+
+    @AssertTrue(message = "위도와 경도는 함께 입력해야 합니다.")
+    public boolean isCoordinatePairValid() {
+        return GeoCoordinates.isPair(latitude, longitude);
+    }
 
     public WarehouseUpdateCommand toCommand() {
         if (warehouseCode != null || isActive != null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "warehouseCode, isActive는 이 API로 수정할 수 없습니다.");
         }
-        return new WarehouseUpdateCommand(warehouseName, address, contactNumber, totalCapacity);
+        return new WarehouseUpdateCommand(warehouseName, address, contactNumber, totalCapacity,
+                latitude, longitude);
     }
 }

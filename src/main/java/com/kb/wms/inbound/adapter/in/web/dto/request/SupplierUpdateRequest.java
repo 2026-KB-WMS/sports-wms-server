@@ -1,11 +1,17 @@
 package com.kb.wms.inbound.adapter.in.web.dto.request;
 
+import java.math.BigDecimal;
+
 import com.fasterxml.jackson.annotation.JsonSetter;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.validation.GeoCoordinates;
 import com.kb.wms.common.validation.PhoneNumber;
 import com.kb.wms.inbound.application.port.in.command.SupplierUpdateCommand;
 
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
 
@@ -44,6 +50,14 @@ public class SupplierUpdateRequest {
     private String address;
     private boolean addressPresent;
 
+    @DecimalMin(value = "-90", message = "위도는 -90 이상이어야 합니다.")
+    @DecimalMax(value = "90", message = "위도는 90 이하여야 합니다.")
+    private BigDecimal latitude;
+
+    @DecimalMin(value = "-180", message = "경도는 -180 이상이어야 합니다.")
+    @DecimalMax(value = "180", message = "경도는 180 이하여야 합니다.")
+    private BigDecimal longitude;
+
     private String supplierCode;
     private Boolean isActive;
 
@@ -77,6 +91,16 @@ public class SupplierUpdateRequest {
         this.addressPresent = true;
     }
 
+    @JsonSetter("latitude")
+    public void setLatitude(BigDecimal latitude) {
+        this.latitude = latitude;
+    }
+
+    @JsonSetter("longitude")
+    public void setLongitude(BigDecimal longitude) {
+        this.longitude = longitude;
+    }
+
     @JsonSetter("supplierCode")
     public void setSupplierCode(String supplierCode) {
         this.supplierCode = supplierCode;
@@ -85,6 +109,11 @@ public class SupplierUpdateRequest {
     @JsonSetter("isActive")
     public void setIsActive(Boolean isActive) {
         this.isActive = isActive;
+    }
+
+    @AssertTrue(message = "위도와 경도는 함께 입력해야 합니다.")
+    public boolean isCoordinatePairValid() {
+        return GeoCoordinates.isPair(latitude, longitude);
     }
 
     public SupplierUpdateCommand toCommand() {
@@ -102,7 +131,9 @@ public class SupplierUpdateRequest {
                 email,
                 address,
                 emailPresent && email == null,
-                addressPresent && address == null);
+                addressPresent && address == null,
+                latitude,
+                longitude);
     }
 
     /** 키가 있는데 null이거나 공백뿐이면 필수 항목을 비우려는 요청이므로 거절한다. */

@@ -45,6 +45,7 @@ public class StoreService implements StoreUseCase {
         Store store = Store.register(
                 command.storeCode(), command.name(), command.address(),
                 command.contactName(), command.contactNumber());
+        store.changeCoordinates(command.latitude(), command.longitude());
         return storeRepository.save(store);
     }
 
@@ -86,6 +87,9 @@ public class StoreService implements StoreUseCase {
         }
         if (command.contactNumber() != null) {
             store.changeContactNumber(command.contactNumber());
+        }
+        if (command.latitude() != null && command.longitude() != null) {
+            store.changeCoordinates(command.latitude(), command.longitude());
         }
 
         return storeRepository.save(store);

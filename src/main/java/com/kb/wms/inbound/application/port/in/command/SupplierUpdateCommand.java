@@ -1,5 +1,7 @@
 package com.kb.wms.inbound.application.port.in.command;
 
+import java.math.BigDecimal;
+
 /**
  * PATCH /api/v1/suppliers/{supplierId} 요청. 보낸 필드만 부분 수정한다.
  * supplierCode와 거래 상태(isActive)는 이 커맨드에 포함하지 않는다.
@@ -16,14 +18,22 @@ public record SupplierUpdateCommand(
         String email,
         String address,
         boolean clearEmail,
-        boolean clearAddress
+        boolean clearAddress,
+        BigDecimal latitude,
+        BigDecimal longitude
 ) {
+
+    public SupplierUpdateCommand(String name, String managerName, String contactNumber, String email,
+                                 String address, boolean clearEmail, boolean clearAddress) {
+        this(name, managerName, contactNumber, email, address, clearEmail, clearAddress, null, null);
+    }
 
     public boolean hasNoChanges() {
         return name == null
                 && managerName == null
                 && contactNumber == null
                 && email == null && !clearEmail
-                && address == null && !clearAddress;
+                && address == null && !clearAddress
+                && latitude == null && longitude == null;
     }
 }

@@ -1,5 +1,7 @@
 package com.kb.wms.inbound.adapter.in.web.dto.response;
 
+import java.math.BigDecimal;
+
 import com.kb.wms.inbound.domain.entity.Supplier;
 
 /**
@@ -13,6 +15,8 @@ public record SupplierSummaryResponse(
         String contactNumber,
         String email,
         String address,
+        BigDecimal latitude,
+        BigDecimal longitude,
         boolean isActive
 ) {
 
@@ -25,6 +29,8 @@ public record SupplierSummaryResponse(
                 supplier.getContactNumber(),
                 supplier.getEmail(),
                 supplier.getAddress(),
+                supplier.getLatitude(),
+                supplier.getLongitude(),
                 supplier.isActive());
     }
 }
