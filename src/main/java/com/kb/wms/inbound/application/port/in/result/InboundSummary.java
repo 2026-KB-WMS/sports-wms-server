@@ -6,7 +6,7 @@ import com.kb.wms.inbound.domain.enums.InboundStatus;
 
 /**
  * 입고 목록 항목 (GET /api/v1/inbounds). 검수 항목은 개수(lineCount)만 담으며 검수 전(ARRIVED)에는 0이다.
- * receivedBy의 사용자 이름은 명세의 목록 응답 항목에 없어서 담지 않는다(단건 InboundView에만 있다).
+ * 처리자 이름(receivedByName)은 조회 쿼리가 사용자 테이블을 ID로 조인해 채우며, 검수 전이거나 취소된 입고는 null이다.
  */
 public record InboundSummary(
         Long inboundId,
@@ -21,6 +21,7 @@ public record InboundSummary(
         LocalDateTime arrivedAt,
         LocalDateTime receivedAt,
         Long receivedBy,
+        String receivedByName,
         Long lineCount
 ) {
 }

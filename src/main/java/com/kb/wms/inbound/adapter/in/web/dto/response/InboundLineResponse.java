@@ -32,7 +32,8 @@ public record InboundLineResponse(
         String priceChangeReason,
         String inspectionNote,
         LocalDateTime receivedAt,
-        Long receivedBy
+        Long receivedBy,
+        String receivedByName
 ) {
 
     public static InboundLineResponse from(InboundLineView view) {
@@ -42,6 +43,6 @@ public record InboundLineResponse(
                 view.receivedQuantity(), view.acceptedQuantity(), view.defectiveQuantity(),
                 view.acceptedSectionId(), view.acceptedSectionCode(), view.defectSectionId(),
                 view.defectSectionCode(), view.orderedUnitPrice(), view.receivedUnitPrice(), view.lineAmount(),
-                view.priceChangeReason(), view.inspectionNote(), view.receivedAt(), view.receivedBy());
+                view.priceChangeReason(), view.inspectionNote(), view.receivedAt(), view.receivedBy(), view.receivedByName());
     }
 }

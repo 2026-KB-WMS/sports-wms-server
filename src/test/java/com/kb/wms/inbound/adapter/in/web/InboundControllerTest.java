@@ -108,7 +108,7 @@ class InboundControllerTest {
     private static InboundSummary summary() {
         return new InboundSummary(
                 7L, "IB-20260925-0001", 4L, "PO-20260921-0001", 3L, "공급처 A", 1L, "서울 물류센터",
-                InboundStatus.INSPECTING, LocalDateTime.of(2026, 9, 25, 9, 10), null, null, 1L);
+                InboundStatus.INSPECTING, LocalDateTime.of(2026, 9, 25, 9, 10), null, null, null, 1L);
     }
 
     private static InboundLineView lineView() {
@@ -116,7 +116,7 @@ class InboundControllerTest {
                 21L, 11L, 1L, "SKU-0001-RED-G4", "배드민턴 라켓 A 빨강 G4", 31L, "LOT-20260901-A",
                 LocalDate.of(2026, 8, 20), null, 60L, 58L, 2L, 2L, "A-01-R01", 9L, "D-01",
                 BigDecimal.valueOf(60000), BigDecimal.valueOf(60000), BigDecimal.valueOf(3600000),
-                null, "포장 파손 2개", LocalDateTime.of(2026, 9, 25, 11, 0), 5L);
+                null, "포장 파손 2개", LocalDateTime.of(2026, 9, 25, 11, 0), 5L, "김창고");
     }
 
     private static Inbound inbound(InboundStatus status) {

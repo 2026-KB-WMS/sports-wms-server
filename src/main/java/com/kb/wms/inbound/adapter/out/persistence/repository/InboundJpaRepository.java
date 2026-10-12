@@ -52,12 +52,13 @@ public interface InboundJpaRepository extends JpaRepository<InboundJpaEntity, Lo
     @Query("""
             select new com.kb.wms.inbound.application.port.in.result.InboundSummary(
                 i.inboundId, i.inboundNo, i.purchaseOrderId, po.purchaseOrderNo, po.supplierId, s.name,
-                i.warehouseId, w.name, i.status, i.arrivedAt, i.receivedAt, i.receivedBy, count(l))
+                i.warehouseId, w.name, i.status, i.arrivedAt, i.receivedAt, i.receivedBy, ru.name, count(l))
             from InboundJpaEntity i
             join PurchaseOrderJpaEntity po on po.purchaseOrderId = i.purchaseOrderId
             join SupplierJpaEntity s on s.supplierId = po.supplierId
             join WarehouseJpaEntity w on w.warehouseId = i.warehouseId
             left join InboundLineJpaEntity l on l.inboundId = i.inboundId
+            left join UserJpaEntity ru on ru.userId = i.receivedBy
             where (:status is null or i.status = :status)
               and (:warehouseId is null or i.warehouseId = :warehouseId)
               and (:scoped = false or i.warehouseId in :warehouseIds)
@@ -68,7 +69,7 @@ public interface InboundJpaRepository extends JpaRepository<InboundJpaEntity, Lo
               and (:arrivedFrom is null or i.arrivedAt >= :arrivedFrom)
               and (:arrivedTo is null or i.arrivedAt <= :arrivedTo)
             group by i.inboundId, i.inboundNo, i.purchaseOrderId, po.purchaseOrderNo, po.supplierId, s.name,
-                     i.warehouseId, w.name, i.status, i.arrivedAt, i.receivedAt, i.receivedBy
+                     i.warehouseId, w.name, i.status, i.arrivedAt, i.receivedAt, i.receivedBy, ru.name
             order by i.arrivedAt desc, i.inboundId desc
             """)
     List<InboundSummary> search(@Param("status") InboundStatus status,

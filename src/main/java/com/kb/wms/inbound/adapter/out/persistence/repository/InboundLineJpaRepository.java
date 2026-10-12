@@ -30,13 +30,14 @@ public interface InboundLineJpaRepository extends JpaRepository<InboundLineJpaEn
                 l.receivedQuantity, l.acceptedQuantity, l.defectiveQuantity,
                 l.acceptedSectionId, asec.sectionCode, l.defectSectionId, dsec.sectionCode,
                 pol.orderedUnitPrice, l.receivedUnitPrice, l.lineAmount,
-                l.priceChangeReason, l.inspectionNote, l.receivedAt, l.receivedBy)
+                l.priceChangeReason, l.inspectionNote, l.receivedAt, l.receivedBy, ru.name)
             from InboundLineJpaEntity l
             join PurchaseOrderLineJpaEntity pol on pol.purchaseOrderLineId = l.purchaseOrderLineId
             join ProductSkuJpaEntity s on s.skuId = pol.skuId
             join LotJpaEntity lot on lot.lotId = l.lotId
             left join WarehouseSectionJpaEntity asec on asec.sectionId = l.acceptedSectionId
             left join WarehouseSectionJpaEntity dsec on dsec.sectionId = l.defectSectionId
+            left join UserJpaEntity ru on ru.userId = l.receivedBy
             where l.inboundId = :inboundId
             order by s.skuCode, lot.lotNumber, l.inboundLineId
             """)
