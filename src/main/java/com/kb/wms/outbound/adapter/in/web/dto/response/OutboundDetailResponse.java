@@ -26,6 +26,7 @@ public record OutboundDetailResponse(
         String warehouseName,
         LocalDateTime shippedAt,
         Long shippedBy,
+        String shippedByName,
         LocalDateTime deliveredAt,
         String note,
         String cancelReason,
@@ -66,7 +67,7 @@ public record OutboundDetailResponse(
         OutboundView v = detail.view();
         return new OutboundDetailResponse(v.outboundId(), v.outboundNo(), v.status(), v.storeOrderId(),
                 v.orderNo(), v.storeId(), v.storeName(), v.warehouseId(), v.warehouseName(), v.shippedAt(),
-                v.shippedBy(), v.deliveredAt(), v.note(), detail.cancelReason(),
+                v.shippedBy(), v.shippedByName(), v.deliveredAt(), v.note(), detail.cancelReason(),
                 detail.items().stream().map(Item::from).toList(), v.createdAt(), v.updatedAt());
     }
 }

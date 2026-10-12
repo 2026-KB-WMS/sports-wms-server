@@ -399,7 +399,7 @@ class InboundServiceTest {
                 21L, 11L, 1L, "SKU-0001", "배드민턴 라켓", 1L, "LOT-A", null, null,
                 60L, 58L, 2L, 2L, "A-01", 9L, "D-01",
                 BigDecimal.valueOf(60000), BigDecimal.valueOf(60000), BigDecimal.valueOf(3600000),
-                null, null, LocalDateTime.of(2026, 10, 2, 10, 0), 5L);
+                null, null, LocalDateTime.of(2026, 10, 2, 10, 0), 5L, "김창고");
         when(inboundQueryRepository.findView(7L)).thenReturn(Optional.of(view));
         when(inboundQueryRepository.findLineViews(7L)).thenReturn(List.of(lineView));
 

@@ -19,6 +19,7 @@ public record InboundRegisterResponse(
         LocalDateTime arrivedAt,
         LocalDateTime receivedAt,
         Long receivedBy,
+        String receivedByName,
         String note,
         LocalDateTime createdAt
 ) {
@@ -27,6 +28,6 @@ public record InboundRegisterResponse(
         return new InboundRegisterResponse(
                 view.inboundId(), view.inboundNo(), view.purchaseOrderId(), view.purchaseOrderNo(),
                 view.warehouseId(), view.warehouseName(), view.status(), view.arrivedAt(),
-                view.receivedAt(), view.receivedBy(), view.note(), view.createdAt());
+                view.receivedAt(), view.receivedBy(), view.receivedByName(), view.note(), view.createdAt());
     }
 }

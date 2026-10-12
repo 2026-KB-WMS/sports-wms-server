@@ -20,6 +20,7 @@ public record OutboundSummary(
         Long lineCount,
         LocalDateTime shippedAt,
         Long shippedBy,
+        String shippedByName,
         LocalDateTime createdAt
 ) {
 }

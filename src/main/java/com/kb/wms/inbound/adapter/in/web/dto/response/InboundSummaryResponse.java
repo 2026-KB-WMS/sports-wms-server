@@ -7,7 +7,7 @@ import com.kb.wms.inbound.domain.enums.InboundStatus;
 
 /**
  * GET /api/v1/inbounds (입고 목록) 응답 항목.
- * 처리자 이름(receivedByName)은 명세의 목록 응답 항목에 없어서 담지 않는다(단건 응답에만 있다).
+ * 처리자 이름(receivedByName)은 검수 전이거나 취소된 입고에서 null이다.
  */
 public record InboundSummaryResponse(
         Long inboundId,
@@ -22,6 +22,7 @@ public record InboundSummaryResponse(
         LocalDateTime arrivedAt,
         LocalDateTime receivedAt,
         Long receivedBy,
+        String receivedByName,
         Long lineCount
 ) {
 
@@ -30,6 +31,6 @@ public record InboundSummaryResponse(
                 summary.inboundId(), summary.inboundNo(), summary.purchaseOrderId(), summary.purchaseOrderNo(),
                 summary.supplierId(), summary.supplierName(), summary.warehouseId(), summary.warehouseName(),
                 summary.status(), summary.arrivedAt(), summary.receivedAt(), summary.receivedBy(),
-                summary.lineCount());
+                summary.receivedByName(), summary.lineCount());
     }
 }

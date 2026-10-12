@@ -23,6 +23,7 @@ public record PurchaseOrderRegisterResponse(
         String note,
         BigDecimal totalAmount,
         Long createdBy,
+        String createdByName,
         LocalDateTime createdAt,
         List<PurchaseOrderLineResponse> lines
 ) {
@@ -40,6 +41,7 @@ public record PurchaseOrderRegisterResponse(
                 view.note(),
                 view.totalAmount(),
                 view.createdBy(),
+                view.createdByName(),
                 view.createdAt(),
                 lines.stream().map(PurchaseOrderLineResponse::from).toList());
     }

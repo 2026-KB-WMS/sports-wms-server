@@ -593,4 +593,21 @@ class InboundPersistenceAdapterTest {
         assertThat(queryRepository.findView(ib1).orElseThrow().receivedByName()).isEqualTo("박검수");
         assertThat(queryRepository.findView(ib3).orElseThrow().receivedByName()).isNull();
     }
+
+    @Test
+    @DisplayName("입고 목록 항목에도 처리자 이름을 담고, 처리자가 없으면 null이다")
+    void receivedByName_inList() {
+        User receiver = userRepository.save(User.signUp("ib_receiver2", "hashed", "최검수", "ib_receiver2@example.com",
+                "010-1234-5678", UserRole.WAREHOUSE_MANAGER));
+        entityManager.createQuery("update InboundJpaEntity i set i.receivedBy = :userId where i.inboundId = :id")
+                .setParameter("userId", receiver.getUserId()).setParameter("id", ib1).executeUpdate();
+        entityManager.clear();
+
+        List<InboundSummary> result = queryRepository.search(condition(null, null, null, null, null, null));
+
+        assertThat(result.stream().filter(s -> s.inboundId().equals(ib1)).findFirst().orElseThrow().receivedByName())
+                .isEqualTo("최검수");
+        assertThat(result.stream().filter(s -> s.inboundId().equals(ib3)).findFirst().orElseThrow().receivedByName())
+                .isNull();
+    }
 }

@@ -19,12 +19,13 @@ public record OutboundListItemResponse(
         Long lineCount,
         LocalDateTime shippedAt,
         Long shippedBy,
+        String shippedByName,
         LocalDateTime createdAt
 ) {
 
     public static OutboundListItemResponse from(OutboundSummary s) {
         return new OutboundListItemResponse(s.outboundId(), s.outboundNo(), s.storeOrderId(), s.orderNo(),
                 s.storeId(), s.storeName(), s.warehouseId(), s.warehouseName(), s.status(), s.lineCount(),
-                s.shippedAt(), s.shippedBy(), s.createdAt());
+                s.shippedAt(), s.shippedBy(), s.shippedByName(), s.createdAt());
     }
 }

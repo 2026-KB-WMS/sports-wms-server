@@ -109,14 +109,14 @@
 
 - 권한: HQ_ADMIN, WAREHOUSE_MANAGER(담당 창고 발주의 출고만)
 - Query: `status`(`READY`/`PICKING`/`PICKED`/`SHIPPED`/`DELIVERED`/`CANCELED`), `warehouseId`(발주에 배정된 창고 기준), `storeId`, `storeOrderId`, `keyword`(출고 번호·발주 번호 부분 일치), `createdFrom`, `createdTo`(ISO-8601, 양 끝 포함: `>= createdFrom`, `<= createdTo`). 정렬은 고정(`createdAt` 내림차순, 같으면 `outboundId` 내림차순). 페이지네이션은 보류.
-- 응답: `data.items[]`: `outboundId, outboundNo, storeOrderId, orderNo, storeId, storeName, warehouseId, warehouseName, status, lineCount, shippedAt, shippedBy, createdAt`
+- 응답: `data.items[]`: `outboundId, outboundNo, storeOrderId, orderNo, storeId, storeName, warehouseId, warehouseName, status, lineCount, shippedAt, shippedBy, shippedByName, createdAt`
 - 에러: 400(`status` 값·일시 형식 오류, `createdFrom`이 `createdTo`보다 늦음), 403, 404(존재하지 않는 필터 대상)
-- 규칙: 목록에는 헤더 정보와 `lineCount`만 담는다. `shippedAt`·`shippedBy`는 배송 시작 전 `null`이다. 조회 전용.
+- 규칙: 목록에는 헤더 정보와 `lineCount`만 담는다. `shippedAt`·`shippedBy`·`shippedByName`은 배송 시작 전 `null`이다. 조회 전용.
 
 ## GET /outbounds/{outboundId}/details (P2)
 
 - 권한: HQ_ADMIN, WAREHOUSE_MANAGER(담당 창고 발주의 출고만)
-- 응답: `outboundId, outboundNo, status, storeOrderId, orderNo, storeId, storeName, warehouseId, warehouseName, shippedAt, shippedBy, deliveredAt, note, cancelReason, items[], createdAt, updatedAt`. `items[]`: `outboundLineId, allocationId, storeOrderLineId, skuId, skuCode, skuName, unit, inventoryLotId, lotId, lotNumber, expiryDate, sectionId, sectionCode, allocatedQuantity, shippedQuantity, confirmedUnitSupplyPrice, lineAmount`
+- 응답: `outboundId, outboundNo, status, storeOrderId, orderNo, storeId, storeName, warehouseId, warehouseName, shippedAt, shippedBy, shippedByName, deliveredAt, note, cancelReason, items[], createdAt, updatedAt`. `items[]`: `outboundLineId, allocationId, storeOrderLineId, skuId, skuCode, skuName, unit, inventoryLotId, lotId, lotNumber, expiryDate, sectionId, sectionCode, allocatedQuantity, shippedQuantity, confirmedUnitSupplyPrice, lineAmount`
 - 에러: 400, 403, 404(`OUTBOUND_NOT_FOUND`)
 - 규칙: `shippedQuantity`는 피킹 완료 전 0이고 완료 후 실제 피킹 수량이다(`allocatedQuantity`보다 작으면 부족분). `confirmedUnitSupplyPrice`·`lineAmount`(`shippedQuantity × confirmedUnitSupplyPrice`)는 피킹 완료 후에 채워지고 그 전에는 `null`이다. `deliveredAt`은 배송 완료 전 `null`. 취소된 출고는 `cancelReason`을 함께 반환하고 `shippedQuantity`는 0이다. 조회 전용.
 
@@ -143,7 +143,7 @@
 ## PATCH /outbounds/{outboundId}/ship (P1)
 
 - 권한: WAREHOUSE_MANAGER만, 본인 담당 창고의 출고.
-- Body 없음. 응답: `outboundId, outboundNo, status=SHIPPED, shippedAt, shippedBy, updatedAt`
+- Body 없음. 응답: `outboundId, outboundNo, status=SHIPPED, shippedAt, shippedBy, shippedByName, updatedAt`
 - 에러: 400, 403, 404, 409 `CONFLICT`(`PICKED`가 아님)
 - 규칙: `PICKED` → `SHIPPED`만. `shipped_at`을 현재 시각, `shipped_by`를 요청자로 기록한다. 재고·할당·재고 이력은 바꾸지 않는다(차감은 피킹 완료에서 끝). 출고 행을 잠가 처리하고 `StatusHistory`(`PICKED` → `SHIPPED`)에 기록한다.
 

@@ -11,6 +11,7 @@ public record OutboundShipResult(
         OutboundStatus status,
         LocalDateTime shippedAt,
         Long shippedBy,
+        String shippedByName,
         LocalDateTime updatedAt
 ) {
 }
