@@ -2,6 +2,7 @@ package com.kb.wms.warehouse.adapter.in.web.dto.request;
 
 import java.math.BigDecimal;
 
+import com.kb.wms.common.validation.PhoneNumber;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseRegisterCommand;
 
 import jakarta.validation.constraints.DecimalMin;
@@ -27,6 +28,7 @@ public record WarehouseRegisterRequest(
         String address,
 
         @Size(max = 30, message = "연락처는 최대 30자입니다.")
+        @PhoneNumber
         String contactNumber,
 
         @NotNull(message = "전체 수용량은 필수 값입니다.")

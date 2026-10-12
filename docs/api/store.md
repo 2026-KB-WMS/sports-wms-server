@@ -33,7 +33,7 @@
 
 ## POST /stores (P0)
 
-- Body: `storeCode`(≤30, unique), `storeName`(≤100), `address`(≤500), `contactName`(선택, ≤100), `contactNumber`(≤30, 필수)
+- Body: `storeCode`(≤30, unique), `storeName`(≤100), `address`(≤500), `contactName`(선택, ≤100), `contactNumber`(≤30, 필수, 전화번호 형식)
 - 201. 응답: `storeId, storeCode, storeName, address, contactName, contactNumber, isActive, createdAt, updatedAt`
 - 에러: `DUPLICATE_STORE_CODE` 409 (DB unique 위반도 동일 매핑). 등록 시 status ACTIVE. 점주 배정은 별도(`POST /stores/assign`).
 

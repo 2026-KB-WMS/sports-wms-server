@@ -362,7 +362,10 @@ def run(api, admin_id, admin_pw):
     expect("공급처 재활성화", api.call("PATCH", "/suppliers/%s/activate" % sup2, token=admin), 200)
     expect("가입 신청 중복 로그인 ID(409)", api.call("POST", "/auth/signup", {
         "loginId": wm1_login, "password": PASSWORD, "name": "dup", "email": "dup_%s@e2e.test" % RUN,
-        "phone": "010", "role": "STORE_OWNER"}), 409, "DUPLICATE_LOGIN_ID")
+        "phone": "010-0000-0000", "role": "STORE_OWNER"}), 409, "DUPLICATE_LOGIN_ID")
+    expect("가입 신청 전화번호 형식 오류(400)", api.call("POST", "/auth/signup", {
+        "loginId": "bad_phone_" + RUN, "password": PASSWORD, "name": "bad", "email": "bad_%s@e2e.test" % RUN,
+        "phone": "01012345678", "role": "STORE_OWNER"}), 400, "VALIDATION_ERROR")
 
 
 def main():

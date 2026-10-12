@@ -44,7 +44,7 @@
 
 ### POST /warehouses (P0)
 
-- Body: `warehouseCode`(≤30, unique), `warehouseName`(≤100), `address`(≤500), `contactNumber`(선택, ≤30), `totalCapacity`(**필수**, ≥0, 소수 3자리)
+- Body: `warehouseCode`(≤30, unique), `warehouseName`(≤100), `address`(≤500), `contactNumber`(선택, ≤30, 전화번호 형식), `totalCapacity`(**필수**, ≥0, 소수 3자리)
 - 201. 응답: `warehouseId, warehouseCode, warehouseName, address, contactNumber, totalCapacity, isActive, createdAt, updatedAt`
 - 에러: 400(수용량 누락·음수 포함), `DUPLICATE_WAREHOUSE_CODE` 409 (DB unique 위반도 동일 매핑). 등록 시 status ACTIVE.
 

@@ -1,5 +1,6 @@
 package com.kb.wms.store.adapter.in.web.dto.request;
 
+import com.kb.wms.common.validation.PhoneNumber;
 import com.kb.wms.store.application.port.in.command.StoreRegisterCommand;
 
 import jakarta.validation.constraints.NotBlank;
@@ -26,6 +27,7 @@ public record StoreRegisterRequest(
 
         @NotBlank(message = "지점 연락처는 필수 값입니다.")
         @Size(max = 30, message = "지점 연락처는 최대 30자입니다.")
+        @PhoneNumber
         String contactNumber
 ) {
 

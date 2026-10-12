@@ -4,6 +4,7 @@ import com.kb.wms.auth.application.port.in.command.UserUpdateCommand;
 import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
 
+import com.kb.wms.common.validation.PhoneNumber;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -24,6 +25,7 @@ public record UserUpdateRequest(
 
         @Pattern(regexp = NOT_BLANK, message = "연락처는 공백일 수 없습니다.")
         @Size(max = 30, message = "연락처는 최대 30자입니다.")
+        @PhoneNumber
         String phone,
 
         UserRole role,

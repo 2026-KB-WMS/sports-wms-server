@@ -138,6 +138,7 @@
 | 재고가 있는 창고 비활성화 | 409 `WAREHOUSE_IN_USE` |
 | 공급처 비활성화 → 창고 관리자 단건 조회 → 재활성화 | 200 / 404 `SUPPLIER_NOT_FOUND` / 200 |
 | 이미 쓰는 로그인 ID로 가입 | 409 `DUPLICATE_LOGIN_ID` |
+| 하이픈 없는 전화번호로 가입 | 400 `VALIDATION_ERROR` |
 
 ## 범위 밖
 

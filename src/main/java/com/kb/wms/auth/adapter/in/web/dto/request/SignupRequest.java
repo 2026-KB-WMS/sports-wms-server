@@ -3,6 +3,7 @@ package com.kb.wms.auth.adapter.in.web.dto.request;
 import com.kb.wms.auth.application.port.in.command.UserSignupCommand;
 import com.kb.wms.auth.domain.enums.UserRole;
 
+import com.kb.wms.common.validation.PhoneNumber;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -30,6 +31,7 @@ public record SignupRequest(
 
         @NotBlank(message = "연락처는 필수 값입니다.")
         @Size(max = 30, message = "연락처는 최대 30자입니다.")
+        @PhoneNumber
         String phone,
 
         @NotNull(message = "역할은 필수 값입니다.")

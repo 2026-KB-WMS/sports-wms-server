@@ -58,7 +58,7 @@
 
 ### POST /suppliers (P0)
 
-- Body: `supplierCode`(≤30, unique), `supplierName`(≤200), `managerName`(≤100), `contactNumber`(≤30), `email`(선택, ≤255, 형식 검증), `address`(선택, ≤500)
+- Body: `supplierCode`(≤30, unique), `supplierName`(≤200), `managerName`(≤100), `contactNumber`(≤30, 전화번호 형식), `email`(선택, ≤255, 형식 검증), `address`(선택, ≤500)
 - 201. 응답: `supplierId, supplierCode, supplierName, managerName, contactNumber, email, address, isActive, createdAt, updatedAt`
 - 에러: `DUPLICATE_SUPPLIER_CODE` 409 (DB unique 위반도 동일 매핑). 등록 시 status ACTIVE.
 
