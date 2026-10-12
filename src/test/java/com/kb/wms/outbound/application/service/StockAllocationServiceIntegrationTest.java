@@ -35,6 +35,7 @@ import com.kb.wms.outbound.application.port.in.query.StockAllocationSearchCondit
 import com.kb.wms.outbound.application.port.in.result.StockAllocateResult;
 import com.kb.wms.outbound.application.port.in.result.StockAllocationDetail;
 import com.kb.wms.outbound.application.port.in.result.StockAllocationReleaseResult;
+import com.kb.wms.outbound.application.port.in.result.StockAllocationShortage;
 import com.kb.wms.outbound.application.port.in.result.StockAllocationSummary;
 import com.kb.wms.outbound.application.port.out.OutboundRepository;
 import com.kb.wms.outbound.application.port.out.StockAllocationRepository;
@@ -219,34 +220,112 @@ class StockAllocationServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("한 항목이라도 가용 재고가 부족하면 아무것도 할당하지 않고 INSUFFICIENT_STOCK")
-    void allocateAllOrNothing() {
-        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(order, USER), HQ))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> {
-                    assertThat(errorCodeOf(e)).isEqualTo("INSUFFICIENT_STOCK");
-                    assertThat(e.getMessage()).contains("skuId=" + skuB);
-                });
+    @DisplayName("재고가 없는 항목이 있어도 다른 항목은 할당하고, 못 채운 항목은 shortages로 알린다")
+    void allocatePartiallyAcrossLines() {
+        StockAllocateResult result = useCase.allocate(new StockAllocateCommand(order, USER), HQ);
 
-        assertThat(allocationRepository.findByStoreOrderId(order)).isEmpty();
-        assertThat(inventoryAllocated(lotLate)).isZero();
-        assertThat(lineAllocated(lineA)).isZero();
+        assertThat(result.items()).hasSize(2).allSatisfy(i -> assertThat(i.skuId()).isEqualTo(skuA));
+        assertThat(result.shortages()).containsExactly(new StockAllocationShortage(skuB, 5, 0, 5));
+        assertThat(lineAllocated(lineA)).isEqualTo(12);
+        assertThat(lineAllocated(lineB)).isZero();
+        assertThat(allocationRepository.findByStoreOrderId(order)).hasSize(2);
     }
 
     @Test
-    @DisplayName("재고가 모자라면 가용 수량을 메시지에 담는다")
-    void allocateShortageMessage() {
+    @DisplayName("한 항목의 재고가 모자라면 가용 수량만큼만 할당하고 모자란 수량을 shortages에 담는다")
+    void allocatePartialQuantity() {
         stockSkuB();
         entityManager.flush();
         // SKU-A 가용은 46인데 요청 100으로 키운다
         StoreOrderLineJpaEntity big = storeOrderLineJpaRepository.findById(lineA).orElseThrow();
         storeOrderLineJpaRepository.delete(big);
         entityManager.flush();
-        line(order, skuA, 100);
+        Long bigLine = line(order, skuA, 100);
 
-        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(order, USER), HQ))
+        StockAllocateResult result = useCase.allocate(new StockAllocateCommand(order, USER), HQ);
+
+        assertThat(result.shortages()).containsExactly(new StockAllocationShortage(skuA, 100, 46, 54));
+        assertThat(lineAllocated(bigLine)).isEqualTo(46);
+        assertThat(lineAllocated(lineB)).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("부분 할당 뒤 재고가 들어오면 다시 호출해 남은 수량만 이어서 할당한다")
+    void allocateRemainderAfterRestock() {
+        useCase.allocate(new StockAllocateCommand(order, USER), HQ);
+        stockSkuB();
+
+        StockAllocateResult again = useCase.allocate(new StockAllocateCommand(order, USER), HQ);
+
+        assertThat(again.items()).hasSize(1).allSatisfy(i -> assertThat(i.skuId()).isEqualTo(skuB));
+        assertThat(again.shortages()).isEmpty();
+        assertThat(lineAllocated(lineA)).isEqualTo(12);
+        assertThat(lineAllocated(lineB)).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("대상 항목 전부를 하나도 못 채우면 아무것도 할당하지 않고 INSUFFICIENT_STOCK")
+    void allocateNothingAvailable() {
+        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(order, USER, List.of(skuB)), HQ))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("요청 100, 가용 46");
+                .satisfies(e -> {
+                    assertThat(errorCodeOf(e)).isEqualTo("INSUFFICIENT_STOCK");
+                    assertThat(e.getMessage()).contains("skuId=" + skuB).contains("요청 5, 가용 0");
+                });
+
+        assertThat(allocationRepository.findByStoreOrderId(order)).isEmpty();
+        assertThat(lineAllocated(lineB)).isZero();
+    }
+
+    @Test
+    @DisplayName("skuIds를 주면 그 SKU 항목만 할당하고 나머지는 건드리지 않는다")
+    void allocateSelectedSkuOnly() {
+        stockSkuB();
+
+        StockAllocateResult result = useCase.allocate(new StockAllocateCommand(order, USER, List.of(skuB)), HQ);
+
+        assertThat(result.items()).hasSize(1).allSatisfy(i -> assertThat(i.skuId()).isEqualTo(skuB));
+        assertThat(result.shortages()).isEmpty();
+        assertThat(lineAllocated(lineB)).isEqualTo(5);
+        assertThat(lineAllocated(lineA)).isZero();
+        assertThat(inventoryAllocated(lotLate)).isZero();
+    }
+
+    @Test
+    @DisplayName("중복된 skuId는 한 번만 처리하고, 이미 할당 끝난 SKU만 고르면 ALREADY_ALLOCATED")
+    void allocateSelectedDuplicateAndAlreadyAllocated() {
+        stockSkuB();
+
+        StockAllocateResult result = useCase.allocate(
+                new StockAllocateCommand(order, USER, List.of(skuA, skuA)), HQ);
+        assertThat(result.items()).extracting(StockAllocationSummary::allocatedQuantity).containsExactly(6L, 6L);
+        assertThat(lineAllocated(lineA)).isEqualTo(12);
+
+        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(order, USER, List.of(skuA)), HQ))
+                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("ALREADY_ALLOCATED"));
+
+        // 일부만 끝난 선택은 남은 것만 처리한다
+        StockAllocateResult rest = useCase.allocate(
+                new StockAllocateCommand(order, USER, List.of(skuA, skuB)), HQ);
+        assertThat(rest.items()).hasSize(1).allSatisfy(i -> assertThat(i.skuId()).isEqualTo(skuB));
+    }
+
+    @Test
+    @DisplayName("발주에 없는 SKU나 빈 skuIds는 VALIDATION_ERROR이고 아무것도 할당하지 않는다")
+    void allocateSelectedInvalid() {
+        stockSkuB();
+
+        assertThatThrownBy(() -> useCase.allocate(
+                new StockAllocateCommand(order, USER, List.of(skuA, 999_999L)), HQ))
+                .satisfies(e -> {
+                    assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR");
+                    assertThat(e.getMessage()).contains("999999");
+                });
+        assertThatThrownBy(() -> useCase.allocate(new StockAllocateCommand(order, USER, List.of()), HQ))
+                .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
+
+        assertThat(allocationRepository.findByStoreOrderId(order)).isEmpty();
+        assertThat(lineAllocated(lineA)).isZero();
     }
 
     @Test

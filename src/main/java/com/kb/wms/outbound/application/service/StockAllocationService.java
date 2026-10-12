@@ -3,9 +3,12 @@ package com.kb.wms.outbound.application.service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -24,6 +27,7 @@ import com.kb.wms.outbound.application.port.in.query.StockAllocationSearchCondit
 import com.kb.wms.outbound.application.port.in.result.FefoStockCandidate;
 import com.kb.wms.outbound.application.port.in.result.StockAllocateResult;
 import com.kb.wms.outbound.application.port.in.result.StockAllocationDetail;
+import com.kb.wms.outbound.application.port.in.result.StockAllocationShortage;
 import com.kb.wms.outbound.application.port.in.result.StockAllocationReleaseResult;
 import com.kb.wms.outbound.application.port.in.result.StockAllocationSummary;
 import com.kb.wms.outbound.application.port.in.result.StockAllocationView;
@@ -75,14 +79,24 @@ public class StockAllocationService implements StockAllocationUseCase {
                     "배정된 발주만 재고를 할당할 수 있습니다. 현재 상태: " + order.getStatus());
         }
 
-        List<StoreOrderLine> targets = storeOrderFulfillmentUseCase.getLinesForUpdate(order.getStoreOrderId()).stream()
+        List<StoreOrderLine> lines = storeOrderFulfillmentUseCase.getLinesForUpdate(order.getStoreOrderId());
+        List<StoreOrderLine> targets = selectTargets(lines, command.skuIds()).stream()
                 .filter(line -> line.unallocatedQuantity() > 0)
                 .toList();
         if (targets.isEmpty()) {
             throw new BusinessException(OutboundErrorCode.ALREADY_ALLOCATED);
         }
 
-        List<Placement> placements = placeByFefo(order.getWarehouseId(), targets);
+        FefoPlacement fefo = placeByFefo(order.getWarehouseId(), targets);
+        List<Placement> placements = fefo.placements();
+        if (placements.isEmpty()) {
+            throw new BusinessException(OutboundErrorCode.INSUFFICIENT_STOCK,
+                    OutboundErrorCode.INSUFFICIENT_STOCK.getDefaultMessage() + " ("
+                            + fefo.shortages().stream()
+                                    .map(s -> "skuId=" + s.skuId() + " 요청 " + s.requestedQuantity()
+                                            + ", 가용 " + s.allocatedQuantity())
+                                    .collect(Collectors.joining("; ")) + ")");
+        }
 
         LocalDateTime now = LocalDateTime.now();
         List<StockAllocation> saved = stockAllocationRepository.saveAll(placements.stream()
@@ -104,7 +118,7 @@ public class StockAllocationService implements StockAllocationUseCase {
 
         List<StockAllocationSummary> items = outboundQueryRepository.findAllocationSummaries(
                 saved.stream().map(StockAllocation::getAllocationId).toList());
-        return new StockAllocateResult(order.getStoreOrderId(), order.getOrderNo(), items);
+        return new StockAllocateResult(order.getStoreOrderId(), order.getOrderNo(), items, fefo.shortages());
     }
 
     @Override
@@ -171,17 +185,39 @@ public class StockAllocationService implements StockAllocationUseCase {
     }
 
     /**
-     * 항목별 잔여 수량을 FEFO 후보 행에 순서대로 채운다. 한 항목이 여러 행에 나뉠 수 있다.
-     * 한 항목이라도 못 채우면 부족한 SKU를 모아 INSUFFICIENT_STOCK으로 전체 실패한다.
+     * 요청한 SKU의 발주 항목만 고른다. skuIds가 null이면 발주 전체다.
+     * 한 발주 안에서 SKU는 중복될 수 없으므로 SKU로 항목이 하나로 정해진다.
      */
-    private List<Placement> placeByFefo(Long warehouseId, List<StoreOrderLine> targets) {
+    private List<StoreOrderLine> selectTargets(List<StoreOrderLine> lines, List<Long> skuIds) {
+        if (skuIds == null) {
+            return lines;
+        }
+        if (skuIds.isEmpty() || skuIds.stream().anyMatch(Objects::isNull)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "할당할 SKU를 하나 이상 지정해주세요.");
+        }
+        Set<Long> requested = new HashSet<>(skuIds);
+        Set<Long> inOrder = lines.stream().map(StoreOrderLine::getSkuId).collect(Collectors.toSet());
+        List<Long> unknown = requested.stream().filter(id -> !inOrder.contains(id)).sorted().toList();
+        if (!unknown.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "발주에 없는 SKU입니다. skuId=" + unknown);
+        }
+        return lines.stream().filter(line -> requested.contains(line.getSkuId())).toList();
+    }
+
+    /**
+     * 항목별 잔여 수량을 FEFO 후보 행에 순서대로 채운다. 한 항목이 여러 행에 나뉠 수 있다.
+     * 재고가 모자란 항목은 가용 수량만큼만 채우고 모자란 수량을 shortages에 담는다.
+     * 아무것도 못 채웠을 때의 거절은 호출한 쪽이 한다.
+     */
+    private FefoPlacement placeByFefo(Long warehouseId, List<StoreOrderLine> targets) {
         Map<Long, List<FefoStockCandidate>> candidatesBySku = outboundQueryRepository
                 .findFefoCandidates(warehouseId, targets.stream().map(StoreOrderLine::getSkuId).distinct().toList())
                 .stream()
                 .collect(Collectors.groupingBy(FefoStockCandidate::skuId, LinkedHashMap::new, Collectors.toList()));
 
         List<Placement> placements = new ArrayList<>();
-        List<String> shortages = new ArrayList<>();
+        List<StockAllocationShortage> shortages = new ArrayList<>();
         Map<Long, Long> availableByLot = new HashMap<>();
         for (StoreOrderLine line : targets) {
             long remaining = line.unallocatedQuantity();
@@ -200,14 +236,10 @@ public class StockAllocationService implements StockAllocationUseCase {
                 remaining -= take;
             }
             if (remaining > 0) {
-                shortages.add("skuId=" + line.getSkuId() + " 요청 " + requested + ", 가용 " + (requested - remaining));
+                shortages.add(new StockAllocationShortage(line.getSkuId(), requested, requested - remaining, remaining));
             }
         }
-        if (!shortages.isEmpty()) {
-            throw new BusinessException(OutboundErrorCode.INSUFFICIENT_STOCK,
-                    OutboundErrorCode.INSUFFICIENT_STOCK.getDefaultMessage() + " (" + String.join("; ", shortages) + ")");
-        }
-        return placements;
+        return new FefoPlacement(placements, shortages);
     }
 
     /** 키 오름차순으로 수량을 합산한다. 재고 행·발주 항목을 ID 오름차순으로 잠그기 위한 순서다. */
@@ -232,5 +264,8 @@ public class StockAllocationService implements StockAllocationUseCase {
     }
 
     private record Placement(Long storeOrderLineId, Long inventoryLotId, long quantity) {
+    }
+
+    private record FefoPlacement(List<Placement> placements, List<StockAllocationShortage> shortages) {
     }
 }

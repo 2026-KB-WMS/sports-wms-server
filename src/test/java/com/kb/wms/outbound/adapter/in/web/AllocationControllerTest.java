@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -40,6 +41,7 @@ import com.kb.wms.outbound.application.port.in.query.StockAllocationSearchCondit
 import com.kb.wms.outbound.application.port.in.result.StockAllocateResult;
 import com.kb.wms.outbound.application.port.in.result.StockAllocationDetail;
 import com.kb.wms.outbound.application.port.in.result.StockAllocationReleaseResult;
+import com.kb.wms.outbound.application.port.in.result.StockAllocationShortage;
 import com.kb.wms.outbound.application.port.in.result.StockAllocationSummary;
 import com.kb.wms.outbound.application.port.in.result.StockAllocationView;
 import com.kb.wms.outbound.domain.enums.AllocationStatus;
@@ -73,7 +75,8 @@ class AllocationControllerTest {
     @DisplayName("할당 생성은 201과 items를 반환하고 userId를 넘긴다")
     void allocate() throws Exception {
         when(useCase.allocate(any(StockAllocateCommand.class), any()))
-                .thenReturn(new StockAllocateResult(3L, "SO-20261005-0001", List.of(summary())));
+                .thenReturn(new StockAllocateResult(3L, "SO-20261005-0001", List.of(summary()),
+                        List.of(new StockAllocationShortage(6L, 10L, 4L, 6L))));
 
         mockMvc.perform(post("/api/v1/allocations").with(user(9L))
                         .contentType(MediaType.APPLICATION_JSON).content("{ \"storeOrderId\": 3 }"))
@@ -81,12 +84,46 @@ class AllocationControllerTest {
                 .andExpect(jsonPath("$.data.orderNo").value("SO-20261005-0001"))
                 .andExpect(jsonPath("$.data.items[0].allocationId").value(500))
                 .andExpect(jsonPath("$.data.items[0].status").value("ALLOCATED"))
-                .andExpect(jsonPath("$.data.items[0].releasedAt").doesNotExist());
+                .andExpect(jsonPath("$.data.items[0].releasedAt").doesNotExist())
+                .andExpect(jsonPath("$.data.shortages[0].skuId").value(6))
+                .andExpect(jsonPath("$.data.shortages[0].requestedQuantity").value(10))
+                .andExpect(jsonPath("$.data.shortages[0].allocatedQuantity").value(4))
+                .andExpect(jsonPath("$.data.shortages[0].shortageQuantity").value(6));
 
         ArgumentCaptor<StockAllocateCommand> captor = ArgumentCaptor.forClass(StockAllocateCommand.class);
         verify(useCase).allocate(captor.capture(), any());
         assertThat(captor.getValue().storeOrderId()).isEqualTo(3L);
         assertThat(captor.getValue().userId()).isEqualTo(9L);
+        assertThat(captor.getValue().skuIds()).isNull();
+    }
+
+    @Test
+    @DisplayName("skuIds를 주면 커맨드로 넘기고, 빈 배열·null 원소는 400")
+    void allocateWithSkuIds() throws Exception {
+        when(useCase.allocate(any(StockAllocateCommand.class), any()))
+                .thenReturn(new StockAllocateResult(3L, "SO-20261005-0001", List.of(summary()), List.of()));
+
+        mockMvc.perform(post("/api/v1/allocations").with(user(9L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"storeOrderId\": 3, \"skuIds\": [5, 6] }"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.shortages").isEmpty());
+
+        ArgumentCaptor<StockAllocateCommand> captor = ArgumentCaptor.forClass(StockAllocateCommand.class);
+        verify(useCase).allocate(captor.capture(), any());
+        assertThat(captor.getValue().skuIds()).containsExactly(5L, 6L);
+
+        mockMvc.perform(post("/api/v1/allocations").with(user(9L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"storeOrderId\": 3, \"skuIds\": [] }"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(post("/api/v1/allocations").with(user(9L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"storeOrderId\": 3, \"skuIds\": [5, null] }"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        verifyNoMoreInteractions(useCase);
     }
 
     @Test
