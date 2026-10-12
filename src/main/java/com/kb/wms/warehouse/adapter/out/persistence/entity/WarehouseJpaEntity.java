@@ -41,6 +41,12 @@ public class WarehouseJpaEntity extends BaseTimeEntity {
     @Column(name = "address", nullable = false, length = 500)
     private String address;
 
+    @Column(name = "latitude", precision = 10, scale = 7)
+    private BigDecimal latitude;
+
+    @Column(name = "longitude", precision = 10, scale = 7)
+    private BigDecimal longitude;
+
     @Column(name = "contact_number", length = 30)
     private String contactNumber;
 
@@ -53,7 +59,8 @@ public class WarehouseJpaEntity extends BaseTimeEntity {
 
     @Builder
     private WarehouseJpaEntity(Long warehouseId, String warehouseCode, String name, String address,
-                                String contactNumber, BigDecimal totalCapacity, WarehouseStatus status) {
+                                String contactNumber, BigDecimal totalCapacity, WarehouseStatus status,
+                                BigDecimal latitude, BigDecimal longitude) {
         this.warehouseId = warehouseId;
         this.warehouseCode = warehouseCode;
         this.name = name;
@@ -61,6 +68,8 @@ public class WarehouseJpaEntity extends BaseTimeEntity {
         this.contactNumber = contactNumber;
         this.totalCapacity = totalCapacity;
         this.status = status;
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 
     public static WarehouseJpaEntity fromDomain(Warehouse warehouse) {
@@ -69,6 +78,8 @@ public class WarehouseJpaEntity extends BaseTimeEntity {
                 .warehouseCode(warehouse.getWarehouseCode())
                 .name(warehouse.getName())
                 .address(warehouse.getAddress())
+                .latitude(warehouse.getLatitude())
+                .longitude(warehouse.getLongitude())
                 .contactNumber(warehouse.getContactNumber())
                 .totalCapacity(warehouse.getTotalCapacity())
                 .status(warehouse.getStatus())
@@ -81,6 +92,8 @@ public class WarehouseJpaEntity extends BaseTimeEntity {
                 .warehouseCode(warehouseCode)
                 .name(name)
                 .address(address)
+                .latitude(latitude)
+                .longitude(longitude)
                 .contactNumber(contactNumber)
                 .totalCapacity(totalCapacity)
                 .status(status)

@@ -7,6 +7,13 @@ public record WarehouseRegisterCommand(
         String name,
         String address,
         String contactNumber,
-        BigDecimal totalCapacity
+        BigDecimal totalCapacity,
+        BigDecimal latitude,
+        BigDecimal longitude
 ) {
+
+    public WarehouseRegisterCommand(String warehouseCode, String name, String address, String contactNumber,
+                                    BigDecimal totalCapacity) {
+        this(warehouseCode, name, address, contactNumber, totalCapacity, null, null);
+    }
 }

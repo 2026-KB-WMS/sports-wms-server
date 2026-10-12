@@ -58,8 +58,8 @@
 
 ### POST /suppliers (P0)
 
-- Body: `supplierCode`(≤30, unique), `supplierName`(≤200), `managerName`(≤100), `contactNumber`(≤30, 전화번호 형식), `email`(선택, ≤255, 형식 검증), `address`(선택, ≤500)
-- 201. 응답: `supplierId, supplierCode, supplierName, managerName, contactNumber, email, address, isActive, createdAt, updatedAt`
+- Body: `supplierCode`(≤30, unique), `supplierName`(≤200), `managerName`(≤100), `contactNumber`(≤30, 전화번호 형식), `email`(선택, ≤255, 형식 검증), `address`(선택, ≤500), `latitude`·`longitude`(선택, 쌍으로만, 위도 -90~90·경도 -180~180)
+- 201. 응답: `supplierId, supplierCode, supplierName, managerName, contactNumber, email, address, latitude, longitude, isActive, createdAt, updatedAt`
 - 에러: `DUPLICATE_SUPPLIER_CODE` 409 (DB unique 위반도 동일 매핑). 등록 시 status ACTIVE.
 
 ### GET /suppliers (P0)
@@ -67,7 +67,7 @@
 - Query: `keyword`(공급처명·코드·담당자명), `isActive`. `sort`는 받지 않는다.
 - 정렬은 고정(`supplierName` 오름차순, 같으면 `supplierId` 오름차순).
 - WAREHOUSE_MANAGER는 `isActive`와 무관하게 항상 활성 공급처만 조회(발주 등록 시 선택용). HQ_ADMIN은 `isActive`로 비활성도 조회. 소속 범위 없음(전체 조회).
-- 응답 항목: `supplierId, supplierCode, supplierName, managerName, contactNumber, email, address, isActive`
+- 응답 항목: `supplierId, supplierCode, supplierName, managerName, contactNumber, email, address, latitude, longitude, isActive`
 
 ### GET /suppliers/{supplierId} (P1)
 
@@ -76,7 +76,7 @@
 
 ### PATCH /suppliers/{supplierId} (P1)
 
-- 부분 수정(≥1 필드): `supplierName`, `managerName`, `contactNumber`, `email`(null이면 비움), `address`(null이면 비움)
+- 부분 수정(≥1 필드): `supplierName`, `managerName`, `contactNumber`, `email`(null이면 비움), `address`(null이면 비움), `latitude`·`longitude`(쌍으로만, 생략하면 기존 좌표 유지)
 - 필수 항목(`managerName`, `contactNumber`)을 null로 지정, `supplierCode`/`isActive` 포함 시 400. 비활성 공급처도 수정 가능. 기존 발주·입고 이력은 공급처 ID 참조라 유지.
 - 에러: `SUPPLIER_NOT_FOUND` 404
 

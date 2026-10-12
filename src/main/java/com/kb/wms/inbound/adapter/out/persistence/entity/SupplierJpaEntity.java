@@ -1,5 +1,7 @@
 package com.kb.wms.inbound.adapter.out.persistence.entity;
 
+import java.math.BigDecimal;
+
 import com.kb.wms.common.persistence.BaseTimeEntity;
 import com.kb.wms.inbound.domain.entity.Supplier;
 import com.kb.wms.inbound.domain.enums.SupplierStatus;
@@ -48,13 +50,20 @@ public class SupplierJpaEntity extends BaseTimeEntity {
     @Column(name = "address", length = 500)
     private String address;
 
+    @Column(name = "latitude", precision = 10, scale = 7)
+    private BigDecimal latitude;
+
+    @Column(name = "longitude", precision = 10, scale = 7)
+    private BigDecimal longitude;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private SupplierStatus status;
 
     @Builder
     private SupplierJpaEntity(Long supplierId, String supplierCode, String name, String managerName,
-                              String contactNumber, String email, String address, SupplierStatus status) {
+                              String contactNumber, String email, String address, SupplierStatus status,
+                              BigDecimal latitude, BigDecimal longitude) {
         this.supplierId = supplierId;
         this.supplierCode = supplierCode;
         this.name = name;
@@ -63,6 +72,8 @@ public class SupplierJpaEntity extends BaseTimeEntity {
         this.email = email;
         this.address = address;
         this.status = status;
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 
     public static SupplierJpaEntity fromDomain(Supplier supplier) {
@@ -74,6 +85,8 @@ public class SupplierJpaEntity extends BaseTimeEntity {
                 .contactNumber(supplier.getContactNumber())
                 .email(supplier.getEmail())
                 .address(supplier.getAddress())
+                .latitude(supplier.getLatitude())
+                .longitude(supplier.getLongitude())
                 .status(supplier.getStatus())
                 .build();
     }
@@ -87,6 +100,8 @@ public class SupplierJpaEntity extends BaseTimeEntity {
                 .contactNumber(contactNumber)
                 .email(email)
                 .address(address)
+                .latitude(latitude)
+                .longitude(longitude)
                 .status(status)
                 .createdAt(getCreatedAt())
                 .updatedAt(getUpdatedAt())

@@ -33,15 +33,15 @@
 
 ## POST /stores (P0)
 
-- Body: `storeCode`(≤30, unique), `storeName`(≤100), `address`(≤500), `contactName`(선택, ≤100), `contactNumber`(≤30, 필수, 전화번호 형식)
-- 201. 응답: `storeId, storeCode, storeName, address, contactName, contactNumber, isActive, createdAt, updatedAt`
+- Body: `storeCode`(≤30, unique), `storeName`(≤100), `address`(≤500), `contactName`(선택, ≤100), `contactNumber`(≤30, 필수, 전화번호 형식), `latitude`·`longitude`(선택, 쌍으로만, 위도 -90~90·경도 -180~180)
+- 201. 응답: `storeId, storeCode, storeName, address, latitude, longitude, contactName, contactNumber, isActive, createdAt, updatedAt`
 - 에러: `DUPLICATE_STORE_CODE` 409 (DB unique 위반도 동일 매핑). 등록 시 status ACTIVE. 점주 배정은 별도(`POST /stores/assign`).
 
 ## GET /stores (P0)
 
 - HQ_ADMIN 전용(점주는 403, `GET /stores/my` 사용). Query: `keyword`(지점명·코드), `isActive`(생략 시 전체). `sort`는 받지 않는다.
 - 정렬은 고정(등록 일시 `createdAt` 내림차순, 같으면 `storeId` 내림차순).
-- 응답 항목: `storeId, storeCode, storeName, address, contactName, contactNumber, isActive`. 지점별 발주·재고 현황은 미포함.
+- 응답 항목: `storeId, storeCode, storeName, address, latitude, longitude, contactName, contactNumber, isActive`. 지점별 발주·재고 현황은 미포함.
 
 ## GET /stores/{storeId} (P1)
 
@@ -50,7 +50,7 @@
 
 ## PATCH /stores/{storeId} (P1)
 
-- 부분 수정(≥1 필드): `storeName`, `address`, `contactName`(null이면 비움), `contactNumber`
+- 부분 수정(≥1 필드): `storeName`, `address`, `latitude`·`longitude`(쌍으로만, 생략하면 기존 좌표 유지), `contactName`(null이면 비움), `contactNumber`
 - `storeCode`, `isActive` 포함 시 400. 비활성 지점도 수정 가능. 에러: 404.
 
 ## PATCH /stores/{storeId}/deactivate (P2)

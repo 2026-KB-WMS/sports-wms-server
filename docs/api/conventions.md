@@ -13,6 +13,7 @@
 - 리소스 경로는 복수형 명사를 사용하고(`/purchase-orders`), 상태 전이는 `PATCH /{resource}/{id}/{action}` 형식을 따른다 (예: `PATCH /purchase-orders/{id}/confirm`).
 - 날짜·시각은 ISO-8601 형식이지만 **오프셋(`Z`, `+09:00`)을 붙이지 않는다.** `YYYY-MM-DDTHH:mm:ss`(예: `2026-10-05T14:30:00`)로 주고받고, 소수 초는 값이 있을 때만 붙는다(예: `2026-10-05T14:30:00.123456`). DTO가 `LocalDateTime`이고 `@JsonFormat` 설정이 따로 없어 Spring Boot 기본 직렬화(숫자 타임스탬프 아님)를 그대로 쓰기 때문이다. 값은 서버 시간대 KST(Asia/Seoul) 기준 시각이며(컨테이너 `TZ`, `-Duser.timezone`, `spring.jackson.time-zone`, `hibernate.jdbc.time_zone`, JDBC `serverTimezone` 모두 Asia/Seoul), 클라이언트가 시간대를 변환해 주지 않는다. 날짜만 있는 값(`expiryDate`, `manufacturedDate`)은 `YYYY-MM-DD`다. 요청 본문·쿼리 파라미터(`createdFrom`, `arrivedTo` 등)도 같은 오프셋 없는 형식을 쓴다. **서버 시간대는 KST(Asia/Seoul)로 고정**이며, 오프셋 없는 `yyyy-MM-dd'T'HH:mm:ss`로 직렬화한다.
 - **전화번호 형식**: 사용자 `phone`, 창고·지점·공급처 `contactNumber`는 하이픈을 포함한 `지역번호(2~3자리)-국번(3~4자리)-4자리`(`^\d{2,3}-\d{3,4}-\d{4}$`)만 받는다(예: `010-1234-5678`, `02-123-4567`, `031-1234-5678`). 형식이 틀리면 400 `VALIDATION_ERROR`이고, 이미 저장된 값은 변환하지 않는다. 1588-XXXX 같은 대표번호는 받지 않는다.
+- **위도·경도**: 주소를 입력받는 창고·지점·공급처는 선택 필드 `latitude`(-90~90), `longitude`(-180~180)를 받는다. 쌍으로만 보낼 수 있고(한쪽만 보내면 400 `VALIDATION_ERROR`), 소수 7자리로 반올림해 저장한다. 값이 없는 기존 데이터는 응답에서 `null`이다. 수정 요청에서 생략하면 기존 좌표를 유지하며, 좌표를 비우는 방법은 없다 ([ADR-020](../adr/020-geo-coordinates-optional-pair.md)).
 
 ## 요청 공통 규칙
 

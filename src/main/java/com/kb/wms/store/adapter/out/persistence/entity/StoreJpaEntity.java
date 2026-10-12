@@ -1,5 +1,7 @@
 package com.kb.wms.store.adapter.out.persistence.entity;
 
+import java.math.BigDecimal;
+
 import com.kb.wms.common.persistence.BaseTimeEntity;
 import com.kb.wms.store.domain.entity.Store;
 import com.kb.wms.store.domain.enums.StoreStatus;
@@ -39,6 +41,12 @@ public class StoreJpaEntity extends BaseTimeEntity {
     @Column(name = "address", nullable = false, length = 500)
     private String address;
 
+    @Column(name = "latitude", precision = 10, scale = 7)
+    private BigDecimal latitude;
+
+    @Column(name = "longitude", precision = 10, scale = 7)
+    private BigDecimal longitude;
+
     @Column(name = "contact_name", length = 100)
     private String contactName;
 
@@ -51,7 +59,8 @@ public class StoreJpaEntity extends BaseTimeEntity {
 
     @Builder
     private StoreJpaEntity(Long storeId, String storeCode, String name, String address, String contactName,
-                           String contactNumber, StoreStatus status) {
+                           String contactNumber, StoreStatus status,
+                           BigDecimal latitude, BigDecimal longitude) {
         this.storeId = storeId;
         this.storeCode = storeCode;
         this.name = name;
@@ -59,6 +68,8 @@ public class StoreJpaEntity extends BaseTimeEntity {
         this.contactName = contactName;
         this.contactNumber = contactNumber;
         this.status = status;
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 
     public static StoreJpaEntity fromDomain(Store store) {
@@ -67,6 +78,8 @@ public class StoreJpaEntity extends BaseTimeEntity {
                 .storeCode(store.getStoreCode())
                 .name(store.getName())
                 .address(store.getAddress())
+                .latitude(store.getLatitude())
+                .longitude(store.getLongitude())
                 .contactName(store.getContactName())
                 .contactNumber(store.getContactNumber())
                 .status(store.getStatus())
@@ -79,6 +92,8 @@ public class StoreJpaEntity extends BaseTimeEntity {
                 .storeCode(storeCode)
                 .name(name)
                 .address(address)
+                .latitude(latitude)
+                .longitude(longitude)
                 .contactName(contactName)
                 .contactNumber(contactNumber)
                 .status(status)

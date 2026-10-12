@@ -1,7 +1,9 @@
 package com.kb.wms.inbound.domain.entity;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+import com.kb.wms.common.validation.GeoCoordinates;
 import com.kb.wms.inbound.domain.enums.SupplierStatus;
 
 import lombok.AccessLevel;
@@ -24,6 +26,8 @@ public class Supplier {
     private String contactNumber;
     private String email;
     private String address;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
     private SupplierStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -31,7 +35,8 @@ public class Supplier {
     @Builder
     private Supplier(Long supplierId, String supplierCode, String name, String managerName,
                      String contactNumber, String email, String address, SupplierStatus status,
-                     LocalDateTime createdAt, LocalDateTime updatedAt) {
+                     LocalDateTime createdAt, LocalDateTime updatedAt,
+                     BigDecimal latitude, BigDecimal longitude) {
         this.supplierId = supplierId;
         this.supplierCode = supplierCode;
         this.name = name;
@@ -42,6 +47,8 @@ public class Supplier {
         this.status = status == null ? SupplierStatus.ACTIVE : status;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.latitude = GeoCoordinates.scale(latitude);
+        this.longitude = GeoCoordinates.scale(longitude);
     }
 
     public static Supplier register(String supplierCode, String name, String managerName,
@@ -77,6 +84,12 @@ public class Supplier {
 
     public void changeAddress(String address) {
         this.address = address;
+    }
+
+    /** 위도·경도는 쌍으로만 바꾼다. 주소만 바꿔도 기존 좌표는 유지된다. */
+    public void changeCoordinates(BigDecimal latitude, BigDecimal longitude) {
+        this.latitude = GeoCoordinates.scale(latitude);
+        this.longitude = GeoCoordinates.scale(longitude);
     }
 
     /** 공급처 비활성화. 이미 비활성이면 예외 (서비스에서 먼저 검사해 409로 변환한다). */

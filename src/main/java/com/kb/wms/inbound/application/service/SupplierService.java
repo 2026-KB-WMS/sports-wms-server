@@ -36,6 +36,7 @@ public class SupplierService implements SupplierUseCase {
         Supplier supplier = Supplier.register(
                 command.supplierCode(), command.name(), command.managerName(),
                 command.contactNumber(), command.email(), command.address());
+        supplier.changeCoordinates(command.latitude(), command.longitude());
         return supplierRepository.save(supplier);
     }
 
@@ -91,6 +92,9 @@ public class SupplierService implements SupplierUseCase {
             supplier.changeAddress(command.address());
         } else if (command.clearAddress()) {
             supplier.changeAddress(null);
+        }
+        if (command.latitude() != null && command.longitude() != null) {
+            supplier.changeCoordinates(command.latitude(), command.longitude());
         }
 
         return supplierRepository.save(supplier);

@@ -44,15 +44,15 @@
 
 ### POST /warehouses (P0)
 
-- Body: `warehouseCode`(≤30, unique), `warehouseName`(≤100), `address`(≤500), `contactNumber`(선택, ≤30, 전화번호 형식), `totalCapacity`(**필수**, ≥0, 소수 3자리)
-- 201. 응답: `warehouseId, warehouseCode, warehouseName, address, contactNumber, totalCapacity, isActive, createdAt, updatedAt`
+- Body: `warehouseCode`(≤30, unique), `warehouseName`(≤100), `address`(≤500), `contactNumber`(선택, ≤30, 전화번호 형식), `totalCapacity`(**필수**, ≥0, 소수 3자리), `latitude`·`longitude`(선택, 쌍으로만, 위도 -90~90·경도 -180~180)
+- 201. 응답: `warehouseId, warehouseCode, warehouseName, address, latitude, longitude, contactNumber, totalCapacity, isActive, createdAt, updatedAt`
 - 에러: 400(수용량 누락·음수 포함), `DUPLICATE_WAREHOUSE_CODE` 409 (DB unique 위반도 동일 매핑). 등록 시 status ACTIVE.
 
 ### GET /warehouses
 
 - HQ_ADMIN 전용. Query: `keyword`(창고명·코드), `isActive`(생략 시 전체). `page`·`size`·`sort`는 받지 않는다(페이지네이션 보류).
 - 정렬은 고정(등록 일시 `createdAt` 내림차순, 같으면 `warehouseId` 내림차순).
-- 응답 항목: `warehouseId, warehouseCode, warehouseName, address, contactNumber, totalCapacity, isActive`. 구역별 수용량은 미포함.
+- 응답 항목: `warehouseId, warehouseCode, warehouseName, address, latitude, longitude, contactNumber, totalCapacity, isActive`. 구역별 수용량은 미포함.
 
 ### GET /warehouses/{warehouseId}
 
@@ -61,7 +61,7 @@
 
 ### PATCH /warehouses/{warehouseId}
 
-- 부분 수정(≥1 필드): `warehouseName`, `address`, `contactNumber`(null이면 비움), `totalCapacity`(최상위 활성 구역 수용량 합 이상)
+- 부분 수정(≥1 필드): `warehouseName`, `address`, `latitude`·`longitude`(쌍으로만, 생략하면 기존 좌표 유지), `contactNumber`(null이면 비움), `totalCapacity`(최상위 활성 구역 수용량 합 이상)
 - `warehouseCode`, `isActive` 포함 시 400(상태는 `deactivate` 사용). 비활성 창고도 수정 가능.
 - 에러: 창고 없음 404, 409 `CAPACITY_BELOW_CHILDREN`(`totalCapacity`가 최상위 활성 구역 합보다 작음)
 

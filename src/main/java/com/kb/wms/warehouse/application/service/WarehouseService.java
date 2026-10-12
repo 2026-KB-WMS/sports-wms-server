@@ -47,6 +47,7 @@ public class WarehouseService implements WarehouseUseCase {
         Warehouse warehouse = Warehouse.register(
                 command.warehouseCode(), command.name(), command.address(),
                 command.contactNumber(), command.totalCapacity());
+        warehouse.changeCoordinates(command.latitude(), command.longitude());
         return warehouseRepository.save(warehouse);
     }
 
@@ -86,6 +87,9 @@ public class WarehouseService implements WarehouseUseCase {
         }
         if (command.contactNumber() != null) {
             warehouse.changeContactNumber(command.contactNumber());
+        }
+        if (command.latitude() != null && command.longitude() != null) {
+            warehouse.changeCoordinates(command.latitude(), command.longitude());
         }
         if (command.totalCapacity() != null) {
             if (command.totalCapacity().compareTo(

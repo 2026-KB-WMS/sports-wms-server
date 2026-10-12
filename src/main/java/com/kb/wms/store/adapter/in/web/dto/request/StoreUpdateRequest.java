@@ -1,10 +1,16 @@
 package com.kb.wms.store.adapter.in.web.dto.request;
 
+import java.math.BigDecimal;
+
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.validation.GeoCoordinates;
 import com.kb.wms.common.validation.PhoneNumber;
 import com.kb.wms.store.application.port.in.command.StoreUpdateCommand;
 
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -28,13 +34,32 @@ public record StoreUpdateRequest(
 
         String storeCode,
 
-        Boolean isActive
+        Boolean isActive,
+
+        @DecimalMin(value = "-90", message = "위도는 -90 이상이어야 합니다.")
+        @DecimalMax(value = "90", message = "위도는 90 이하여야 합니다.")
+        BigDecimal latitude,
+
+        @DecimalMin(value = "-180", message = "경도는 -180 이상이어야 합니다.")
+        @DecimalMax(value = "180", message = "경도는 180 이하여야 합니다.")
+        BigDecimal longitude
 ) {
+
+    public StoreUpdateRequest(String storeName, String address, String contactName, String contactNumber,
+                              String storeCode, Boolean isActive) {
+        this(storeName, address, contactName, contactNumber, storeCode, isActive, null, null);
+    }
+
+    @AssertTrue(message = "위도와 경도는 함께 입력해야 합니다.")
+    public boolean isCoordinatePairValid() {
+        return GeoCoordinates.isPair(latitude, longitude);
+    }
 
     public StoreUpdateCommand toCommand() {
         if (storeCode != null || isActive != null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "storeCode, isActive는 이 API로 수정할 수 없습니다.");
         }
-        return new StoreUpdateCommand(storeName, address, contactName, contactNumber);
+        return new StoreUpdateCommand(storeName, address, contactName, contactNumber,
+                latitude, longitude);
     }
 }

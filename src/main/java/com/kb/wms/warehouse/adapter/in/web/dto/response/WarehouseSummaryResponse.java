@@ -12,6 +12,8 @@ public record WarehouseSummaryResponse(
         String warehouseCode,
         String warehouseName,
         String address,
+        BigDecimal latitude,
+        BigDecimal longitude,
         String contactNumber,
         BigDecimal totalCapacity,
         boolean isActive
@@ -23,6 +25,8 @@ public record WarehouseSummaryResponse(
                 warehouse.getWarehouseCode(),
                 warehouse.getName(),
                 warehouse.getAddress(),
+                warehouse.getLatitude(),
+                warehouse.getLongitude(),
                 warehouse.getContactNumber(),
                 warehouse.getTotalCapacity(),
                 warehouse.isActive());
