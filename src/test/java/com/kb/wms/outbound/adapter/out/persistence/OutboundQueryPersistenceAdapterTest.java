@@ -341,6 +341,33 @@ class OutboundQueryPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("출고 목록과 상세에 배송 처리자 이름을 사용자 테이블 조인으로 담고, 처리자가 없으면 null이다")
+    void shippedByName() {
+        User shipper = userRepository.save(User.signUp("ob_shipper", "hashed", "정배송", "ob_shipper@example.com",
+                "010-1234-5678", UserRole.WAREHOUSE_MANAGER));
+        StockAllocation a1 = allocation(lineA, lotEarly, 5, NOW);
+        StockAllocation a2 = allocation(otherLineA, lotBusan, 2, NOW);
+        Outbound shipped = outbound("OB-20261005-0001", order, a1.getAllocationId());
+        Outbound notShipped = outbound("OB-20261005-0002", otherOrder, a2.getAllocationId());
+        entityManager.createQuery("update OutboundJpaEntity o set o.shippedBy = :userId where o.outboundId = :id")
+                .setParameter("userId", shipper.getUserId()).setParameter("id", shipped.getOutboundId())
+                .executeUpdate();
+        entityManager.clear();
+
+        List<OutboundSummary> items = queryRepository.searchOutbounds(
+                OutboundSearchCondition.unscoped(null, null, null, null, null, null, null));
+
+        assertThat(items.stream().filter(s -> s.outboundId().equals(shipped.getOutboundId())).findFirst()
+                .orElseThrow().shippedByName()).isEqualTo("정배송");
+        assertThat(items.stream().filter(s -> s.outboundId().equals(notShipped.getOutboundId())).findFirst()
+                .orElseThrow().shippedByName()).isNull();
+        assertThat(queryRepository.findOutboundView(shipped.getOutboundId()).orElseThrow().shippedByName())
+                .isEqualTo("정배송");
+        assertThat(queryRepository.findOutboundView(notShipped.getOutboundId()).orElseThrow().shippedByName())
+                .isNull();
+    }
+
+    @Test
     @DisplayName("출고 목록 필터: 상태·창고·발주·키워드·기간")
     void searchOutboundsFilters() {
         StockAllocation a1 = allocation(lineA, lotEarly, 5, NOW);

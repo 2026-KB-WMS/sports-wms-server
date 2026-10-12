@@ -22,11 +22,12 @@ public interface OutboundQueryJpaRepository extends Repository<OutboundJpaEntity
     @Query("""
             select new com.kb.wms.outbound.application.port.in.result.OutboundSummary(
                 ob.outboundId, ob.outboundNo, o.storeOrderId, o.orderNo, o.storeId, st.name,
-                o.warehouseId, w.name, ob.status, count(l), ob.shippedAt, ob.shippedBy, ob.createdAt)
+                o.warehouseId, w.name, ob.status, count(l), ob.shippedAt, ob.shippedBy, su.name, ob.createdAt)
             from OutboundJpaEntity ob
             join StoreOrderJpaEntity o on o.storeOrderId = ob.storeOrderId
             join StoreJpaEntity st on st.storeId = o.storeId
             left join WarehouseJpaEntity w on w.warehouseId = o.warehouseId
+            left join UserJpaEntity su on su.userId = ob.shippedBy
             join OutboundLineJpaEntity l on l.outboundId = ob.outboundId
             where (:status is null or ob.status = :status)
               and (:warehouseId is null or o.warehouseId = :warehouseId)
@@ -39,7 +40,7 @@ public interface OutboundQueryJpaRepository extends Repository<OutboundJpaEntity
               and (:createdFrom is null or ob.createdAt >= :createdFrom)
               and (:createdTo is null or ob.createdAt <= :createdTo)
             group by ob.outboundId, ob.outboundNo, o.storeOrderId, o.orderNo, o.storeId, st.name,
-                     o.warehouseId, w.name, ob.status, ob.shippedAt, ob.shippedBy, ob.createdAt
+                     o.warehouseId, w.name, ob.status, ob.shippedAt, ob.shippedBy, su.name, ob.createdAt
             order by ob.createdAt desc, ob.outboundId desc
             """)
     List<OutboundSummary> search(@Param("status") OutboundStatus status,
@@ -55,12 +56,13 @@ public interface OutboundQueryJpaRepository extends Repository<OutboundJpaEntity
     @Query("""
             select new com.kb.wms.outbound.application.port.in.result.OutboundView(
                 ob.outboundId, ob.outboundNo, ob.status, o.storeOrderId, o.orderNo, o.storeId, st.name,
-                o.warehouseId, w.name, ob.shippedAt, ob.shippedBy, ob.deliveredAt, ob.note,
+                o.warehouseId, w.name, ob.shippedAt, ob.shippedBy, su.name, ob.deliveredAt, ob.note,
                 ob.createdAt, ob.updatedAt)
             from OutboundJpaEntity ob
             join StoreOrderJpaEntity o on o.storeOrderId = ob.storeOrderId
             join StoreJpaEntity st on st.storeId = o.storeId
             left join WarehouseJpaEntity w on w.warehouseId = o.warehouseId
+            left join UserJpaEntity su on su.userId = ob.shippedBy
             where ob.outboundId = :outboundId
             """)
     Optional<OutboundView> findView(@Param("outboundId") Long outboundId);

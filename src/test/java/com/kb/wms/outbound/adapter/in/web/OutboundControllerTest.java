@@ -78,7 +78,7 @@ class OutboundControllerTest {
 
     private OutboundView view(OutboundStatus status) {
         return new OutboundView(7L, "OB-20261005-0001", status, 3L, "SO-20261005-0001", 1L, "강남점", 2L,
-                "서울 물류센터", null, null, null, "비고", NOW, NOW);
+                "서울 물류센터", null, null, null, null, "비고", NOW, NOW);
     }
 
     private OutboundLineView line() {
@@ -141,7 +141,7 @@ class OutboundControllerTest {
     void list() throws Exception {
         when(outboundUseCase.searchOutbounds(any(OutboundSearchCondition.class), any())).thenReturn(List.of(
                 new OutboundSummary(7L, "OB-20261005-0001", 3L, "SO-20261005-0001", 1L, "강남점", 2L,
-                        "서울 물류센터", OutboundStatus.READY, 2L, null, null, NOW)));
+                        "서울 물류센터", OutboundStatus.READY, 2L, null, null, null, NOW)));
 
         mockMvc.perform(get("/api/v1/outbounds").param("status", "READY").param("storeOrderId", "3"))
                 .andExpect(status().isOk())
@@ -255,7 +255,7 @@ class OutboundControllerTest {
     @DisplayName("배송 시작은 shippedAt·shippedBy를, 배송 완료는 storeOrder 상태를 반환한다")
     void shipAndDeliver() throws Exception {
         when(fulfillmentUseCase.ship(eq(7L), argThat(actor -> actor.userId().equals(9L)))).thenReturn(
-                new OutboundShipResult(7L, "OB-20261005-0001", OutboundStatus.SHIPPED, NOW, 9L, NOW));
+                new OutboundShipResult(7L, "OB-20261005-0001", OutboundStatus.SHIPPED, NOW, 9L, "박창고", NOW));
         when(fulfillmentUseCase.deliver(eq(7L), argThat(actor -> actor.userId().equals(9L)))).thenReturn(
                 new OutboundDeliverResult(7L, "OB-20261005-0001", OutboundStatus.DELIVERED, NOW, 3L,
                         StoreOrderStatus.COMPLETED, NOW));

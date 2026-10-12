@@ -160,7 +160,7 @@ public class OutboundFulfillmentService implements OutboundFulfillmentUseCase {
 
         OutboundView view = findViewOrThrow(outboundId);
         return new OutboundShipResult(view.outboundId(), view.outboundNo(), view.status(), view.shippedAt(),
-                view.shippedBy(), view.updatedAt());
+                view.shippedBy(), view.shippedByName(), view.updatedAt());
     }
 
     @Override

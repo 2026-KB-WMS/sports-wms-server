@@ -19,6 +19,7 @@ public record OutboundView(
         String warehouseName,
         LocalDateTime shippedAt,
         Long shippedBy,
+        String shippedByName,
         LocalDateTime deliveredAt,
         String note,
         LocalDateTime createdAt,

@@ -12,11 +12,12 @@ public record OutboundShipResponse(
         OutboundStatus status,
         LocalDateTime shippedAt,
         Long shippedBy,
+        String shippedByName,
         LocalDateTime updatedAt
 ) {
 
     public static OutboundShipResponse from(OutboundShipResult r) {
         return new OutboundShipResponse(r.outboundId(), r.outboundNo(), r.status(), r.shippedAt(), r.shippedBy(),
-                r.updatedAt());
+                r.shippedByName(), r.updatedAt());
     }
 }
