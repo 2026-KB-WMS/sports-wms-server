@@ -1,7 +1,9 @@
 package com.kb.wms.store.domain.entity;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+import com.kb.wms.common.validation.GeoCoordinates;
 import com.kb.wms.store.domain.enums.StoreStatus;
 
 import lombok.AccessLevel;
@@ -21,6 +23,8 @@ public class Store {
     private String storeCode;
     private String name;
     private String address;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
     private String contactName;
     private String contactNumber;
     private StoreStatus status;
@@ -30,7 +34,8 @@ public class Store {
     @Builder
     private Store(Long storeId, String storeCode, String name, String address, String contactName,
                   String contactNumber, StoreStatus status, LocalDateTime createdAt,
-                  LocalDateTime updatedAt) {
+                  LocalDateTime updatedAt,
+                  BigDecimal latitude, BigDecimal longitude) {
         this.storeId = storeId;
         this.storeCode = storeCode;
         this.name = name;
@@ -40,6 +45,8 @@ public class Store {
         this.status = status == null ? StoreStatus.ACTIVE : status;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.latitude = GeoCoordinates.scale(latitude);
+        this.longitude = GeoCoordinates.scale(longitude);
     }
 
     public static Store register(String storeCode, String name, String address, String contactName,
@@ -62,6 +69,12 @@ public class Store {
 
     public void changeAddress(String address) {
         this.address = address;
+    }
+
+    /** 위도·경도는 쌍으로만 바꾼다. 주소만 바꿔도 기존 좌표는 유지된다. */
+    public void changeCoordinates(BigDecimal latitude, BigDecimal longitude) {
+        this.latitude = GeoCoordinates.scale(latitude);
+        this.longitude = GeoCoordinates.scale(longitude);
     }
 
     public void changeContactName(String contactName) {

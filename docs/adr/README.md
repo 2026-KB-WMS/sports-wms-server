@@ -31,3 +31,4 @@
 | [017](017-sku-price-required-and-update.md) | SKU 단가를 필수로 하고, SKU 수정 API와 단가 변경 이력을 둔다 | Accepted | 2026-10-10 |
 | [018](018-warehouse-capacity-required-and-hierarchy.md) | 창고·구역 수용량을 필수로 하고, 상하위 수용량 관계를 검증한다 | Accepted | 2026-10-10 |
 | [019](019-allocation-partial-and-sku-select.md) | 재고 할당은 부분 할당을 허용하고, 할당과 출고 생성에서 SKU를 고를 수 있게 한다 | Accepted | 2026-10-12 |
+| [020](020-geo-coordinates-optional-pair.md) | 주소를 입력받는 엔티티에 위도·경도를 선택 필드 쌍으로 저장한다 | Accepted | 2026-10-12 |
