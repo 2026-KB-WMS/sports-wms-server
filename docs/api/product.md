@@ -14,7 +14,7 @@
 - SKU 단가 필수·수정(#207, [ADR-017](../adr/017-sku-price-required-and-update.md)): SKU 등록의 매입·공급 단가는 필수이고(0 이상, 0 허용) DB도 `NOT NULL`이다. 등록 후 `PATCH /products/skus/{skuId}`로 이름·바코드·중량·단가·안전재고를 수정하며, 단가가 바뀌면 처리자와 함께 이력(`sku_price_history`)을 남긴다.
 - 미결: 카테고리 최대 depth, SKU 옵션 조합 중복 허용 규칙.
 
-## 엔드포인트 목록 (15 + 코드 전용 1)
+## 엔드포인트 목록 (15 + 코드 전용 2)
 
 | Method | Path | 권한 | 설명 |
 |---|---|---|---|
@@ -33,6 +33,7 @@
 | GET | /products/{productId}/option-groups | 전체 | 상품의 옵션 그룹 조회 |
 | GET | /products/skus | 전체 | SKU 목록 |
 | POST | /products/skus | HQ_ADMIN | SKU 등록 |
+| GET | /products/skus/units | 전체 | SKU 수량 단위 허용 목록 (코드 전용, ADR-024) |
 | GET | /products/skus/{skuId} | 전체 | SKU 상세 |
 | POST | /products/skus/{skuId}/options | HQ_ADMIN | SKU 옵션 연결 |
 | PATCH | /products/skus/{skuId}/status | HQ_ADMIN | SKU 활성/비활성 변경 (코드 전용, Notion 명세 없음) |
@@ -116,9 +117,16 @@
 ## POST /products/skus — SKU 등록
 
 - 권한: HQ_ADMIN
-- Body: `productId`, `skuCode`(≤50), `barcode`(선택, ≤100, unique), `skuName`(≤200), `weight`(선택), `currentPurchasePrice`(**필수**, 0 이상), `currentSupplyPrice`(**필수**, 0 이상), `unit`(기본 `EA`), `safetyStockQuantity`(기본 0, BIGINT)
-- 에러: 400 `VALIDATION_ERROR`(단가 누락·음수 포함), `PRODUCT_NOT_FOUND` 404, `PRODUCT_INACTIVE` 409, `DUPLICATE_SKU_CODE` 409, `DUPLICATE_BARCODE` 409
+- Body: `productId`, `skuCode`(≤50), `barcode`(선택, ≤100, unique), `skuName`(≤200), `weight`(선택), `currentPurchasePrice`(**필수**, 0 이상), `currentSupplyPrice`(**필수**, 0 이상), `unit`(`EA` / `BOX` / `SET` 중 하나, 기본 `EA`), `safetyStockQuantity`(기본 0, BIGINT)
+- `unit`은 서버 허용 목록([ADR-024](../adr/024-sku-unit-allowlist.md))과 정확히 일치해야 한다. 목록 밖 값(소문자·한글·빈 문자열 포함)은 400이다. 허용 목록은 `GET /products/skus/units`로 조회한다.
+- 에러: 400 `VALIDATION_ERROR`(단가 누락·음수, 허용되지 않은 `unit` 포함), `PRODUCT_NOT_FOUND` 404, `PRODUCT_INACTIVE` 409, `DUPLICATE_SKU_CODE` 409, `DUPLICATE_BARCODE` 409
 - 미결: 동일 옵션 조합 SKU 중복 허용 규칙.
+
+## GET /products/skus/units — SKU 수량 단위 허용 목록 (코드 전용)
+
+- 권한: 로그인한 모든 역할. 페이지네이션 없음.
+- 200. `data.items[]`: `code`(`EA`, `BOX`, `SET`), `name`(개, 박스, 세트). 등록 요청의 `unit`에는 `code`를 보낸다.
+- 코드 도입 전에 저장된 SKU의 `unit`이 목록 밖 값이어도 변환하지 않는다. `unit`은 SKU 수정 API 대상이 아니므로 그대로 남는다.
 
 ## PATCH /products/skus/{skuId} — SKU 수정 (코드 추가, #207)
 
