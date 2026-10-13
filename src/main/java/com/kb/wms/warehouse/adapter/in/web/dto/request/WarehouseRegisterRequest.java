@@ -15,13 +15,9 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * POST /api/v1/warehouses 요청 바디.
+ * POST /api/v1/warehouses 요청 바디. 창고 코드는 받지 않고 주소의 시·도로 서버가 발급한다.
  */
 public record WarehouseRegisterRequest(
-        @NotBlank(message = "창고 코드는 필수 값입니다.")
-        @Size(max = 30, message = "창고 코드는 최대 30자입니다.")
-        String warehouseCode,
-
         @NotBlank(message = "창고명은 필수 값입니다.")
         @Size(max = 100, message = "창고명은 최대 100자입니다.")
         String warehouseName,
@@ -54,7 +50,7 @@ public record WarehouseRegisterRequest(
     }
 
     public WarehouseRegisterCommand toCommand() {
-        return new WarehouseRegisterCommand(warehouseCode, warehouseName, address, contactNumber, totalCapacity,
+        return new WarehouseRegisterCommand(warehouseName, address, contactNumber, totalCapacity,
                 latitude, longitude);
     }
 }

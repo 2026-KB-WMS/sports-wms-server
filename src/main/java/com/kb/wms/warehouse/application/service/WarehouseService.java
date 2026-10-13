@@ -8,6 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.locationcode.LocationCodeIssuer;
+import com.kb.wms.common.locationcode.LocationType;
+import com.kb.wms.common.locationcode.RegionCode;
 import com.kb.wms.warehouse.application.port.in.WarehouseSectionCapacityUseCase;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseRegisterCommand;
@@ -37,18 +40,31 @@ public class WarehouseService implements WarehouseUseCase {
     private final WarehouseSectionCapacityUseCase warehouseSectionCapacityUseCase;
     private final StockPresencePort stockPresencePort;
     private final WarehouseUsagePort warehouseUsagePort;
+    private final LocationCodeIssuer locationCodeIssuer;
 
     @Override
     @Transactional
     public Warehouse registerWarehouse(WarehouseRegisterCommand command) {
-        if (warehouseRepository.existsByWarehouseCode(command.warehouseCode())) {
-            throw new BusinessException(WarehouseErrorCode.DUPLICATE_WAREHOUSE_CODE);
-        }
+        String warehouseCode = issueCode(RegionCode.fromAddress(command.address()));
         Warehouse warehouse = Warehouse.register(
-                command.warehouseCode(), command.name(), command.address(),
+                warehouseCode, command.name(), command.address(),
                 command.contactNumber(), command.totalCapacity());
         warehouse.changeCoordinates(command.latitude(), command.longitude());
         return warehouseRepository.save(warehouse);
+    }
+
+    private String issueCode(RegionCode region) {
+        return locationCodeIssuer.issue(LocationType.WAREHOUSE, region, warehouseRepository::existsByWarehouseCode);
+    }
+
+    /**
+     * 발급 형식의 코드(WH-SU-001)를 가진 창고가 다른 시·도로 주소를 바꾸면 새 시·도의 다음 번호로 코드를 다시 발급한다.
+     * 같은 시·도 안의 주소 수정과 과거에 직접 입력된 코드는 바꾸지 않는다.
+     */
+    private void reissueCodeIfRegionChanged(Warehouse warehouse, RegionCode newRegion) {
+        LocationCodeIssuer.regionOf(warehouse.getWarehouseCode())
+                .filter(current -> current != newRegion)
+                .ifPresent(current -> warehouse.reissueCode(issueCode(newRegion)));
     }
 
     @Override
@@ -83,7 +99,9 @@ public class WarehouseService implements WarehouseUseCase {
             warehouse.changeName(command.name());
         }
         if (command.address() != null) {
+            RegionCode region = RegionCode.fromAddress(command.address());
             warehouse.changeAddress(command.address());
+            reissueCodeIfRegionChanged(warehouse, region);
         }
         if (command.contactNumber() != null) {
             warehouse.changeContactNumber(command.contactNumber());

@@ -138,7 +138,7 @@ class WarehouseDeactivationWithOperationsTest {
 
     private Warehouse newWarehouse(String code) {
         return warehouseUseCase.registerWarehouse(
-                new WarehouseRegisterCommand(code, code, "주소", "02-1234-5678", BigDecimal.TEN));
+                new WarehouseRegisterCommand(code, "서울 강남구 테헤란로 1", "02-1234-5678", BigDecimal.TEN));
     }
 
     private void inbound(String no, Long warehouseId, InboundStatus status) {

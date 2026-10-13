@@ -119,7 +119,7 @@ class StoreDeactivationWithOrdersTest {
     }
 
     private Store newStore(String code) {
-        return storeUseCase.registerStore(new StoreRegisterCommand(code, code, "주소", "담당자", "02-1234-5678"));
+        return storeUseCase.registerStore(new StoreRegisterCommand(code, "서울 강남구 테헤란로 1", "담당자", "02-1234-5678"));
     }
 
     private void order(String orderNo, Long storeId, StoreOrderStatus status) {

@@ -53,11 +53,11 @@ class GeoCoordinatesTest {
         BigDecimal latitude = d(lat);
         BigDecimal longitude = d(lng);
 
-        assertThat(validator.validate(new WarehouseRegisterRequest("WH-1", "창고", "서울", null, BigDecimal.TEN,
+        assertThat(validator.validate(new WarehouseRegisterRequest("창고", "서울", null, BigDecimal.TEN,
                 latitude, longitude)).isEmpty()).isEqualTo(valid);
         assertThat(validator.validate(new WarehouseUpdateRequest(null, null, null, null, null, null,
                 latitude, longitude)).isEmpty()).isEqualTo(valid);
-        assertThat(validator.validate(new StoreRegisterRequest("ST-1", "지점", "서울", null, "02-123-4567",
+        assertThat(validator.validate(new StoreRegisterRequest("지점", "서울", null, "02-123-4567",
                 latitude, longitude)).isEmpty()).isEqualTo(valid);
         assertThat(validator.validate(new StoreUpdateRequest(null, null, null, null, null, null,
                 latitude, longitude)).isEmpty()).isEqualTo(valid);
