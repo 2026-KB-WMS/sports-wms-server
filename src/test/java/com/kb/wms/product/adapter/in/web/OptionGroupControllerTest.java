@@ -68,7 +68,7 @@ class OptionGroupControllerTest {
     @DisplayName("상품의 옵션 그룹·옵션 값을 조회하면 200과 그룹별 값 목록을 반환한다")
     void getOptionGroupsByProduct_success() throws Exception {
         ProductOptionGroupSummary summary = new ProductOptionGroupSummary(
-                1L, "색상", List.of(new OptionValueSummary(10L, "빨강", 1)));
+                1L, "색상", List.of(new OptionValueSummary(10L, "RED", "빨강", 1, true)));
         when(optionGroupUseCase.getOptionGroupsByProduct(1L)).thenReturn(List.of(summary));
 
         mockMvc.perform(get("/api/v1/products/{productId}/option-groups", 1L))

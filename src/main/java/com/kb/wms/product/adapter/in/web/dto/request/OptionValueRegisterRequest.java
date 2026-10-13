@@ -3,6 +3,7 @@ package com.kb.wms.product.adapter.in.web.dto.request;
 import com.kb.wms.product.application.port.in.command.OptionValueRegisterCommand;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
@@ -10,6 +11,10 @@ import jakarta.validation.constraints.Size;
  * POST /api/v1/products/option-groups/{optionGroupId}/values 요청 바디.
  */
 public record OptionValueRegisterRequest(
+        @NotBlank(message = "옵션 코드는 필수 값입니다.")
+        @Pattern(regexp = "^[A-Za-z0-9]{1,10}$", message = "옵션 코드는 영문·숫자 1~10자입니다.")
+        String optionCode,
+
         @NotBlank(message = "옵션 값은 필수 값입니다.")
         @Size(max = 100, message = "옵션 값은 최대 100자입니다.")
         String value,
@@ -19,6 +24,6 @@ public record OptionValueRegisterRequest(
 ) {
 
     public OptionValueRegisterCommand toCommand(Long optionGroupId) {
-        return new OptionValueRegisterCommand(optionGroupId, value, sortOrder == null ? 0 : sortOrder);
+        return new OptionValueRegisterCommand(optionGroupId, optionCode, value, sortOrder == null ? 0 : sortOrder);
     }
 }

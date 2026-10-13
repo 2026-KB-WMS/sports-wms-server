@@ -33,20 +33,21 @@ class OptionValueControllerTest {
     @MockitoBean
     private OptionValueUseCase optionValueUseCase;
 
-    private record TestRequest(String value, Integer sortOrder) {
+    private record TestRequest(String optionCode, String value, Integer sortOrder) {
     }
 
     @Test
     @DisplayName("옵션 값 등록에 성공하면 201과 등록된 옵션 값을 반환한다")
     void registerOptionValue_success() throws Exception {
-        OptionValue optionValue = OptionValue.register(1L, "빨강", 1);
+        OptionValue optionValue = OptionValue.register(1L, "RED", "빨강", 1);
         when(optionValueUseCase.registerOptionValue(any(OptionValueRegisterCommand.class))).thenReturn(optionValue);
 
         mockMvc.perform(post("/api/v1/products/option-groups/{optionGroupId}/values", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new TestRequest("빨강", 1))))
+                        .content(objectMapper.writeValueAsString(new TestRequest("RED", "빨강", 1))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.value").value("빨강"));
+                .andExpect(jsonPath("$.data.value").value("빨강"))
+                .andExpect(jsonPath("$.data.optionCode").value("RED"));
     }
 
     @Test
@@ -57,9 +58,21 @@ class OptionValueControllerTest {
 
         mockMvc.perform(post("/api/v1/products/option-groups/{optionGroupId}/values", 999L)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new TestRequest("빨강", 1))))
+                        .content(objectMapper.writeValueAsString(new TestRequest("RED", "빨강", 1))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("OPTION_GROUP_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("옵션 코드가 없거나 영문·숫자 1~10자가 아니면 400 VALIDATION_ERROR를 반환한다")
+    void registerOptionValue_invalidCode() throws Exception {
+        for (String code : new String[] {null, "", " ", "RED-1", "빨강", "ABCDEFGHIJK"}) {
+            mockMvc.perform(post("/api/v1/products/option-groups/{optionGroupId}/values", 1L)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new TestRequest(code, "빨강", 1))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        }
     }
 
     @Test
@@ -67,7 +80,7 @@ class OptionValueControllerTest {
     void registerOptionValue_validationError() throws Exception {
         mockMvc.perform(post("/api/v1/products/option-groups/{optionGroupId}/values", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new TestRequest("", 1))))
+                        .content(objectMapper.writeValueAsString(new TestRequest("RED", "", 1))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }

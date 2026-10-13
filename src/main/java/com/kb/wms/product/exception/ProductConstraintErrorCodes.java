@@ -23,6 +23,7 @@ public class ProductConstraintErrorCodes implements ConstraintErrorCodeProvider 
                 "uk_product_sku_code", ProductErrorCode.DUPLICATE_SKU_CODE,
                 "uk_product_sku_barcode", ProductErrorCode.DUPLICATE_BARCODE,
                 "uk_option_group_name", ProductErrorCode.DUPLICATE_OPTION_GROUP_NAME,
-                "uk_option_value_group_value", ProductErrorCode.DUPLICATE_OPTION_VALUE);
+                "uk_option_value_group_value", ProductErrorCode.DUPLICATE_OPTION_VALUE,
+                "uk_option_value_group_code", ProductErrorCode.DUPLICATE_OPTION_CODE);
     }
 }

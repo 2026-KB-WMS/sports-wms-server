@@ -20,4 +20,6 @@ public interface OptionValueRepository {
     List<OptionValue> findByOptionGroupId(Long optionGroupId);
 
     boolean existsByOptionGroupIdAndValue(Long optionGroupId, String value);
+
+    boolean existsByOptionGroupIdAndOptionCode(Long optionGroupId, String optionCode);
 }

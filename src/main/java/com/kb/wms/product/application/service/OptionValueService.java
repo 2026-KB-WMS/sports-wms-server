@@ -30,9 +30,13 @@ public class OptionValueService implements OptionValueUseCase {
         if (optionValueRepository.existsByOptionGroupIdAndValue(command.optionGroupId(), command.value())) {
             throw new BusinessException(ProductErrorCode.DUPLICATE_OPTION_VALUE);
         }
+        String optionCode = command.optionCode().toUpperCase();
+        if (optionValueRepository.existsByOptionGroupIdAndOptionCode(command.optionGroupId(), optionCode)) {
+            throw new BusinessException(ProductErrorCode.DUPLICATE_OPTION_CODE);
+        }
 
         OptionValue optionValue = OptionValue.register(
-                command.optionGroupId(), command.value(), command.sortOrder());
+                command.optionGroupId(), optionCode, command.value(), command.sortOrder());
         return optionValueRepository.save(optionValue);
     }
 }

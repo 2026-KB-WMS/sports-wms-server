@@ -85,7 +85,8 @@ public class OptionGroupService implements OptionGroupUseCase {
             }
             List<OptionValueSummary> values = entry.getValue().stream()
                     .sorted(Comparator.comparingInt(OptionValue::getSortOrder))
-                    .map(ov -> new OptionValueSummary(ov.getOptionValueId(), ov.getValue(), ov.getSortOrder()))
+                    .map(ov -> new OptionValueSummary(ov.getOptionValueId(), ov.getOptionCode(), ov.getValue(),
+                            ov.getSortOrder(), ov.isActive()))
                     .toList();
             summaries.add(new ProductOptionGroupSummary(group.getOptionGroupId(), group.getName(), values));
         }
