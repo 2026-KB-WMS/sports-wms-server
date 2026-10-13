@@ -139,18 +139,29 @@ def run(api, admin_id, admin_pw):
     cat = must("카테고리", api.call("POST", "/products/categories", {
         "categoryCode": CATEGORY_CODE, "categoryName": "E2E카테고리", "sortOrder": 1}, token=admin), 201)["categoryId"]
     prod = must("상품", api.call("POST", "/products", {
-        "brandId": brand, "categoryId": cat, "productCode": "P-" + RUN, "productName": "E2E 상품"}, token=admin), 201)["productId"]
+        "brandId": brand, "categoryId": cat, "productName": "E2E 상품"}, token=admin), 201)["productId"]
+    prod_code = api.call("GET", "/products/%s" % prod, token=admin)[1]["data"]["productCode"]
+    check("상품 코드 자동 발급 형식(브랜드-카테고리-번호)", prod_code == "%s-%s-0001" % (BRAND_CODE, CATEGORY_CODE), prod_code)
     grp = must("옵션 그룹", api.call("POST", "/products/option-groups", {"name": "사이즈" + RUN}, token=admin), 201)["optionGroupId"]
-    val = must("옵션 값", api.call("POST", "/products/option-groups/%s/values" % grp, {"value": "M", "sortOrder": 1}, token=admin), 201)["optionValueId"]
+    val_m = must("옵션 값 M", api.call("POST", "/products/option-groups/%s/values" % grp, {
+        "value": "M", "optionCode": "M", "sortOrder": 1}, token=admin), 201)["optionValueId"]
+    val_l = must("옵션 값 L", api.call("POST", "/products/option-groups/%s/values" % grp, {
+        "value": "L", "optionCode": "L", "sortOrder": 2}, token=admin), 201)["optionValueId"]
+    must("카테고리 SKU 옵션 그룹 지정", api.call("PUT", "/products/categories/%s/option-groups" % cat, {
+        "items": [{"optionGroupId": grp, "optionType": "SKU", "sortOrder": 0}]}, token=admin))
 
-    def new_sku(code, name, buy, sell):
-        return must("SKU " + code, api.call("POST", "/products/skus", {
-            "productId": prod, "skuCode": code + "-" + RUN, "skuName": name,
+    def new_sku(option_value, buy, sell):
+        return must("SKU " + str(option_value), api.call("POST", "/products/skus", {
+            "productId": prod, "optionValueIds": [option_value],
             "currentPurchasePrice": buy, "currentSupplyPrice": sell, "safetyStockQuantity": 5}, token=admin), 201)["skuId"]
 
-    sku1 = new_sku("SKU1", "E2E SKU1", 1000, 1500)
-    sku2 = new_sku("SKU2", "E2E SKU2", 2000, 3000)
-    must("SKU1 옵션 연결", api.call("POST", "/products/skus/%s/options" % sku1, {"optionValueIds": [val]}, token=admin), 201)
+    sku1 = new_sku(val_m, 1000, 1500)
+    sku2 = new_sku(val_l, 2000, 3000)
+    sku1_code = api.call("GET", "/products/skus/%s" % sku1, token=admin)[1]["data"]["skuCode"]
+    check("SKU 코드 자동 발급 형식(상품코드-옵션코드)", sku1_code == prod_code + "-M", sku1_code)
+    expect("같은 옵션 조합 SKU 중복 등록(409)", api.call("POST", "/products/skus", {
+        "productId": prod, "optionValueIds": [val_m],
+        "currentPurchasePrice": 1, "currentSupplyPrice": 1}, token=admin), 409, "DUPLICATE_SKU_OPTION_COMBINATION")
     supplier = must("공급처", api.call("POST", "/suppliers", {
         "supplierCode": "SUP-" + RUN, "supplierName": "E2E공급처", "managerName": "담당", "contactNumber": "02-111-1111"}, token=admin), 201)["supplierId"]
 
