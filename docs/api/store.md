@@ -88,8 +88,8 @@
 
 - Body: `storeId`, `userId`(role `STORE_OWNER`), `memberRole`(management-types의 code)
 - 201. 응답: `storeMemberId, storeId, storeName, userId, userName, loginId, memberRole, assignedAt`
-- 에러: 400(필수 누락/허용되지 않은 `memberRole`/대상이 STORE_OWNER 아님), 404(지점 없음 `STORE_NOT_FOUND`, 사용자 없음 `USER_NOT_FOUND`), 409 `ALREADY_ASSIGNED`(같은 지점 중복, DB 제약도 동일 매핑), 409 `CONFLICT`(비활성 지점 또는 INACTIVE 사용자)
-- PENDING 계정도 배정 가능(소속 배정 후 `PATCH /users/{userId}`로 ACTIVE 승인). 서로 다른 지점 배정은 허용. `assignedAt`은 서버 시각, 단일 트랜잭션.
+- 에러: 400(필수 누락/허용되지 않은 `memberRole`/대상이 STORE_OWNER 아님), 404(지점 없음 `STORE_NOT_FOUND`, 사용자 없음 `USER_NOT_FOUND`), 409 `ALREADY_ASSIGNED`(같은 지점 중복, DB 제약도 동일 매핑), 409 `CONFLICT`(비활성 지점, 또는 ACTIVE가 아닌 사용자: PENDING·INACTIVE)
+- **ACTIVE 사용자만 배정할 수 있다.** 승인 대기 사용자의 소속은 승인 요청(`PATCH /users/{userId}`의 `storeId`)에서 함께 지정한다([ADR-022](../adr/022-approve-with-affiliation.md)). 이 API는 승인된 사용자의 추가 배정용이다. 서로 다른 지점 배정은 허용. `assignedAt`은 서버 시각, 단일 트랜잭션.
 
 ## DELETE /stores/managers/{storeMemberId} (P2)
 

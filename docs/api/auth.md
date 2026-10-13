@@ -137,21 +137,25 @@
 | phone | string | 최대 30자, 전화번호 형식([conventions.md](conventions.md)) |
 | role | string | `HQ_ADMIN` / `WAREHOUSE_MANAGER` / `STORE_OWNER` |
 | status | string | `PENDING` / `ACTIVE` / `INACTIVE` (허용 전이는 아래) |
+| warehouseId | number | 창고 관리자를 승인·재활성화(`status: ACTIVE`)하면서 배정할 창고. `storeId`와 함께 보낼 수 없다 |
+| storeId | number | 점주를 승인·재활성화(`status: ACTIVE`)하면서 배정할 지점. `warehouseId`와 함께 보낼 수 없다 |
 
 - `loginId`·`password`는 수정할 수 없다. 포함해서 보내면 무시하지 않고 400으로 거절한다.
+- **가입 승인과 소속 지정**: 창고 관리자·점주는 소속이 있어야 `ACTIVE`가 된다. 승인 요청에 `warehouseId`(창고 관리자) 또는 `storeId`(점주)를 함께 보내면 같은 트랜잭션에서 배정하고 승인하며, 배정이 실패하면(창고·지점 없음 404, 비활성 409 등) 승인도 반영되지 않는다. 승인 전에 `POST /warehouses/managers`·`POST /stores/assign`으로 먼저 배정하는 것은 더 이상 할 수 없다(PENDING 사용자는 409, [ADR-022](../adr/022-approve-with-affiliation.md)). 배정되는 담당 역할은 창고 `MANAGER`, 지점 `OWNER`로 고정이다.
+- 소속 필드는 `status: ACTIVE`로 바꾸는 요청(PENDING·INACTIVE → ACTIVE)과 함께만 보낼 수 있고, 역할(같은 요청의 `role` 변경 후 기준)에 맞아야 한다. 이미 소속이 있는 사용자는 소속 없이 승인한다.
 - 200. 응답: `userId, loginId, name, email, phone, role, status, updatedAt`
 - 오류
 
 | HTTP | 오류 코드 | 조건 |
 |---|---|---|
-| 400 | VALIDATION_ERROR | 수정 필드 없음, 형식·길이 위반, `loginId`/`password` 포함, 본인 계정의 `role`·`status` 변경 시도(마지막 관리자 잠김 방지) |
+| 400 | VALIDATION_ERROR | 수정 필드 없음, 형식·길이 위반, `loginId`/`password` 포함, 본인 계정의 `role`·`status` 변경 시도(마지막 관리자 잠김 방지), `warehouseId`·`storeId` 동시 전송, 승인·재활성화가 아닌 요청이나 이미 ACTIVE인 사용자에게 소속 전송, 역할과 맞지 않는 소속 필드 |
 | 401 | UNAUTHORIZED | 토큰 없음·만료 |
 | 403 | FORBIDDEN | HQ_ADMIN이 아님 |
 | 404 | USER_NOT_FOUND | 해당 사용자 없음 |
 | 409 | DUPLICATE_EMAIL | 다른 계정이 쓰는 이메일 |
 | 409 | INVALID_USER_STATUS_TRANSITION | 같은 상태로의 변경, `PENDING`으로 되돌리기 |
-| 409 | AFFILIATION_REQUIRED | 창고 관리자·점주를 창고·지점 소속 없이 `ACTIVE`로 변경 |
-| 409 | AFFILIATION_ASSIGNED | 소속이 배정된 사용자의 `role` 변경(소속을 먼저 회수) |
+| 409 | AFFILIATION_REQUIRED | 창고 관리자·점주를 소속이 없고 `warehouseId`/`storeId`도 없이 `ACTIVE`로 변경 |
+| 409 | AFFILIATION_ASSIGNED | 소속이 배정된 사용자의 `role` 변경(소속을 먼저 회수), 또는 이미 소속이 있는 사용자에게 `warehouseId`/`storeId` 전송 |
 
 - 본인 계정은 `name`·`email`·`phone`만 바꿀 수 있다. 본인 값과 같은 `role`·`status`를 보내는 것은 변경이 아니므로 무시한다.
 - 수정은 대상 행을 잠그고 한 트랜잭션으로 처리하며 `updated_at`을 갱신한다. 비밀번호 변경은 이 API가 아니라 `PATCH /auth/me/password`다.

@@ -12,6 +12,7 @@ import jakarta.validation.constraints.Size;
 /**
  * PATCH /api/v1/users/{userId} 요청 바디. 모든 필드는 선택이며, 값이 있는 필드만 수정한다.
  * loginId·password는 수정 대상이 아니지만 무시하지 않고 서비스가 400으로 거절하도록 그대로 넘긴다.
+ * warehouseId·storeId는 가입 승인(재활성화)과 함께 소속을 지정할 때만 보낸다.
  */
 public record UserUpdateRequest(
         @Pattern(regexp = NOT_BLANK, message = "이름은 공백일 수 없습니다.")
@@ -34,13 +35,18 @@ public record UserUpdateRequest(
 
         String loginId,
 
-        String password
+        String password,
+
+        Long warehouseId,
+
+        Long storeId
 ) {
 
     // 값을 보냈다면 공백 문자만으로 이루어질 수 없다. 생략(null)은 "수정 안 함"이라 통과한다.
     private static final String NOT_BLANK = ".*\\S.*";
 
     public UserUpdateCommand toCommand(Long userId, Long actorUserId) {
-        return new UserUpdateCommand(userId, actorUserId, loginId, password, name, email, phone, role, status);
+        return new UserUpdateCommand(userId, actorUserId, loginId, password, name, email, phone, role, status,
+                warehouseId, storeId);
     }
 }

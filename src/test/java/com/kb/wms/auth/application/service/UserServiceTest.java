@@ -299,6 +299,113 @@ class UserServiceTest {
         verify(statusHistoryUseCase, never()).record(any(), any(), any(), any(), any(), any());
     }
 
+    private UserUpdateCommand approveWith(Long warehouseId, Long storeId, UserStatus status) {
+        return new UserUpdateCommand(USER_ID, ADMIN_ID, null, null, null, null, null, null, status,
+                warehouseId, storeId);
+    }
+
+    @Test
+    @DisplayName("소속이 없는 창고 관리자는 승인 요청에 warehouseId가 있으면 소속 없이도 승인된다")
+    void updateUser_approveWithWarehouseId() {
+        User user = userWith(USER_ID, UserRole.WAREHOUSE_MANAGER, UserStatus.PENDING);
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
+        when(userQueryRepository.findAffiliation(USER_ID)).thenReturn(new UserAffiliation(List.of(), List.of()));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User result = userService.updateUser(approveWith(3L, null, UserStatus.ACTIVE));
+
+        assertThat(result.getStatus()).isEqualTo(UserStatus.ACTIVE);
+        verify(statusHistoryUseCase).record(StatusHistoryEntityType.USER, USER_ID,
+                "PENDING", "ACTIVE", null, ADMIN_ID);
+    }
+
+    @Test
+    @DisplayName("점주는 storeId로 승인된다")
+    void updateUser_approveWithStoreId() {
+        User user = userWith(USER_ID, UserRole.STORE_OWNER, UserStatus.PENDING);
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
+        when(userQueryRepository.findAffiliation(USER_ID)).thenReturn(new UserAffiliation(List.of(), List.of()));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(userService.updateUser(approveWith(null, 5L, UserStatus.ACTIVE)).getStatus())
+                .isEqualTo(UserStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("역할과 맞지 않는 소속 필드(창고 관리자에게 storeId, 점주에게 warehouseId)는 400이다")
+    void updateUser_affiliationFieldRoleMismatch() {
+        User manager = userWith(USER_ID, UserRole.WAREHOUSE_MANAGER, UserStatus.PENDING);
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(manager));
+
+        assertErrorCode(() -> userService.updateUser(approveWith(null, 5L, UserStatus.ACTIVE)),
+                ErrorCode.VALIDATION_ERROR.name());
+
+        User owner = userWith(USER_ID, UserRole.STORE_OWNER, UserStatus.PENDING);
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(owner));
+
+        assertErrorCode(() -> userService.updateUser(approveWith(3L, null, UserStatus.ACTIVE)),
+                ErrorCode.VALIDATION_ERROR.name());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("warehouseId와 storeId를 함께 보내면 400이다")
+    void updateUser_bothAffiliationFields() {
+        User user = userWith(USER_ID, UserRole.WAREHOUSE_MANAGER, UserStatus.PENDING);
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
+
+        assertErrorCode(() -> userService.updateUser(approveWith(3L, 5L, UserStatus.ACTIVE)),
+                ErrorCode.VALIDATION_ERROR.name());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("승인·재활성화(status ACTIVE)가 아닌 요청이나 이미 ACTIVE인 사용자에게 소속을 보내면 400이다")
+    void updateUser_affiliationFieldOnlyWithActivation() {
+        User pending = userWith(USER_ID, UserRole.WAREHOUSE_MANAGER, UserStatus.PENDING);
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(pending));
+
+        assertErrorCode(() -> userService.updateUser(approveWith(3L, null, null)),
+                ErrorCode.VALIDATION_ERROR.name());
+        assertErrorCode(() -> userService.updateUser(approveWith(3L, null, UserStatus.INACTIVE)),
+                ErrorCode.VALIDATION_ERROR.name());
+
+        User active = userWith(USER_ID, UserRole.WAREHOUSE_MANAGER, UserStatus.ACTIVE);
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(active));
+
+        assertErrorCode(() -> userService.updateUser(approveWith(3L, null, UserStatus.ACTIVE)),
+                ErrorCode.VALIDATION_ERROR.name());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("이미 소속이 있는 사용자에게 소속을 보내면 409 AFFILIATION_ASSIGNED이고 상태도 바뀌지 않는다")
+    void updateUser_affiliationAlreadyAssigned() {
+        User user = userWith(USER_ID, UserRole.WAREHOUSE_MANAGER, UserStatus.INACTIVE);
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
+        when(userQueryRepository.findAffiliation(USER_ID)).thenReturn(new UserAffiliation(List.of(1L), List.of()));
+
+        assertErrorCode(() -> userService.updateUser(approveWith(3L, null, UserStatus.ACTIVE)),
+                AuthErrorCode.AFFILIATION_ASSIGNED.name());
+        verify(userRepository, never()).save(any());
+        verify(statusHistoryUseCase, never()).record(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("같은 요청에서 역할을 바꾸면 변경 후 역할 기준으로 소속 필드를 검사한다")
+    void updateUser_affiliationFieldUsesRoleAfterChange() {
+        User user = userWith(USER_ID, UserRole.STORE_OWNER, UserStatus.PENDING);
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
+        when(userQueryRepository.findAffiliation(USER_ID)).thenReturn(new UserAffiliation(List.of(), List.of()));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User result = userService.updateUser(new UserUpdateCommand(USER_ID, ADMIN_ID, null, null, null, null, null,
+                UserRole.WAREHOUSE_MANAGER, UserStatus.ACTIVE, 3L, null));
+
+        assertThat(result.getRole()).isEqualTo(UserRole.WAREHOUSE_MANAGER);
+        assertThat(result.getStatus()).isEqualTo(UserStatus.ACTIVE);
+    }
+
     @Test
     @DisplayName("HQ_ADMIN은 소속 없이도 승인할 수 있다")
     void updateUser_approveHqAdminWithoutAffiliation() {

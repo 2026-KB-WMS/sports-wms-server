@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.kb.wms.auth.adapter.in.web.dto.request.UserUpdateRequest;
 import com.kb.wms.auth.adapter.in.web.dto.response.UserSummaryResponse;
 import com.kb.wms.auth.adapter.in.web.dto.response.UserUpdateResponse;
+import com.kb.wms.auth.application.port.in.UserManagementUseCase;
 import com.kb.wms.auth.application.port.in.UserUseCase;
 import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
 import com.kb.wms.auth.domain.enums.UserRole;
@@ -38,6 +39,7 @@ import lombok.RequiredArgsConstructor;
 public class UserController {
 
     private final UserUseCase userUseCase;
+    private final UserManagementUseCase userManagementUseCase;
 
     @GetMapping
     public ApiResponse<ItemsResponse<UserSummaryResponse>> getUsers(
@@ -57,6 +59,6 @@ public class UserController {
             @Valid @RequestBody UserUpdateRequest request,
             @AuthenticationPrincipal AuthenticatedUser principal) {
         return ApiResponse.ok(UserUpdateResponse.of(
-                userUseCase.updateUser(request.toCommand(userId, principal.userId()))));
+                userManagementUseCase.updateUser(request.toCommand(userId, principal.userId()))));
     }
 }

@@ -61,7 +61,7 @@ class WarehouseMemberServiceTest {
     void assignManager_success() {
         WarehouseMemberAssignCommand command = new WarehouseMemberAssignCommand(1L, 10L, "MANAGER");
         when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
-        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.WAREHOUSE_MANAGER, UserStatus.PENDING));
+        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.WAREHOUSE_MANAGER, UserStatus.ACTIVE));
         when(warehouseMemberRepository.existsByWarehouseIdAndUserId(1L, 10L)).thenReturn(false);
         when(warehouseMemberRepository.save(any(WarehouseMember.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -155,6 +155,20 @@ class WarehouseMemberServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
+        verify(warehouseMemberRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("승인 대기(PENDING) 사용자면 CONFLICT 예외를 던진다. 소속은 승인 요청에서 함께 지정한다")
+    void assignManager_pendingUser() {
+        WarehouseMemberAssignCommand command = new WarehouseMemberAssignCommand(1L, 10L, "MANAGER");
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
+        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.WAREHOUSE_MANAGER, UserStatus.PENDING));
+
+        assertThatThrownBy(() -> warehouseMemberService.assignManager(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.CONFLICT.name());
         verify(warehouseMemberRepository, never()).save(any());
     }
 

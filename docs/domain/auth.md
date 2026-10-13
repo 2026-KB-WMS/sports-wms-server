@@ -23,15 +23,16 @@
 | 현재 | 행위 | 다음 | 수행자 | 조건 |
 |---|---|---|---|---|
 | (없음) | 가입 신청 | PENDING | 가입자(토큰 없음) | 역할은 창고 관리자·점주, 아이디·이메일 중복 없음 |
-| PENDING | 승인 | ACTIVE | 본사 관리자 | 창고 관리자·점주는 창고·지점 소속이 하나 이상 배정돼 있어야 함(`AFFILIATION_REQUIRED`) |
+| PENDING | 승인 | ACTIVE | 본사 관리자 | 창고 관리자·점주는 승인 요청에 `warehouseId`/`storeId`를 함께 보내 같은 트랜잭션에서 소속을 배정한다. 소속도 필드도 없으면 `AFFILIATION_REQUIRED` |
 | PENDING | 가입 반려 | INACTIVE | 본사 관리자 | 사유는 받지 않는다 |
 | ACTIVE | 비활성화 | INACTIVE | 본사 관리자 | 본인 계정 불가 |
-| INACTIVE | 재활성화 | ACTIVE | 본사 관리자 | 승인과 같은 소속 조건 |
+| INACTIVE | 재활성화 | ACTIVE | 본사 관리자 | 승인과 같은 소속 조건(소속이 남아 있으면 필드 없이 승인) |
 
 - 모두 `PATCH /users/{userId}`의 `status`로 처리한다(별도 `approve`/`deactivate` 엔드포인트 없음).
 - `PENDING`으로 되돌리는 전이와 같은 상태로의 변경은 409 `INVALID_USER_STATUS_TRANSITION`이다. 전이가 막힌 요청은 부작용(이력 기록)을 만들지 않는다.
 - 로그인은 `ACTIVE` 계정만 된다. `PENDING`은 403 `ACCOUNT_PENDING`, `INACTIVE`는 403 `ACCOUNT_INACTIVE`이며, 둘 다 **비밀번호가 맞은 뒤에만** 알려 준다.
 - 역할 변경은 소속이 하나도 없을 때만 된다(`AFFILIATION_ASSIGNED`). 소속은 각 배정·회수 API(`/warehouses/managers`, `/stores/assign`, `/stores/managers`)로 먼저 정리한다.
+- 승인 전 사용자(PENDING)와 비활성 사용자에게는 배정 API를 쓸 수 없다(409). 소속 지정은 승인(재활성화) 요청에서만 한다([ADR-022](../adr/022-approve-with-affiliation.md)).
 - 승인 시 소속 검사는 역할 변경과 함께 올 때 **변경 후 역할** 기준이다.
 
 ## 부수 효과

@@ -115,13 +115,15 @@ def run(api, admin_id, admin_pw):
     s2 = must("지점 S2", api.call("POST", "/stores", {
         "storeName": "E2E 지점2", "address": "대구", "contactNumber": "053-000-0000"}, token=admin), 201)["storeId"]
 
-    # 소속 배정 후 승인 (승인 전에 소속이 있어야 ACTIVE 가능)
-    must("W1 ← wm1", api.call("POST", "/warehouses/managers", {"warehouseId": w1, "userId": wm1_id, "memberRole": "MANAGER"}, token=admin), 201)
-    must("W2 ← wm2", api.call("POST", "/warehouses/managers", {"warehouseId": w2, "userId": wm2_id, "memberRole": "MANAGER"}, token=admin), 201)
-    must("S1 ← own1", api.call("POST", "/stores/assign", {"storeId": s1, "userId": own1_id, "memberRole": "OWNER"}, token=admin), 201)
-    must("S2 ← own2", api.call("POST", "/stores/assign", {"storeId": s2, "userId": own2_id, "memberRole": "OWNER"}, token=admin), 201)
-    for uid in (wm1_id, wm2_id, own1_id, own2_id):
-        must("승인 user %s" % uid, api.call("PATCH", "/users/%s" % uid, {"status": "ACTIVE"}, token=admin))
+    # 승인 요청에 소속을 함께 보낸다 (승인 전 배정 API는 PENDING 사용자를 409로 거절한다)
+    expect("승인 전 배정은 거절(409)", api.call("POST", "/warehouses/managers", {
+        "warehouseId": w1, "userId": wm1_id, "memberRole": "MANAGER"}, token=admin), 409)
+    expect("소속 없이 승인하면 거절(409)", api.call("PATCH", "/users/%s" % wm1_id, {"status": "ACTIVE"}, token=admin),
+           409, "AFFILIATION_REQUIRED")
+    must("승인 wm1 → W1", api.call("PATCH", "/users/%s" % wm1_id, {"status": "ACTIVE", "warehouseId": w1}, token=admin))
+    must("승인 wm2 → W2", api.call("PATCH", "/users/%s" % wm2_id, {"status": "ACTIVE", "warehouseId": w2}, token=admin))
+    must("승인 own1 → S1", api.call("PATCH", "/users/%s" % own1_id, {"status": "ACTIVE", "storeId": s1}, token=admin))
+    must("승인 own2 → S2", api.call("PATCH", "/users/%s" % own2_id, {"status": "ACTIVE", "storeId": s2}, token=admin))
 
     def login(login_id):
         return must("login " + login_id, api.call("POST", "/auth/login", {"loginId": login_id, "password": PASSWORD}))["accessToken"]

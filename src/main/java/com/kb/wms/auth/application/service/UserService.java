@@ -148,9 +148,14 @@ public class UserService implements UserUseCase {
             throw new BusinessException(AuthErrorCode.AFFILIATION_ASSIGNED);
         }
 
+        UserRole roleAfterChange = newRole == null ? user.getRole() : newRole;
+        if (command.assignsAffiliation()) {
+            validateAffiliationAssignment(user, command, roleAfterChange, newStatus);
+        }
+
         UserStatus fromStatus = user.getStatus();
         if (newStatus != null) {
-            validateStatusChange(user, newStatus, newRole == null ? user.getRole() : newRole);
+            validateStatusChange(user, newStatus, roleAfterChange, command.assignsAffiliation());
         }
         if (newRole != null) {
             user.changeRole(newRole);
@@ -226,12 +231,39 @@ public class UserService implements UserUseCase {
         return value == null || value.isBlank();
     }
 
-    private void validateStatusChange(User user, UserStatus target, UserRole roleAfterChange) {
+    /**
+     * 승인·재활성화와 함께 지정하는 소속 요청의 형식을 검사한다. 배정 자체는 같은 트랜잭션에서
+     * UserManagementService가 상태 변경 뒤에 처리한다.
+     */
+    private void validateAffiliationAssignment(User user, UserUpdateCommand command, UserRole roleAfterChange,
+                                               UserStatus newStatus) {
+        if (command.warehouseId() != null && command.storeId() != null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "warehouseId와 storeId는 함께 보낼 수 없습니다.");
+        }
+        if (newStatus != UserStatus.ACTIVE || user.getStatus() == UserStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "소속은 가입 승인이나 재활성화(status: ACTIVE)와 함께만 지정할 수 있습니다. "
+                            + "이미 활성인 사용자의 소속은 배정 API를 사용해주세요.");
+        }
+        if (command.warehouseId() != null && roleAfterChange != UserRole.WAREHOUSE_MANAGER) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "warehouseId는 창고 관리자에게만 지정할 수 있습니다.");
+        }
+        if (command.storeId() != null && roleAfterChange != UserRole.STORE_OWNER) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "storeId는 점주에게만 지정할 수 있습니다.");
+        }
+        if (userQueryRepository.findAffiliation(user.getUserId()).hasAny()) {
+            throw new BusinessException(AuthErrorCode.AFFILIATION_ASSIGNED,
+                    "이미 창고·지점 소속이 있는 사용자입니다. 소속 지정 없이 승인하거나, 소속을 회수한 뒤 다시 지정해주세요.");
+        }
+    }
+
+    private void validateStatusChange(User user, UserStatus target, UserRole roleAfterChange,
+                                      boolean affiliationBeingAssigned) {
         if (!user.canChangeStatusTo(target)) {
             throw new BusinessException(AuthErrorCode.INVALID_USER_STATUS_TRANSITION,
                     "허용되지 않는 계정 상태 변경입니다. " + user.getStatus() + " → " + target);
         }
-        if (target == UserStatus.ACTIVE && roleAfterChange.requiresAffiliation()
+        if (target == UserStatus.ACTIVE && roleAfterChange.requiresAffiliation() && !affiliationBeingAssigned
                 && !userQueryRepository.findAffiliation(user.getUserId()).hasAny()) {
             throw new BusinessException(AuthErrorCode.AFFILIATION_REQUIRED);
         }
