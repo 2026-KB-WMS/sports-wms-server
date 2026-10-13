@@ -17,6 +17,7 @@ import lombok.NoArgsConstructor;
 public class Brand {
 
     private Long brandId;
+    private String brandCode;
     private String name;
     private String description;
     private ProductStatus status;
@@ -24,9 +25,10 @@ public class Brand {
     private LocalDateTime updatedAt;
 
     @Builder
-    private Brand(Long brandId, String name, String description, ProductStatus status,
+    private Brand(Long brandId, String brandCode, String name, String description, ProductStatus status,
                   LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.brandId = brandId;
+        this.brandCode = brandCode;
         this.name = name;
         this.description = description;
         this.status = status == null ? ProductStatus.ACTIVE : status;
@@ -34,12 +36,26 @@ public class Brand {
         this.updatedAt = updatedAt;
     }
 
+    /** 코드가 없는 형태. 코드 도입 전 브랜드와 같다. */
     public static Brand register(String name, String description) {
+        return register(null, name, description);
+    }
+
+    public static Brand register(String brandCode, String name, String description) {
         return Brand.builder()
+                .brandCode(brandCode)
                 .name(name)
                 .description(description)
                 .status(ProductStatus.ACTIVE)
                 .build();
+    }
+
+    /** 코드가 없는 기존 브랜드에 한 번만 지정한다. 코드가 이미 있으면 바꿀 수 없다. */
+    public void assignBrandCode(String brandCode) {
+        if (this.brandCode != null) {
+            throw new IllegalStateException("브랜드 코드는 한 번 지정하면 바꿀 수 없습니다.");
+        }
+        this.brandCode = brandCode;
     }
 
     public void changeName(String name) {
