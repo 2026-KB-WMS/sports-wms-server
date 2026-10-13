@@ -2,6 +2,7 @@ package com.kb.wms.product.application.service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -38,6 +39,7 @@ import com.kb.wms.product.domain.entity.Product;
 import com.kb.wms.product.domain.entity.ProductSku;
 import com.kb.wms.product.domain.entity.SkuOptionValue;
 import com.kb.wms.product.domain.entity.SkuPriceHistory;
+import com.kb.wms.product.domain.enums.SkuUnit;
 import com.kb.wms.product.exception.ProductErrorCode;
 
 import lombok.RequiredArgsConstructor;
@@ -71,6 +73,10 @@ public class ProductSkuService implements ProductSkuUseCase {
         if (!product.isActive()) {
             throw new BusinessException(ProductErrorCode.PRODUCT_INACTIVE);
         }
+        if (command.unit() != null && !SkuUnit.isValidCode(command.unit())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "허용되지 않는 수량 단위입니다. 허용 값: " + allowedUnits());
+        }
         if (productSkuRepository.existsBySkuCode(command.skuCode())) {
             throw new BusinessException(ProductErrorCode.DUPLICATE_SKU_CODE);
         }
@@ -83,6 +89,10 @@ public class ProductSkuService implements ProductSkuUseCase {
                 command.weight(), command.currentPurchasePrice(), command.currentSupplyPrice(),
                 command.unit(), command.safetyStockQuantity());
         return productSkuRepository.save(sku);
+    }
+
+    private static String allowedUnits() {
+        return Arrays.stream(SkuUnit.values()).map(SkuUnit::getCode).collect(Collectors.joining(", "));
     }
 
     @Override
