@@ -33,3 +33,4 @@
 | [019](019-allocation-partial-and-sku-select.md) | 재고 할당은 부분 할당을 허용하고, 할당과 출고 생성에서 SKU를 고를 수 있게 한다 | Accepted | 2026-10-12 |
 | [020](020-geo-coordinates-optional-pair.md) | 주소를 입력받는 엔티티에 위도·경도를 선택 필드 쌍으로 저장한다 | Accepted | 2026-10-12 |
 | [021](021-location-code-auto-issue.md) | 창고·지점 코드는 주소의 시·도로 서버가 자동 발급하고, 시·도가 바뀌면 재발급한다 | Accepted | 2026-10-12 |
+| [022](022-approve-with-affiliation.md) | 가입 승인은 소속 지정과 함께 하고, 승인 전 배정은 허용하지 않는다 | Accepted | 2026-10-13 |

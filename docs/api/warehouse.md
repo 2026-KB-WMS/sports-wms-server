@@ -101,8 +101,8 @@
 
 - Body: `warehouseId`, `userId`(role `WAREHOUSE_MANAGER`), `memberRole`(management-types의 code)
 - 201. 응답: `warehouseMemberId, warehouseId, warehouseName, userId, userName, loginId, memberRole, assignedAt`
-- 에러: 400(필수 누락/허용되지 않은 `memberRole`/대상이 WAREHOUSE_MANAGER 아님), 404(창고 없음 `WAREHOUSE_NOT_FOUND`, 사용자 없음 `USER_NOT_FOUND`), 409 `ALREADY_ASSIGNED`(같은 창고 중복, DB 제약도 동일 매핑), 409 `CONFLICT`(비활성 창고 또는 INACTIVE 사용자)
-- PENDING 계정도 배정 가능(소속 배정 후 `PATCH /users/{userId}`로 ACTIVE 승인). 서로 다른 창고 배정은 허용. `assignedAt`은 서버 시각.
+- 에러: 400(필수 누락/허용되지 않은 `memberRole`/대상이 WAREHOUSE_MANAGER 아님), 404(창고 없음 `WAREHOUSE_NOT_FOUND`, 사용자 없음 `USER_NOT_FOUND`), 409 `ALREADY_ASSIGNED`(같은 창고 중복, DB 제약도 동일 매핑), 409 `CONFLICT`(비활성 창고, 또는 ACTIVE가 아닌 사용자: PENDING·INACTIVE)
+- **ACTIVE 사용자만 배정할 수 있다.** 승인 대기 사용자의 소속은 승인 요청(`PATCH /users/{userId}`의 `warehouseId`)에서 함께 지정한다([ADR-022](../adr/022-approve-with-affiliation.md)). 이 API는 승인된 사용자의 추가 배정용이다. 서로 다른 창고 배정은 허용. `assignedAt`은 서버 시각.
 
 ### DELETE /warehouses/managers/{warehouseMemberId} (P2)
 
