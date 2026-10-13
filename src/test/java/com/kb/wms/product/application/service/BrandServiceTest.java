@@ -41,10 +41,78 @@ class BrandServiceTest {
         when(brandRepository.existsByName("브랜드 A")).thenReturn(false);
         when(brandRepository.save(any(Brand.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Brand result = brandService.registerBrand(new BrandRegisterCommand("브랜드 A", "설명"));
+        Brand result = brandService.registerBrand(new BrandRegisterCommand("nik", "브랜드 A", "설명"));
 
         assertThat(result.getName()).isEqualTo("브랜드 A");
+        assertThat(result.getBrandCode()).isEqualTo("NIK");
         assertThat(result.isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("브랜드 코드가 이미 있으면 DUPLICATE_BRAND_CODE 예외를 던진다(대소문자 무시)")
+    void registerBrand_duplicateCode() {
+        when(brandRepository.existsByName("브랜드 A")).thenReturn(false);
+        when(brandRepository.existsByBrandCode("NIK")).thenReturn(true);
+
+        assertThatThrownBy(() -> brandService.registerBrand(new BrandRegisterCommand("nik", "브랜드 A", "설명")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.DUPLICATE_BRAND_CODE.name());
+        verify(brandRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("브랜드 코드가 영문 3자가 아니면 VALIDATION_ERROR 예외를 던진다")
+    void registerBrand_invalidCode() {
+        for (String code : new String[] {null, "", "NI", "NIKE", "N1K", "NI K", "나이키"}) {
+            assertThatThrownBy(() -> brandService.registerBrand(new BrandRegisterCommand(code, "브랜드 A", "설명")))
+                    .as("code=" + code)
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                    .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
+        }
+        verify(brandRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("코드가 없는 기존 브랜드에는 코드를 한 번 지정할 수 있다")
+    void updateBrand_assignCodeToLegacyBrand() {
+        Brand brand = Brand.register("브랜드 A", "설명");
+        when(brandRepository.findById(1L)).thenReturn(Optional.of(brand));
+        when(brandRepository.existsByBrandCodeAndBrandIdNot("ADI", 1L)).thenReturn(false);
+        when(brandRepository.save(any(Brand.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Brand result = brandService.updateBrand(new BrandUpdateCommand(1L, null, null, "adi"));
+
+        assertThat(result.getBrandCode()).isEqualTo("ADI");
+    }
+
+    @Test
+    @DisplayName("이미 코드가 있는 브랜드의 코드는 바꿀 수 없다(VALIDATION_ERROR)")
+    void updateBrand_codeAlreadyAssigned() {
+        Brand brand = Brand.register("NIK", "브랜드 A", "설명");
+        when(brandRepository.findById(1L)).thenReturn(Optional.of(brand));
+
+        assertThatThrownBy(() -> brandService.updateBrand(new BrandUpdateCommand(1L, null, null, "ADI")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
+        assertThat(brand.getBrandCode()).isEqualTo("NIK");
+        verify(brandRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("다른 브랜드가 쓰는 코드를 지정하면 DUPLICATE_BRAND_CODE 예외를 던진다")
+    void updateBrand_duplicateCode() {
+        Brand brand = Brand.register("브랜드 A", "설명");
+        when(brandRepository.findById(1L)).thenReturn(Optional.of(brand));
+        when(brandRepository.existsByBrandCodeAndBrandIdNot("ADI", 1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> brandService.updateBrand(new BrandUpdateCommand(1L, null, null, "ADI")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.DUPLICATE_BRAND_CODE.name());
+        assertThat(brand.getBrandCode()).isNull();
     }
 
     @Test
@@ -52,7 +120,7 @@ class BrandServiceTest {
     void registerBrand_duplicateName_throwsBusinessException() {
         when(brandRepository.existsByName("브랜드 A")).thenReturn(true);
 
-        assertThatThrownBy(() -> brandService.registerBrand(new BrandRegisterCommand("브랜드 A", "설명")))
+        assertThatThrownBy(() -> brandService.registerBrand(new BrandRegisterCommand("nik", "브랜드 A", "설명")))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.DUPLICATE_BRAND_NAME.name());

@@ -1,6 +1,8 @@
 package com.kb.wms.product.application.service;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,8 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class BrandService implements BrandQueryUseCase {
 
+    private static final Pattern BRAND_CODE_PATTERN = Pattern.compile("^[A-Za-z]{3}$");
+
     private final BrandRepository brandRepository;
 
     @Override
@@ -30,7 +34,11 @@ public class BrandService implements BrandQueryUseCase {
         if (brandRepository.existsByName(command.name())) {
             throw new BusinessException(ProductErrorCode.DUPLICATE_BRAND_NAME);
         }
-        Brand brand = Brand.register(command.name(), command.description());
+        String brandCode = normalizeBrandCode(command.brandCode());
+        if (brandRepository.existsByBrandCode(brandCode)) {
+            throw new BusinessException(ProductErrorCode.DUPLICATE_BRAND_CODE);
+        }
+        Brand brand = Brand.register(brandCode, command.name(), command.description());
         return brandRepository.save(brand);
     }
 
@@ -42,6 +50,16 @@ public class BrandService implements BrandQueryUseCase {
         }
         Brand brand = brandRepository.findById(command.brandId())
                 .orElseThrow(() -> new BusinessException(ProductErrorCode.BRAND_NOT_FOUND));
+        if (command.brandCode() != null) {
+            if (brand.getBrandCode() != null) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "브랜드 코드는 한 번 지정하면 바꿀 수 없습니다.");
+            }
+            String brandCode = normalizeBrandCode(command.brandCode());
+            if (brandRepository.existsByBrandCodeAndBrandIdNot(brandCode, command.brandId())) {
+                throw new BusinessException(ProductErrorCode.DUPLICATE_BRAND_CODE);
+            }
+            brand.assignBrandCode(brandCode);
+        }
         if (command.name() != null) {
             if (brandRepository.existsByNameAndBrandIdNot(command.name(), command.brandId())) {
                 throw new BusinessException(ProductErrorCode.DUPLICATE_BRAND_NAME);
@@ -52,6 +70,14 @@ public class BrandService implements BrandQueryUseCase {
             brand.changeDescription(command.description());
         }
         return brandRepository.save(brand);
+    }
+
+    /** 영문 3자만 허용하고 대문자로 맞춘다. 웹 검증을 거치지 않은 호출도 같은 규칙을 지키게 한다. */
+    private static String normalizeBrandCode(String brandCode) {
+        if (brandCode == null || !BRAND_CODE_PATTERN.matcher(brandCode).matches()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "브랜드 코드는 영문 3자여야 합니다.");
+        }
+        return brandCode.toUpperCase(Locale.ROOT);
     }
 
     @Override

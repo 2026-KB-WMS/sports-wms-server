@@ -38,20 +38,21 @@ class BrandControllerTest {
     @MockitoBean
     private BrandQueryUseCase brandQueryUseCase;
 
-    private record TestRequest(String brandName, String description) {
+    private record TestRequest(String brandCode, String brandName, String description) {
     }
 
     @Test
     @DisplayName("브랜드 등록에 성공하면 201과 등록된 브랜드를 반환한다")
     void registerBrand_success() throws Exception {
-        Brand brand = Brand.register("브랜드 A", "설명");
+        Brand brand = Brand.register("NIK", "브랜드 A", "설명");
         when(brandQueryUseCase.registerBrand(any(BrandRegisterCommand.class))).thenReturn(brand);
 
         mockMvc.perform(post("/api/v1/products/brands")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new TestRequest("브랜드 A", "설명"))))
+                        .content(objectMapper.writeValueAsString(new TestRequest("NIK", "브랜드 A", "설명"))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.brandName").value("브랜드 A"));
+                .andExpect(jsonPath("$.data.brandName").value("브랜드 A"))
+                .andExpect(jsonPath("$.data.brandCode").value("NIK"));
     }
 
     @Test
@@ -62,9 +63,34 @@ class BrandControllerTest {
 
         mockMvc.perform(post("/api/v1/products/brands")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new TestRequest("브랜드 A", "설명"))))
+                        .content(objectMapper.writeValueAsString(new TestRequest("NIK", "브랜드 A", "설명"))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("DUPLICATE_BRAND_NAME"));
+    }
+
+    @Test
+    @DisplayName("브랜드 코드가 중복되면 409 DUPLICATE_BRAND_CODE를 반환한다")
+    void registerBrand_duplicateCode() throws Exception {
+        when(brandQueryUseCase.registerBrand(any(BrandRegisterCommand.class)))
+                .thenThrow(new BusinessException(ProductErrorCode.DUPLICATE_BRAND_CODE));
+
+        mockMvc.perform(post("/api/v1/products/brands")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TestRequest("NIK", "브랜드 A", "설명"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("DUPLICATE_BRAND_CODE"));
+    }
+
+    @Test
+    @DisplayName("브랜드 코드가 없거나 영문 3자가 아니면 400 VALIDATION_ERROR를 반환한다")
+    void registerBrand_invalidCode() throws Exception {
+        for (String code : new String[] {null, "", "NI", "NIKE", "N1K", "나이키"}) {
+            mockMvc.perform(post("/api/v1/products/brands")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new TestRequest(code, "브랜드 A", "설명"))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        }
     }
 
     @Test
@@ -72,7 +98,7 @@ class BrandControllerTest {
     void registerBrand_validationError() throws Exception {
         mockMvc.perform(post("/api/v1/products/brands")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new TestRequest("", "설명"))))
+                        .content(objectMapper.writeValueAsString(new TestRequest("NIK", "", "설명"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }

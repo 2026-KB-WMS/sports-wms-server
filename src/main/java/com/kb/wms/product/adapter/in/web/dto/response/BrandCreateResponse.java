@@ -9,6 +9,7 @@ import com.kb.wms.product.domain.entity.Brand;
  */
 public record BrandCreateResponse(
         Long brandId,
+        String brandCode,
         String brandName,
         String description,
         boolean isActive,
@@ -18,6 +19,7 @@ public record BrandCreateResponse(
     public static BrandCreateResponse from(Brand brand) {
         return new BrandCreateResponse(
                 brand.getBrandId(),
+                brand.getBrandCode(),
                 brand.getName(),
                 brand.getDescription(),
                 brand.isActive(),
