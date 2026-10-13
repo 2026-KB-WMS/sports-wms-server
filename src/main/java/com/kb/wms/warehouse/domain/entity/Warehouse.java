@@ -60,6 +60,11 @@ public class Warehouse {
                 .build();
     }
 
+    /** 주소의 시·도가 바뀌어 코드를 다시 발급받을 때만 쓴다. 그 외에는 등록 후 코드를 바꾸지 않는다. */
+    public void reissueCode(String warehouseCode) {
+        this.warehouseCode = warehouseCode;
+    }
+
     public void changeName(String name) {
         this.name = name;
     }

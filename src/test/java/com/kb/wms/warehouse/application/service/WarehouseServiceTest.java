@@ -3,6 +3,7 @@ package com.kb.wms.warehouse.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,6 +24,9 @@ import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.locationcode.LocationCodeIssuer;
+import com.kb.wms.common.locationcode.LocationType;
+import com.kb.wms.common.locationcode.RegionCode;
 import com.kb.wms.warehouse.application.port.in.WarehouseSectionCapacityUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseUpdateCommand;
@@ -53,34 +57,38 @@ class WarehouseServiceTest {
     private StockPresencePort stockPresencePort;
     @Mock
     private WarehouseUsagePort warehouseUsagePort;
+    @Mock
+    private LocationCodeIssuer locationCodeIssuer;
 
     @InjectMocks
     private WarehouseService warehouseService;
 
     private final WarehouseRegisterCommand registerCommand =
-            new WarehouseRegisterCommand("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.valueOf(1000));
+            new WarehouseRegisterCommand("서울 물류센터", "서울 강남구 테헤란로 1", "02-1234-5678", BigDecimal.valueOf(1000));
 
     @Test
-    @DisplayName("창고 코드가 중복되지 않으면 등록에 성공한다")
-    void registerWarehouse_success() {
-        when(warehouseRepository.existsByWarehouseCode("WH-001")).thenReturn(false);
+    @DisplayName("등록하면 주소의 시·도로 발급한 코드가 창고 코드가 된다")
+    void registerWarehouse_issuesCodeFromAddressRegion() {
+        when(locationCodeIssuer.issue(eq(LocationType.WAREHOUSE), eq(RegionCode.SU), any()))
+                .thenReturn("WH-SU-001");
         when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Warehouse result = warehouseService.registerWarehouse(registerCommand);
 
-        assertThat(result.getWarehouseCode()).isEqualTo("WH-001");
+        assertThat(result.getWarehouseCode()).isEqualTo("WH-SU-001");
         assertThat(result.isActive()).isTrue();
     }
 
     @Test
-    @DisplayName("창고 코드가 중복되면 DUPLICATE_WAREHOUSE_CODE 예외를 던진다")
-    void registerWarehouse_duplicateCode() {
-        when(warehouseRepository.existsByWarehouseCode("WH-001")).thenReturn(true);
+    @DisplayName("주소가 시·도로 시작하지 않으면 VALIDATION_ERROR이고 저장하지 않는다")
+    void registerWarehouse_addressWithoutRegion() {
+        WarehouseRegisterCommand command =
+                new WarehouseRegisterCommand("물류센터", "강남구 테헤란로 1", "02-1234-5678", BigDecimal.TEN);
 
-        assertThatThrownBy(() -> warehouseService.registerWarehouse(registerCommand))
+        assertThatThrownBy(() -> warehouseService.registerWarehouse(command))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(WarehouseErrorCode.DUPLICATE_WAREHOUSE_CODE.name());
+                .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
         verify(warehouseRepository, never()).save(any());
     }
 
@@ -145,6 +153,65 @@ class WarehouseServiceTest {
         assertThat(result.getName()).isEqualTo("새 이름");
         assertThat(result.getAddress()).isEqualTo("서울시 강남구");
         verify(warehouseRepository).save(existing);
+    }
+
+    @Test
+    @DisplayName("같은 시·도 안에서 주소를 바꾸면 발급된 코드를 유지한다")
+    void updateWarehouse_sameRegion_keepsCode() {
+        Warehouse existing = Warehouse.register("WH-SU-001", "서울 물류센터", "서울 강남구", "02-1234-5678", BigDecimal.TEN);
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
+        when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Warehouse result = warehouseService.updateWarehouse(1L,
+                new WarehouseUpdateCommand(null, "서울특별시 송파구 올림픽로 1", null, null));
+
+        assertThat(result.getWarehouseCode()).isEqualTo("WH-SU-001");
+        assertThat(result.getAddress()).isEqualTo("서울특별시 송파구 올림픽로 1");
+        verify(locationCodeIssuer, never()).issue(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("다른 시·도로 주소를 바꾸면 새 시·도의 코드를 다시 발급한다")
+    void updateWarehouse_otherRegion_reissuesCode() {
+        Warehouse existing = Warehouse.register("WH-SU-001", "서울 물류센터", "서울 강남구", "02-1234-5678", BigDecimal.TEN);
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
+        when(locationCodeIssuer.issue(eq(LocationType.WAREHOUSE), eq(RegionCode.BS), any()))
+                .thenReturn("WH-BS-003");
+        when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Warehouse result = warehouseService.updateWarehouse(1L,
+                new WarehouseUpdateCommand(null, "부산 해운대구 센텀로 1", null, null));
+
+        assertThat(result.getWarehouseCode()).isEqualTo("WH-BS-003");
+    }
+
+    @Test
+    @DisplayName("과거에 직접 입력한 코드는 다른 시·도로 주소를 바꿔도 유지한다")
+    void updateWarehouse_legacyCode_keptEvenWhenRegionChanges() {
+        Warehouse existing = Warehouse.register("WH-001", "서울 물류센터", "서울 강남구", "02-1234-5678", BigDecimal.TEN);
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
+        when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Warehouse result = warehouseService.updateWarehouse(1L,
+                new WarehouseUpdateCommand(null, "부산 해운대구 센텀로 1", null, null));
+
+        assertThat(result.getWarehouseCode()).isEqualTo("WH-001");
+        verify(locationCodeIssuer, never()).issue(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("수정할 주소가 시·도로 시작하지 않으면 VALIDATION_ERROR이고 코드를 바꾸지 않는다")
+    void updateWarehouse_addressWithoutRegion() {
+        Warehouse existing = Warehouse.register("WH-SU-001", "서울 물류센터", "서울 강남구", "02-1234-5678", BigDecimal.TEN);
+        when(warehouseRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> warehouseService.updateWarehouse(1L,
+                new WarehouseUpdateCommand(null, "테헤란로 1", null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
+        assertThat(existing.getWarehouseCode()).isEqualTo("WH-SU-001");
+        verify(warehouseRepository, never()).save(any());
     }
 
     @Test

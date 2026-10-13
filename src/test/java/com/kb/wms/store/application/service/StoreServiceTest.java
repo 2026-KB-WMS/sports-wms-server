@@ -3,6 +3,7 @@ package com.kb.wms.store.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,6 +22,9 @@ import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.locationcode.LocationCodeIssuer;
+import com.kb.wms.common.locationcode.LocationType;
+import com.kb.wms.common.locationcode.RegionCode;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.store.application.port.in.command.StoreRegisterCommand;
@@ -45,34 +49,36 @@ class StoreServiceTest {
     private StoreOrderPresencePort storeOrderPresencePort;
     @Mock
     private StatusHistoryUseCase statusHistoryUseCase;
+    @Mock
+    private LocationCodeIssuer locationCodeIssuer;
 
     @InjectMocks
     private StoreService storeService;
 
     private final StoreRegisterCommand registerCommand =
-            new StoreRegisterCommand("ST-GANGNAM", "강남점", "서울시 강남구 테헤란로 100", "김점주", "02-333-1234");
+            new StoreRegisterCommand("강남점", "서울 강남구 테헤란로 100", "김점주", "02-333-1234");
 
     @Test
-    @DisplayName("지점 코드가 중복되지 않으면 등록에 성공한다")
-    void registerStore_success() {
-        when(storeRepository.existsByStoreCode("ST-GANGNAM")).thenReturn(false);
+    @DisplayName("등록하면 주소의 시·도로 발급한 코드가 지점 코드가 된다")
+    void registerStore_issuesCodeFromAddressRegion() {
+        when(locationCodeIssuer.issue(eq(LocationType.STORE), eq(RegionCode.SU), any())).thenReturn("ST-SU-001");
         when(storeRepository.save(any(Store.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Store result = storeService.registerStore(registerCommand);
 
-        assertThat(result.getStoreCode()).isEqualTo("ST-GANGNAM");
+        assertThat(result.getStoreCode()).isEqualTo("ST-SU-001");
         assertThat(result.isActive()).isTrue();
     }
 
     @Test
-    @DisplayName("지점 코드가 중복되면 DUPLICATE_STORE_CODE 예외를 던진다")
-    void registerStore_duplicateCode() {
-        when(storeRepository.existsByStoreCode("ST-GANGNAM")).thenReturn(true);
+    @DisplayName("주소가 시·도로 시작하지 않으면 VALIDATION_ERROR이고 저장하지 않는다")
+    void registerStore_addressWithoutRegion() {
+        StoreRegisterCommand command = new StoreRegisterCommand("강남점", "강남구 테헤란로 100", "김점주", "02-333-1234");
 
-        assertThatThrownBy(() -> storeService.registerStore(registerCommand))
+        assertThatThrownBy(() -> storeService.registerStore(command))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(StoreErrorCode.DUPLICATE_STORE_CODE.name());
+                .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
         verify(storeRepository, never()).save(any());
     }
 
@@ -137,6 +143,48 @@ class StoreServiceTest {
         assertThat(result.getName()).isEqualTo("새 이름");
         assertThat(result.getAddress()).isEqualTo("서울시 강남구");
         verify(storeRepository).save(existing);
+    }
+
+    @Test
+    @DisplayName("같은 시·도 안에서 주소를 바꾸면 발급된 코드를 유지한다")
+    void updateStore_sameRegion_keepsCode() {
+        Store existing = Store.register("ST-SU-001", "강남점", "서울 강남구", "김점주", "02-333-1234");
+        when(storeRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(storeRepository.save(any(Store.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Store result = storeService.updateStore(1L,
+                new StoreUpdateCommand(null, "서울특별시 송파구 올림픽로 1", null, null));
+
+        assertThat(result.getStoreCode()).isEqualTo("ST-SU-001");
+        verify(locationCodeIssuer, never()).issue(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("다른 시·도로 주소를 바꾸면 새 시·도의 코드를 다시 발급한다")
+    void updateStore_otherRegion_reissuesCode() {
+        Store existing = Store.register("ST-SU-001", "강남점", "서울 강남구", "김점주", "02-333-1234");
+        when(storeRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(locationCodeIssuer.issue(eq(LocationType.STORE), eq(RegionCode.GG), any())).thenReturn("ST-GG-004");
+        when(storeRepository.save(any(Store.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Store result = storeService.updateStore(1L,
+                new StoreUpdateCommand(null, "경기도 성남시 분당구 판교로 1", null, null));
+
+        assertThat(result.getStoreCode()).isEqualTo("ST-GG-004");
+    }
+
+    @Test
+    @DisplayName("과거에 직접 입력한 코드는 다른 시·도로 주소를 바꿔도 유지한다")
+    void updateStore_legacyCode_keptEvenWhenRegionChanges() {
+        Store existing = Store.register("ST-GANGNAM", "강남점", "서울 강남구", "김점주", "02-333-1234");
+        when(storeRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(storeRepository.save(any(Store.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Store result = storeService.updateStore(1L,
+                new StoreUpdateCommand(null, "경기도 성남시 분당구 판교로 1", null, null));
+
+        assertThat(result.getStoreCode()).isEqualTo("ST-GANGNAM");
+        verify(locationCodeIssuer, never()).issue(any(), any(), any());
     }
 
     @Test

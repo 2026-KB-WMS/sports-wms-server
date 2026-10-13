@@ -13,13 +13,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * POST /api/v1/stores 요청 바디.
+ * POST /api/v1/stores 요청 바디. 지점 코드는 받지 않고 주소의 시·도로 서버가 발급한다.
  */
 public record StoreRegisterRequest(
-        @NotBlank(message = "지점 코드는 필수 값입니다.")
-        @Size(max = 30, message = "지점 코드는 최대 30자입니다.")
-        String storeCode,
-
         @NotBlank(message = "지점명은 필수 값입니다.")
         @Size(max = 100, message = "지점명은 최대 100자입니다.")
         String storeName,
@@ -51,7 +47,7 @@ public record StoreRegisterRequest(
     }
 
     public StoreRegisterCommand toCommand() {
-        return new StoreRegisterCommand(storeCode, storeName, address, contactName, contactNumber,
+        return new StoreRegisterCommand(storeName, address, contactName, contactNumber,
                 latitude, longitude);
     }
 }

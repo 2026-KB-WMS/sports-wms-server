@@ -61,7 +61,10 @@ public class Store {
                 .build();
     }
 
-    // storeCode는 등록 후 수정할 수 없으므로 변경 메서드를 두지 않는다.
+    /** 주소의 시·도가 바뀌어 코드를 다시 발급받을 때만 쓴다. 그 외에는 등록 후 코드를 바꾸지 않는다. */
+    public void reissueCode(String storeCode) {
+        this.storeCode = storeCode;
+    }
 
     public void changeName(String name) {
         this.name = name;

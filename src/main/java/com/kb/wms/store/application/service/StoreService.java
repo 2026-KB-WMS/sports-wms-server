@@ -8,6 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.locationcode.LocationCodeIssuer;
+import com.kb.wms.common.locationcode.LocationType;
+import com.kb.wms.common.locationcode.RegionCode;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.statushistory.domain.entity.StatusHistory;
 import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
@@ -35,18 +38,31 @@ public class StoreService implements StoreUseCase {
     private final StoreMemberRepository storeMemberRepository;
     private final StoreOrderPresencePort storeOrderPresencePort;
     private final StatusHistoryUseCase statusHistoryUseCase;
+    private final LocationCodeIssuer locationCodeIssuer;
 
     @Override
     @Transactional
     public Store registerStore(StoreRegisterCommand command) {
-        if (storeRepository.existsByStoreCode(command.storeCode())) {
-            throw new BusinessException(StoreErrorCode.DUPLICATE_STORE_CODE);
-        }
+        String storeCode = issueCode(RegionCode.fromAddress(command.address()));
         Store store = Store.register(
-                command.storeCode(), command.name(), command.address(),
+                storeCode, command.name(), command.address(),
                 command.contactName(), command.contactNumber());
         store.changeCoordinates(command.latitude(), command.longitude());
         return storeRepository.save(store);
+    }
+
+    private String issueCode(RegionCode region) {
+        return locationCodeIssuer.issue(LocationType.STORE, region, storeRepository::existsByStoreCode);
+    }
+
+    /**
+     * 발급 형식의 코드(ST-SU-001)를 가진 지점이 다른 시·도로 주소를 바꾸면 새 시·도의 다음 번호로 코드를 다시 발급한다.
+     * 같은 시·도 안의 주소 수정과 과거에 직접 입력된 코드는 바꾸지 않는다.
+     */
+    private void reissueCodeIfRegionChanged(Store store, RegionCode newRegion) {
+        LocationCodeIssuer.regionOf(store.getStoreCode())
+                .filter(current -> current != newRegion)
+                .ifPresent(current -> store.reissueCode(issueCode(newRegion)));
     }
 
     @Override
@@ -80,7 +96,9 @@ public class StoreService implements StoreUseCase {
             store.changeName(command.name());
         }
         if (command.address() != null) {
+            RegionCode region = RegionCode.fromAddress(command.address());
             store.changeAddress(command.address());
+            reissueCodeIfRegionChanged(store, region);
         }
         if (command.contactName() != null) {
             store.changeContactName(command.contactName());
