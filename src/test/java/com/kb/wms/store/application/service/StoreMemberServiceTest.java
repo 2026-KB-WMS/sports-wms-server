@@ -60,7 +60,7 @@ class StoreMemberServiceTest {
     void assignManager_success() {
         StoreMemberAssignCommand command = new StoreMemberAssignCommand(1L, 10L, "OWNER");
         when(storeRepository.findById(1L)).thenReturn(Optional.of(activeStore));
-        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.STORE_OWNER, UserStatus.PENDING));
+        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.STORE_OWNER, UserStatus.ACTIVE));
         when(storeMemberRepository.existsByStoreIdAndUserId(1L, 10L)).thenReturn(false);
         when(storeMemberRepository.save(any(StoreMember.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -153,6 +153,20 @@ class StoreMemberServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
+        verify(storeMemberRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("승인 대기(PENDING) 사용자면 CONFLICT 예외를 던진다. 소속은 승인 요청에서 함께 지정한다")
+    void assignManager_pendingUser() {
+        StoreMemberAssignCommand command = new StoreMemberAssignCommand(1L, 10L, "OWNER");
+        when(storeRepository.findById(1L)).thenReturn(Optional.of(activeStore));
+        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.STORE_OWNER, UserStatus.PENDING));
+
+        assertThatThrownBy(() -> storeMemberService.assignManager(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.CONFLICT.name());
         verify(storeMemberRepository, never()).save(any());
     }
 

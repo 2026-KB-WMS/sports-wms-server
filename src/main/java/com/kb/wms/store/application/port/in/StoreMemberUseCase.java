@@ -12,8 +12,8 @@ import com.kb.wms.store.application.port.in.result.StoreMemberView;
 public interface StoreMemberUseCase {
 
     /**
-     * 대상 사용자가 없으면 404 USER_NOT_FOUND, STORE_OWNER가 아니면 400, INACTIVE 사용자면 409.
-     * PENDING 사용자는 배정할 수 있다(소속 배정 후 승인).
+     * 대상 사용자가 없으면 404 USER_NOT_FOUND, STORE_OWNER가 아니면 400, ACTIVE가 아닌 사용자(PENDING·INACTIVE)면 409.
+     * 승인 전 사용자의 소속은 승인 요청(PATCH /users/{userId})에서 함께 지정한다.
      */
     StoreMemberView assignManager(StoreMemberAssignCommand command);
 
