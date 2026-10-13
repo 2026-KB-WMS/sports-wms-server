@@ -36,3 +36,4 @@
 | [022](022-approve-with-affiliation.md) | 가입 승인은 소속 지정과 함께 하고, 승인 전 배정은 허용하지 않는다 | Accepted | 2026-10-13 |
 | [023](023-brand-code.md) | 브랜드 코드는 영문 3자 직접 입력이며, 기존 브랜드는 코드 없이 두고 한 번만 지정할 수 있다 | Accepted | 2026-10-13 |
 | [024](024-sku-unit-allowlist.md) | SKU 수량 단위는 서버 허용 목록(EA, BOX, SET)으로 제한한다 | Accepted | 2026-10-13 |
+| [025](025-category-option-groups-spec-and-sku-options.md) | 카테고리별 옵션 그룹 지정으로 상품 스펙(SPEC)과 SKU 옵션을 구분하고 SKU를 검증·자동 명명한다 | Accepted | 2026-10-13 |
