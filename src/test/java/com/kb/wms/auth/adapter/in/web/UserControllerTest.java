@@ -26,6 +26,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.kb.wms.auth.application.port.in.UserManagementUseCase;
 import com.kb.wms.auth.application.port.in.UserUseCase;
 import com.kb.wms.auth.application.port.in.command.UserUpdateCommand;
 import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
@@ -52,6 +53,8 @@ class UserControllerTest {
 
     @MockitoBean
     private UserUseCase userUseCase;
+    @MockitoBean
+    private UserManagementUseCase userManagementUseCase;
 
     // SecurityConfig가 필터를 만들 때 필요하다. 요청에는 Authorization 헤더를 싣지 않아 파싱은 일어나지 않는다.
     @MockitoBean
@@ -144,9 +147,29 @@ class UserControllerTest {
     }
 
     @Test
+    @DisplayName("승인 요청의 warehouseId·storeId를 커맨드로 넘긴다")
+    void updateUser_passesAffiliationFields() throws Exception {
+        when(userManagementUseCase.updateUser(any(UserUpdateCommand.class))).thenReturn(user(UserStatus.ACTIVE));
+
+        mockMvc.perform(patch("/api/v1/users/{userId}", 12L)
+                        .with(authentication(principal(UserRole.HQ_ADMIN)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status": "ACTIVE", "storeId": 5}
+                                """))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<UserUpdateCommand> captor = ArgumentCaptor.forClass(UserUpdateCommand.class);
+        verify(userManagementUseCase).updateUser(captor.capture());
+        assertThat(captor.getValue().storeId()).isEqualTo(5L);
+        assertThat(captor.getValue().warehouseId()).isNull();
+        assertThat(captor.getValue().status()).isEqualTo(UserStatus.ACTIVE);
+    }
+
+    @Test
     @DisplayName("사용자 수정은 요청한 관리자 ID와 함께 커맨드를 넘기고 수정 결과를 반환한다")
     void updateUser_success() throws Exception {
-        when(userUseCase.updateUser(any(UserUpdateCommand.class))).thenReturn(user(UserStatus.ACTIVE));
+        when(userManagementUseCase.updateUser(any(UserUpdateCommand.class))).thenReturn(user(UserStatus.ACTIVE));
 
         mockMvc.perform(patch("/api/v1/users/{userId}", 12L)
                         .with(authentication(principal(UserRole.HQ_ADMIN)))
@@ -161,7 +184,7 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.data.passwordHash").doesNotExist());
 
         ArgumentCaptor<UserUpdateCommand> captor = ArgumentCaptor.forClass(UserUpdateCommand.class);
-        verify(userUseCase).updateUser(captor.capture());
+        verify(userManagementUseCase).updateUser(captor.capture());
         UserUpdateCommand command = captor.getValue();
         assertThat(command.userId()).isEqualTo(12L);
         assertThat(command.actorUserId()).isEqualTo(ADMIN_ID);
@@ -173,7 +196,7 @@ class UserControllerTest {
     @Test
     @DisplayName("loginId·password가 요청에 있어도 무시하지 않고 서비스로 넘겨 거절하게 한다")
     void updateUser_passesImmutableFieldsToService() throws Exception {
-        when(userUseCase.updateUser(any(UserUpdateCommand.class)))
+        when(userManagementUseCase.updateUser(any(UserUpdateCommand.class)))
                 .thenThrow(new BusinessException(ErrorCode.VALIDATION_ERROR, "로그인 아이디와 비밀번호는 수정할 수 없습니다."));
 
         mockMvc.perform(patch("/api/v1/users/{userId}", 12L)
@@ -186,7 +209,7 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
 
         ArgumentCaptor<UserUpdateCommand> captor = ArgumentCaptor.forClass(UserUpdateCommand.class);
-        verify(userUseCase).updateUser(captor.capture());
+        verify(userManagementUseCase).updateUser(captor.capture());
         assertThat(captor.getValue().loginId()).isEqualTo("other_id");
         assertThat(captor.getValue().password()).isEqualTo("P@ssw0rd!");
     }
@@ -213,7 +236,7 @@ class UserControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
 
-        verifyNoInteractions(userUseCase);
+        verifyNoInteractions(userManagementUseCase);
     }
 
     @Test
@@ -231,7 +254,7 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.errors[?(@.field == 'email')]").exists())
                 .andExpect(jsonPath("$.errors[?(@.field == 'phone')]").exists());
 
-        verifyNoInteractions(userUseCase);
+        verifyNoInteractions(userManagementUseCase);
     }
 
     @Test
@@ -250,7 +273,7 @@ class UserControllerTest {
     @Test
     @DisplayName("없는 사용자는 404 USER_NOT_FOUND, 이메일 중복은 409, 허용되지 않는 상태 전이는 409를 반환한다")
     void updateUser_domainErrors() throws Exception {
-        when(userUseCase.updateUser(any(UserUpdateCommand.class)))
+        when(userManagementUseCase.updateUser(any(UserUpdateCommand.class)))
                 .thenThrow(new BusinessException(AuthErrorCode.USER_NOT_FOUND))
                 .thenThrow(new BusinessException(AuthErrorCode.DUPLICATE_EMAIL))
                 .thenThrow(new BusinessException(AuthErrorCode.INVALID_USER_STATUS_TRANSITION))
@@ -286,6 +309,6 @@ class UserControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
 
-        verifyNoInteractions(userUseCase);
+        verifyNoInteractions(userManagementUseCase);
     }
 }

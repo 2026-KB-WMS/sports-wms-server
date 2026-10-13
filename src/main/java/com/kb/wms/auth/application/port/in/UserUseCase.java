@@ -25,7 +25,11 @@ public interface UserUseCase {
 
     List<User> getUsers(UserSearchCondition condition);
 
-    /** 부분 수정. 상태가 바뀌면 StatusHistory(USER)를 같은 트랜잭션에서 기록한다. */
+    /**
+     * 부분 수정. 상태가 바뀌면 StatusHistory(USER)를 같은 트랜잭션에서 기록한다.
+     * 커맨드의 warehouseId·storeId는 검사만 하고 배정하지 않으므로, 소속을 함께 지정하는 요청은
+     * {@link UserManagementUseCase#updateUser}로 처리한다.
+     */
     User updateUser(UserUpdateCommand command);
 
     /**
