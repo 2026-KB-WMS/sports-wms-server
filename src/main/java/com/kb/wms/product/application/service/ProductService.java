@@ -43,6 +43,7 @@ public class ProductService implements ProductUseCase {
     private final ProductSpecRepository productSpecRepository;
     private final CategoryOptionResolver categoryOptionResolver;
     private final OptionSelectionResolver optionSelectionResolver;
+    private final ProductCodeIssuer productCodeIssuer;
 
     @Override
     @Transactional
@@ -57,14 +58,11 @@ public class ProductService implements ProductUseCase {
         if (!category.isActive()) {
             throw new BusinessException(ProductErrorCode.CATEGORY_INACTIVE);
         }
-        if (productRepository.existsByProductCode(command.productCode())) {
-            throw new BusinessException(ProductErrorCode.DUPLICATE_PRODUCT_CODE);
-        }
         List<OptionValue> specs = optionSelectionResolver.resolve(command.specOptionValueIds(),
                 categoryOptionResolver.effectiveMappings(command.categoryId()), OptionType.SPEC);
 
         Product product = Product.register(
-                command.brandId(), command.categoryId(), command.productCode(),
+                command.brandId(), command.categoryId(), productCodeIssuer.issue(brand, category),
                 command.name(), command.description());
         Product saved = productRepository.save(product);
         if (!specs.isEmpty()) {
@@ -95,12 +93,21 @@ public class ProductService implements ProductUseCase {
         Product product = productRepository.findById(command.productId())
                 .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
 
+        Brand newBrand = null;
+        Category newCategory = null;
+        boolean brandChanging = false;
         if (command.brandId() != null) {
             Brand brand = brandRepository.findById(command.brandId())
                     .orElseThrow(() -> new BusinessException(ProductErrorCode.BRAND_NOT_FOUND));
             if (!brand.isActive()) {
                 throw new BusinessException(ProductErrorCode.BRAND_INACTIVE);
             }
+            brandChanging = !command.brandId().equals(product.getBrandId());
+            // SKU 코드가 상품 코드에서 만들어지므로, SKU가 있으면 브랜드를 바꿔 코드를 다시 발급하지 못한다.
+            if (brandChanging && !productSkuRepository.findAll(product.getProductId()).isEmpty()) {
+                throw new BusinessException(ProductErrorCode.PRODUCT_BRAND_LOCKED);
+            }
+            newBrand = brand;
             product.changeBrand(command.brandId());
         }
         Long targetCategoryId = product.getCategoryId();
@@ -111,6 +118,7 @@ public class ProductService implements ProductUseCase {
             if (!category.isActive()) {
                 throw new BusinessException(ProductErrorCode.CATEGORY_INACTIVE);
             }
+            newCategory = category;
             categoryChanging = !command.categoryId().equals(product.getCategoryId());
             // 스펙과 SKU 옵션은 카테고리의 옵션 그룹 지정에 맞춰 만들어지므로, 이미 있으면 카테고리를 바꾸지 못한다.
             if (categoryChanging && (productSpecRepository.existsByProductId(product.getProductId())
@@ -126,6 +134,15 @@ public class ProductService implements ProductUseCase {
                     categoryOptionResolver.effectiveMappings(targetCategoryId), OptionType.SPEC);
             productSpecRepository.replaceAll(product.getProductId(),
                     specs.stream().map(OptionValue::getOptionValueId).toList());
+        }
+        // 상품 코드에 브랜드·카테고리 코드가 들어 있으므로 둘 중 하나가 바뀌면 새 조합의 다음 번호로 다시 발급한다.
+        if (brandChanging || categoryChanging) {
+            Brand codeBrand = newBrand != null ? newBrand : brandRepository.findById(product.getBrandId())
+                    .orElseThrow(() -> new BusinessException(ProductErrorCode.BRAND_NOT_FOUND));
+            Category codeCategory = newCategory != null ? newCategory
+                    : categoryRepository.findById(product.getCategoryId())
+                            .orElseThrow(() -> new BusinessException(ProductErrorCode.CATEGORY_NOT_FOUND));
+            product.changeProductCode(productCodeIssuer.issue(codeBrand, codeCategory));
         }
         if (command.productName() != null) {
             product.changeName(command.productName());

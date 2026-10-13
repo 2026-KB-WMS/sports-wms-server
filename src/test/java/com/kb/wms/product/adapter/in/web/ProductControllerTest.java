@@ -59,8 +59,7 @@ class ProductControllerTest {
     @MockitoBean
     private CategoryUseCase categoryUseCase;
 
-    private record TestRequest(Long brandId, Long categoryId, String productCode, String productName,
-                                String description) {
+    private record TestRequest(Long brandId, Long categoryId, String productName, String description) {
     }
 
     private record TestUpdateRequest(String productName, String description, Long brandId, Long categoryId,
@@ -89,11 +88,27 @@ class ProductControllerTest {
         mockMvc.perform(post("/api/v1/products")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new TestRequest(1L, 1L, "P-0001", "라켓 A", "설명"))))
+                                new TestRequest(1L, 1L, "라켓 A", "설명"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.productCode").value("P-0001"))
                 .andExpect(jsonPath("$.data.brandName").value("브랜드 A"))
                 .andExpect(jsonPath("$.data.categoryName").value("라켓"));
+    }
+
+    @Test
+    @DisplayName("요청에 productCode를 보내도 무시하고 등록한다")
+    void registerProduct_ignoresProductCode() throws Exception {
+        Product product = Product.register(1L, 1L, "YNX-RKT-0001", "라켓 A", "설명");
+        when(productUseCase.registerProduct(any(ProductRegisterCommand.class))).thenReturn(product);
+        when(brandQueryUseCase.getBrand(1L)).thenReturn(Brand.register("YNX", "브랜드 A", null));
+        when(categoryUseCase.getCategory(1L)).thenReturn(Category.register(null, "RKT", "라켓", 1, 0));
+
+        mockMvc.perform(post("/api/v1/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"brandId\":1,\"categoryId\":1,\"productCode\":\"P-9999\","
+                                + "\"productName\":\"라켓 A\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.productCode").value("YNX-RKT-0001"));
     }
 
     @Test
@@ -105,7 +120,7 @@ class ProductControllerTest {
         mockMvc.perform(post("/api/v1/products")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new TestRequest(999L, 1L, "P-0001", "라켓 A", "설명"))))
+                                new TestRequest(999L, 1L, "라켓 A", "설명"))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("BRAND_NOT_FOUND"));
     }
