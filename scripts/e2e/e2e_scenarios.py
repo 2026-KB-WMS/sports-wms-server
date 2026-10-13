@@ -18,6 +18,8 @@ import urllib.error
 import urllib.request
 
 RUN = time.strftime("%m%d%H%M%S")
+# 브랜드 코드는 영문 3자(유니크)라 실행 시각에서 만든다.
+BRAND_CODE = "".join(chr(ord("A") + (int(RUN) // 26 ** i) % 26) for i in range(3))
 PASSWORD = "E2ePass!2345"
 
 results = []  # (name, ok, detail)
@@ -132,7 +134,7 @@ def run(api, admin_id, admin_pw):
 
     # ---------------------------------------------------------------- 상품·공급처
     section("2. 시드: 상품·공급처")
-    brand = must("브랜드", api.call("POST", "/products/brands", {"brandName": "E2E브랜드" + RUN, "description": "e2e"}, token=admin), 201)["brandId"]
+    brand = must("브랜드", api.call("POST", "/products/brands", {"brandCode": BRAND_CODE, "brandName": "E2E브랜드" + RUN, "description": "e2e"}, token=admin), 201)["brandId"]
     cat = must("카테고리", api.call("POST", "/products/categories", {
         "categoryCode": "CAT-" + RUN, "categoryName": "E2E카테고리", "sortOrder": 1}, token=admin), 201)["categoryId"]
     prod = must("상품", api.call("POST", "/products", {

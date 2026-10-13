@@ -34,3 +34,4 @@
 | [020](020-geo-coordinates-optional-pair.md) | 주소를 입력받는 엔티티에 위도·경도를 선택 필드 쌍으로 저장한다 | Accepted | 2026-10-12 |
 | [021](021-location-code-auto-issue.md) | 창고·지점 코드는 주소의 시·도로 서버가 자동 발급하고, 시·도가 바뀌면 재발급한다 | Accepted | 2026-10-12 |
 | [022](022-approve-with-affiliation.md) | 가입 승인은 소속 지정과 함께 하고, 승인 전 배정은 허용하지 않는다 | Accepted | 2026-10-13 |
+| [023](023-brand-code.md) | 브랜드 코드는 영문 3자 직접 입력이며, 기존 브랜드는 코드 없이 두고 한 번만 지정할 수 있다 | Accepted | 2026-10-13 |

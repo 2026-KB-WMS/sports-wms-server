@@ -70,15 +70,16 @@
 
 ## GET /products/brands, POST /products/brands
 
-- POST(HQ_ADMIN): `brandName`(≤100, unique), `description`(≤500). 에러 `DUPLICATE_BRAND_NAME` 409. 201.
-- GET: query `keyword`, `isActive`. 정렬은 고정(`brandName` 오름차순, 같으면 `brandId` 오름차순). 응답 `data.items[]`.
+- POST(HQ_ADMIN): `brandCode`(**필수**, 영문 3자, 직접 입력, 서버가 대문자로 저장, unique), `brandName`(≤100, unique), `description`(≤500). 에러 400(코드 누락·형식 위반), `DUPLICATE_BRAND_NAME` 409, `DUPLICATE_BRAND_CODE` 409(DB unique 위반도 동일 매핑). 201. 응답: `brandId, brandCode, brandName, description, isActive, createdAt`. ([ADR-023](../adr/023-brand-code.md))
+- GET: query `keyword`(브랜드명·코드 부분 일치, 대소문자 무시), `isActive`. 응답 항목: `brandId, brandCode, brandName, description, isActive`. 코드 도입 전 브랜드는 `brandCode`가 `null`이다. 정렬은 고정(`brandName` 오름차순, 같으면 `brandId` 오름차순). 응답 `data.items[]`.
 
 ## PATCH /products/brands/{brandId} — 브랜드 수정 (#216)
 
 - 권한: HQ_ADMIN
-- Body(부분 수정, 최소 1개 필드): `brandName`(≤100, 공백 불가), `description`(≤500). 값이 있는 필드만 바꾼다.
-- 응답: `brandId, brandName, description, isActive`(목록 항목과 같음).
-- 에러: 400(필드 없음, 이름 공백·초과, 설명 초과), 403, 404 `BRAND_NOT_FOUND`, 409 `DUPLICATE_BRAND_NAME`(다른 브랜드가 쓰는 이름. 자기 이름 그대로는 통과)
+- Body(부분 수정, 최소 1개 필드): `brandName`(≤100, 공백 불가), `description`(≤500), `brandCode`(영문 3자). 값이 있는 필드만 바꾼다.
+- `brandCode`는 **코드가 없는 기존 브랜드에 한 번만** 지정할 수 있다. 이미 코드가 있으면 400이다.
+- 응답: `brandId, brandCode, brandName, description, isActive`(목록 항목과 같음).
+- 에러: 400(필드 없음, 이름 공백·초과, 설명 초과, 코드 형식 위반, 이미 코드가 있는 브랜드의 코드 변경), 403, 404 `BRAND_NOT_FOUND`, 409 `DUPLICATE_BRAND_NAME`(다른 브랜드가 쓰는 이름. 자기 이름 그대로는 통과), 409 `DUPLICATE_BRAND_CODE`
 - 비활성 브랜드도 수정할 수 있고 활성 상태는 바뀌지 않는다. 이미 연결된 상품은 영향이 없다.
 - 브랜드·카테고리의 **비활성화·재활성화 API는 두지 않는다**(2026-10-10 결정, 필요한 업무가 없음).
 
