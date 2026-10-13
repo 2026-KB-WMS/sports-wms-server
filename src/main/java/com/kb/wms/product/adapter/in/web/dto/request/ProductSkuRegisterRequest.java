@@ -11,20 +11,14 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 /**
- * POST /api/v1/products/skus 요청 바디. skuCode·skuName을 생략하면 서버가 상품·옵션 값으로 만든다(ADR-025).
+ * POST /api/v1/products/skus 요청 바디. SKU 코드·명칭은 서버가 상품·옵션 값으로 만들어 항상 응답으로만 준다(ADR-026).
  */
 public record ProductSkuRegisterRequest(
         @NotNull(message = "상품 ID는 필수 값입니다.")
         Long productId,
 
-        @Size(max = 50, message = "SKU 코드는 최대 50자입니다.")
-        String skuCode,
-
         @Size(max = 100, message = "바코드는 최대 100자입니다.")
         String barcode,
-
-        @Size(max = 200, message = "SKU 명칭은 최대 200자입니다.")
-        String skuName,
 
         @DecimalMin(value = "0", inclusive = true, message = "중량은 0 이상이어야 합니다.")
         BigDecimal weight,
@@ -48,7 +42,7 @@ public record ProductSkuRegisterRequest(
 
     public ProductSkuRegisterCommand toCommand() {
         return new ProductSkuRegisterCommand(
-                productId, skuCode, barcode, skuName, weight,
+                productId, barcode, weight,
                 currentPurchasePrice, currentSupplyPrice, unit, safetyStockQuantity, optionValueIds);
     }
 }

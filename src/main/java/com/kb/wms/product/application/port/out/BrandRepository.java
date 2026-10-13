@@ -15,6 +15,9 @@ public interface BrandRepository {
 
     Optional<Brand> findById(Long brandId);
 
+    /** 행을 비관적 락으로 잠가 읽는다. 상품 코드 채번을 브랜드 단위로 직렬화할 때 쓴다. */
+    Optional<Brand> findByIdForUpdate(Long brandId);
+
     /** 브랜드명 오름차순 */
     List<Brand> search(BrandSearchCondition condition);
 

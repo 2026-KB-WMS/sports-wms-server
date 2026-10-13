@@ -62,6 +62,11 @@ public class Product {
         this.description = description;
     }
 
+    /** 브랜드·카테고리가 바뀌어 코드를 다시 발급할 때만 쓴다. */
+    public void changeProductCode(String productCode) {
+        this.productCode = productCode;
+    }
+
     public void changeBrand(Long brandId) {
         this.brandId = brandId;
     }

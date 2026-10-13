@@ -84,20 +84,14 @@ public class ProductSkuService implements ProductSkuUseCase {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     "허용되지 않는 수량 단위입니다. 허용 값: " + allowedUnits());
         }
-        if (command.skuCode() != null && command.skuCode().isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "SKU 코드는 비워 둘 수 없습니다.");
-        }
-        if (command.name() != null && command.name().isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "SKU 명칭은 비워 둘 수 없습니다.");
-        }
 
         List<CategoryOptionGroup> mappings = categoryOptionResolver.effectiveMappings(product.getCategoryId());
         List<OptionValue> options = optionSelectionResolver.resolve(command.optionValueIds(), mappings,
                 OptionType.SKU);
         assertCombinationAvailable(product.getProductId(), null, options);
 
-        String skuCode = command.skuCode() != null ? command.skuCode() : generateSkuCode(product, options);
-        String skuName = command.name() != null ? command.name() : generateSkuName(product, options);
+        String skuCode = generateSkuCode(product, options);
+        String skuName = generateSkuName(product, options);
         if (productSkuRepository.existsBySkuCode(skuCode)) {
             throw new BusinessException(ProductErrorCode.DUPLICATE_SKU_CODE);
         }
@@ -122,14 +116,14 @@ public class ProductSkuService implements ProductSkuUseCase {
         for (OptionValue option : options) {
             if (option.getOptionCode() == null) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                        "옵션 값 '" + option.getValue() + "'에 코드가 없어 SKU 코드를 자동으로 만들 수 없습니다. "
-                                + "SKU 코드를 직접 입력해주세요.");
+                        "옵션 값 '" + option.getValue() + "'에 코드가 없어 SKU 코드를 만들 수 없습니다. "
+                                + "코드가 있는 옵션 값을 선택해주세요.");
             }
             code.append('-').append(option.getOptionCode());
         }
         if (code.length() > SKU_CODE_MAX_LENGTH) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                    "자동으로 만든 SKU 코드가 " + SKU_CODE_MAX_LENGTH + "자를 넘습니다. SKU 코드를 직접 입력해주세요.");
+                    "만들어진 SKU 코드가 " + SKU_CODE_MAX_LENGTH + "자를 넘습니다. 옵션 코드를 더 짧게 지정해주세요.");
         }
         return code.toString();
     }
@@ -141,7 +135,7 @@ public class ProductSkuService implements ProductSkuUseCase {
                         .collect(Collectors.joining("/")) + ")";
         if (name.length() > SKU_NAME_MAX_LENGTH) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                    "자동으로 만든 SKU 명칭이 " + SKU_NAME_MAX_LENGTH + "자를 넘습니다. SKU 명칭을 직접 입력해주세요.");
+                    "만들어진 SKU 명칭이 " + SKU_NAME_MAX_LENGTH + "자를 넘습니다. 상품명을 더 짧게 수정해주세요.");
         }
         return name;
     }

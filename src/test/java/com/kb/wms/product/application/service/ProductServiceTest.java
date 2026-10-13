@@ -56,24 +56,28 @@ class ProductServiceTest {
     private CategoryOptionResolver categoryOptionResolver;
     @Mock
     private OptionSelectionResolver optionSelectionResolver;
+    @Mock
+    private ProductCodeIssuer productCodeIssuer;
 
     @InjectMocks
     private ProductService productService;
 
     private final ProductRegisterCommand command =
-            new ProductRegisterCommand(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용", null);
+            new ProductRegisterCommand(1L, 1L, "배드민턴 라켓 A", "초보자용", null);
 
     @Test
-    @DisplayName("브랜드·카테고리가 활성이고 코드가 중복되지 않으면 등록에 성공한다")
+    @DisplayName("브랜드·카테고리가 활성이면 서버가 발급한 상품 코드로 등록에 성공한다")
     void registerProduct_success() {
-        when(brandRepository.findById(1L)).thenReturn(Optional.of(Brand.register("브랜드 A", null)));
-        when(categoryRepository.findById(1L)).thenReturn(Optional.of(Category.register(null, "RACKET", "라켓", 1, 0)));
-        when(productRepository.existsByProductCode("P-0001")).thenReturn(false);
+        Brand brand = Brand.register("YNX", "브랜드 A", null);
+        Category category = Category.register(null, "RKT", "라켓", 1, 0);
+        when(brandRepository.findById(1L)).thenReturn(Optional.of(brand));
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(productCodeIssuer.issue(brand, category)).thenReturn("YNX-RKT-0001");
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Product result = productService.registerProduct(command);
 
-        assertThat(result.getProductCode()).isEqualTo("P-0001");
+        assertThat(result.getProductCode()).isEqualTo("YNX-RKT-0001");
         assertThat(result.isActive()).isTrue();
     }
 
@@ -127,20 +131,21 @@ class ProductServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.CATEGORY_INACTIVE.name());
-        verify(productRepository, never()).existsByProductCode(any());
+        verify(productCodeIssuer, never()).issue(any(), any());
     }
 
     @Test
-    @DisplayName("상품 코드가 중복되면 DUPLICATE_PRODUCT_CODE 예외를 던진다")
-    void registerProduct_duplicateProductCode() {
+    @DisplayName("브랜드 코드가 없어 상품 코드를 발급할 수 없으면 BRAND_CODE_REQUIRED 예외를 던지고 저장하지 않는다")
+    void registerProduct_brandCodeRequired() {
         when(brandRepository.findById(1L)).thenReturn(Optional.of(Brand.register("브랜드 A", null)));
-        when(categoryRepository.findById(1L)).thenReturn(Optional.of(Category.register(null, "RACKET", "라켓", 1, 0)));
-        when(productRepository.existsByProductCode("P-0001")).thenReturn(true);
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(Category.register(null, "RKT", "라켓", 1, 0)));
+        when(productCodeIssuer.issue(any(), any()))
+                .thenThrow(new BusinessException(ProductErrorCode.BRAND_CODE_REQUIRED));
 
         assertThatThrownBy(() -> productService.registerProduct(command))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ProductErrorCode.DUPLICATE_PRODUCT_CODE.name());
+                .isEqualTo(ProductErrorCode.BRAND_CODE_REQUIRED.name());
         verify(productRepository, never()).save(any());
     }
 
@@ -449,7 +454,7 @@ class ProductServiceTest {
         });
 
         productService.registerProduct(new ProductRegisterCommand(
-                1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용", List.of(30L)));
+                1L, 1L, "배드민턴 라켓 A", "초보자용", List.of(30L)));
 
         verify(productSpecRepository).replaceAll(5L, List.of(30L));
     }
@@ -514,11 +519,15 @@ class ProductServiceTest {
     }
 
     @Test
-    @DisplayName("스펙·SKU가 없는 상품은 카테고리를 바꿀 수 있고 새 카테고리의 SPEC 그룹으로 다시 검증한다")
+    @DisplayName("스펙·SKU가 없는 상품은 카테고리를 바꿀 수 있고 새 카테고리의 SPEC 그룹으로 다시 검증하며 코드를 다시 발급한다")
     void updateProduct_categoryChangeRevalidatesSpecs() {
         Product existing = persisted(1L, 1L);
+        Brand brand = Brand.register("YNX", "요넥스", null);
+        Category shoes = Category.register(null, "SHO", "신발", 1, 0);
         when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
-        when(categoryRepository.findById(2L)).thenReturn(Optional.of(Category.register(null, "SHOES", "신발", 1, 0)));
+        when(categoryRepository.findById(2L)).thenReturn(Optional.of(shoes));
+        when(brandRepository.findById(1L)).thenReturn(Optional.of(brand));
+        when(productCodeIssuer.issue(brand, shoes)).thenReturn("YNX-SHO-0001");
         when(optionSelectionResolver.resolve(any(), any(), any())).thenReturn(List.of());
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -526,8 +535,59 @@ class ProductServiceTest {
                 new ProductUpdateCommand(1L, null, null, null, 2L, null, null));
 
         assertThat(result.getCategoryId()).isEqualTo(2L);
+        assertThat(result.getProductCode()).isEqualTo("YNX-SHO-0001");
         verify(categoryOptionResolver).effectiveMappings(2L);
         verify(productSpecRepository).replaceAll(1L, List.of());
+    }
+
+    @Test
+    @DisplayName("SKU가 없는 상품의 브랜드를 바꾸면 새 브랜드 코드로 상품 코드를 다시 발급한다")
+    void updateProduct_brandChangeReissuesCode() {
+        Product existing = persisted(1L, 1L);
+        Brand newBrand = Brand.register("VCT", "빅터", null);
+        Category category = Category.register(null, "RKT", "라켓", 1, 0);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(brandRepository.findById(2L)).thenReturn(Optional.of(newBrand));
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(productCodeIssuer.issue(newBrand, category)).thenReturn("VCT-RKT-0001");
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Product result = productService.updateProduct(
+                new ProductUpdateCommand(1L, null, null, 2L, null, null, null));
+
+        assertThat(result.getBrandId()).isEqualTo(2L);
+        assertThat(result.getProductCode()).isEqualTo("VCT-RKT-0001");
+    }
+
+    @Test
+    @DisplayName("SKU가 있는 상품의 브랜드를 바꾸면 PRODUCT_BRAND_LOCKED이고 코드를 바꾸지 않는다")
+    void updateProduct_brandLockedBySkus() {
+        Product existing = persisted(1L, 1L);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(brandRepository.findById(2L)).thenReturn(Optional.of(Brand.register("VCT", "빅터", null)));
+        when(productSkuRepository.findAll(1L)).thenReturn(List.of(ProductSku.builder().skuId(1L).build()));
+
+        assertThatThrownBy(() -> productService.updateProduct(
+                new ProductUpdateCommand(1L, null, null, 2L, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.PRODUCT_BRAND_LOCKED.name());
+        verify(productCodeIssuer, never()).issue(any(), any());
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("브랜드·카테고리를 바꾸지 않는 수정은 상품 코드를 다시 발급하지 않는다")
+    void updateProduct_noReissueWithoutChange() {
+        Product existing = persisted(1L, 1L);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Product result = productService.updateProduct(
+                new ProductUpdateCommand(1L, "새 이름", null, null, null, null, null));
+
+        assertThat(result.getProductCode()).isEqualTo("P-0001");
+        verify(productCodeIssuer, never()).issue(any(), any());
     }
 
     @Test
