@@ -6,6 +6,7 @@ import java.util.List;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
 import com.kb.wms.product.application.port.in.command.ProductUpdateCommand;
+import com.kb.wms.product.application.port.in.result.ProductSpecSummary;
 import com.kb.wms.product.domain.entity.Product;
 
 /**
@@ -29,4 +30,7 @@ public interface ProductUseCase {
 
     /** 사용자 요청용 단건 조회. 점주가 비활성 상품을 조회하면 PRODUCT_NOT_FOUND(404)다. */
     Product getProduct(Long productId, AuthenticatedUser actor);
+
+    /** 상품에 지정된 스펙 값(옵션 그룹 ID 오름차순). 없으면 빈 목록. */
+    List<ProductSpecSummary> getProductSpecs(Long productId);
 }

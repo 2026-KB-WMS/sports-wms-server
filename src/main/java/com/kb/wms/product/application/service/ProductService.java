@@ -14,13 +14,18 @@ import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
 import com.kb.wms.product.application.port.in.command.ProductUpdateCommand;
 import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.application.port.out.CategoryRepository;
+import com.kb.wms.product.application.port.in.result.ProductSpecSummary;
 import com.kb.wms.product.application.port.out.ProductRepository;
+import com.kb.wms.product.application.port.out.ProductSpecRepository;
 import com.kb.wms.product.application.port.out.ProductSkuRepository;
 import com.kb.wms.product.application.port.out.ProductUsagePort;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.domain.entity.Category;
 import com.kb.wms.product.domain.entity.Product;
+import com.kb.wms.product.domain.entity.OptionValue;
 import com.kb.wms.product.domain.entity.ProductSku;
+import com.kb.wms.product.domain.entity.ProductSpec;
+import com.kb.wms.product.domain.enums.OptionType;
 import com.kb.wms.product.exception.ProductErrorCode;
 
 import lombok.RequiredArgsConstructor;
@@ -35,6 +40,9 @@ public class ProductService implements ProductUseCase {
     private final CategoryRepository categoryRepository;
     private final ProductSkuRepository productSkuRepository;
     private final ProductUsagePort productUsagePort;
+    private final ProductSpecRepository productSpecRepository;
+    private final CategoryOptionResolver categoryOptionResolver;
+    private final OptionSelectionResolver optionSelectionResolver;
 
     @Override
     @Transactional
@@ -52,11 +60,18 @@ public class ProductService implements ProductUseCase {
         if (productRepository.existsByProductCode(command.productCode())) {
             throw new BusinessException(ProductErrorCode.DUPLICATE_PRODUCT_CODE);
         }
+        List<OptionValue> specs = optionSelectionResolver.resolve(command.specOptionValueIds(),
+                categoryOptionResolver.effectiveMappings(command.categoryId()), OptionType.SPEC);
 
         Product product = Product.register(
                 command.brandId(), command.categoryId(), command.productCode(),
                 command.name(), command.description());
-        return productRepository.save(product);
+        Product saved = productRepository.save(product);
+        if (!specs.isEmpty()) {
+            productSpecRepository.replaceAll(saved.getProductId(),
+                    specs.stream().map(OptionValue::getOptionValueId).toList());
+        }
+        return saved;
     }
 
     @Override
@@ -88,13 +103,29 @@ public class ProductService implements ProductUseCase {
             }
             product.changeBrand(command.brandId());
         }
+        Long targetCategoryId = product.getCategoryId();
+        boolean categoryChanging = false;
         if (command.categoryId() != null) {
             Category category = categoryRepository.findById(command.categoryId())
                     .orElseThrow(() -> new BusinessException(ProductErrorCode.CATEGORY_NOT_FOUND));
             if (!category.isActive()) {
                 throw new BusinessException(ProductErrorCode.CATEGORY_INACTIVE);
             }
+            categoryChanging = !command.categoryId().equals(product.getCategoryId());
+            // 스펙과 SKU 옵션은 카테고리의 옵션 그룹 지정에 맞춰 만들어지므로, 이미 있으면 카테고리를 바꾸지 못한다.
+            if (categoryChanging && (productSpecRepository.existsByProductId(product.getProductId())
+                    || !productSkuRepository.findAll(product.getProductId()).isEmpty())) {
+                throw new BusinessException(ProductErrorCode.PRODUCT_CATEGORY_LOCKED);
+            }
+            targetCategoryId = command.categoryId();
             product.changeCategory(command.categoryId());
+        }
+        // 카테고리를 바꾸는 경우에도 새 카테고리의 SPEC 그룹을 채우도록 다시 검증한다.
+        if (categoryChanging || command.specOptionValueIds() != null) {
+            List<OptionValue> specs = optionSelectionResolver.resolve(command.specOptionValueIds(),
+                    categoryOptionResolver.effectiveMappings(targetCategoryId), OptionType.SPEC);
+            productSpecRepository.replaceAll(product.getProductId(),
+                    specs.stream().map(OptionValue::getOptionValueId).toList());
         }
         if (command.productName() != null) {
             product.changeName(command.productName());
@@ -148,6 +179,17 @@ public class ProductService implements ProductUseCase {
             throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);
         }
         return product;
+    }
+
+    @Override
+    public List<ProductSpecSummary> getProductSpecs(Long productId) {
+        List<Long> optionValueIds = productSpecRepository.findByProductId(productId).stream()
+                .map(ProductSpec::getOptionValueId)
+                .toList();
+        if (optionValueIds.isEmpty()) {
+            return List.of();
+        }
+        return optionSelectionResolver.describe(optionValueIds);
     }
 
     private boolean isInUse(Long productId) {

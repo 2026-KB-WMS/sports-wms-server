@@ -29,6 +29,7 @@ import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.application.port.out.ProductRepository;
 import com.kb.wms.product.application.port.out.ProductSkuRepository;
+import com.kb.wms.product.application.port.out.ProductSpecRepository;
 import com.kb.wms.product.application.port.out.ProductUsagePort;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.domain.entity.Category;
@@ -49,12 +50,18 @@ class ProductServiceTest {
     private ProductSkuRepository productSkuRepository;
     @Mock
     private ProductUsagePort productUsagePort;
+    @Mock
+    private ProductSpecRepository productSpecRepository;
+    @Mock
+    private CategoryOptionResolver categoryOptionResolver;
+    @Mock
+    private OptionSelectionResolver optionSelectionResolver;
 
     @InjectMocks
     private ProductService productService;
 
     private final ProductRegisterCommand command =
-            new ProductRegisterCommand(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
+            new ProductRegisterCommand(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용", null);
 
     @Test
     @DisplayName("브랜드·카테고리가 활성이고 코드가 중복되지 않으면 등록에 성공한다")
@@ -188,7 +195,7 @@ class ProductServiceTest {
     @Test
     @DisplayName("변경할 필드가 없으면 VALIDATION_ERROR 예외를 던진다")
     void updateProduct_noChanges_throwsBusinessException() {
-        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, null);
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> productService.updateProduct(command))
                 .isInstanceOf(BusinessException.class)
@@ -200,7 +207,7 @@ class ProductServiceTest {
     @Test
     @DisplayName("존재하지 않는 상품을 수정하면 PRODUCT_NOT_FOUND 예외를 던진다")
     void updateProduct_productNotFound() {
-        ProductUpdateCommand command = new ProductUpdateCommand(999L, "새 이름", null, null, null, null);
+        ProductUpdateCommand command = new ProductUpdateCommand(999L, "새 이름", null, null, null, null, null);
         when(productRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> productService.updateProduct(command))
@@ -213,7 +220,7 @@ class ProductServiceTest {
     @DisplayName("이름·설명만 변경하면 해당 필드만 수정되어 저장된다")
     void updateProduct_partialUpdate_success() {
         Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
-        ProductUpdateCommand command = new ProductUpdateCommand(1L, "새 이름", "새 설명", null, null, null);
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, "새 이름", "새 설명", null, null, null, null);
         when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -230,7 +237,7 @@ class ProductServiceTest {
     @DisplayName("존재하지 않는 브랜드로 변경하면 BRAND_NOT_FOUND 예외를 던진다")
     void updateProduct_brandNotFound() {
         Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
-        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, 2L, null, null);
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, 2L, null, null, null);
         when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(brandRepository.findById(2L)).thenReturn(Optional.empty());
 
@@ -247,7 +254,7 @@ class ProductServiceTest {
         Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
         Brand inactiveBrand = Brand.register("브랜드 B", null);
         inactiveBrand.deactivate();
-        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, 2L, null, null);
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, 2L, null, null, null);
         when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(brandRepository.findById(2L)).thenReturn(Optional.of(inactiveBrand));
 
@@ -262,7 +269,7 @@ class ProductServiceTest {
     @DisplayName("존재하지 않는 카테고리로 변경하면 CATEGORY_NOT_FOUND 예외를 던진다")
     void updateProduct_categoryNotFound() {
         Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
-        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, 2L, null);
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, 2L, null, null);
         when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(categoryRepository.findById(2L)).thenReturn(Optional.empty());
 
@@ -279,7 +286,7 @@ class ProductServiceTest {
         Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
         Category inactiveCategory = Category.register(null, "SHOES", "신발", 1, 0);
         inactiveCategory.deactivate();
-        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, 2L, null);
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, 2L, null, null);
         when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(categoryRepository.findById(2L)).thenReturn(Optional.of(inactiveCategory));
 
@@ -294,7 +301,7 @@ class ProductServiceTest {
     @DisplayName("isActive를 false로 변경하면 상품이 비활성화되어 저장된다")
     void updateProduct_deactivate_success() {
         Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
-        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false);
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false, null);
         when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -307,7 +314,7 @@ class ProductServiceTest {
     @DisplayName("재고가 남아 있으면 PRODUCT_IN_USE 409이고 상품·SKU 상태는 바뀌지 않는다")
     void updateProduct_deactivate_blockedByStock() {
         Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
-        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false);
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false, null);
         when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(productUsagePort.hasStock(1L)).thenReturn(true);
 
@@ -324,7 +331,7 @@ class ProductServiceTest {
     @Test
     @DisplayName("진행 중인 입고·창고 발주·출고·지점 발주가 하나라도 있으면 PRODUCT_IN_USE 409이다")
     void updateProduct_deactivate_blockedByInProgressWork() {
-        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false);
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false, null);
         for (int i = 0; i < 4; i++) {
             Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
             when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
@@ -347,7 +354,7 @@ class ProductServiceTest {
     void updateProduct_deactivate_alreadyInactiveSkipsUsageCheck() {
         Product existing = Product.register(1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용");
         existing.deactivate();
-        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false);
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false, null);
         when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -364,7 +371,7 @@ class ProductServiceTest {
         ProductSku activeSku = ProductSku.register(1L, "SKU-1", null, "SKU 1", null, java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, null, 0L);
         ProductSku inactiveSku = ProductSku.register(1L, "SKU-2", null, "SKU 2", null, java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, null, 0L);
         inactiveSku.deactivate();
-        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false);
+        ProductUpdateCommand command = new ProductUpdateCommand(1L, null, null, null, null, false, null);
         when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(productSkuRepository.findAll(1L)).thenReturn(List.of(activeSku, inactiveSku));
@@ -415,5 +422,130 @@ class ProductServiceTest {
         assertThat(productService.getProduct(1L, hqAdmin)).isSameAs(inactive);
         assertThat(productService.getProduct(1L, warehouseManager)).isSameAs(inactive);
         assertThat(productService.getProduct(2L, storeOwner)).isSameAs(active);
+    }
+
+    private Product persisted(Long productId, Long categoryId) {
+        Product product = Product.register(1L, categoryId, "P-0001", "배드민턴 라켓 A", "초보자용");
+        org.springframework.test.util.ReflectionTestUtils.setField(product, "productId", productId);
+        return product;
+    }
+
+    private com.kb.wms.product.domain.entity.OptionValue spec(Long id) {
+        return com.kb.wms.product.domain.entity.OptionValue.builder().optionValueId(id).optionGroupId(3L)
+                .optionCode("HEAD").value("헤드 헤비").sortOrder(1).build();
+    }
+
+    @Test
+    @DisplayName("상품 등록은 카테고리의 SPEC 검증을 통과한 스펙 값을 함께 저장한다")
+    void registerProduct_savesSpecs() {
+        when(brandRepository.findById(1L)).thenReturn(Optional.of(Brand.register("브랜드 A", null)));
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(Category.register(null, "RACKET", "라켓", 1, 0)));
+        when(optionSelectionResolver.resolve(any(), any(), any()))
+                .thenReturn(List.of(spec(30L)));
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
+            Product saved = invocation.getArgument(0);
+            org.springframework.test.util.ReflectionTestUtils.setField(saved, "productId", 5L);
+            return saved;
+        });
+
+        productService.registerProduct(new ProductRegisterCommand(
+                1L, 1L, "P-0001", "배드민턴 라켓 A", "초보자용", List.of(30L)));
+
+        verify(productSpecRepository).replaceAll(5L, List.of(30L));
+    }
+
+    @Test
+    @DisplayName("스펙 검증에 실패하면 상품을 저장하지 않는다")
+    void registerProduct_specValidationFails() {
+        when(brandRepository.findById(1L)).thenReturn(Optional.of(Brand.register("브랜드 A", null)));
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(Category.register(null, "RACKET", "라켓", 1, 0)));
+        when(optionSelectionResolver.resolve(any(), any(), any()))
+                .thenThrow(new BusinessException(ProductErrorCode.REQUIRED_OPTION_MISSING));
+
+        assertThatThrownBy(() -> productService.registerProduct(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.REQUIRED_OPTION_MISSING.name());
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("스펙 값만 보내면 스펙을 통째로 교체한다")
+    void updateProduct_replacesSpecs() {
+        Product existing = persisted(1L, 1L);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(optionSelectionResolver.resolve(any(), any(), any())).thenReturn(List.of(spec(31L)));
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        productService.updateProduct(new ProductUpdateCommand(1L, null, null, null, null, null, List.of(31L)));
+
+        verify(productSpecRepository).replaceAll(1L, List.of(31L));
+    }
+
+    @Test
+    @DisplayName("스펙이 있는 상품의 카테고리를 바꾸면 PRODUCT_CATEGORY_LOCKED다")
+    void updateProduct_categoryLockedBySpecs() {
+        Product existing = persisted(1L, 1L);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findById(2L)).thenReturn(Optional.of(Category.register(null, "SHOES", "신발", 1, 0)));
+        when(productSpecRepository.existsByProductId(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> productService.updateProduct(
+                new ProductUpdateCommand(1L, null, null, null, 2L, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.PRODUCT_CATEGORY_LOCKED.name());
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("SKU가 있는 상품의 카테고리를 바꾸면 PRODUCT_CATEGORY_LOCKED다")
+    void updateProduct_categoryLockedBySkus() {
+        Product existing = persisted(1L, 1L);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findById(2L)).thenReturn(Optional.of(Category.register(null, "SHOES", "신발", 1, 0)));
+        when(productSkuRepository.findAll(1L)).thenReturn(List.of(ProductSku.builder().skuId(1L).build()));
+
+        assertThatThrownBy(() -> productService.updateProduct(
+                new ProductUpdateCommand(1L, null, null, null, 2L, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.PRODUCT_CATEGORY_LOCKED.name());
+    }
+
+    @Test
+    @DisplayName("스펙·SKU가 없는 상품은 카테고리를 바꿀 수 있고 새 카테고리의 SPEC 그룹으로 다시 검증한다")
+    void updateProduct_categoryChangeRevalidatesSpecs() {
+        Product existing = persisted(1L, 1L);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findById(2L)).thenReturn(Optional.of(Category.register(null, "SHOES", "신발", 1, 0)));
+        when(optionSelectionResolver.resolve(any(), any(), any())).thenReturn(List.of());
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Product result = productService.updateProduct(
+                new ProductUpdateCommand(1L, null, null, null, 2L, null, null));
+
+        assertThat(result.getCategoryId()).isEqualTo(2L);
+        verify(categoryOptionResolver).effectiveMappings(2L);
+        verify(productSpecRepository).replaceAll(1L, List.of());
+    }
+
+    @Test
+    @DisplayName("같은 카테고리를 다시 보내는 요청은 잠금·스펙 검증 없이 통과한다")
+    void updateProduct_sameCategoryNoop() {
+        Product existing = persisted(1L, 1L);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(Category.register(null, "RACKET", "라켓", 1, 0)));
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        productService.updateProduct(new ProductUpdateCommand(1L, null, null, null, 1L, null, null));
+
+        verify(productSpecRepository, never()).replaceAll(any(), any());
+    }
+
+    @Test
+    @DisplayName("상품 스펙 조회는 스펙이 없으면 빈 목록이다")
+    void getProductSpecs_empty() {
+        assertThat(productService.getProductSpecs(1L)).isEmpty();
     }
 }

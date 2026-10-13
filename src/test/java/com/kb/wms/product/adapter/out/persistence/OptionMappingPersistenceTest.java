@@ -12,11 +12,13 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.product.application.port.out.CategoryOptionGroupRepository;
+import com.kb.wms.product.application.port.out.ProductSpecRepository;
 import com.kb.wms.product.domain.entity.CategoryOptionGroup;
+import com.kb.wms.product.domain.entity.ProductSpec;
 import com.kb.wms.product.domain.enums.OptionType;
 
 /**
- * 카테고리 옵션 그룹 지정의 "전체 교체"가 같은 행을 다시 넣어도 유니크 제약에 걸리지 않는지 확인한다.
+ * 카테고리 옵션 그룹 지정·상품 스펙의 "전체 교체"가 같은 행을 다시 넣어도 유니크 제약에 걸리지 않는지 확인한다.
  * 엔티티에는 FK가 없으므로(ID 참조) 상위 행 없이 ID만으로 저장한다. category·option_value 테이블은
  * H2 DDL에서 만들어지지 않아(TINYINT, 예약어 value) 이 테스트에서 다루지 않는다.
  */
@@ -27,6 +29,8 @@ class OptionMappingPersistenceTest {
 
     @Autowired
     CategoryOptionGroupRepository categoryOptionGroupRepository;
+    @Autowired
+    ProductSpecRepository productSpecRepository;
 
     @Test
     @DisplayName("같은 그룹을 다시 지정해 교체해도 유니크 제약에 걸리지 않고, 빠진 그룹은 지워진다")
@@ -68,5 +72,18 @@ class OptionMappingPersistenceTest {
         assertThat(categoryOptionGroupRepository.findByCategoryIds(List.of(2004L, 2005L)))
                 .extracting(CategoryOptionGroup::getCategoryId).containsExactlyInAnyOrder(2004L, 2005L);
         assertThat(categoryOptionGroupRepository.findByCategoryIds(List.of())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("상품 스펙을 같은 값으로 다시 교체해도 유니크 제약에 걸리지 않는다")
+    void replaceAllSpecs() {
+        productSpecRepository.replaceAll(1001L, List.of(31L));
+        productSpecRepository.replaceAll(1001L, List.of(31L, 32L));
+        productSpecRepository.replaceAll(1001L, List.of(32L));
+
+        List<ProductSpec> specs = productSpecRepository.findByProductId(1001L);
+        assertThat(specs).extracting(ProductSpec::getOptionValueId).containsExactly(32L);
+        assertThat(productSpecRepository.existsByProductId(1001L)).isTrue();
+        assertThat(productSpecRepository.existsByProductId(1002L)).isFalse();
     }
 }
