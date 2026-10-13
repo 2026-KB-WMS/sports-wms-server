@@ -38,14 +38,14 @@ class CategoryServiceTest {
     @Test
     @DisplayName("상위 카테고리 없이 등록하면 depth는 1이다")
     void registerCategory_root_depthIsOne() {
-        CategoryRegisterCommand command = new CategoryRegisterCommand(null, "RACKET", "라켓", 1);
-        when(categoryRepository.existsByCategoryCode("RACKET")).thenReturn(false);
+        CategoryRegisterCommand command = new CategoryRegisterCommand(null, "RKT", "라켓", 1);
+        when(categoryRepository.existsByCategoryCode("RKT")).thenReturn(false);
         when(categoryRepository.save(any(Category.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Category result = categoryService.registerCategory(command);
 
         assertThat(result.getDepth()).isEqualTo(1);
-        assertThat(result.getCategoryCode()).isEqualTo("RACKET");
+        assertThat(result.getCategoryCode()).isEqualTo("RKT");
         assertThat(result.isActive()).isTrue();
         verify(categoryRepository, never()).findById(any());
     }
@@ -54,8 +54,8 @@ class CategoryServiceTest {
     @DisplayName("상위 카테고리가 있으면 depth는 상위 depth + 1이다")
     void registerCategory_withParent_depthIsParentDepthPlusOne() {
         Category parent = Category.register(null, "RACKET", "라켓", 1, 0);
-        CategoryRegisterCommand command = new CategoryRegisterCommand(1L, "RACKET_BEGINNER", "초보자용 라켓", 1);
-        when(categoryRepository.existsByCategoryCode("RACKET_BEGINNER")).thenReturn(false);
+        CategoryRegisterCommand command = new CategoryRegisterCommand(1L, "RKB", "초보자용 라켓", 1);
+        when(categoryRepository.existsByCategoryCode("RKB")).thenReturn(false);
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(parent));
         when(categoryRepository.save(any(Category.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -65,10 +65,34 @@ class CategoryServiceTest {
     }
 
     @Test
+    @DisplayName("카테고리 코드는 대문자로 저장한다")
+    void registerCategory_codeUppercased() {
+        when(categoryRepository.existsByCategoryCode("RKT")).thenReturn(false);
+        when(categoryRepository.save(any(Category.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Category result = categoryService.registerCategory(new CategoryRegisterCommand(null, "rkt", "라켓", 0));
+
+        assertThat(result.getCategoryCode()).isEqualTo("RKT");
+    }
+
+    @Test
+    @DisplayName("카테고리 코드가 영문 3자가 아니면 VALIDATION_ERROR 예외를 던지고 저장하지 않는다")
+    void registerCategory_invalidCode() {
+        for (String code : new String[] {null, "", "RK", "RACKET", "R1T", "CAT-01"}) {
+            assertThatThrownBy(() -> categoryService.registerCategory(
+                    new CategoryRegisterCommand(null, code, "라켓", 0)))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                    .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
+        }
+        verify(categoryRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("카테고리 코드가 중복되면 DUPLICATE_CATEGORY_CODE 예외를 던진다")
     void registerCategory_duplicateCode_throwsBusinessException() {
-        CategoryRegisterCommand command = new CategoryRegisterCommand(null, "RACKET", "라켓", 1);
-        when(categoryRepository.existsByCategoryCode("RACKET")).thenReturn(true);
+        CategoryRegisterCommand command = new CategoryRegisterCommand(null, "RKT", "라켓", 1);
+        when(categoryRepository.existsByCategoryCode("RKT")).thenReturn(true);
 
         assertThatThrownBy(() -> categoryService.registerCategory(command))
                 .isInstanceOf(BusinessException.class)
@@ -80,8 +104,8 @@ class CategoryServiceTest {
     @Test
     @DisplayName("존재하지 않는 상위 카테고리를 지정하면 PARENT_CATEGORY_NOT_FOUND 예외를 던진다")
     void registerCategory_parentNotFound_throwsBusinessException() {
-        CategoryRegisterCommand command = new CategoryRegisterCommand(999L, "RACKET_BEGINNER", "초보자용 라켓", 1);
-        when(categoryRepository.existsByCategoryCode("RACKET_BEGINNER")).thenReturn(false);
+        CategoryRegisterCommand command = new CategoryRegisterCommand(999L, "RKB", "초보자용 라켓", 1);
+        when(categoryRepository.existsByCategoryCode("RKB")).thenReturn(false);
         when(categoryRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> categoryService.registerCategory(command))
@@ -95,8 +119,8 @@ class CategoryServiceTest {
     void registerCategory_parentInactive_throwsBusinessException() {
         Category parent = Category.register(null, "RACKET", "라켓", 1, 0);
         parent.deactivate();
-        CategoryRegisterCommand command = new CategoryRegisterCommand(1L, "RACKET_BEGINNER", "초보자용 라켓", 1);
-        when(categoryRepository.existsByCategoryCode("RACKET_BEGINNER")).thenReturn(false);
+        CategoryRegisterCommand command = new CategoryRegisterCommand(1L, "RKB", "초보자용 라켓", 1);
+        when(categoryRepository.existsByCategoryCode("RKB")).thenReturn(false);
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(parent));
 
         assertThatThrownBy(() -> categoryService.registerCategory(command))

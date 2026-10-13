@@ -10,6 +10,7 @@ import com.kb.wms.product.domain.entity.OptionValue;
 public record OptionValueResponse(
         Long optionValueId,
         Long optionGroupId,
+        String optionCode,
         String value,
         int sortOrder,
         boolean isActive,
@@ -20,6 +21,7 @@ public record OptionValueResponse(
         return new OptionValueResponse(
                 optionValue.getOptionValueId(),
                 optionValue.getOptionGroupId(),
+                optionValue.getOptionCode(),
                 optionValue.getValue(),
                 optionValue.getSortOrder(),
                 optionValue.isActive(),

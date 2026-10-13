@@ -50,4 +50,9 @@ public class OptionValuePersistenceAdapter implements OptionValueRepository {
     public boolean existsByOptionGroupIdAndValue(Long optionGroupId, String value) {
         return optionValueJpaRepository.existsByOptionGroupIdAndValue(optionGroupId, value);
     }
+
+    @Override
+    public boolean existsByOptionGroupIdAndOptionCode(Long optionGroupId, String optionCode) {
+        return optionValueJpaRepository.existsByOptionGroupIdAndOptionCode(optionGroupId, optionCode);
+    }
 }

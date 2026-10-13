@@ -1,30 +1,28 @@
 package com.kb.wms.product.adapter.in.web.dto.request;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
 
 import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 /**
- * POST /api/v1/products/skus 요청 바디.
+ * POST /api/v1/products/skus 요청 바디. skuCode·skuName을 생략하면 서버가 상품·옵션 값으로 만든다(ADR-025).
  */
 public record ProductSkuRegisterRequest(
         @NotNull(message = "상품 ID는 필수 값입니다.")
         Long productId,
 
-        @NotBlank(message = "SKU 코드는 필수 값입니다.")
         @Size(max = 50, message = "SKU 코드는 최대 50자입니다.")
         String skuCode,
 
         @Size(max = 100, message = "바코드는 최대 100자입니다.")
         String barcode,
 
-        @NotBlank(message = "SKU 명칭은 필수 값입니다.")
         @Size(max = 200, message = "SKU 명칭은 최대 200자입니다.")
         String skuName,
 
@@ -43,12 +41,14 @@ public record ProductSkuRegisterRequest(
         String unit,
 
         @PositiveOrZero(message = "안전 재고 수량은 0 이상이어야 합니다.")
-        Long safetyStockQuantity
+        Long safetyStockQuantity,
+
+        List<Long> optionValueIds
 ) {
 
     public ProductSkuRegisterCommand toCommand() {
         return new ProductSkuRegisterCommand(
                 productId, skuCode, barcode, skuName, weight,
-                currentPurchasePrice, currentSupplyPrice, unit, safetyStockQuantity);
+                currentPurchasePrice, currentSupplyPrice, unit, safetyStockQuantity, optionValueIds);
     }
 }

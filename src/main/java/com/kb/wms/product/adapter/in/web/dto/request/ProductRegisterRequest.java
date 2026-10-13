@@ -1,5 +1,7 @@
 package com.kb.wms.product.adapter.in.web.dto.request;
 
+import java.util.List;
+
 import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
 
 import jakarta.validation.constraints.NotBlank;
@@ -25,10 +27,13 @@ public record ProductRegisterRequest(
         String productName,
 
         @Size(max = 1000, message = "상품 설명은 최대 1000자입니다.")
-        String description
+        String description,
+
+        List<Long> specOptionValueIds
 ) {
 
     public ProductRegisterCommand toCommand() {
-        return new ProductRegisterCommand(brandId, categoryId, productCode, productName, description);
+        return new ProductRegisterCommand(
+                brandId, categoryId, productCode, productName, description, specOptionValueIds);
     }
 }

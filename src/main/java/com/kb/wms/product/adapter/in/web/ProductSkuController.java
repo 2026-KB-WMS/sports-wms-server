@@ -62,7 +62,8 @@ public class ProductSkuController {
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ProductSkuCreateResponse> registerSku(@Valid @RequestBody ProductSkuRegisterRequest request) {
         ProductSku sku = productSkuUseCase.registerSku(request.toCommand());
-        return ApiResponse.created(ProductSkuCreateResponse.from(sku));
+        return ApiResponse.created(
+                ProductSkuCreateResponse.of(sku, productSkuUseCase.getSkuOptions(sku.getSkuId())));
     }
 
     @GetMapping

@@ -33,12 +33,14 @@ import com.kb.wms.product.application.port.out.ProductSkuRepository;
 import com.kb.wms.product.application.port.out.ProductUsagePort;
 import com.kb.wms.product.application.port.out.SkuOptionValueRepository;
 import com.kb.wms.product.application.port.out.SkuPriceHistoryRepository;
+import com.kb.wms.product.domain.entity.CategoryOptionGroup;
 import com.kb.wms.product.domain.entity.OptionGroup;
 import com.kb.wms.product.domain.entity.OptionValue;
 import com.kb.wms.product.domain.entity.Product;
 import com.kb.wms.product.domain.entity.ProductSku;
 import com.kb.wms.product.domain.entity.SkuOptionValue;
 import com.kb.wms.product.domain.entity.SkuPriceHistory;
+import com.kb.wms.product.domain.enums.OptionType;
 import com.kb.wms.product.domain.enums.SkuUnit;
 import com.kb.wms.product.exception.ProductErrorCode;
 
@@ -55,6 +57,9 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class ProductSkuService implements ProductSkuUseCase {
 
+    private static final int SKU_CODE_MAX_LENGTH = 50;
+    private static final int SKU_NAME_MAX_LENGTH = 200;
+
     private final ProductSkuRepository productSkuRepository;
     private final ProductRepository productRepository;
     private final OptionValueRepository optionValueRepository;
@@ -64,6 +69,8 @@ public class ProductSkuService implements ProductSkuUseCase {
     private final CategoryRepository categoryRepository;
     private final ProductUsagePort productUsagePort;
     private final SkuPriceHistoryRepository skuPriceHistoryRepository;
+    private final CategoryOptionResolver categoryOptionResolver;
+    private final OptionSelectionResolver optionSelectionResolver;
 
     @Override
     @Transactional
@@ -77,7 +84,21 @@ public class ProductSkuService implements ProductSkuUseCase {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     "허용되지 않는 수량 단위입니다. 허용 값: " + allowedUnits());
         }
-        if (productSkuRepository.existsBySkuCode(command.skuCode())) {
+        if (command.skuCode() != null && command.skuCode().isBlank()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "SKU 코드는 비워 둘 수 없습니다.");
+        }
+        if (command.name() != null && command.name().isBlank()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "SKU 명칭은 비워 둘 수 없습니다.");
+        }
+
+        List<CategoryOptionGroup> mappings = categoryOptionResolver.effectiveMappings(product.getCategoryId());
+        List<OptionValue> options = optionSelectionResolver.resolve(command.optionValueIds(), mappings,
+                OptionType.SKU);
+        assertCombinationAvailable(product.getProductId(), null, options);
+
+        String skuCode = command.skuCode() != null ? command.skuCode() : generateSkuCode(product, options);
+        String skuName = command.name() != null ? command.name() : generateSkuName(product, options);
+        if (productSkuRepository.existsBySkuCode(skuCode)) {
             throw new BusinessException(ProductErrorCode.DUPLICATE_SKU_CODE);
         }
         if (command.barcode() != null && productSkuRepository.existsByBarcode(command.barcode())) {
@@ -85,10 +106,65 @@ public class ProductSkuService implements ProductSkuUseCase {
         }
 
         ProductSku sku = ProductSku.register(
-                command.productId(), command.skuCode(), command.barcode(), command.name(),
+                command.productId(), skuCode, command.barcode(), skuName,
                 command.weight(), command.currentPurchasePrice(), command.currentSupplyPrice(),
                 command.unit(), command.safetyStockQuantity());
-        return productSkuRepository.save(sku);
+        ProductSku saved = productSkuRepository.save(sku);
+        for (OptionValue option : options) {
+            skuOptionValueRepository.save(SkuOptionValue.connect(saved.getSkuId(), option.getOptionValueId()));
+        }
+        return saved;
+    }
+
+    /** 상품 코드 뒤에 옵션 코드를 카테고리 지정 순서대로 `-`로 붙인다. 옵션이 없으면 상품 코드 그대로다. */
+    private String generateSkuCode(Product product, List<OptionValue> options) {
+        StringBuilder code = new StringBuilder(product.getProductCode());
+        for (OptionValue option : options) {
+            if (option.getOptionCode() == null) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        "옵션 값 '" + option.getValue() + "'에 코드가 없어 SKU 코드를 자동으로 만들 수 없습니다. "
+                                + "SKU 코드를 직접 입력해주세요.");
+            }
+            code.append('-').append(option.getOptionCode());
+        }
+        if (code.length() > SKU_CODE_MAX_LENGTH) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "자동으로 만든 SKU 코드가 " + SKU_CODE_MAX_LENGTH + "자를 넘습니다. SKU 코드를 직접 입력해주세요.");
+        }
+        return code.toString();
+    }
+
+    /** `상품명 (옵션값/옵션값)`. 옵션이 없으면 상품명 그대로다. */
+    private String generateSkuName(Product product, List<OptionValue> options) {
+        String name = options.isEmpty() ? product.getName()
+                : product.getName() + " (" + options.stream().map(OptionValue::getValue)
+                        .collect(Collectors.joining("/")) + ")";
+        if (name.length() > SKU_NAME_MAX_LENGTH) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "자동으로 만든 SKU 명칭이 " + SKU_NAME_MAX_LENGTH + "자를 넘습니다. SKU 명칭을 직접 입력해주세요.");
+        }
+        return name;
+    }
+
+    /** 같은 상품의 다른 SKU(비활성 포함)가 같은 옵션 조합을 갖고 있으면 DUPLICATE_SKU_OPTION_COMBINATION. */
+    private void assertCombinationAvailable(Long productId, Long excludeSkuId, List<OptionValue> options) {
+        Set<Long> combination = options.stream().map(OptionValue::getOptionValueId).collect(Collectors.toSet());
+        List<Long> otherSkuIds = productSkuRepository.findAll(productId).stream()
+                .map(ProductSku::getSkuId)
+                .filter(id -> !id.equals(excludeSkuId))
+                .toList();
+        if (otherSkuIds.isEmpty()) {
+            return;
+        }
+        Map<Long, Set<Long>> existing = new HashMap<>();
+        for (SkuOptionValue link : skuOptionValueRepository.findBySkuIdIn(otherSkuIds)) {
+            existing.computeIfAbsent(link.getSkuId(), id -> new HashSet<>()).add(link.getOptionValueId());
+        }
+        for (Long skuId : otherSkuIds) {
+            if (existing.getOrDefault(skuId, Set.of()).equals(combination)) {
+                throw new BusinessException(ProductErrorCode.DUPLICATE_SKU_OPTION_COMBINATION);
+            }
+        }
     }
 
     private static String allowedUnits() {
@@ -187,32 +263,23 @@ public class ProductSkuService implements ProductSkuUseCase {
         return productSkuRepository.save(sku);
     }
 
+    /** 옵션이 없는 기존 SKU에 한 번만 연결한다. 등록할 때와 같은 검증(카테고리 지정·필수 그룹·조합 중복)을 거친다. */
     @Override
     @Transactional
     public void connectOptions(SkuOptionConnectCommand command) {
         ProductSku sku = productSkuRepository.findById(command.skuId())
                 .orElseThrow(() -> new BusinessException(ProductErrorCode.SKU_NOT_FOUND));
-
-        Set<Long> connectedOptionGroupIds = new HashSet<>();
-        for (SkuOptionValue link : skuOptionValueRepository.findBySkuId(sku.getSkuId())) {
-            optionValueRepository.findById(link.getOptionValueId())
-                    .map(OptionValue::getOptionGroupId)
-                    .ifPresent(connectedOptionGroupIds::add);
+        if (!skuOptionValueRepository.findBySkuId(sku.getSkuId()).isEmpty()) {
+            throw new BusinessException(ProductErrorCode.SKU_OPTIONS_ALREADY_CONNECTED);
         }
+        Product product = productRepository.findById(sku.getProductId())
+                .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
 
-        for (Long optionValueId : command.optionValueIds()) {
-            OptionValue optionValue = optionValueRepository.findById(optionValueId)
-                    .orElseThrow(() -> new BusinessException(ProductErrorCode.OPTION_VALUE_NOT_FOUND));
-            if (!optionValue.isActive()) {
-                throw new BusinessException(ProductErrorCode.OPTION_VALUE_INACTIVE);
-            }
-            if (skuOptionValueRepository.existsBySkuIdAndOptionValueId(sku.getSkuId(), optionValueId)) {
-                throw new BusinessException(ProductErrorCode.DUPLICATE_OPTION_VALUE);
-            }
-            if (!connectedOptionGroupIds.add(optionValue.getOptionGroupId())) {
-                throw new BusinessException(ProductErrorCode.OPTION_GROUP_CONFLICT);
-            }
-            skuOptionValueRepository.save(SkuOptionValue.connect(sku.getSkuId(), optionValueId));
+        List<OptionValue> options = optionSelectionResolver.resolve(command.optionValueIds(),
+                categoryOptionResolver.effectiveMappings(product.getCategoryId()), OptionType.SKU);
+        assertCombinationAvailable(product.getProductId(), sku.getSkuId(), options);
+        for (OptionValue option : options) {
+            skuOptionValueRepository.save(SkuOptionValue.connect(sku.getSkuId(), option.getOptionValueId()));
         }
     }
 

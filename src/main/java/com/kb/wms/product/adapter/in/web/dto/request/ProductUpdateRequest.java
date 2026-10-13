@@ -1,5 +1,7 @@
 package com.kb.wms.product.adapter.in.web.dto.request;
 
+import java.util.List;
+
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.product.application.port.in.command.ProductUpdateCommand;
@@ -24,13 +26,16 @@ public record ProductUpdateRequest(
 
         Boolean isActive,
 
-        String productCode
+        String productCode,
+
+        List<Long> specOptionValueIds
 ) {
 
     public ProductUpdateCommand toCommand(Long productId) {
         if (productCode != null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "productCode는 이 API로 수정할 수 없습니다.");
         }
-        return new ProductUpdateCommand(productId, productName, description, brandId, categoryId, isActive);
+        return new ProductUpdateCommand(
+                productId, productName, description, brandId, categoryId, isActive, specOptionValueIds);
     }
 }

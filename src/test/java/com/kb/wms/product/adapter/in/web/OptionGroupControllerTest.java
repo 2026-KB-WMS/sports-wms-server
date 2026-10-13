@@ -68,7 +68,7 @@ class OptionGroupControllerTest {
     @DisplayName("상품의 옵션 그룹·옵션 값을 조회하면 200과 그룹별 값 목록을 반환한다")
     void getOptionGroupsByProduct_success() throws Exception {
         ProductOptionGroupSummary summary = new ProductOptionGroupSummary(
-                1L, "색상", List.of(new OptionValueSummary(10L, "빨강", 1)));
+                1L, "색상", List.of(new OptionValueSummary(10L, "RED", "빨강", 1, true)));
         when(optionGroupUseCase.getOptionGroupsByProduct(1L)).thenReturn(List.of(summary));
 
         mockMvc.perform(get("/api/v1/products/{productId}/option-groups", 1L))
@@ -90,5 +90,18 @@ class OptionGroupControllerTest {
     }
 
     private record TestRequest(String name) {
+    }
+
+    @Test
+    @DisplayName("옵션 그룹 전체 목록을 값과 함께 data.items로 반환한다")
+    void getOptionGroups_success() throws Exception {
+        when(optionGroupUseCase.getOptionGroups()).thenReturn(List.of(new ProductOptionGroupSummary(
+                1L, "무게", List.of(new OptionValueSummary(10L, "3U", "3U", 1, true)))));
+
+        mockMvc.perform(get("/api/v1/products/option-groups"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].name").value("무게"))
+                .andExpect(jsonPath("$.data.items[0].values[0].optionCode").value("3U"))
+                .andExpect(jsonPath("$.data.items[0].values[0].isActive").value(true));
     }
 }

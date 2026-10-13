@@ -34,6 +34,9 @@ public class OptionValueJpaEntity extends BaseTimeEntity {
     @Column(name = "option_group_id", nullable = false)
     private Long optionGroupId;
 
+    @Column(name = "option_code", length = 10)
+    private String optionCode;
+
     @Column(name = "value", nullable = false, length = 100)
     private String value;
 
@@ -45,10 +48,11 @@ public class OptionValueJpaEntity extends BaseTimeEntity {
     private ProductStatus status;
 
     @Builder
-    private OptionValueJpaEntity(Long optionValueId, Long optionGroupId, String value, int sortOrder,
-                                  ProductStatus status) {
+    private OptionValueJpaEntity(Long optionValueId, Long optionGroupId, String optionCode, String value,
+                                  int sortOrder, ProductStatus status) {
         this.optionValueId = optionValueId;
         this.optionGroupId = optionGroupId;
+        this.optionCode = optionCode;
         this.value = value;
         this.sortOrder = sortOrder;
         this.status = status;
@@ -58,6 +62,7 @@ public class OptionValueJpaEntity extends BaseTimeEntity {
         return OptionValueJpaEntity.builder()
                 .optionValueId(optionValue.getOptionValueId())
                 .optionGroupId(optionValue.getOptionGroupId())
+                .optionCode(optionValue.getOptionCode())
                 .value(optionValue.getValue())
                 .sortOrder(optionValue.getSortOrder())
                 .status(optionValue.getStatus())
@@ -68,6 +73,7 @@ public class OptionValueJpaEntity extends BaseTimeEntity {
         return OptionValue.builder()
                 .optionValueId(optionValueId)
                 .optionGroupId(optionGroupId)
+                .optionCode(optionCode)
                 .value(value)
                 .sortOrder(sortOrder)
                 .status(status)

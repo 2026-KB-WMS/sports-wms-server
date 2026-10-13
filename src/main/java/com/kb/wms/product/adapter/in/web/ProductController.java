@@ -87,7 +87,8 @@ public class ProductController {
     }
 
     private ProductDetailResponse toDetailResponse(Product product) {
-        return ProductDetailResponse.of(product, brandName(product.getBrandId()), categoryName(product.getCategoryId()));
+        return ProductDetailResponse.of(product, brandName(product.getBrandId()), categoryName(product.getCategoryId()),
+                productUseCase.getProductSpecs(product.getProductId()));
     }
 
     private String brandName(Long brandId) {

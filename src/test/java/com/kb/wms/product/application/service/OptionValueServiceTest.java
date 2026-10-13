@@ -45,7 +45,7 @@ class OptionValueServiceTest {
         when(optionValueRepository.save(any(OptionValue.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         OptionValue result = optionValueService.registerOptionValue(
-                new OptionValueRegisterCommand(optionGroupId, "빨강", 1));
+                new OptionValueRegisterCommand(optionGroupId, "RED", "빨강", 1));
 
         assertThat(result.getValue()).isEqualTo("빨강");
         assertThat(result.getOptionGroupId()).isEqualTo(optionGroupId);
@@ -57,7 +57,7 @@ class OptionValueServiceTest {
         when(optionGroupRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> optionValueService.registerOptionValue(
-                new OptionValueRegisterCommand(999L, "빨강", 1)))
+                new OptionValueRegisterCommand(999L, "RED", "빨강", 1)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.OPTION_GROUP_NOT_FOUND.name());
@@ -73,10 +73,36 @@ class OptionValueServiceTest {
         when(optionValueRepository.existsByOptionGroupIdAndValue(optionGroupId, "빨강")).thenReturn(true);
 
         assertThatThrownBy(() -> optionValueService.registerOptionValue(
-                new OptionValueRegisterCommand(optionGroupId, "빨강", 1)))
+                new OptionValueRegisterCommand(optionGroupId, "RED", "빨강", 1)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.DUPLICATE_OPTION_VALUE.name());
+        verify(optionValueRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("옵션 코드는 대문자로 저장한다")
+    void registerOptionValue_codeUppercased() {
+        when(optionGroupRepository.findById(1L)).thenReturn(Optional.of(OptionGroup.register("그립")));
+        when(optionValueRepository.save(any(OptionValue.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        OptionValue result = optionValueService.registerOptionValue(
+                new OptionValueRegisterCommand(1L, "g4", "G4", 1));
+
+        assertThat(result.getOptionCode()).isEqualTo("G4");
+    }
+
+    @Test
+    @DisplayName("같은 그룹에 같은 옵션 코드가 있으면 DUPLICATE_OPTION_CODE 예외를 던진다")
+    void registerOptionValue_duplicateCode() {
+        when(optionGroupRepository.findById(1L)).thenReturn(Optional.of(OptionGroup.register("그립")));
+        when(optionValueRepository.existsByOptionGroupIdAndOptionCode(1L, "G4")).thenReturn(true);
+
+        assertThatThrownBy(() -> optionValueService.registerOptionValue(
+                new OptionValueRegisterCommand(1L, "g4", "G4 굵기", 1)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.DUPLICATE_OPTION_CODE.name());
         verify(optionValueRepository, never()).save(any());
     }
 }

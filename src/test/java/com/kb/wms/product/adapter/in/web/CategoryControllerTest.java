@@ -41,16 +41,16 @@ class CategoryControllerTest {
     @Test
     @DisplayName("카테고리 등록에 성공하면 201과 등록된 카테고리를 반환한다")
     void registerCategory_success() throws Exception {
-        Category category = Category.register(null, "CAT-001", "라켓", 1, 0);
+        Category category = Category.register(null, "RKT", "라켓", 1, 0);
         when(categoryUseCase.registerCategory(any(CategoryRegisterCommand.class))).thenReturn(category);
 
         mockMvc.perform(post("/api/v1/products/categories")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new TestRequest(null, "CAT-001", "라켓", 0))))
+                                new TestRequest(null, "RKT", "라켓", 0))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.statusCode").value(201))
-                .andExpect(jsonPath("$.data.categoryCode").value("CAT-001"))
+                .andExpect(jsonPath("$.data.categoryCode").value("RKT"))
                 .andExpect(jsonPath("$.data.categoryName").value("라켓"));
     }
 
@@ -65,6 +65,18 @@ class CategoryControllerTest {
     }
 
     @Test
+    @DisplayName("카테고리 코드가 영문 3자가 아니면 400 VALIDATION_ERROR를 반환한다")
+    void registerCategory_invalidCode() throws Exception {
+        for (String code : new String[] {"RK", "RACKET", "R1T", "CAT-001", "라켓이"}) {
+            mockMvc.perform(post("/api/v1/products/categories")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new TestRequest(null, code, "라켓", 0))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        }
+    }
+
+    @Test
     @DisplayName("상위 카테고리가 존재하지 않으면 404 PARENT_CATEGORY_NOT_FOUND를 반환한다")
     void registerCategory_parentNotFound() throws Exception {
         when(categoryUseCase.registerCategory(any(CategoryRegisterCommand.class)))
@@ -72,7 +84,7 @@ class CategoryControllerTest {
 
         mockMvc.perform(post("/api/v1/products/categories")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new TestRequest(999L, "CAT-001", "라켓", 0))))
+                        .content(objectMapper.writeValueAsString(new TestRequest(999L, "RKT", "라켓", 0))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("PARENT_CATEGORY_NOT_FOUND"));
     }
@@ -81,11 +93,11 @@ class CategoryControllerTest {
     @DisplayName("카테고리 목록을 조회하면 200과 목록을 반환한다")
     void getCategories_success() throws Exception {
         when(categoryUseCase.getCategories(new CategorySearchCondition(null, null, null, null)))
-                .thenReturn(List.of(Category.register(null, "CAT-001", "라켓", 1, 0)));
+                .thenReturn(List.of(Category.register(null, "RKT", "라켓", 1, 0)));
 
         mockMvc.perform(get("/api/v1/products/categories"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].categoryCode").value("CAT-001"));
+                .andExpect(jsonPath("$.data.items[0].categoryCode").value("RKT"));
     }
 
     private record TestRequest(Long parentCategoryId, String categoryCode, String categoryName, Integer sortOrder) {
