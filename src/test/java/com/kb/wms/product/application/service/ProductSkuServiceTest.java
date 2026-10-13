@@ -79,8 +79,8 @@ class ProductSkuServiceTest {
     @InjectMocks
     private ProductSkuService productSkuService;
 
-    private ProductSkuRegisterCommand registerCommand(Long productId, String skuCode, String barcode) {
-        return new ProductSkuRegisterCommand(productId, skuCode, barcode, "라켓 A - 빨강",
+    private ProductSkuRegisterCommand registerCommand(Long productId, String barcode) {
+        return new ProductSkuRegisterCommand(productId, barcode,
                 BigDecimal.valueOf(100), BigDecimal.valueOf(10000), BigDecimal.valueOf(15000),
                 "EA", 10L, null);
     }
@@ -104,7 +104,7 @@ class ProductSkuServiceTest {
     }
 
     private ProductSkuRegisterCommand registerCommandWithUnit(String unit) {
-        return new ProductSkuRegisterCommand(1L, "SKU-0001", null, "라켓",
+        return new ProductSkuRegisterCommand(1L, null,
                 null, BigDecimal.valueOf(10000), BigDecimal.valueOf(15000), unit, 0L, null);
     }
 
@@ -140,7 +140,7 @@ class ProductSkuServiceTest {
     @DisplayName("SKU 등록은 단가가 없으면 도메인에서 거부한다")
     void registerSku_priceRequired() {
         when(productRepository.findById(1L)).thenReturn(Optional.of(mockActiveProduct()));
-        ProductSkuRegisterCommand withoutPrice = new ProductSkuRegisterCommand(1L, "SKU-0001", null, "라켓",
+        ProductSkuRegisterCommand withoutPrice = new ProductSkuRegisterCommand(1L, null,
                 null, null, BigDecimal.valueOf(15000), "EA", 0L, null);
 
         assertThatThrownBy(() -> productSkuService.registerSku(withoutPrice))
@@ -258,16 +258,17 @@ class ProductSkuServiceTest {
     }
 
     @Test
-    @DisplayName("상품이 활성 상태이고 SKU 코드·바코드가 중복되지 않으면 SKU 등록에 성공한다")
+    @DisplayName("상품이 활성 상태이고 SKU 코드·바코드가 중복되지 않으면 서버가 만든 코드로 SKU 등록에 성공한다")
     void registerSku_success() {
         when(productRepository.findById(1L)).thenReturn(Optional.of(mockActiveProduct()));
-        when(productSkuRepository.existsBySkuCode("SKU-0001")).thenReturn(false);
+        when(productSkuRepository.existsBySkuCode("P-0001")).thenReturn(false);
         when(productSkuRepository.existsByBarcode("8800000000001")).thenReturn(false);
         when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        ProductSku result = productSkuService.registerSku(registerCommand(1L, "SKU-0001", "8800000000001"));
+        ProductSku result = productSkuService.registerSku(registerCommand(1L, "8800000000001"));
 
-        assertThat(result.getSkuCode()).isEqualTo("SKU-0001");
+        assertThat(result.getSkuCode()).isEqualTo("P-0001");
+        assertThat(result.getName()).isEqualTo("상품");
         assertThat(result.getProductId()).isEqualTo(1L);
     }
 
@@ -276,7 +277,7 @@ class ProductSkuServiceTest {
     void registerSku_productNotFound() {
         when(productRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> productSkuService.registerSku(registerCommand(999L, "SKU-0001", null)))
+        assertThatThrownBy(() -> productSkuService.registerSku(registerCommand(999L, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND.name());
@@ -290,7 +291,7 @@ class ProductSkuServiceTest {
         inactiveProduct.deactivate();
         when(productRepository.findById(1L)).thenReturn(Optional.of(inactiveProduct));
 
-        assertThatThrownBy(() -> productSkuService.registerSku(registerCommand(1L, "SKU-0001", null)))
+        assertThatThrownBy(() -> productSkuService.registerSku(registerCommand(1L, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.PRODUCT_INACTIVE.name());
@@ -301,9 +302,9 @@ class ProductSkuServiceTest {
     @DisplayName("SKU 코드가 중복되면 DUPLICATE_SKU_CODE 예외를 던진다")
     void registerSku_duplicateSkuCode() {
         when(productRepository.findById(1L)).thenReturn(Optional.of(mockActiveProduct()));
-        when(productSkuRepository.existsBySkuCode("SKU-0001")).thenReturn(true);
+        when(productSkuRepository.existsBySkuCode("P-0001")).thenReturn(true);
 
-        assertThatThrownBy(() -> productSkuService.registerSku(registerCommand(1L, "SKU-0001", null)))
+        assertThatThrownBy(() -> productSkuService.registerSku(registerCommand(1L, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.DUPLICATE_SKU_CODE.name());
@@ -314,10 +315,10 @@ class ProductSkuServiceTest {
     @DisplayName("바코드가 중복되면 DUPLICATE_BARCODE 예외를 던진다")
     void registerSku_duplicateBarcode() {
         when(productRepository.findById(1L)).thenReturn(Optional.of(mockActiveProduct()));
-        when(productSkuRepository.existsBySkuCode("SKU-0001")).thenReturn(false);
+        when(productSkuRepository.existsBySkuCode("P-0001")).thenReturn(false);
         when(productSkuRepository.existsByBarcode("8800000000001")).thenReturn(true);
 
-        assertThatThrownBy(() -> productSkuService.registerSku(registerCommand(1L, "SKU-0001", "8800000000001")))
+        assertThatThrownBy(() -> productSkuService.registerSku(registerCommand(1L, "8800000000001")))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.DUPLICATE_BARCODE.name());
@@ -450,12 +451,12 @@ class ProductSkuServiceTest {
     }
 
     private ProductSkuRegisterCommand autoRegisterCommand(List<Long> optionValueIds) {
-        return new ProductSkuRegisterCommand(1L, null, null, null, null,
+        return new ProductSkuRegisterCommand(1L, null, null,
                 BigDecimal.valueOf(10000), BigDecimal.valueOf(15000), "EA", 0L, optionValueIds);
     }
 
     @Test
-    @DisplayName("SKU 코드·이름을 생략하면 상품 코드와 옵션 코드, 상품명과 옵션 값으로 만들고 옵션도 함께 저장한다")
+    @DisplayName("SKU 코드·이름은 상품 코드와 옵션 코드, 상품명과 옵션 값으로 만들고 옵션도 함께 저장한다")
     void registerSku_autoCodeAndName() {
         when(productRepository.findById(1L)).thenReturn(Optional.of(productWithId(1L)));
         when(optionSelectionResolver.resolve(any(), any(), any()))
@@ -487,21 +488,7 @@ class ProductSkuServiceTest {
     }
 
     @Test
-    @DisplayName("직접 입력한 SKU 코드·이름은 옵션 코드가 없어도 그대로 쓴다")
-    void registerSku_explicitCodeAndName() {
-        when(productRepository.findById(1L)).thenReturn(Optional.of(productWithId(1L)));
-        when(optionSelectionResolver.resolve(any(), any(), any()))
-                .thenReturn(List.of(option(10L, 1L, null, "빨강")));
-        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        ProductSku result = productSkuService.registerSku(registerCommand(1L, "SKU-MANUAL", null));
-
-        assertThat(result.getSkuCode()).isEqualTo("SKU-MANUAL");
-        assertThat(result.getName()).isEqualTo("라켓 A - 빨강");
-    }
-
-    @Test
-    @DisplayName("코드가 없는 옵션 값으로 SKU 코드를 자동 생성하려 하면 VALIDATION_ERROR다")
+    @DisplayName("코드가 없는 옵션 값으로는 SKU 코드를 만들 수 없어 VALIDATION_ERROR다")
     void registerSku_optionWithoutCode() {
         when(productRepository.findById(1L)).thenReturn(Optional.of(productWithId(1L)));
         when(optionSelectionResolver.resolve(any(), any(), any()))
@@ -515,7 +502,7 @@ class ProductSkuServiceTest {
     }
 
     @Test
-    @DisplayName("자동으로 만든 SKU 코드가 50자를 넘으면 VALIDATION_ERROR다")
+    @DisplayName("만들어진 SKU 코드가 50자를 넘으면 VALIDATION_ERROR다")
     void registerSku_generatedCodeTooLong() {
         Product product = Product.register(1L, 1L, "P".repeat(49), "상품", null);
         org.springframework.test.util.ReflectionTestUtils.setField(product, "productId", 1L);
@@ -565,7 +552,7 @@ class ProductSkuServiceTest {
     }
 
     @Test
-    @DisplayName("자동으로 만든 SKU 코드가 이미 있으면 DUPLICATE_SKU_CODE다")
+    @DisplayName("만들어진 SKU 코드가 이미 있으면 DUPLICATE_SKU_CODE다")
     void registerSku_generatedCodeDuplicate() {
         when(productRepository.findById(1L)).thenReturn(Optional.of(productWithId(1L)));
         when(optionSelectionResolver.resolve(any(), any(), any()))

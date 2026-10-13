@@ -67,7 +67,7 @@ class ProductSkuControllerTest {
     @MockitoBean
     private CategoryUseCase categoryUseCase;
 
-    private record SkuRequest(Long productId, String skuCode, String barcode, String skuName, BigDecimal weight,
+    private record SkuRequest(Long productId, String barcode, BigDecimal weight,
                                BigDecimal currentPurchasePrice, BigDecimal currentSupplyPrice, String unit,
                                Long safetyStockQuantity) {
     }
@@ -88,7 +88,7 @@ class ProductSkuControllerTest {
         mockMvc.perform(post("/api/v1/products/skus")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new SkuRequest(
-                                1L, "SKU-0001", "8800000000001", "라켓 A - 빨강", BigDecimal.TEN,
+                                1L, "8800000000001", BigDecimal.TEN,
                                 BigDecimal.valueOf(10000), BigDecimal.valueOf(15000), "EA", 10L))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.skuCode").value("SKU-0001"))
@@ -96,11 +96,24 @@ class ProductSkuControllerTest {
     }
 
     @Test
+    @DisplayName("요청에 skuCode·skuName을 보내도 무시하고 서버가 만든 값으로 등록한다")
+    void registerSku_ignoresCodeAndName() throws Exception {
+        when(productSkuUseCase.registerSku(any(ProductSkuRegisterCommand.class))).thenReturn(mockSku());
+
+        mockMvc.perform(post("/api/v1/products/skus")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productId\":1,\"skuCode\":\"MANUAL\",\"skuName\":\"직접\","
+                                + "\"currentPurchasePrice\":10000,\"currentSupplyPrice\":15000}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.skuCode").value("SKU-0001"));
+    }
+
+    @Test
     @DisplayName("매입 단가나 공급 단가가 없으면 SKU 등록은 400 VALIDATION_ERROR다")
     void registerSku_priceRequired() throws Exception {
         for (SkuRequest request : List.of(
-                new SkuRequest(1L, "SKU-0001", null, "라켓", null, null, BigDecimal.valueOf(15000), null, null),
-                new SkuRequest(1L, "SKU-0001", null, "라켓", null, BigDecimal.valueOf(10000), null, null, null))) {
+                new SkuRequest(1L, null, null, null, BigDecimal.valueOf(15000), null, null),
+                new SkuRequest(1L, null, null, BigDecimal.valueOf(10000), null, null, null))) {
             mockMvc.perform(post("/api/v1/products/skus")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
@@ -117,7 +130,7 @@ class ProductSkuControllerTest {
         mockMvc.perform(post("/api/v1/products/skus")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new SkuRequest(
-                                1L, "SKU-0001", null, "라켓", null, BigDecimal.ZERO, BigDecimal.ZERO, null, null))))
+                                1L, null, null, BigDecimal.ZERO, BigDecimal.ZERO, null, null))))
                 .andExpect(status().isCreated());
     }
 
@@ -184,7 +197,7 @@ class ProductSkuControllerTest {
         mockMvc.perform(post("/api/v1/products/skus")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new SkuRequest(
-                                1L, "SKU-0001", null, "라켓 A - 빨강", null,
+                                1L, null, null,
                                 BigDecimal.valueOf(10000), BigDecimal.valueOf(15000), null, null))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("PRODUCT_INACTIVE"));
