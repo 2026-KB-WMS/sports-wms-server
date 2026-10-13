@@ -22,7 +22,7 @@
 - **카테고리 변경 잠금**: 스펙이나 SKU가 있는 상품의 카테고리는 바꿀 수 없다(409 `PRODUCT_CATEGORY_LOCKED`). 스펙·옵션이 카테고리의 지정에 맞춰 만들어지기 때문이다.
 - **검증 시점**: 지정과 검증은 등록·수정 시점에만 적용한다. 지정을 바꿔도 저장된 상품·SKU는 건드리지 않는다.
 - **카테고리 코드**: 브랜드 코드(ADR-023)와 같이 영문 3자로 통일하고 대문자로 저장한다. 등록에서 필수로 받아 검증하며, 이 규칙 도입 전에 만든 카테고리의 코드는 그대로 둔다(코드는 수정 불가).
-- **기준 데이터 시드**: Flyway `V23__seed_option_master_data.sql`이 스포츠 용품 카테고리 8개(라켓 `RKT`, 셔틀콕 `SHC`, 신발 `SHO`, 의류 `APR`, 가방 `BAG`, 스트링 `STR`, 그립 `GRP`, 보호대 `PRT`), 옵션 그룹 10개와 값(코드 포함), 카테고리별 SPEC·SKU 지정을 넣는다. `INSERT IGNORE`라서 같은 코드·이름·값이 이미 있으면 건너뛰고 기존 데이터는 바꾸지 않는다. 용도 지정은 초기값이며 이후 API로 바꿀 수 있다.
+- **기준 데이터 시드**: Flyway `V23__seed_option_master_data.sql`이 스포츠 용품 카테고리 8개(라켓 `RKT`, 셔틀콕 `SHC`, 신발 `SHO`, 의류 `APR`, 가방 `BAG`, 스트링 `STR`, 그립 `GRP`, 보호대 `PRT`), 옵션 그룹 10개와 값(코드 포함), 카테고리별 SPEC·SKU 지정을 넣는다. `INSERT IGNORE`라서 같은 코드·이름·값이 이미 있으면 건너뛰고 기존 데이터는 바꾸지 않는다. 용도 지정은 초기값이며 이후 API로 바꿀 수 있다. 브랜드 12개는 `V24__seed_brands.sql`로 같은 방식으로 넣는다.
 
 ## 근거
 - 옵션이 어느 단계의 값인지(상품 공통 vs SKU별)를 카테고리가 정해야 서버가 필수 누락과 중복 조합을 막을 수 있다.
@@ -40,7 +40,7 @@
 - 연결 API 제거: 기각. 이미 저장된 옵션 없는 SKU를 보완할 방법이 없어진다.
 
 ## 영향
-- 마이그레이션: `V20__add_option_value_code.sql`(`option_value.option_code`), `V21__create_category_option_group.sql`, `V22__create_product_spec.sql`, 시드 `V23__seed_option_master_data.sql`.
+- 마이그레이션: `V20__add_option_value_code.sql`(`option_value.option_code`), `V21__create_category_option_group.sql`, `V22__create_product_spec.sql`, 시드 `V23__seed_option_master_data.sql`, `V24__seed_brands.sql`.
 - 코드: `CategoryOptionGroup`·`ProductSpec`·`OptionType`, `CategoryOptionResolver`(상속 계산), `OptionSelectionResolver`(선택 검증), `ProductService`·`ProductSkuService`, `CategoryOptionGroupController`, `GET /products/option-groups`.
 - 명세: `api/product.md`. 프론트: 옵션 값 등록에 `optionCode` 입력, 카테고리 옵션 그룹 지정 화면, 상품 등록에 스펙 입력, SKU 등록에서 옵션을 함께 선택하고 코드·이름은 비워 두면 자동 생성.
 - 옵션 코드 필수화는 값 등록 API의 깨지는 변경이다.
