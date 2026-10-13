@@ -4,12 +4,6 @@
 INSERT IGNORE INTO brand (brand_code, name) VALUES ('YNX', '요넥스');
 INSERT IGNORE INTO brand (brand_code, name) VALUES ('VCT', '빅터');
 INSERT IGNORE INTO brand (brand_code, name) VALUES ('LNG', '리닝');
-INSERT IGNORE INTO brand (brand_code, name) VALUES ('MZN', '미즈노');
-INSERT IGNORE INTO brand (brand_code, name) VALUES ('BBL', '바볼랏');
-INSERT IGNORE INTO brand (brand_code, name) VALUES ('WLS', '윌슨');
-INSERT IGNORE INTO brand (brand_code, name) VALUES ('HED', '헤드');
-INSERT IGNORE INTO brand (brand_code, name) VALUES ('NIK', '나이키');
-INSERT IGNORE INTO brand (brand_code, name) VALUES ('ADS', '아디다스');
-INSERT IGNORE INTO brand (brand_code, name) VALUES ('ASC', '아식스');
-INSERT IGNORE INTO brand (brand_code, name) VALUES ('KWS', '가와사키');
-INSERT IGNORE INTO brand (brand_code, name) VALUES ('PMA', '푸마');
+INSERT IGNORE INTO brand (brand_code, name) VALUES ('TCH', '테크니스트');
+INSERT IGNORE INTO brand (brand_code, name) VALUES ('APX', '아펙스');
+INSERT IGNORE INTO brand (brand_code, name) VALUES ('TRI', '트라이온');
