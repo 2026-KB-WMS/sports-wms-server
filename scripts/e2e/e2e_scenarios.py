@@ -96,9 +96,9 @@ def run(api, admin_id, admin_pw):
 
     # ---------------------------------------------------------------- 창고·구역
     w1 = must("창고 W1", api.call("POST", "/warehouses", {
-        "warehouseCode": "W1-" + RUN, "warehouseName": "E2E 창고1", "address": "서울", "totalCapacity": 10000}, token=admin), 201)["warehouseId"]
+        "warehouseName": "E2E 창고1", "address": "서울", "totalCapacity": 10000}, token=admin), 201)["warehouseId"]
     w2 = must("창고 W2", api.call("POST", "/warehouses", {
-        "warehouseCode": "W2-" + RUN, "warehouseName": "E2E 창고2", "address": "부산", "totalCapacity": 1000}, token=admin), 201)["warehouseId"]
+        "warehouseName": "E2E 창고2", "address": "부산", "totalCapacity": 1000}, token=admin), 201)["warehouseId"]
 
     def new_section(wid, code, name, typ, cap):
         return must("구역 " + code, api.call("POST", "/warehouses/sections", {
@@ -111,9 +111,9 @@ def run(api, admin_id, admin_pw):
 
     # ---------------------------------------------------------------- 지점
     s1 = must("지점 S1", api.call("POST", "/stores", {
-        "storeCode": "S1-" + RUN, "storeName": "E2E 지점1", "address": "서울", "contactNumber": "02-000-0000"}, token=admin), 201)["storeId"]
+        "storeName": "E2E 지점1", "address": "서울", "contactNumber": "02-000-0000"}, token=admin), 201)["storeId"]
     s2 = must("지점 S2", api.call("POST", "/stores", {
-        "storeCode": "S2-" + RUN, "storeName": "E2E 지점2", "address": "대구", "contactNumber": "053-000-0000"}, token=admin), 201)["storeId"]
+        "storeName": "E2E 지점2", "address": "대구", "contactNumber": "053-000-0000"}, token=admin), 201)["storeId"]
 
     # 소속 배정 후 승인 (승인 전에 소속이 있어야 ACTIVE 가능)
     must("W1 ← wm1", api.call("POST", "/warehouses/managers", {"warehouseId": w1, "userId": wm1_id, "memberRole": "MANAGER"}, token=admin), 201)

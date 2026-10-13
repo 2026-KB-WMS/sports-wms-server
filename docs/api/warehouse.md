@@ -44,9 +44,10 @@
 
 ### POST /warehouses (P0)
 
-- Body: `warehouseCode`(≤30, unique), `warehouseName`(≤100), `address`(≤500), `contactNumber`(선택, ≤30, 전화번호 형식), `totalCapacity`(**필수**, ≥0, 소수 3자리), `latitude`·`longitude`(선택, 쌍으로만, 위도 -90~90·경도 -180~180)
+- Body: `warehouseName`(≤100), `address`(≤500, **시·도로 시작**, 예: `서울 강남구 테헤란로 1`), `contactNumber`(선택, ≤30, 전화번호 형식), `totalCapacity`(**필수**, ≥0, 소수 3자리), `latitude`·`longitude`(선택, 쌍으로만, 위도 -90~90·경도 -180~180)
+- 창고 코드는 요청에 받지 않고 서버가 `WH-{시·도 2자}-{일련번호 3자리}`(예: `WH-SU-001`)로 발급해 응답으로 준다([ADR-021](../adr/021-location-code-auto-issue.md)).
 - 201. 응답: `warehouseId, warehouseCode, warehouseName, address, latitude, longitude, contactNumber, totalCapacity, isActive, createdAt, updatedAt`
-- 에러: 400(수용량 누락·음수 포함), `DUPLICATE_WAREHOUSE_CODE` 409 (DB unique 위반도 동일 매핑). 등록 시 status ACTIVE.
+- 에러: 400(수용량 누락·음수, 주소에서 시·도를 확인할 수 없음 포함). 등록 시 status ACTIVE.
 
 ### GET /warehouses
 
@@ -63,6 +64,7 @@
 
 - 부분 수정(≥1 필드): `warehouseName`, `address`, `latitude`·`longitude`(쌍으로만, 생략하면 기존 좌표 유지), `contactNumber`(null이면 비움), `totalCapacity`(최상위 활성 구역 수용량 합 이상)
 - `warehouseCode`, `isActive` 포함 시 400(상태는 `deactivate` 사용). 비활성 창고도 수정 가능.
+- `address`는 시·도로 시작해야 한다(아니면 400). **발급된 코드(`WH-SU-001`)를 가진 창고가 다른 시·도로 주소를 바꾸면 새 시·도의 다음 번호로 코드를 다시 발급**하고 응답의 `warehouseCode`에 담긴다. 같은 시·도 안의 수정과 과거에 직접 입력한 코드는 바꾸지 않는다.
 - 에러: 창고 없음 404, 409 `CAPACITY_BELOW_CHILDREN`(`totalCapacity`가 최상위 활성 구역 합보다 작음)
 
 ### PATCH /warehouses/{warehouseId}/deactivate
