@@ -55,6 +55,19 @@ public class OptionGroupService implements OptionGroupUseCase {
     }
 
     @Override
+    public List<ProductOptionGroupSummary> getOptionGroups() {
+        return optionGroupRepository.findAll().stream()
+                .sorted(Comparator.comparing(OptionGroup::getOptionGroupId))
+                .map(group -> new ProductOptionGroupSummary(group.getOptionGroupId(), group.getName(),
+                        optionValueRepository.findByOptionGroupId(group.getOptionGroupId()).stream()
+                                .sorted(Comparator.comparingInt(OptionValue::getSortOrder))
+                                .map(ov -> new OptionValueSummary(ov.getOptionValueId(), ov.getOptionCode(),
+                                        ov.getValue(), ov.getSortOrder(), ov.isActive()))
+                                .toList()))
+                .toList();
+    }
+
+    @Override
     public List<ProductOptionGroupSummary> getOptionGroupsByProduct(Long productId) {
         if (!productRepository.findById(productId).isPresent()) {
             throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);

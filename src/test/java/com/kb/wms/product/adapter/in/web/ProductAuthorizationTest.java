@@ -5,6 +5,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -97,6 +98,9 @@ class ProductAuthorizationTest {
                     .andExpect(status().isForbidden());
             mockMvc.perform(patch("/api/v1/products/categories/1").with(as(role))
                             .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(put("/api/v1/products/categories/1/option-groups").with(as(role))
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"items\":[]}"))
                     .andExpect(status().isForbidden());
         }
     }
