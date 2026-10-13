@@ -23,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
 import com.kb.wms.product.application.port.in.command.ProductSkuUpdateCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
@@ -94,6 +95,39 @@ class ProductSkuServiceTest {
         // 영속화 전 도메인 객체에는 ID가 없으므로, 저장된 SKU처럼 ID를 채운다.
         org.springframework.test.util.ReflectionTestUtils.setField(sku, "skuId", 1L);
         return sku;
+    }
+
+    private ProductSkuRegisterCommand registerCommandWithUnit(String unit) {
+        return new ProductSkuRegisterCommand(1L, "SKU-0001", null, "라켓",
+                null, BigDecimal.valueOf(10000), BigDecimal.valueOf(15000), unit, 0L);
+    }
+
+    @Test
+    @DisplayName("허용 목록(EA, BOX, SET)의 단위는 그대로 저장하고, 생략하면 EA로 저장한다")
+    void registerSku_allowedUnits() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(mockActiveProduct()));
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        for (String unit : new String[] {"EA", "BOX", "SET"}) {
+            assertThat(productSkuService.registerSku(registerCommandWithUnit(unit)).getUnit())
+                    .as(unit).isEqualTo(unit);
+        }
+        assertThat(productSkuService.registerSku(registerCommandWithUnit(null)).getUnit()).isEqualTo("EA");
+    }
+
+    @Test
+    @DisplayName("허용 목록 밖의 단위(소문자·한글·빈 문자열 포함)는 VALIDATION_ERROR이고 저장하지 않는다")
+    void registerSku_unitOutsideAllowList() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(mockActiveProduct()));
+
+        for (String unit : new String[] {"ea", "개", "PACK", "", " EA"}) {
+            assertThatThrownBy(() -> productSkuService.registerSku(registerCommandWithUnit(unit)))
+                    .as("unit=[" + unit + "]")
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                    .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
+        }
+        verify(productSkuRepository, never()).save(any());
     }
 
     @Test
