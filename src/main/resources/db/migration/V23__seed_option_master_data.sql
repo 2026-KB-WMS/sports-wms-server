@@ -3,14 +3,14 @@
 -- 용도(SPEC·SKU)는 카테고리별로 정한 초기값이며, 이후 PUT /products/categories/{id}/option-groups로 바꿀 수 있다.
 
 -- 카테고리
-INSERT IGNORE INTO category (parent_category_id, category_code, name, depth, sort_order) VALUES (NULL, 'RACKET', '라켓', 1, 0);
-INSERT IGNORE INTO category (parent_category_id, category_code, name, depth, sort_order) VALUES (NULL, 'SHUTTLECOCK', '셔틀콕', 1, 1);
-INSERT IGNORE INTO category (parent_category_id, category_code, name, depth, sort_order) VALUES (NULL, 'SHOES', '신발', 1, 2);
-INSERT IGNORE INTO category (parent_category_id, category_code, name, depth, sort_order) VALUES (NULL, 'APPAREL', '의류', 1, 3);
+INSERT IGNORE INTO category (parent_category_id, category_code, name, depth, sort_order) VALUES (NULL, 'RKT', '라켓', 1, 0);
+INSERT IGNORE INTO category (parent_category_id, category_code, name, depth, sort_order) VALUES (NULL, 'SHC', '셔틀콕', 1, 1);
+INSERT IGNORE INTO category (parent_category_id, category_code, name, depth, sort_order) VALUES (NULL, 'SHO', '신발', 1, 2);
+INSERT IGNORE INTO category (parent_category_id, category_code, name, depth, sort_order) VALUES (NULL, 'APR', '의류', 1, 3);
 INSERT IGNORE INTO category (parent_category_id, category_code, name, depth, sort_order) VALUES (NULL, 'BAG', '가방', 1, 4);
-INSERT IGNORE INTO category (parent_category_id, category_code, name, depth, sort_order) VALUES (NULL, 'STRING', '스트링', 1, 5);
-INSERT IGNORE INTO category (parent_category_id, category_code, name, depth, sort_order) VALUES (NULL, 'GRIP', '그립', 1, 6);
-INSERT IGNORE INTO category (parent_category_id, category_code, name, depth, sort_order) VALUES (NULL, 'PROTECTOR', '보호대', 1, 7);
+INSERT IGNORE INTO category (parent_category_id, category_code, name, depth, sort_order) VALUES (NULL, 'STR', '스트링', 1, 5);
+INSERT IGNORE INTO category (parent_category_id, category_code, name, depth, sort_order) VALUES (NULL, 'GRP', '그립', 1, 6);
+INSERT IGNORE INTO category (parent_category_id, category_code, name, depth, sort_order) VALUES (NULL, 'PRT', '보호대', 1, 7);
 
 -- 옵션 그룹
 INSERT IGNORE INTO option_group (name) VALUES ('무게 등급');
@@ -71,20 +71,20 @@ INSERT IGNORE INTO option_value (option_group_id, option_code, value, sort_order
 INSERT IGNORE INTO option_value (option_group_id, option_code, value, sort_order) SELECT option_group_id, 'BOSTON', '보스턴백', 2 FROM option_group WHERE name = '가방 종류';
 
 -- 카테고리별 옵션 그룹 지정
-INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 0 FROM category c, option_group g WHERE c.category_code = 'RACKET' AND g.name = '무게 등급';
-INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 1 FROM category c, option_group g WHERE c.category_code = 'RACKET' AND g.name = '그립 사이즈';
-INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 2 FROM category c, option_group g WHERE c.category_code = 'RACKET' AND g.name = '색상';
-INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SPEC', 3 FROM category c, option_group g WHERE c.category_code = 'RACKET' AND g.name = '밸런스';
-INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SPEC', 4 FROM category c, option_group g WHERE c.category_code = 'RACKET' AND g.name = '샤프트 경도';
-INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SPEC', 0 FROM category c, option_group g WHERE c.category_code = 'SHUTTLECOCK' AND g.name = '셔틀콕 소재';
-INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 1 FROM category c, option_group g WHERE c.category_code = 'SHUTTLECOCK' AND g.name = '셔틀콕 속도';
-INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 0 FROM category c, option_group g WHERE c.category_code = 'SHOES' AND g.name = '신발 사이즈';
-INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 1 FROM category c, option_group g WHERE c.category_code = 'SHOES' AND g.name = '색상';
-INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 0 FROM category c, option_group g WHERE c.category_code = 'APPAREL' AND g.name = '문자 사이즈';
-INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 1 FROM category c, option_group g WHERE c.category_code = 'APPAREL' AND g.name = '색상';
+INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 0 FROM category c, option_group g WHERE c.category_code = 'RKT' AND g.name = '무게 등급';
+INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 1 FROM category c, option_group g WHERE c.category_code = 'RKT' AND g.name = '그립 사이즈';
+INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 2 FROM category c, option_group g WHERE c.category_code = 'RKT' AND g.name = '색상';
+INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SPEC', 3 FROM category c, option_group g WHERE c.category_code = 'RKT' AND g.name = '밸런스';
+INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SPEC', 4 FROM category c, option_group g WHERE c.category_code = 'RKT' AND g.name = '샤프트 경도';
+INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SPEC', 0 FROM category c, option_group g WHERE c.category_code = 'SHC' AND g.name = '셔틀콕 소재';
+INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 1 FROM category c, option_group g WHERE c.category_code = 'SHC' AND g.name = '셔틀콕 속도';
+INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 0 FROM category c, option_group g WHERE c.category_code = 'SHO' AND g.name = '신발 사이즈';
+INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 1 FROM category c, option_group g WHERE c.category_code = 'SHO' AND g.name = '색상';
+INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 0 FROM category c, option_group g WHERE c.category_code = 'APR' AND g.name = '문자 사이즈';
+INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 1 FROM category c, option_group g WHERE c.category_code = 'APR' AND g.name = '색상';
 INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SPEC', 0 FROM category c, option_group g WHERE c.category_code = 'BAG' AND g.name = '가방 종류';
 INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 1 FROM category c, option_group g WHERE c.category_code = 'BAG' AND g.name = '색상';
-INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 0 FROM category c, option_group g WHERE c.category_code = 'STRING' AND g.name = '색상';
-INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 0 FROM category c, option_group g WHERE c.category_code = 'GRIP' AND g.name = '색상';
-INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 0 FROM category c, option_group g WHERE c.category_code = 'PROTECTOR' AND g.name = '문자 사이즈';
-INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 1 FROM category c, option_group g WHERE c.category_code = 'PROTECTOR' AND g.name = '색상';
+INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 0 FROM category c, option_group g WHERE c.category_code = 'STR' AND g.name = '색상';
+INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 0 FROM category c, option_group g WHERE c.category_code = 'GRP' AND g.name = '색상';
+INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 0 FROM category c, option_group g WHERE c.category_code = 'PRT' AND g.name = '문자 사이즈';
+INSERT IGNORE INTO category_option_group (category_id, option_group_id, option_type, sort_order) SELECT c.category_id, g.option_group_id, 'SKU', 1 FROM category c, option_group g WHERE c.category_code = 'PRT' AND g.name = '색상';

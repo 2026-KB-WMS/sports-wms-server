@@ -1,6 +1,8 @@
 package com.kb.wms.product.application.service;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,12 +24,15 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class CategoryService implements CategoryUseCase {
 
+    private static final Pattern CATEGORY_CODE_PATTERN = Pattern.compile("^[A-Za-z]{3}$");
+
     private final CategoryRepository categoryRepository;
 
     @Override
     @Transactional
     public Category registerCategory(CategoryRegisterCommand command) {
-        if (categoryRepository.existsByCategoryCode(command.categoryCode())) {
+        String categoryCode = normalizeCategoryCode(command.categoryCode());
+        if (categoryRepository.existsByCategoryCode(categoryCode)) {
             throw new BusinessException(ProductErrorCode.DUPLICATE_CATEGORY_CODE);
         }
 
@@ -42,8 +47,16 @@ public class CategoryService implements CategoryUseCase {
         }
 
         Category category = Category.register(
-                command.parentCategoryId(), command.categoryCode(), command.name(), depth, command.sortOrder());
+                command.parentCategoryId(), categoryCode, command.name(), depth, command.sortOrder());
         return categoryRepository.save(category);
+    }
+
+    /** 영문 3자만 허용하고 대문자로 맞춘다. 웹 검증을 거치지 않은 호출도 같은 규칙을 지키게 한다. */
+    private static String normalizeCategoryCode(String categoryCode) {
+        if (categoryCode == null || !CATEGORY_CODE_PATTERN.matcher(categoryCode).matches()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "카테고리 코드는 영문 3자여야 합니다.");
+        }
+        return categoryCode.toUpperCase(Locale.ROOT);
     }
 
     @Override

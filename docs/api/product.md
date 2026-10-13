@@ -13,7 +13,7 @@
 - 점주(STORE_OWNER) 제한(#182): 상품·SKU 목록은 `isActive` 필터와 상관없이 활성 항목만, 비활성 상품·SKU 단건은 404(`PRODUCT_NOT_FOUND`/`SKU_NOT_FOUND`)다. SKU 목록·단건 응답에서 `currentPurchasePrice`·`safetyStockQuantity` 필드는 점주에게 생략한다. 값이 없는(미설정) 경우도 필드를 생략하므로, 본사·창고 관리자 응답에서도 `null` 대신 필드가 빠진다. SKU의 점주 제한(활성만)은 명세에 명시돼 있지 않아 상품과 같게 적용했다.
 - SKU 단가 필수·수정(#207, [ADR-017](../adr/017-sku-price-required-and-update.md)): SKU 등록의 매입·공급 단가는 필수이고(0 이상, 0 허용) DB도 `NOT NULL`이다. 등록 후 `PATCH /products/skus/{skuId}`로 이름·바코드·중량·단가·안전재고를 수정하며, 단가가 바뀌면 처리자와 함께 이력(`sku_price_history`)을 남긴다.
 - 카테고리별 옵션 그룹 지정·상품 스펙·SKU 옵션 검증(#241, [ADR-025](../adr/025-category-option-groups-spec-and-sku-options.md)): 카테고리마다 옵션 그룹을 `SPEC`(상품 단위) 또는 `SKU`(SKU 단위)로 지정하고, 상품 등록은 SPEC 값을, SKU 등록은 SKU 옵션 값을 지정된 그룹마다 하나씩 받는다. 같은 상품에 같은 옵션 조합의 SKU는 둘 수 없다(409). 이 규칙은 등록·수정 시점에만 적용하며 이미 저장된 상품·SKU는 바꾸지 않는다.
-- 기준 데이터 시드(#241): 마이그레이션 V23이 카테고리 8개(`RACKET`, `SHUTTLECOCK`, `SHOES`, `APPAREL`, `BAG`, `STRING`, `GRIP`, `PROTECTOR`), 옵션 그룹 10개와 값, 카테고리별 SPEC·SKU 지정을 넣는다. 같은 코드·이름이 이미 있으면 건너뛴다.
+- 기준 데이터 시드(#241): 마이그레이션 V23이 카테고리 8개(`RKT` 라켓, `SHC` 셔틀콕, `SHO` 신발, `APR` 의류, `BAG` 가방, `STR` 스트링, `GRP` 그립, `PRT` 보호대), 옵션 그룹 10개와 값, 카테고리별 SPEC·SKU 지정을 넣는다. 같은 코드·이름이 이미 있으면 건너뛴다.
 - 미결: 카테고리 최대 depth.
 
 ## 엔드포인트 목록 (15 + 코드 전용 5)
@@ -95,9 +95,10 @@
 
 ## GET /products/categories, POST /products/categories
 
-- POST(HQ_ADMIN): `parentCategoryId`(선택), `categoryCode`(≤50, unique), `categoryName`(≤100), `sortOrder`(기본 0). `depth`는 서버가 계산.
+- POST(HQ_ADMIN): `parentCategoryId`(선택), `categoryCode`(**영문 3자**, 서버가 대문자로 저장, unique), `categoryName`(≤100), `sortOrder`(기본 0). `depth`는 서버가 계산.
 - 201. 응답(POST·GET 공통 항목): `categoryId, parentCategoryId, categoryCode, categoryName, depth, sortOrder, isActive, createdAt`
-- 에러: `PARENT_CATEGORY_NOT_FOUND` 404, `DUPLICATE_CATEGORY_CODE` 409, `PARENT_CATEGORY_INACTIVE` 409
+- 에러: 400(코드 누락·영문 3자 위반), `PARENT_CATEGORY_NOT_FOUND` 404, `DUPLICATE_CATEGORY_CODE` 409, `PARENT_CATEGORY_INACTIVE` 409
+- 코드 규칙은 브랜드 코드와 같다([ADR-023](../adr/023-brand-code.md), [ADR-025](../adr/025-category-option-groups-spec-and-sku-options.md)). 영문 3자 규칙 도입 전에 만든 카테고리의 코드는 그대로 남고 수정할 수 없다.
 - 미결: 카테고리 최대 depth 제한.
 - GET: query `parentCategoryId`, `depth`, `keyword`, `isActive`. 정렬은 고정(`sortOrder` 오름차순, 같으면 `categoryId` 오름차순). 에러: 404 `CATEGORY_NOT_FOUND`(존재하지 않는 `parentCategoryId` 필터).
 

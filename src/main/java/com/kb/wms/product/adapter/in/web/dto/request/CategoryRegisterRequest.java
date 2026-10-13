@@ -3,6 +3,7 @@ package com.kb.wms.product.adapter.in.web.dto.request;
 import com.kb.wms.product.application.port.in.command.CategoryRegisterCommand;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
@@ -13,7 +14,7 @@ public record CategoryRegisterRequest(
         Long parentCategoryId,
 
         @NotBlank(message = "카테고리 코드는 필수 값입니다.")
-        @Size(max = 50, message = "카테고리 코드는 최대 50자입니다.")
+        @Pattern(regexp = "^[A-Za-z]{3}$", message = "카테고리 코드는 영문 3자여야 합니다.")
         String categoryCode,
 
         @NotBlank(message = "카테고리명은 필수 값입니다.")
