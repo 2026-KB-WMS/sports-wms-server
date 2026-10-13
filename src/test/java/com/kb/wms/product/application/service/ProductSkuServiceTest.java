@@ -40,12 +40,14 @@ import com.kb.wms.product.application.port.out.SkuOptionValueRepository;
 import com.kb.wms.product.application.port.out.SkuPriceHistoryRepository;
 import com.kb.wms.product.domain.entity.Brand;
 import com.kb.wms.product.domain.entity.Category;
+import com.kb.wms.product.domain.entity.CategoryOptionGroup;
 import com.kb.wms.product.domain.entity.OptionGroup;
 import com.kb.wms.product.domain.entity.OptionValue;
 import com.kb.wms.product.domain.entity.Product;
 import com.kb.wms.product.domain.entity.ProductSku;
 import com.kb.wms.product.domain.entity.SkuOptionValue;
 import com.kb.wms.product.domain.entity.SkuPriceHistory;
+import com.kb.wms.product.domain.enums.OptionType;
 import com.kb.wms.product.exception.ProductErrorCode;
 
 @ExtendWith(MockitoExtension.class)
@@ -69,6 +71,10 @@ class ProductSkuServiceTest {
     private ProductUsagePort productUsagePort;
     @Mock
     private SkuPriceHistoryRepository skuPriceHistoryRepository;
+    @Mock
+    private CategoryOptionResolver categoryOptionResolver;
+    @Mock
+    private OptionSelectionResolver optionSelectionResolver;
 
     @InjectMocks
     private ProductSkuService productSkuService;
@@ -76,7 +82,7 @@ class ProductSkuServiceTest {
     private ProductSkuRegisterCommand registerCommand(Long productId, String skuCode, String barcode) {
         return new ProductSkuRegisterCommand(productId, skuCode, barcode, "라켓 A - 빨강",
                 BigDecimal.valueOf(100), BigDecimal.valueOf(10000), BigDecimal.valueOf(15000),
-                "EA", 10L);
+                "EA", 10L, null);
     }
 
     private Product mockActiveProduct() {
@@ -99,7 +105,7 @@ class ProductSkuServiceTest {
 
     private ProductSkuRegisterCommand registerCommandWithUnit(String unit) {
         return new ProductSkuRegisterCommand(1L, "SKU-0001", null, "라켓",
-                null, BigDecimal.valueOf(10000), BigDecimal.valueOf(15000), unit, 0L);
+                null, BigDecimal.valueOf(10000), BigDecimal.valueOf(15000), unit, 0L, null);
     }
 
     @Test
@@ -135,7 +141,7 @@ class ProductSkuServiceTest {
     void registerSku_priceRequired() {
         when(productRepository.findById(1L)).thenReturn(Optional.of(mockActiveProduct()));
         ProductSkuRegisterCommand withoutPrice = new ProductSkuRegisterCommand(1L, "SKU-0001", null, "라켓",
-                null, null, BigDecimal.valueOf(15000), "EA", 0L);
+                null, null, BigDecimal.valueOf(15000), "EA", 0L, null);
 
         assertThatThrownBy(() -> productSkuService.registerSku(withoutPrice))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -380,90 +386,196 @@ class ProductSkuServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 옵션 값을 연결하면 OPTION_VALUE_NOT_FOUND 예외를 던진다")
-    void connectOptions_optionValueNotFound() {
+    @DisplayName("이미 옵션이 연결된 SKU에 다시 연결하면 SKU_OPTIONS_ALREADY_CONNECTED 예외를 던진다")
+    void connectOptions_alreadyConnected() {
         ProductSku sku = ProductSku.builder().skuId(1L).productId(1L).build();
         when(productSkuRepository.findById(1L)).thenReturn(Optional.of(sku));
-        when(skuOptionValueRepository.findBySkuId(1L)).thenReturn(List.of());
-        when(optionValueRepository.findById(999L)).thenReturn(Optional.empty());
+        when(skuOptionValueRepository.findBySkuId(1L)).thenReturn(List.of(SkuOptionValue.connect(1L, 10L)));
 
-        assertThatThrownBy(() -> productSkuService.connectOptions(new SkuOptionConnectCommand(1L, List.of(999L))))
+        assertThatThrownBy(() -> productSkuService.connectOptions(new SkuOptionConnectCommand(1L, List.of(20L))))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ProductErrorCode.OPTION_VALUE_NOT_FOUND.name());
+                .isEqualTo(ProductErrorCode.SKU_OPTIONS_ALREADY_CONNECTED.name());
+        verify(skuOptionValueRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("비활성 옵션 값을 연결하면 OPTION_VALUE_INACTIVE 예외를 던진다")
-    void connectOptions_optionValueInactive() {
-        ProductSku sku = ProductSku.builder().skuId(1L).productId(1L).build();
-        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(sku));
-        when(skuOptionValueRepository.findBySkuId(1L)).thenReturn(List.of());
-
-        OptionValue inactiveValue = OptionValue.builder().optionValueId(10L).optionGroupId(1L).value("빨강").sortOrder(1).build();
-        inactiveValue.deactivate();
-        when(optionValueRepository.findById(10L)).thenReturn(Optional.of(inactiveValue));
-
-        assertThatThrownBy(() -> productSkuService.connectOptions(new SkuOptionConnectCommand(1L, List.of(10L))))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ProductErrorCode.OPTION_VALUE_INACTIVE.name());
-    }
-
-    @Test
-    @DisplayName("이미 연결된 옵션 값을 다시 연결하면 DUPLICATE_OPTION_VALUE 예외를 던진다")
-    void connectOptions_duplicateOptionValue() {
-        ProductSku sku = ProductSku.builder().skuId(1L).productId(1L).build();
-        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(sku));
-        when(skuOptionValueRepository.findBySkuId(1L)).thenReturn(List.of());
-
-        OptionValue value = OptionValue.builder().optionValueId(10L).optionGroupId(1L).value("빨강").sortOrder(1).build();
-        when(optionValueRepository.findById(10L)).thenReturn(Optional.of(value));
-        when(skuOptionValueRepository.existsBySkuIdAndOptionValueId(1L, 10L)).thenReturn(true);
-
-        assertThatThrownBy(() -> productSkuService.connectOptions(new SkuOptionConnectCommand(1L, List.of(10L))))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ProductErrorCode.DUPLICATE_OPTION_VALUE.name());
-    }
-
-    @Test
-    @DisplayName("같은 옵션 그룹에 속한 값을 두 개 이상 연결하려 하면 OPTION_GROUP_CONFLICT 예외를 던진다")
-    void connectOptions_optionGroupConflict() {
-        ProductSku sku = ProductSku.builder().skuId(1L).productId(1L).build();
-        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(sku));
-        when(skuOptionValueRepository.findBySkuId(1L)).thenReturn(List.of());
-
-        OptionValue red = OptionValue.builder().optionValueId(10L).optionGroupId(1L).value("빨강").sortOrder(1).build();
-        OptionValue blue = OptionValue.builder().optionValueId(11L).optionGroupId(1L).value("파랑").sortOrder(2).build();
-        when(optionValueRepository.findById(10L)).thenReturn(Optional.of(red));
-        when(optionValueRepository.findById(11L)).thenReturn(Optional.of(blue));
-        when(skuOptionValueRepository.existsBySkuIdAndOptionValueId(1L, 10L)).thenReturn(false);
-
-        assertThatThrownBy(() -> productSkuService.connectOptions(new SkuOptionConnectCommand(1L, List.of(10L, 11L))))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCodeName())
-                .isEqualTo(ProductErrorCode.OPTION_GROUP_CONFLICT.name());
-    }
-
-    @Test
-    @DisplayName("서로 다른 옵션 그룹의 값들을 연결하면 모두 성공적으로 저장된다")
+    @DisplayName("옵션이 없는 SKU에는 카테고리 검증을 통과한 옵션 값을 모두 연결한다")
     void connectOptions_success() {
         ProductSku sku = ProductSku.builder().skuId(1L).productId(1L).build();
         when(productSkuRepository.findById(1L)).thenReturn(Optional.of(sku));
         when(skuOptionValueRepository.findBySkuId(1L)).thenReturn(List.of());
-
-        OptionValue red = OptionValue.builder().optionValueId(10L).optionGroupId(1L).value("빨강").sortOrder(1).build();
-        OptionValue g4 = OptionValue.builder().optionValueId(20L).optionGroupId(2L).value("G4").sortOrder(1).build();
-        when(optionValueRepository.findById(10L)).thenReturn(Optional.of(red));
-        when(optionValueRepository.findById(20L)).thenReturn(Optional.of(g4));
-        when(skuOptionValueRepository.existsBySkuIdAndOptionValueId(1L, 10L)).thenReturn(false);
-        when(skuOptionValueRepository.existsBySkuIdAndOptionValueId(1L, 20L)).thenReturn(false);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(productWithId(1L)));
+        List<CategoryOptionGroup> mappings = List.of(CategoryOptionGroup.assign(1L, 1L, OptionType.SKU, 0));
+        when(categoryOptionResolver.effectiveMappings(1L)).thenReturn(mappings);
+        when(optionSelectionResolver.resolve(List.of(10L, 20L), mappings, OptionType.SKU))
+                .thenReturn(List.of(option(10L, 1L, "RED", "빨강"), option(20L, 2L, "G4", "G4")));
 
         productSkuService.connectOptions(new SkuOptionConnectCommand(1L, List.of(10L, 20L)));
 
         verify(skuOptionValueRepository).save(SkuOptionValue.connect(1L, 10L));
         verify(skuOptionValueRepository).save(SkuOptionValue.connect(1L, 20L));
+    }
+
+    @Test
+    @DisplayName("같은 상품의 다른 SKU와 옵션 조합이 같으면 DUPLICATE_SKU_OPTION_COMBINATION 예외를 던진다")
+    void connectOptions_duplicateCombination() {
+        ProductSku sku = ProductSku.builder().skuId(1L).productId(1L).build();
+        ProductSku other = ProductSku.builder().skuId(2L).productId(1L).build();
+        when(productSkuRepository.findById(1L)).thenReturn(Optional.of(sku));
+        when(skuOptionValueRepository.findBySkuId(1L)).thenReturn(List.of());
+        when(productRepository.findById(1L)).thenReturn(Optional.of(productWithId(1L)));
+        when(optionSelectionResolver.resolve(any(), any(), any()))
+                .thenReturn(List.of(option(10L, 1L, "RED", "빨강")));
+        when(productSkuRepository.findAll(1L)).thenReturn(List.of(sku, other));
+        when(skuOptionValueRepository.findBySkuIdIn(List.of(2L)))
+                .thenReturn(List.of(SkuOptionValue.connect(2L, 10L)));
+
+        assertThatThrownBy(() -> productSkuService.connectOptions(new SkuOptionConnectCommand(1L, List.of(10L))))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.DUPLICATE_SKU_OPTION_COMBINATION.name());
+        verify(skuOptionValueRepository, never()).save(any());
+    }
+
+    private Product productWithId(Long productId) {
+        Product product = Product.register(1L, 1L, "P-0001", "상품", null);
+        org.springframework.test.util.ReflectionTestUtils.setField(product, "productId", productId);
+        return product;
+    }
+
+    private OptionValue option(Long optionValueId, Long optionGroupId, String code, String value) {
+        return OptionValue.builder().optionValueId(optionValueId).optionGroupId(optionGroupId)
+                .optionCode(code).value(value).sortOrder(1).build();
+    }
+
+    private ProductSkuRegisterCommand autoRegisterCommand(List<Long> optionValueIds) {
+        return new ProductSkuRegisterCommand(1L, null, null, null, null,
+                BigDecimal.valueOf(10000), BigDecimal.valueOf(15000), "EA", 0L, optionValueIds);
+    }
+
+    @Test
+    @DisplayName("SKU 코드·이름을 생략하면 상품 코드와 옵션 코드, 상품명과 옵션 값으로 만들고 옵션도 함께 저장한다")
+    void registerSku_autoCodeAndName() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(productWithId(1L)));
+        when(optionSelectionResolver.resolve(any(), any(), any()))
+                .thenReturn(List.of(option(10L, 1L, "RED", "빨강"), option(20L, 2L, "G4", "G4")));
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> {
+            ProductSku saved = invocation.getArgument(0);
+            org.springframework.test.util.ReflectionTestUtils.setField(saved, "skuId", 7L);
+            return saved;
+        });
+
+        ProductSku result = productSkuService.registerSku(autoRegisterCommand(List.of(10L, 20L)));
+
+        assertThat(result.getSkuCode()).isEqualTo("P-0001-RED-G4");
+        assertThat(result.getName()).isEqualTo("상품 (빨강/G4)");
+        verify(skuOptionValueRepository).save(SkuOptionValue.connect(7L, 10L));
+        verify(skuOptionValueRepository).save(SkuOptionValue.connect(7L, 20L));
+    }
+
+    @Test
+    @DisplayName("옵션이 없는 카테고리의 SKU는 코드가 상품 코드, 이름이 상품명 그대로다")
+    void registerSku_autoCodeWithoutOptions() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(productWithId(1L)));
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductSku result = productSkuService.registerSku(autoRegisterCommand(null));
+
+        assertThat(result.getSkuCode()).isEqualTo("P-0001");
+        assertThat(result.getName()).isEqualTo("상품");
+    }
+
+    @Test
+    @DisplayName("직접 입력한 SKU 코드·이름은 옵션 코드가 없어도 그대로 쓴다")
+    void registerSku_explicitCodeAndName() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(productWithId(1L)));
+        when(optionSelectionResolver.resolve(any(), any(), any()))
+                .thenReturn(List.of(option(10L, 1L, null, "빨강")));
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductSku result = productSkuService.registerSku(registerCommand(1L, "SKU-MANUAL", null));
+
+        assertThat(result.getSkuCode()).isEqualTo("SKU-MANUAL");
+        assertThat(result.getName()).isEqualTo("라켓 A - 빨강");
+    }
+
+    @Test
+    @DisplayName("코드가 없는 옵션 값으로 SKU 코드를 자동 생성하려 하면 VALIDATION_ERROR다")
+    void registerSku_optionWithoutCode() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(productWithId(1L)));
+        when(optionSelectionResolver.resolve(any(), any(), any()))
+                .thenReturn(List.of(option(10L, 1L, null, "빨강")));
+
+        assertThatThrownBy(() -> productSkuService.registerSku(autoRegisterCommand(List.of(10L))))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
+        verify(productSkuRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("자동으로 만든 SKU 코드가 50자를 넘으면 VALIDATION_ERROR다")
+    void registerSku_generatedCodeTooLong() {
+        Product product = Product.register(1L, 1L, "P".repeat(49), "상품", null);
+        org.springframework.test.util.ReflectionTestUtils.setField(product, "productId", 1L);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(optionSelectionResolver.resolve(any(), any(), any()))
+                .thenReturn(List.of(option(10L, 1L, "RED", "빨강")));
+
+        assertThatThrownBy(() -> productSkuService.registerSku(autoRegisterCommand(List.of(10L))))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
+    }
+
+    @Test
+    @DisplayName("같은 상품에 같은 옵션 조합의 SKU가 있으면 DUPLICATE_SKU_OPTION_COMBINATION이고 저장하지 않는다")
+    void registerSku_duplicateCombination() {
+        ProductSku existing = ProductSku.builder().skuId(5L).productId(1L).build();
+        when(productRepository.findById(1L)).thenReturn(Optional.of(productWithId(1L)));
+        when(optionSelectionResolver.resolve(any(), any(), any()))
+                .thenReturn(List.of(option(10L, 1L, "RED", "빨강"), option(20L, 2L, "G4", "G4")));
+        when(productSkuRepository.findAll(1L)).thenReturn(List.of(existing));
+        when(skuOptionValueRepository.findBySkuIdIn(List.of(5L))).thenReturn(
+                List.of(SkuOptionValue.connect(5L, 20L), SkuOptionValue.connect(5L, 10L)));
+
+        assertThatThrownBy(() -> productSkuService.registerSku(autoRegisterCommand(List.of(10L, 20L))))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.DUPLICATE_SKU_OPTION_COMBINATION.name());
+        verify(productSkuRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("옵션이 일부만 겹치는 SKU는 다른 조합이므로 등록할 수 있다")
+    void registerSku_partiallyOverlappingCombination() {
+        ProductSku existing = ProductSku.builder().skuId(5L).productId(1L).build();
+        when(productRepository.findById(1L)).thenReturn(Optional.of(productWithId(1L)));
+        when(optionSelectionResolver.resolve(any(), any(), any()))
+                .thenReturn(List.of(option(10L, 1L, "RED", "빨강"), option(21L, 2L, "G5", "G5")));
+        when(productSkuRepository.findAll(1L)).thenReturn(List.of(existing));
+        when(skuOptionValueRepository.findBySkuIdIn(List.of(5L))).thenReturn(
+                List.of(SkuOptionValue.connect(5L, 10L), SkuOptionValue.connect(5L, 20L)));
+        when(productSkuRepository.save(any(ProductSku.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductSku result = productSkuService.registerSku(autoRegisterCommand(List.of(10L, 21L)));
+
+        assertThat(result.getSkuCode()).isEqualTo("P-0001-RED-G5");
+    }
+
+    @Test
+    @DisplayName("자동으로 만든 SKU 코드가 이미 있으면 DUPLICATE_SKU_CODE다")
+    void registerSku_generatedCodeDuplicate() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(productWithId(1L)));
+        when(optionSelectionResolver.resolve(any(), any(), any()))
+                .thenReturn(List.of(option(10L, 1L, "RED", "빨강")));
+        when(productSkuRepository.existsBySkuCode("P-0001-RED")).thenReturn(true);
+
+        assertThatThrownBy(() -> productSkuService.registerSku(autoRegisterCommand(List.of(10L))))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ProductErrorCode.DUPLICATE_SKU_CODE.name());
     }
 
     @Test

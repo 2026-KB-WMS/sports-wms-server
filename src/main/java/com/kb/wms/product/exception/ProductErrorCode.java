@@ -36,6 +36,8 @@ public enum ProductErrorCode implements DomainErrorCode {
     DUPLICATE_OPTION_CODE(ErrorCode.CONFLICT, "같은 옵션 그룹에 이미 사용 중인 옵션 코드입니다."),
     OPTION_NOT_ALLOWED_FOR_CATEGORY(ErrorCode.VALIDATION_ERROR, "카테고리에 지정되지 않았거나 용도가 다른 옵션 그룹의 값입니다."),
     REQUIRED_OPTION_MISSING(ErrorCode.VALIDATION_ERROR, "카테고리에 지정된 필수 옵션 그룹의 값이 없습니다."),
+    DUPLICATE_SKU_OPTION_COMBINATION(ErrorCode.CONFLICT, "같은 상품에 같은 옵션 조합의 SKU가 이미 있습니다."),
+    SKU_OPTIONS_ALREADY_CONNECTED(ErrorCode.CONFLICT, "이미 옵션이 연결된 SKU입니다."),
     PRODUCT_CATEGORY_LOCKED(ErrorCode.CONFLICT, "SKU나 스펙이 있는 상품은 카테고리를 바꿀 수 없습니다."),
     SKU_NOT_FOUND(ErrorCode.NOT_FOUND, "SKU를 찾을 수 없습니다."),
     SKU_INACTIVE(ErrorCode.CONFLICT, "비활성 SKU입니다."),

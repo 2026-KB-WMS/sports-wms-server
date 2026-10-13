@@ -4,10 +4,11 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
 import com.kb.wms.product.domain.entity.ProductSku;
 
 /**
- * POST /api/v1/products/skus 응답. 등록 직후에는 옵션이 연결되지 않은 상태이므로 optionValues는 항상 빈 배열이다.
+ * POST /api/v1/products/skus 응답. optionValues는 등록할 때 함께 연결한 옵션 값이다.
  */
 public record ProductSkuCreateResponse(
         Long skuId,
@@ -25,7 +26,7 @@ public record ProductSkuCreateResponse(
         LocalDateTime createdAt
 ) {
 
-    public static ProductSkuCreateResponse from(ProductSku sku) {
+    public static ProductSkuCreateResponse of(ProductSku sku, List<SkuOptionSummary> options) {
         return new ProductSkuCreateResponse(
                 sku.getSkuId(),
                 sku.getProductId(),
@@ -38,7 +39,7 @@ public record ProductSkuCreateResponse(
                 sku.getUnit(),
                 sku.getSafetyStockQuantity(),
                 sku.isActive(),
-                List.of(),
+                SkuOptionValueResponse.listFrom(options),
                 sku.getCreatedAt());
     }
 }
