@@ -20,6 +20,11 @@ public interface BrandRepository {
 
     boolean existsByName(String name);
 
+    boolean existsByBrandCode(String brandCode);
+
+    /** 다른 브랜드(excludeBrandId 제외)가 같은 코드를 쓰는지 */
+    boolean existsByBrandCodeAndBrandIdNot(String brandCode, Long excludeBrandId);
+
     /** 다른 브랜드(excludeBrandId 제외)가 같은 이름을 쓰는지 */
     boolean existsByNameAndBrandIdNot(String name, Long excludeBrandId);
 }

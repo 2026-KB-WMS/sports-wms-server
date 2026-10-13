@@ -13,12 +13,18 @@ public interface BrandJpaRepository extends JpaRepository<BrandJpaEntity, Long> 
 
     boolean existsByName(String name);
 
+    boolean existsByBrandCode(String brandCode);
+
+    boolean existsByBrandCodeAndBrandIdNot(String brandCode, Long brandId);
+
     boolean existsByNameAndBrandIdNot(String name, Long brandId);
 
     @Query("""
             select b from BrandJpaEntity b
             where (:status is null or b.status = :status)
-              and (:keyword is null or lower(b.name) like lower(concat('%', :keyword, '%')))
+              and (:keyword is null
+                   or lower(b.name) like lower(concat('%', :keyword, '%'))
+                   or lower(b.brandCode) like lower(concat('%', :keyword, '%')))
             order by b.name, b.brandId
             """)
     List<BrandJpaEntity> search(@Param("keyword") String keyword, @Param("status") ProductStatus status);

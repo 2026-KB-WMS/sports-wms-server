@@ -17,6 +17,7 @@ public class ProductConstraintErrorCodes implements ConstraintErrorCodeProvider 
     public Map<String, DomainErrorCode> constraintErrorCodes() {
         return Map.of(
                 "uk_brand_name", ProductErrorCode.DUPLICATE_BRAND_NAME,
+                "uk_brand_code", ProductErrorCode.DUPLICATE_BRAND_CODE,
                 "uk_category_code", ProductErrorCode.DUPLICATE_CATEGORY_CODE,
                 "uk_product_code", ProductErrorCode.DUPLICATE_PRODUCT_CODE,
                 "uk_product_sku_code", ProductErrorCode.DUPLICATE_SKU_CODE,

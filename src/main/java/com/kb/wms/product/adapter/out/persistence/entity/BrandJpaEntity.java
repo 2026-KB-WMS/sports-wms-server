@@ -20,7 +20,9 @@ import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "brand",
-        uniqueConstraints = @UniqueConstraint(name = "uk_brand_name", columnNames = "name"))
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_brand_name", columnNames = "name"),
+                @UniqueConstraint(name = "uk_brand_code", columnNames = "brand_code")})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BrandJpaEntity extends BaseTimeEntity {
@@ -29,6 +31,9 @@ public class BrandJpaEntity extends BaseTimeEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "brand_id")
     private Long brandId;
+
+    @Column(name = "brand_code", length = 3)
+    private String brandCode;
 
     @Column(name = "name", nullable = false, length = 100)
     private String name;
@@ -41,8 +46,9 @@ public class BrandJpaEntity extends BaseTimeEntity {
     private ProductStatus status;
 
     @Builder
-    private BrandJpaEntity(Long brandId, String name, String description, ProductStatus status) {
+    private BrandJpaEntity(Long brandId, String brandCode, String name, String description, ProductStatus status) {
         this.brandId = brandId;
+        this.brandCode = brandCode;
         this.name = name;
         this.description = description;
         this.status = status;
@@ -51,6 +57,7 @@ public class BrandJpaEntity extends BaseTimeEntity {
     public static BrandJpaEntity fromDomain(Brand brand) {
         return BrandJpaEntity.builder()
                 .brandId(brand.getBrandId())
+                .brandCode(brand.getBrandCode())
                 .name(brand.getName())
                 .description(brand.getDescription())
                 .status(brand.getStatus())
@@ -60,6 +67,7 @@ public class BrandJpaEntity extends BaseTimeEntity {
     public Brand toDomain() {
         return Brand.builder()
                 .brandId(brandId)
+                .brandCode(brandCode)
                 .name(name)
                 .description(description)
                 .status(status)
