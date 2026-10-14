@@ -17,8 +17,8 @@ import com.kb.wms.outbound.application.port.in.result.StockAllocationSummary;
 public interface StockAllocationUseCase {
 
     /**
-     * 배정된(ASSIGNED) 발주의 잔여 수량을 FEFO 순서로 재고 행에 예약한다. 전체 항목을 한 번에 처리하며(all-or-nothing)
-     * 한 항목이라도 가용 재고가 부족하면 아무것도 할당하지 않는다.
+     * 배정된(ASSIGNED) 발주의 잔여 수량을 FEFO 순서로 재고 행에 예약한다. 가용 재고가 부족한 항목은 가용 수량만큼만
+     * 할당하고 부족분을 결과의 shortages로 돌려준다. 하나도 할당하지 못하면 409 INSUFFICIENT_STOCK으로 거절한다.
      */
     StockAllocateResult allocate(StockAllocateCommand command, AuthenticatedUser actor);
 

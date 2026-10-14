@@ -7,7 +7,7 @@ import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
 
 /**
  * PATCH /api/v1/orders/{orderId}/cancel 응답.
- * 출고 도메인 연동 전에는 releasedAllocationCount·canceledOutboundCount가 항상 0이다.
+ * 승인 전(REQUESTED) 취소는 정리할 할당·출고가 없어 releasedAllocationCount·canceledOutboundCount가 0이다.
  */
 public record StoreOrderCancelResponse(
         Long storeOrderId,

@@ -11,6 +11,6 @@ public record StoreOrderFulfillmentCancelResult(
         int canceledOutboundCount
 ) {
 
-    /** 정리할 할당·출고가 없었다. 출고 도메인 연동 전 임시 구현이 항상 돌려준다. */
+    /** 정리할 할당·출고가 없었다. 승인 전 취소처럼 출고 쪽 정리를 하지 않을 때 쓴다. */
     public static final StoreOrderFulfillmentCancelResult NONE = new StoreOrderFulfillmentCancelResult(0, 0);
 }
