@@ -5,11 +5,13 @@ import java.util.Optional;
 
 import com.kb.wms.inventory.application.port.in.query.InventoryLotSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventorySearchCondition;
+import com.kb.wms.inventory.application.port.in.query.InventorySectionSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventoryTransactionSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.LotSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.LowStockSearchCondition;
 import com.kb.wms.inventory.application.port.in.result.InventoryDetail;
 import com.kb.wms.inventory.application.port.in.result.InventoryLotView;
+import com.kb.wms.inventory.application.port.in.result.InventorySectionSummary;
 import com.kb.wms.inventory.application.port.in.result.InventorySkuSummary;
 import com.kb.wms.inventory.application.port.in.result.InventoryTransactionView;
 import com.kb.wms.inventory.application.port.in.result.LotInboundView;
@@ -27,6 +29,9 @@ public interface InventoryQueryRepository {
 
     /** SKU 코드 오름차순 */
     List<InventorySkuSummary> findSkuSummaries(InventorySearchCondition condition);
+
+    /** 창고 ID, 구역 코드, SKU 코드 오름차순. 보유 0 행은 제외 */
+    List<InventorySectionSummary> findSectionSummaries(InventorySectionSearchCondition condition);
 
     /** 유통기한 오름차순(없으면 뒤로), inventory_lot_id 오름차순 */
     List<InventoryLotView> findLotViews(InventoryLotSearchCondition condition);
@@ -69,6 +74,9 @@ public interface InventoryQueryRepository {
     boolean existsWarehouse(Long warehouseId);
 
     boolean existsSection(Long sectionId);
+
+    /** 카테고리(상품 도메인 category 테이블) 존재 여부. 읽기 전용 확인이다. */
+    boolean existsCategory(Long categoryId);
 
     /** 구역이 속한 창고 ID. 구역이 없으면 비어 있다. */
     Optional<Long> findWarehouseIdOfSection(Long sectionId);

@@ -24,6 +24,7 @@ import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.security.UserRole;
 import com.kb.wms.inventory.application.port.in.query.InventoryLotSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventorySearchCondition;
+import com.kb.wms.inventory.application.port.in.query.InventorySectionSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventoryTransactionSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.LowStockSearchCondition;
 import com.kb.wms.inventory.application.port.in.result.InventoryDetail;
@@ -229,6 +230,37 @@ class InventoryQueryServiceTest {
                 null, null, null, null, null, null, null, null, null, null), manager);
 
         verify(inventoryQueryRepository).findSkuSummaries(new InventorySearchCondition(null, null, null, scope));
+    }
+
+    @Test
+    @DisplayName("구역 × SKU 집계: 창고를 생략하면 담당 창고 목록으로 좁히고, 비담당 창고·구역은 403이다")
+    void getInventoriesBySection_scope() {
+        List<Long> scope = List.of(1L, 2L);
+        when(inventoryQueryRepository.findSectionSummaries(
+                new InventorySectionSearchCondition(null, null, null, null, null, scope))).thenReturn(List.of());
+
+        inventoryQueryService.getInventoriesBySection(
+                InventorySectionSearchCondition.unscoped(null, null, null, null, null), manager);
+
+        verify(inventoryQueryRepository).findSectionSummaries(
+                new InventorySectionSearchCondition(null, null, null, null, null, scope));
+        assertThatThrownBy(() -> inventoryQueryService.getInventoriesBySection(
+                InventorySectionSearchCondition.unscoped(9L, null, null, null, null), manager))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(ErrorCode.FORBIDDEN.name());
+    }
+
+    @Test
+    @DisplayName("구역 × SKU 집계: 없는 카테고리로 필터하면 404 CATEGORY_NOT_FOUND다")
+    void getInventoriesBySection_categoryNotFound() {
+        when(inventoryQueryRepository.existsCategory(99L)).thenReturn(false);
+
+        assertThatThrownBy(() -> inventoryQueryService.getInventoriesBySection(
+                InventorySectionSearchCondition.unscoped(null, null, 99L, null, null), HQ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCodeName())
+                .isEqualTo(InventoryErrorCode.CATEGORY_NOT_FOUND.name());
     }
 
     @Test

@@ -13,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 import com.kb.wms.inventory.adapter.out.persistence.entity.InventoryLotJpaEntity;
 import com.kb.wms.inventory.application.port.in.result.InventoryDetail;
 import com.kb.wms.inventory.application.port.in.result.InventoryLotView;
+import com.kb.wms.inventory.application.port.in.result.InventorySectionSummary;
 import com.kb.wms.inventory.application.port.in.result.InventorySkuSummary;
 import com.kb.wms.inventory.application.port.in.result.LowStockItem;
 import com.kb.wms.inventory.domain.enums.QualityStatus;
@@ -68,6 +69,9 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
     @Query("select count(ws) > 0 from WarehouseSectionJpaEntity ws where ws.sectionId = :sectionId")
     boolean existsSectionId(@Param("sectionId") Long sectionId);
 
+    @Query("select count(c) > 0 from CategoryJpaEntity c where c.categoryId = :categoryId")
+    boolean existsCategoryId(@Param("categoryId") Long categoryId);
+
     @Query("select count(su) > 0 from SupplierJpaEntity su where su.supplierId = :supplierId")
     boolean existsSupplierId(@Param("supplierId") Long supplierId);
 
@@ -114,6 +118,45 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
                                                @Param("scoped") boolean scoped,
                                                @Param("warehouseIds") Collection<Long> warehouseIds,
                                                @Param("keyword") String keyword);
+
+    @Query("""
+            select new com.kb.wms.inventory.application.port.in.result.InventorySectionSummary(
+                w.warehouseId, w.name, ws.sectionId, ws.sectionCode, ws.name,
+                s.skuId, s.skuCode, s.name, s.unit, c.categoryId, c.name,
+                sum(il.onHandQuantity),
+                sum(case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.AVAILABLE
+                          and l.status = com.kb.wms.inventory.domain.enums.LotStatus.AVAILABLE
+                         then il.onHandQuantity - il.allocatedQuantity else 0L end),
+                sum(il.allocatedQuantity),
+                sum(case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.DEFECTIVE
+                         then il.onHandQuantity else 0L end))
+            from InventoryLotJpaEntity il
+            join LotJpaEntity l on l.lotId = il.lotId
+            join ProductSkuJpaEntity s on s.skuId = l.skuId
+            join ProductJpaEntity p on p.productId = s.productId
+            join CategoryJpaEntity c on c.categoryId = p.categoryId
+            join WarehouseSectionJpaEntity ws on ws.sectionId = il.sectionId
+            join WarehouseJpaEntity w on w.warehouseId = ws.warehouseId
+            where il.onHandQuantity > 0
+              and (:warehouseId is null or w.warehouseId = :warehouseId)
+              and (:scoped = false or w.warehouseId in :warehouseIds)
+              and (:sectionId is null or ws.sectionId = :sectionId)
+              and (:categoryId is null or c.categoryId = :categoryId)
+              and (:skuId is null or s.skuId = :skuId)
+              and (:keyword is null
+                   or lower(s.skuCode) like lower(concat('%', :keyword, '%'))
+                   or lower(s.name) like lower(concat('%', :keyword, '%')))
+            group by w.warehouseId, w.name, ws.sectionId, ws.sectionCode, ws.name,
+                     s.skuId, s.skuCode, s.name, s.unit, c.categoryId, c.name
+            order by w.warehouseId, ws.sectionCode, s.skuCode
+            """)
+    List<InventorySectionSummary> findSectionSummaries(@Param("warehouseId") Long warehouseId,
+                                                       @Param("sectionId") Long sectionId,
+                                                       @Param("categoryId") Long categoryId,
+                                                       @Param("skuId") Long skuId,
+                                                       @Param("scoped") boolean scoped,
+                                                       @Param("warehouseIds") Collection<Long> warehouseIds,
+                                                       @Param("keyword") String keyword);
 
     @Query("""
             select new com.kb.wms.inventory.application.port.in.result.InventoryLotView(
