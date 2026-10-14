@@ -18,6 +18,7 @@ import com.kb.wms.store.application.port.in.command.StoreRegisterCommand;
 import com.kb.wms.store.application.port.in.command.StoreUpdateCommand;
 import com.kb.wms.store.application.port.in.query.StoreSearchCondition;
 import com.kb.wms.store.application.port.in.result.StoreMembershipSummary;
+import com.kb.wms.store.application.port.in.result.StoreView;
 import com.kb.wms.store.application.port.out.StoreMemberRepository;
 import com.kb.wms.store.application.port.out.StoreOrderPresencePort;
 import com.kb.wms.store.application.port.out.StoreRepository;
@@ -74,6 +75,12 @@ public class StoreService implements StoreUseCase {
     public Store getStore(Long storeId) {
         return storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
+    }
+
+    @Override
+    public StoreView getStoreView(Long storeId) {
+        Store store = getStore(storeId);
+        return new StoreView(store.getStoreId(), store.isActive());
     }
 
     @Override
