@@ -28,12 +28,12 @@ import com.kb.wms.outbound.application.port.out.OutboundStockPort;
 import com.kb.wms.outbound.application.port.out.OutboundStockPort.StockQuantity;
 import com.kb.wms.outbound.application.port.out.OutboundRepository;
 import com.kb.wms.outbound.application.port.out.StockAllocationRepository;
+import com.kb.wms.outbound.application.port.out.StoreOrderPort;
+import com.kb.wms.outbound.application.port.out.StoreOrderPort.LineQuantity;
 import com.kb.wms.outbound.domain.entity.Outbound;
 import com.kb.wms.outbound.domain.entity.StockAllocation;
 import com.kb.wms.outbound.domain.enums.AllocationStatus;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
-import com.kb.wms.storeorder.application.port.in.StoreOrderFulfillmentUseCase;
-import com.kb.wms.storeorder.application.port.in.command.StoreOrderLineQuantityCommand;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderFulfillmentCancelResult;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderOutboundView;
 import com.kb.wms.storeorder.domain.enums.StoreOrderOutboundStatus;
@@ -46,7 +46,7 @@ class StoreOrderOutboundAdapterTest {
     @Mock OutboundRepository outboundRepository;
     @Mock StockAllocationRepository stockAllocationRepository;
     @Mock OutboundStockPort outboundStockPort;
-    @Mock StoreOrderFulfillmentUseCase storeOrderFulfillmentUseCase;
+    @Mock StoreOrderPort storeOrderPort;
     @Mock StatusHistoryUseCase statusHistoryUseCase;
     @InjectMocks StoreOrderOutboundAdapter adapter;
 
@@ -153,10 +153,10 @@ class StoreOrderOutboundAdapterTest {
         verify(outboundStockPort).release(stock.capture());
         assertThat(stock.getValue()).containsExactly(new StockQuantity(5L, 10), new StockQuantity(7L, 3));
 
-        ArgumentCaptor<List<StoreOrderLineQuantityCommand>> lines = ArgumentCaptor.forClass(List.class);
-        verify(storeOrderFulfillmentUseCase).decreaseAllocated(lines.capture());
+        ArgumentCaptor<List<LineQuantity>> lines = ArgumentCaptor.forClass(List.class);
+        verify(storeOrderPort).decreaseAllocated(lines.capture());
         assertThat(lines.getValue()).containsExactly(
-                new StoreOrderLineQuantityCommand(100L, 10), new StoreOrderLineQuantityCommand(101L, 3));
+                new LineQuantity(100L, 10), new LineQuantity(101L, 3));
 
         verify(statusHistoryUseCase).record(StatusHistoryEntityType.OUTBOUND, 10L, "READY", "CANCELED",
                 "발주 취소로 인한 자동 처리", 9L);
@@ -176,7 +176,7 @@ class StoreOrderOutboundAdapterTest {
         StoreOrderFulfillmentCancelResult result = adapter.cancelFulfillment(1L, 9L);
 
         assertThat(result).isEqualTo(StoreOrderFulfillmentCancelResult.NONE);
-        verifyNoInteractions(outboundStockPort, storeOrderFulfillmentUseCase, statusHistoryUseCase);
+        verifyNoInteractions(outboundStockPort, storeOrderPort, statusHistoryUseCase);
         verify(outboundRepository, never()).save(any());
         verify(stockAllocationRepository, never()).save(any());
     }
@@ -199,10 +199,10 @@ class StoreOrderOutboundAdapterTest {
         ArgumentCaptor<List<StockQuantity>> stock = ArgumentCaptor.forClass(List.class);
         verify(outboundStockPort).release(stock.capture());
         assertThat(stock.getValue()).containsExactly(new StockQuantity(5L, 6), new StockQuantity(7L, 3));
-        ArgumentCaptor<List<StoreOrderLineQuantityCommand>> lines = ArgumentCaptor.forClass(List.class);
-        verify(storeOrderFulfillmentUseCase).decreaseAllocated(lines.capture());
+        ArgumentCaptor<List<LineQuantity>> lines = ArgumentCaptor.forClass(List.class);
+        verify(storeOrderPort).decreaseAllocated(lines.capture());
         assertThat(lines.getValue()).containsExactly(
-                new StoreOrderLineQuantityCommand(100L, 6), new StoreOrderLineQuantityCommand(101L, 3));
+                new LineQuantity(100L, 6), new LineQuantity(101L, 3));
         verify(statusHistoryUseCase).record(StatusHistoryEntityType.STOCK_ALLOCATION, 20L, "ALLOCATED", "RELEASED",
                 "발주 부분 종결로 인한 자동 해제", 9L);
         verify(statusHistoryUseCase).record(StatusHistoryEntityType.STOCK_ALLOCATION, 22L, "ALLOCATED", "RELEASED",
@@ -218,7 +218,7 @@ class StoreOrderOutboundAdapterTest {
 
         assertThat(adapter.releaseUnlinkedAllocations(1L, 9L)).isZero();
 
-        verifyNoInteractions(outboundStockPort, storeOrderFulfillmentUseCase, statusHistoryUseCase);
+        verifyNoInteractions(outboundStockPort, storeOrderPort, statusHistoryUseCase);
         verify(stockAllocationRepository, never()).save(any());
     }
 }

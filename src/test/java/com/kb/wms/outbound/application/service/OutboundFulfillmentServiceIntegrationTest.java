@@ -39,6 +39,7 @@ import com.kb.wms.outbound.application.port.in.result.OutboundLineView;
 import com.kb.wms.outbound.application.port.in.result.OutboundPickingCompleteResult;
 import com.kb.wms.outbound.application.port.in.result.OutboundShipResult;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
+import com.kb.wms.outbound.domain.enums.StoreOrderState;
 import com.kb.wms.product.adapter.out.persistence.entity.ProductSkuJpaEntity;
 import com.kb.wms.product.adapter.out.persistence.repository.ProductSkuJpaRepository;
 import com.kb.wms.product.domain.enums.ProductStatus;
@@ -351,7 +352,7 @@ class OutboundFulfillmentServiceIntegrationTest {
 
         assertThat(result.status()).isEqualTo(OutboundStatus.DELIVERED);
         assertThat(result.deliveredAt()).isNotNull();
-        assertThat(result.storeOrderStatus()).isEqualTo(StoreOrderStatus.COMPLETED);
+        assertThat(result.storeOrderStatus()).isEqualTo(StoreOrderState.COMPLETED);
         assertThat(orderLine(lineA).getStatus()).isEqualTo(StoreOrderLineStatus.COMPLETED);
         assertThat(orderLine(lineB).getStatus()).isEqualTo(StoreOrderLineStatus.COMPLETED);
         assertThat(statusHistoryUseCase.findHistory(StatusHistoryEntityType.STORE_ORDER, order)).isNotEmpty();
@@ -368,7 +369,7 @@ class OutboundFulfillmentServiceIntegrationTest {
 
         OutboundDeliverResult partial = useCase.deliver(first, hq(USER));
 
-        assertThat(partial.storeOrderStatus()).isEqualTo(StoreOrderStatus.ASSIGNED);
+        assertThat(partial.storeOrderStatus()).isEqualTo(StoreOrderState.ASSIGNED);
         assertThat(orderLine(lineA).getStatus()).isEqualTo(StoreOrderLineStatus.PARTIALLY_SHIPPED);
         assertThat(orderLine(lineB).getStatus()).isEqualTo(StoreOrderLineStatus.COMPLETED);
 
@@ -384,7 +385,7 @@ class OutboundFulfillmentServiceIntegrationTest {
 
         OutboundDeliverResult done = useCase.deliver(second, hq(USER));
 
-        assertThat(done.storeOrderStatus()).isEqualTo(StoreOrderStatus.COMPLETED);
+        assertThat(done.storeOrderStatus()).isEqualTo(StoreOrderState.COMPLETED);
         assertThat(orderLine(lineA).getStatus()).isEqualTo(StoreOrderLineStatus.COMPLETED);
     }
 
@@ -409,6 +410,6 @@ class OutboundFulfillmentServiceIntegrationTest {
         OutboundDeliverResult result = useCase.deliver(all, hq(USER));
 
         assertThat(other).isNotEqualTo(all);
-        assertThat(result.storeOrderStatus()).isEqualTo(StoreOrderStatus.ASSIGNED);
+        assertThat(result.storeOrderStatus()).isEqualTo(StoreOrderState.ASSIGNED);
     }
 }

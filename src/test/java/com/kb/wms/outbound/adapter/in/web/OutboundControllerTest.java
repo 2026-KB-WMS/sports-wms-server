@@ -53,8 +53,8 @@ import com.kb.wms.outbound.application.port.in.result.OutboundShipResult;
 import com.kb.wms.outbound.application.port.in.result.OutboundSummary;
 import com.kb.wms.outbound.application.port.in.result.OutboundView;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
+import com.kb.wms.outbound.domain.enums.StoreOrderState;
 import com.kb.wms.outbound.exception.OutboundErrorCode;
-import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
 
 @WebMvcTest(OutboundController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -258,7 +258,7 @@ class OutboundControllerTest {
                 new OutboundShipResult(7L, "OB-20261005-0001", OutboundStatus.SHIPPED, NOW, 9L, "박창고", NOW));
         when(fulfillmentUseCase.deliver(eq(7L), argThat(actor -> actor.userId().equals(9L)))).thenReturn(
                 new OutboundDeliverResult(7L, "OB-20261005-0001", OutboundStatus.DELIVERED, NOW, 3L,
-                        StoreOrderStatus.COMPLETED, NOW));
+                        StoreOrderState.COMPLETED, NOW));
 
         mockMvc.perform(patch("/api/v1/outbounds/7/ship").with(user(9L)))
                 .andExpect(status().isOk())

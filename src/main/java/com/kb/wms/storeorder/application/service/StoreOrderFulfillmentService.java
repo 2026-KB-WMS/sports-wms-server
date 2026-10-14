@@ -16,6 +16,8 @@ import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.storeorder.application.port.in.StoreOrderFulfillmentUseCase;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderLinePickedCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderLineQuantityCommand;
+import com.kb.wms.storeorder.application.port.in.result.StoreOrderFulfillmentLineView;
+import com.kb.wms.storeorder.application.port.in.result.StoreOrderFulfillmentOrderView;
 import com.kb.wms.storeorder.application.port.out.StoreOrderRepository;
 import com.kb.wms.storeorder.domain.entity.StoreOrder;
 import com.kb.wms.storeorder.domain.entity.StoreOrderLine;
@@ -36,27 +38,26 @@ public class StoreOrderFulfillmentService implements StoreOrderFulfillmentUseCas
     private final StatusHistoryUseCase statusHistoryUseCase;
 
     @Override
-    public StoreOrder getOrder(Long storeOrderId) {
-        return storeOrderRepository.findById(storeOrderId)
-                .orElseThrow(() -> new BusinessException(StoreOrderErrorCode.STORE_ORDER_NOT_FOUND));
+    public StoreOrderFulfillmentOrderView getOrder(Long storeOrderId) {
+        return toView(storeOrderRepository.findById(storeOrderId)
+                .orElseThrow(() -> new BusinessException(StoreOrderErrorCode.STORE_ORDER_NOT_FOUND)));
     }
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public StoreOrder getOrderForUpdate(Long storeOrderId) {
-        return storeOrderRepository.findByIdForUpdate(storeOrderId)
-                .orElseThrow(() -> new BusinessException(StoreOrderErrorCode.STORE_ORDER_NOT_FOUND));
+    public StoreOrderFulfillmentOrderView getOrderForUpdate(Long storeOrderId) {
+        return toView(lockOrder(storeOrderId));
     }
 
     @Override
-    public List<StoreOrderLine> getLines(Long storeOrderId) {
-        return storeOrderRepository.findLinesByStoreOrderId(storeOrderId);
+    public List<StoreOrderFulfillmentLineView> getLines(Long storeOrderId) {
+        return storeOrderRepository.findLinesByStoreOrderId(storeOrderId).stream().map(this::toView).toList();
     }
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public List<StoreOrderLine> getLinesForUpdate(Long storeOrderId) {
-        return storeOrderRepository.findLinesByStoreOrderIdForUpdate(storeOrderId);
+    public List<StoreOrderFulfillmentLineView> getLinesForUpdate(Long storeOrderId) {
+        return storeOrderRepository.findLinesByStoreOrderIdForUpdate(storeOrderId).stream().map(this::toView).toList();
     }
 
     @Override
@@ -93,21 +94,36 @@ public class StoreOrderFulfillmentService implements StoreOrderFulfillmentUseCas
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public StoreOrder completeIfFulfilled(Long storeOrderId, Long changedBy) {
-        StoreOrder order = getOrderForUpdate(storeOrderId);
+    public StoreOrderFulfillmentOrderView completeIfFulfilled(Long storeOrderId, Long changedBy) {
+        StoreOrder order = lockOrder(storeOrderId);
         if (order.getStatus() != StoreOrderStatus.ASSIGNED) {
-            return order;
+            return toView(order);
         }
         List<StoreOrderLine> lines = storeOrderRepository.findLinesByStoreOrderId(storeOrderId);
         if (lines.isEmpty() || !lines.stream().allMatch(StoreOrderLine::isFulfilled)) {
-            return order;
+            return toView(order);
         }
         StoreOrderStatus from = order.getStatus();
         order.complete();
         StoreOrder saved = storeOrderRepository.save(order);
         statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, storeOrderId,
                 from.name(), saved.getStatus().name(), null, changedBy);
-        return saved;
+        return toView(saved);
+    }
+
+    private StoreOrder lockOrder(Long storeOrderId) {
+        return storeOrderRepository.findByIdForUpdate(storeOrderId)
+                .orElseThrow(() -> new BusinessException(StoreOrderErrorCode.STORE_ORDER_NOT_FOUND));
+    }
+
+    private StoreOrderFulfillmentOrderView toView(StoreOrder order) {
+        return new StoreOrderFulfillmentOrderView(order.getStoreOrderId(), order.getOrderNo(),
+                order.getWarehouseId(), order.getStatus());
+    }
+
+    private StoreOrderFulfillmentLineView toView(StoreOrderLine line) {
+        return new StoreOrderFulfillmentLineView(line.getStoreOrderLineId(), line.getSkuId(),
+                line.unallocatedQuantity(), line.getRequestedUnitSupplyPrice());
     }
 
     /** 항목을 ID 오름차순으로 잠가 ID → 항목 맵으로 돌려준다. 없는 항목이 있으면 404가 아니라 호출 오류다. */

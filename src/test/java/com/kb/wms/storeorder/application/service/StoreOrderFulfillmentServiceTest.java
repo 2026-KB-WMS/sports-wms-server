@@ -27,6 +27,7 @@ import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderLinePickedCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderLineQuantityCommand;
+import com.kb.wms.storeorder.application.port.in.result.StoreOrderFulfillmentOrderView;
 import com.kb.wms.storeorder.application.port.out.StoreOrderRepository;
 import com.kb.wms.storeorder.domain.entity.StoreOrder;
 import com.kb.wms.storeorder.domain.entity.StoreOrderLine;
@@ -158,9 +159,9 @@ class StoreOrderFulfillmentServiceTest {
                 .thenReturn(List.of(line(1, 10, 0, 10), line(2, 5, 0, 6)));
         when(storeOrderRepository.save(order)).thenReturn(order);
 
-        StoreOrder result = service.completeIfFulfilled(1L, 9L);
+        StoreOrderFulfillmentOrderView result = service.completeIfFulfilled(1L, 9L);
 
-        assertThat(result.getStatus()).isEqualTo(StoreOrderStatus.COMPLETED);
+        assertThat(result.status()).isEqualTo(StoreOrderStatus.COMPLETED);
         verify(statusHistoryUseCase).record(StatusHistoryEntityType.STORE_ORDER, 1L,
                 "ASSIGNED", "COMPLETED", null, 9L);
     }
@@ -173,9 +174,9 @@ class StoreOrderFulfillmentServiceTest {
         when(storeOrderRepository.findLinesByStoreOrderId(1L))
                 .thenReturn(List.of(line(1, 10, 0, 10), line(2, 5, 0, 3)));
 
-        StoreOrder result = service.completeIfFulfilled(1L, 9L);
+        StoreOrderFulfillmentOrderView result = service.completeIfFulfilled(1L, 9L);
 
-        assertThat(result.getStatus()).isEqualTo(StoreOrderStatus.ASSIGNED);
+        assertThat(result.status()).isEqualTo(StoreOrderStatus.ASSIGNED);
         verify(storeOrderRepository, never()).save(any());
         verify(statusHistoryUseCase, never()).record(any(), any(), any(), any(), any(), any());
     }
@@ -186,9 +187,9 @@ class StoreOrderFulfillmentServiceTest {
         StoreOrder order = order(StoreOrderStatus.ON_HOLD);
         when(storeOrderRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(order));
 
-        StoreOrder result = service.completeIfFulfilled(1L, 9L);
+        StoreOrderFulfillmentOrderView result = service.completeIfFulfilled(1L, 9L);
 
-        assertThat(result.getStatus()).isEqualTo(StoreOrderStatus.ON_HOLD);
+        assertThat(result.status()).isEqualTo(StoreOrderStatus.ON_HOLD);
         verify(storeOrderRepository, never()).findLinesByStoreOrderId(eq(1L));
     }
 

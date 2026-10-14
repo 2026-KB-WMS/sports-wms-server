@@ -22,12 +22,12 @@ import com.kb.wms.outbound.application.port.out.OutboundRepository;
 import com.kb.wms.outbound.application.port.out.OutboundStockPort;
 import com.kb.wms.outbound.application.port.out.OutboundStockPort.StockQuantity;
 import com.kb.wms.outbound.application.port.out.StockAllocationRepository;
+import com.kb.wms.outbound.application.port.out.StoreOrderPort;
+import com.kb.wms.outbound.application.port.out.StoreOrderPort.LineQuantity;
 import com.kb.wms.outbound.domain.entity.Outbound;
 import com.kb.wms.outbound.domain.entity.StockAllocation;
 import com.kb.wms.outbound.domain.enums.AllocationStatus;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
-import com.kb.wms.storeorder.application.port.in.StoreOrderFulfillmentUseCase;
-import com.kb.wms.storeorder.application.port.in.command.StoreOrderLineQuantityCommand;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderFulfillmentCancelResult;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderOutboundView;
 import com.kb.wms.storeorder.application.port.out.StoreOrderOutboundPort;
@@ -56,7 +56,7 @@ public class StoreOrderOutboundAdapter implements StoreOrderOutboundPort {
     private final OutboundRepository outboundRepository;
     private final StockAllocationRepository stockAllocationRepository;
     private final OutboundStockPort outboundStockPort;
-    private final StoreOrderFulfillmentUseCase storeOrderFulfillmentUseCase;
+    private final StoreOrderPort storeOrderPort;
     private final StatusHistoryUseCase statusHistoryUseCase;
 
     @Override
@@ -163,8 +163,8 @@ public class StoreOrderOutboundAdapter implements StoreOrderOutboundPort {
         outboundStockPort.release(quantityByLot.entrySet().stream()
                 .map(e -> new StockQuantity(e.getKey(), e.getValue()))
                 .toList());
-        storeOrderFulfillmentUseCase.decreaseAllocated(quantityByLine.entrySet().stream()
-                .map(e -> new StoreOrderLineQuantityCommand(e.getKey(), e.getValue()))
+        storeOrderPort.decreaseAllocated(quantityByLine.entrySet().stream()
+                .map(e -> new LineQuantity(e.getKey(), e.getValue()))
                 .toList());
         return allocations.size();
     }

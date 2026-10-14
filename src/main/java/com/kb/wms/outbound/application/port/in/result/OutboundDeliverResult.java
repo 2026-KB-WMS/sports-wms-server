@@ -3,7 +3,7 @@ package com.kb.wms.outbound.application.port.in.result;
 import java.time.LocalDateTime;
 
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
-import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
+import com.kb.wms.outbound.domain.enums.StoreOrderState;
 
 /**
  * 배송 완료 결과(PATCH /api/v1/outbounds/{outboundId}/deliver).
@@ -16,7 +16,7 @@ public record OutboundDeliverResult(
         OutboundStatus status,
         LocalDateTime deliveredAt,
         Long storeOrderId,
-        StoreOrderStatus storeOrderStatus,
+        StoreOrderState storeOrderStatus,
         LocalDateTime updatedAt
 ) {
 }
