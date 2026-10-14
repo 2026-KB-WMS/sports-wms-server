@@ -159,11 +159,11 @@ class InboundInspectServiceTest {
     }
 
     private static SectionInfo rack(Long id, Long warehouseId, boolean active) {
-        return new SectionInfo(id, warehouseId, "RACK", active);
+        return new SectionInfo(id, warehouseId, InboundSectionPort.SectionKind.OTHER, active);
     }
 
     private static SectionInfo defect(Long id, Long warehouseId, boolean active) {
-        return new SectionInfo(id, warehouseId, "DEFECT", active);
+        return new SectionInfo(id, warehouseId, InboundSectionPort.SectionKind.DEFECT, active);
     }
 
     private static void assertError(ThrowingCallable call, String errorCodeName) {
