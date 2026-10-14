@@ -26,7 +26,7 @@
 | `getLowStock(condition, actor)` | 안전 재고 미만 SKU. 창고 존재 검증 |
 | `getTransactions(condition, actor)` | 이력 목록. 기간 검증(`createdFrom`이 `createdTo`보다 뒤면 400), `referenceId`만 있고 `referenceType`이 없으면 400, SKU·창고·구역·로트 존재 검증 |
 | `getTransactionsOf(inventoryLotId, condition, actor)` | 한 재고 행의 이력. 기간 검증 후 `getInventory`로 권한·존재 확인, 이후 해당 행으로 조회 |
-| `getAllocatableStocks(warehouseId, skuId)` | 출고 할당 후보. **범위 검사 없는 내부 조회**이며 FEFO 순서. `src/main`에서 호출하는 곳이 없다(출고 할당은 재고 행 ID를 직접 받아 `InventoryStockUseCase.allocate`를 쓴다) |
+| `getAllocatableStocks(warehouseId, skuId)` | 출고 할당 후보. **범위 검사 없는 내부 조회**이며 FEFO 순서. `src/main`에서 호출하는 곳이 없다(출고 도메인은 자체 FEFO 쿼리 `OutboundQueryRepository.findFefoCandidates`로 후보를 구한 뒤 `InventoryStockUseCase.allocate`를 쓴다) |
 | `hasStockInSection(sectionId)`, `hasStockInWarehouse(warehouseId)` | 창고 도메인의 비활성화·삭제 가드용 |
 
 ## 오류 처리 순서
