@@ -28,5 +28,6 @@
 
 ## 영향
 - 코드: `StoreOrderPort`, `StoreOrderState`, `StoreOrderFulfillmentAdapter` 추가. 출고 서비스 3개, `StoreOrderOutboundAdapter`, `OutboundDeliverResult`·`OutboundDeliverResponse` 수정. 발주의 `StoreOrderFulfillmentUseCase`·서비스 반환 타입 변경.
+- **사용 여부 확인은 소유 도메인이 판단한다**: 상품·SKU·창고 비활성화 가드의 "진행 중 업무가 있는가"는 입고·출고·지점 발주가 `InboundUsageUseCase`, `OutboundUsageUseCase`, `StoreOrderUsageUseCase`로 판단해 결과만 돌려준다. 진행 중 상태 집합은 각 소유 도메인의 서비스가 갖고, `ProductUsageAdapter`·`WarehouseUsageAdapter`는 상태 enum을 쓰지 않는다(#257). 재고 존재·구역 참조 확인의 JPQL은 ADR-007 그대로 남는다.
 - 남은 의존: `StoreOrderOutboundAdapter`는 발주가 정의한 `port.out`(`StoreOrderOutboundPort`)을 구현하므로 발주 타입 5건이 남는다. 방향 반전(발주가 출고의 `port.in`을 호출)은 도메인 간 순환을 만들 수 있어 이번에는 하지 않았다.
 - 테스트: 어댑터 단위 테스트와 출고 통합 테스트의 타입을 맞췄고 동작 변경은 없다.
