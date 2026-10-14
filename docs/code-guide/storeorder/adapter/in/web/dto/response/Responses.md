@@ -32,4 +32,4 @@
 ## 참고
 
 - `progressStage`는 점주 화면용 **파생 값**이다(`StoreOrderProgressStage.resolve`). DB에 없다.
-- `StoreOrderCancelResponse` 주석에 "출고 도메인 연동 전에는 …항상 0"이라고 적혀 있으나 지금은 연동돼 있다(주석이 오래됨).
+- 승인 전(REQUESTED) 취소는 정리할 할당·출고가 없어 두 건수가 0이다.

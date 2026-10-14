@@ -38,9 +38,9 @@
 3. 같은 재고 행을 여러 항목이 쓸 수 있으므로 행별 남은 수량을 `availableByLot`에 누적해 차감한다.
 4. 재고가 모자란 항목은 **가용 수량만큼만** 채우고 모자란 수량을 `shortages`에 담는다.
 
-### 부분 할당에 대한 주의
+### 부분 할당
 
-`StockAllocationUseCase`의 Javadoc은 "전체 항목을 한 번에 처리하며(all-or-nothing) 한 항목이라도 가용 재고가 부족하면 아무것도 할당하지 않는다"고 적혀 있다. 그러나 구현은 **가용분을 할당하고 부족분을 `shortages`로 돌려주며**, 아무것도 못 채웠을 때만 `INSUFFICIENT_STOCK`으로 거절한다. 응답 DTO(`StockAllocationShortageResponse`: "재고가 모자라 일부만 할당한 SKU")도 부분 할당을 전제로 한다. **Javadoc과 구현이 다르다.** 코드는 수정하지 않았다.
+재고가 모자란 항목은 **가용 수량만큼만 할당**하고 부족분을 `shortages`로 돌려준다. **하나도 할당하지 못할 때만** `INSUFFICIENT_STOCK`으로 거절한다. `StockAllocationUseCase` Javadoc도 이 동작에 맞춰져 있다.
 
 ## release
 

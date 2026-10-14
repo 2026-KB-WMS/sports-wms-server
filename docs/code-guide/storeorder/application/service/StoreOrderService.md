@@ -104,7 +104,3 @@
 | `getMyStoreOrders(condition, actor)` | 점주는 담당 지점, 창고 관리자는 배정 창고(**배정 전 발주 제외**). 지점·창고를 지정하면 담당 범위여야 한다(403). 본사는 이 조회를 쓸 수 없다(403) |
 | `getStoreOrder(id, actor)` | 점주는 담당 지점, 창고 관리자는 배정 창고, 본사는 전체. **배정 전 발주는 창고 관리자에게 403**. `statusReason`은 REJECTED·CANCELED·ON_HOLD일 때만 이력에서 읽는다 |
 | `getStoreOrderDetails(id, actor)` | 항목, 출고 목록, 상태 이력(처리자명 포함)을 한 번에 |
-
-## 관찰
-
-- `StoreOrderCancelResult`, `StoreOrderDetails`, `StoreOrderFulfillmentCancelResult.NONE`의 주석에는 "출고 도메인 연동 전에는 …"이라고 적혀 있다. 지금은 `outbound` 도메인의 `StoreOrderOutboundAdapter`가 연동돼 있어, **주석이 구현보다 오래됐다.** 코드는 수정하지 않았다.

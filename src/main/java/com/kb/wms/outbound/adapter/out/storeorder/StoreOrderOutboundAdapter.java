@@ -36,7 +36,7 @@ import com.kb.wms.storeorder.domain.enums.StoreOrderOutboundStatus;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 지점 발주가 정의한 출고 연동 포트({@link StoreOrderOutboundPort})의 실제 구현. 임시 어댑터를 대체한다.
+ * 지점 발주가 정의한 출고 연동 포트({@link StoreOrderOutboundPort})의 구현.
  * 의존 방향은 발주 → 포트 ← 출고 어댑터이며, 발주와 출고는 서로의 엔티티를 참조하지 않고 ID로만 연결한다(ADR-005).
  */
 @Component
