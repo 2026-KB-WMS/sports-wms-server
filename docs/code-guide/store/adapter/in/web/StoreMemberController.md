@@ -22,4 +22,4 @@
 
 ## 응답 조립
 
-`toResponse(view)`가 `storeUseCase.getStore(storeId).getName()`으로 지점명을 조회해 `StoreMemberResponse.of(view, storeName)`을 만든다. 목록에서는 배정마다 지점을 조회한다.
+`toResponse(view)`가 `storeUseCase.getStoreView(storeId).name()`으로 지점명을 조회해 `StoreMemberResponse.of(view, storeName)`을 만든다. 목록에서는 배정마다 지점을 조회한다.

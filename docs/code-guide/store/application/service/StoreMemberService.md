@@ -6,7 +6,7 @@
 
 ## 의존
 
-`StoreMemberRepository`, `StoreRepository`, `UserUseCase`(auth 도메인)
+`StoreMemberRepository`, `StoreRepository`, `StoreMemberUserPort`(auth 도메인 연결은 `StoreMemberUserAdapter`)
 
 ## 메서드
 

@@ -12,7 +12,7 @@
 
 ## 다른 도메인이 쓰는 방식
 
-`WarehouseMemberService`, `StoreMemberService`가 `UserUseCase.getUser(userId)`로 대상 사용자의 존재·역할·상태를 확인한다. 이 의존 때문에 `UserService`가 배정 서비스를 직접 호출할 수 없고, 둘을 잇는 `UserManagementService`가 따로 있다.
+`WarehouseMemberService`, `StoreMemberService`가 각자의 `port.out`(`WarehouseMemberUserPort`, `StoreMemberUserPort`)과 어댑터를 거쳐 `UserUseCase.getUserView(userId)`로 대상 사용자의 존재·역할·상태를 확인한다. 이 의존 때문에 `UserService`가 배정 서비스를 직접 호출할 수 없고, 둘을 잇는 `UserManagementService`가 따로 있다.
 
 ## UserUseCase.updateUser 와 UserManagementUseCase.updateUser
 
