@@ -34,6 +34,7 @@ import com.kb.wms.outbound.application.port.out.OutboundRepository;
 import com.kb.wms.outbound.application.port.out.StockAllocationRepository;
 import com.kb.wms.outbound.domain.enums.AllocationStatus;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
+import com.kb.wms.outbound.domain.enums.StoreOrderState;
 import com.kb.wms.outbound.support.OutboundTestFixture;
 import com.kb.wms.outbound.support.OutboundTestFixture.Scenario;
 import com.kb.wms.storeorder.adapter.out.persistence.repository.StoreOrderJpaRepository;
@@ -141,7 +142,7 @@ class OutboundFlowIntegrationTest {
         fulfillmentUseCase.ship(outboundId, hq(USER));
         assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(44, 0));
         var delivered = fulfillmentUseCase.deliver(outboundId, hq(USER));
-        assertThat(delivered.storeOrderStatus()).isEqualTo(StoreOrderStatus.ASSIGNED);
+        assertThat(delivered.storeOrderStatus()).isEqualTo(StoreOrderState.ASSIGNED);
         assertThat(transactionsOf(outboundId)).hasSize(1);
         assertThat(orderLine(s).getStatus()).isEqualTo(StoreOrderLineStatus.PARTIALLY_SHIPPED);
         assertThat(orderLine(s).getShippedQuantity()).isEqualTo(6L);
@@ -155,7 +156,7 @@ class OutboundFlowIntegrationTest {
         fulfillmentUseCase.ship(second, hq(USER));
         var done = fulfillmentUseCase.deliver(second, hq(USER));
 
-        assertThat(done.storeOrderStatus()).isEqualTo(StoreOrderStatus.COMPLETED);
+        assertThat(done.storeOrderStatus()).isEqualTo(StoreOrderState.COMPLETED);
         assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(42, 0));
         assertThat(orderLine(s).getStatus()).isEqualTo(StoreOrderLineStatus.COMPLETED);
 

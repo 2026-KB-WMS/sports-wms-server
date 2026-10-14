@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 
 import com.kb.wms.outbound.application.port.in.result.OutboundDeliverResult;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
-import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
+import com.kb.wms.outbound.domain.enums.StoreOrderState;
 
 /** PATCH /api/v1/outbounds/{outboundId}/deliver 응답. */
 public record OutboundDeliverResponse(
@@ -16,7 +16,7 @@ public record OutboundDeliverResponse(
         LocalDateTime updatedAt
 ) {
 
-    public record StoreOrder(Long storeOrderId, StoreOrderStatus status) {
+    public record StoreOrder(Long storeOrderId, StoreOrderState status) {
     }
 
     public static OutboundDeliverResponse from(OutboundDeliverResult r) {

@@ -38,3 +38,4 @@
 | [024](024-sku-unit-allowlist.md) | SKU 수량 단위는 서버 허용 목록(EA, BOX, SET)으로 제한한다 | Accepted | 2026-10-13 |
 | [025](025-category-option-groups-spec-and-sku-options.md) | 카테고리별 옵션 그룹 지정으로 상품 스펙(SPEC)과 SKU 옵션을 구분하고 SKU를 검증·자동 명명한다 | Accepted | 2026-10-13 |
 | [026](026-auto-product-sku-code.md) | 상품 코드와 SKU 코드는 서버가 자동 발급하고, 입력을 받지 않는다 | Accepted | 2026-10-13 |
+| [027](027-cross-domain-own-types-with-adapter-translation.md) | 도메인 경계는 자기 타입을 두고 어댑터에서 변환한다 (출고 → 지점 발주부터 적용) | Accepted | 2026-10-14 |

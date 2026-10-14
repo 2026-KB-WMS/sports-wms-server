@@ -1,0 +1,30 @@
+# ADR-027: 도메인 경계는 자기 타입을 두고 어댑터에서 변환한다 (출고 → 지점 발주부터 적용)
+
+- 상태: Accepted
+- 날짜: 2026-10-14
+
+## 컨텍스트
+도메인 간 호출은 상대 도메인의 `application.port.in`을 거치지만, 그 포트가 엔티티와 enum을 그대로 돌려줬다. 출고 서비스 3개(`StockAllocationService`, `OutboundService`, `OutboundFulfillmentService`)가 지점 발주의 `StoreOrder`, `StoreOrderLine`, `StoreOrderStatus`를 직접 import해 getter를 불렀다(ArchUnit 점검에서 위반 52건). 발주 모델이 바뀌면 출고 코드가 같이 깨지고, 지점 발주를 OMS로 분리할 때는 엔티티를 공유할 수 없다. DDD 관점에서도 출고가 발주의 모델을 그대로 쓰면 발주의 용어와 변경이 출고 안으로 새어 든다.
+
+## 결정
+- **출고는 지점 발주를 자기 타입으로만 다룬다.** `outbound.application.port.out.StoreOrderPort`가 발주 스냅샷(`OrderSnapshot`, `LineSnapshot`)과 수량 변경 타입(`LineQuantity`, `LinePicked`), 출고 자기 enum(`outbound.domain.enums.StoreOrderState`)을 정의한다. 출고 서비스·응답 DTO는 이 타입만 import한다.
+- **변환은 어댑터 한 곳에서 한다.** `outbound.adapter.out.storeorder.StoreOrderFulfillmentAdapter`가 발주의 `port.in`을 호출하고 결과를 출고 타입으로 바꾼다. 출고 안에서 `storeorder` 타입을 아는 곳은 `adapter.out.storeorder` 패키지뿐이다.
+- **발주의 `port.in`은 엔티티를 밖으로 내보내지 않는다.** `StoreOrderFulfillmentUseCase`는 `port.in.result`의 읽기용 결과 객체(`StoreOrderFulfillmentOrderView`, `StoreOrderFulfillmentLineView`)를 돌려준다.
+- **enum 변환은 이름으로 한다.** 발주 쪽에 상태가 추가되면 변환이 예외로 거절되므로(조용히 통과시키지 않는다) 출고 enum과 어댑터를 함께 갱신한다.
+- **JSON 응답은 바꾸지 않는다.** `OutboundDeliverResponse.storeOrder.status`는 enum 이름이 같아 값이 그대로다. API 명세 변경 없음.
+- **적용 범위**: 이번에는 출고 → 지점 발주 경계만 적용한다. 다른 도메인 쌍은 위반이 남아 있으며, 분리 후보이거나 변경이 잦은 경계부터 같은 방식으로 정리한다.
+
+## 근거
+- OMS 분리 시 어댑터 구현만 HTTP 호출 등으로 바꾸면 되고 출고 서비스는 건드리지 않는다. 경계를 모놀리스 안에서 먼저 코드로 드러내 두는 것이다.
+- 발주 모델 변경이 어댑터 한 곳에서 흡수된다. 의미가 바뀌는 경우에만 출고가 영향을 받는다.
+- 매핑 클래스와 타입이 늘어나는 비용이 있지만, 분리가 예정된 경계에서는 감수할 만하다.
+
+## 검토했던 대안
+- 발주의 결과 객체(`port.in.result`)를 출고 서비스가 그대로 사용: 기각. 엔티티 노출은 사라지지만 발주 용어가 출고 로직에 남아 분리 때 다시 바꿔야 한다.
+- 모든 도메인 쌍에 일괄 적용: 보류. 매핑 보일러플레이트가 크고 분리 가능성이 없는 경계는 이점이 작다.
+- ArchUnit 동결 목록으로 위반을 두고 새 위반만 막기: 보류. 이 경계는 위반 자체를 없애는 쪽을 택했다.
+
+## 영향
+- 코드: `StoreOrderPort`, `StoreOrderState`, `StoreOrderFulfillmentAdapter` 추가. 출고 서비스 3개, `StoreOrderOutboundAdapter`, `OutboundDeliverResult`·`OutboundDeliverResponse` 수정. 발주의 `StoreOrderFulfillmentUseCase`·서비스 반환 타입 변경.
+- 남은 의존: `StoreOrderOutboundAdapter`는 발주가 정의한 `port.out`(`StoreOrderOutboundPort`)을 구현하므로 발주 타입 5건이 남는다. 방향 반전(발주가 출고의 `port.in`을 호출)은 도메인 간 순환을 만들 수 있어 이번에는 하지 않았다.
+- 테스트: 어댑터 단위 테스트와 출고 통합 테스트의 타입을 맞췄고 동작 변경은 없다.
