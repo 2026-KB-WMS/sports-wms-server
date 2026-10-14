@@ -17,8 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
+import com.kb.wms.common.security.UserRole;
 
 /**
  * 회원 영속성 어댑터(저장·잠금 조회·중복 확인·목록 검색) 검증.

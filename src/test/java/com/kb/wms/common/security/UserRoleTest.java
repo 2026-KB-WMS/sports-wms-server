@@ -1,4 +1,4 @@
-package com.kb.wms.auth.domain.enums;
+package com.kb.wms.common.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

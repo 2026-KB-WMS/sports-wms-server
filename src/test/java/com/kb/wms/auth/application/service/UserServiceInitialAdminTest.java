@@ -23,10 +23,10 @@ import com.kb.wms.auth.application.port.in.result.InitialHqAdminResult;
 import com.kb.wms.auth.application.port.out.UserQueryRepository;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.security.UserRole;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
 @ExtendWith(MockitoExtension.class)

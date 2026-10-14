@@ -10,8 +10,8 @@ import com.kb.wms.auth.adapter.out.persistence.repository.UserJpaRepository;
 import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.persistence.SearchKeyword;
+import com.kb.wms.common.security.UserRole;
 
 import lombok.RequiredArgsConstructor;
 

@@ -1,7 +1,7 @@
 package com.kb.wms.auth.application.port.in.query;
 
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
+import com.kb.wms.common.security.UserRole;
 
 /**
  * GET /api/v1/users 검색 조건. null인 조건은 무시한다.

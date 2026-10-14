@@ -3,9 +3,9 @@ package com.kb.wms.auth.adapter.out.persistence.entity;
 import java.time.LocalDateTime;
 
 import com.kb.wms.auth.domain.entity.User;
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
 import com.kb.wms.common.persistence.BaseTimeEntity;
+import com.kb.wms.common.security.UserRole;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

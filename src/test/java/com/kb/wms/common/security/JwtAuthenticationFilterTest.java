@@ -14,7 +14,6 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import com.kb.wms.auth.domain.enums.UserRole;
 
 class JwtAuthenticationFilterTest {
 

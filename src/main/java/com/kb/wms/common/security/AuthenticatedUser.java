@@ -2,7 +2,6 @@ package com.kb.wms.common.security;
 
 import java.util.List;
 
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 

@@ -21,11 +21,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.config.SecurityConfig;
 import com.kb.wms.common.security.AuthenticatedUserResolver;
 import com.kb.wms.common.security.JwtProvider;
 import com.kb.wms.common.security.RestSecurityExceptionHandler;
+import com.kb.wms.common.security.UserRole;
 import com.kb.wms.outbound.application.port.in.OutboundFulfillmentUseCase;
 import com.kb.wms.outbound.application.port.in.OutboundUseCase;
 import com.kb.wms.outbound.application.port.in.StockAllocationUseCase;

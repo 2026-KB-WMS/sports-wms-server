@@ -2,8 +2,8 @@ package com.kb.wms.auth.domain.entity;
 
 import java.time.LocalDateTime;
 
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
+import com.kb.wms.common.security.UserRole;
 
 import lombok.AccessLevel;
 import lombok.Builder;

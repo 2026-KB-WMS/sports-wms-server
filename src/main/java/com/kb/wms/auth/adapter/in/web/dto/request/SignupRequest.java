@@ -1,7 +1,7 @@
 package com.kb.wms.auth.adapter.in.web.dto.request;
 
 import com.kb.wms.auth.application.port.in.command.UserSignupCommand;
-import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.UserRole;
 
 import com.kb.wms.common.validation.PhoneNumber;
 import jakarta.validation.constraints.Email;
