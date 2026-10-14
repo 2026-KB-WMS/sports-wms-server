@@ -19,8 +19,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.kb.wms.auth.adapter.out.persistence.repository.UserJpaRepository;
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
+import com.kb.wms.common.security.UserRole;
 
 /**
  * 설정(wms.admin.*)이 있으면 앱이 뜰 때 첫 본사 관리자가 만들어지고, 그 계정으로 로그인해 본사 전용 API를 쓸 수 있는지

@@ -31,7 +31,6 @@ import com.kb.wms.auth.application.port.in.UserUseCase;
 import com.kb.wms.auth.application.port.in.command.UserUpdateCommand;
 import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
 import com.kb.wms.auth.domain.entity.User;
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
 import com.kb.wms.auth.exception.AuthErrorCode;
 import com.kb.wms.common.config.SecurityConfig;
@@ -41,6 +40,7 @@ import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.security.AuthenticatedUserResolver;
 import com.kb.wms.common.security.JwtProvider;
 import com.kb.wms.common.security.RestSecurityExceptionHandler;
+import com.kb.wms.common.security.UserRole;
 
 @WebMvcTest(UserController.class)
 @Import({SecurityConfig.class, RestSecurityExceptionHandler.class})

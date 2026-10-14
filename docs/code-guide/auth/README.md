@@ -25,7 +25,7 @@
 | 패키지 | 문서 |
 |---|---|
 | `domain/entity` | User |
-| `domain/enums` | `Enums.md` (UserRole, UserStatus) |
+| `domain/enums` | `Enums.md` (UserStatus, UserRole은 `common/security`) |
 | `exception` | `Exceptions.md` |
 | `application/service` | AuthService, UserService, UserManagementService, AuthenticatedUserService |
 | `application/port/in` | `UseCases.md`, `command/Commands.md`, `query/SearchConditions.md`, `result/Results.md` |

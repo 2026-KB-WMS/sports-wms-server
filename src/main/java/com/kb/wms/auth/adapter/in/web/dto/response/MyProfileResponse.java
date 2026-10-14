@@ -3,8 +3,8 @@ package com.kb.wms.auth.adapter.in.web.dto.response;
 import java.time.LocalDateTime;
 
 import com.kb.wms.auth.domain.entity.User;
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
+import com.kb.wms.common.security.UserRole;
 
 /**
  * GET /api/v1/auth/me 응답.

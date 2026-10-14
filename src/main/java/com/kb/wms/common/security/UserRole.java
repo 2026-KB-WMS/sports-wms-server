@@ -1,7 +1,7 @@
-package com.kb.wms.auth.domain.enums;
+package com.kb.wms.common.security;
 
 /**
- * 사용자 역할 (User).
+ * 사용자 역할. 인증된 사용자 정보와 보안 필터가 함께 쓰는 공통 개념이라 common이 소유한다.
  * 역할에 따라 호출 가능한 API와 접근 가능한 창고·지점 범위가 달라진다.
  */
 public enum UserRole {

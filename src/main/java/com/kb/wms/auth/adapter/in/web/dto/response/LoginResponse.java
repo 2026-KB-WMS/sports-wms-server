@@ -2,8 +2,8 @@ package com.kb.wms.auth.adapter.in.web.dto.response;
 
 import com.kb.wms.auth.application.port.in.result.LoginResult;
 import com.kb.wms.auth.domain.entity.User;
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
+import com.kb.wms.common.security.UserRole;
 
 /**
  * POST /api/v1/auth/login 응답.

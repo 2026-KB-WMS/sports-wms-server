@@ -21,10 +21,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.AuthenticatedUser;
+import com.kb.wms.common.security.UserRole;
 import com.kb.wms.inventory.application.port.in.command.LotRegisterCommand;
 import com.kb.wms.inventory.application.port.in.command.LotStatusChangeCommand;
 import com.kb.wms.inventory.application.port.in.query.LotSearchCondition;

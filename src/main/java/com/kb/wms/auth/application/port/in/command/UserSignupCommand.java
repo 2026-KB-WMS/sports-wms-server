@@ -1,6 +1,6 @@
 package com.kb.wms.auth.application.port.in.command;
 
-import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.UserRole;
 
 /**
  * POST /api/v1/auth/signup 요청. 창고 관리자·점주의 가입 신청이며 소속은 승인 과정에서 배정한다.

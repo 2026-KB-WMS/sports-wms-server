@@ -18,10 +18,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.security.AuthenticatedUser;
+import com.kb.wms.common.security.UserRole;
 import com.kb.wms.product.application.port.in.command.ProductRegisterCommand;
 import com.kb.wms.product.application.port.in.command.ProductUpdateCommand;
 import com.kb.wms.product.application.port.in.query.ProductSearchCondition;

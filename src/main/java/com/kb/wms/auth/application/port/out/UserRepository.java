@@ -5,7 +5,7 @@ import java.util.Optional;
 
 import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
 import com.kb.wms.auth.domain.entity.User;
-import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.UserRole;
 
 /**
  * 회원 영속성 아웃바운드 포트.

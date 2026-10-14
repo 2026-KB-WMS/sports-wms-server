@@ -21,9 +21,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
-import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.security.AuthenticatedUser;
+import com.kb.wms.common.security.UserRole;
 import com.kb.wms.inventory.adapter.out.persistence.repository.InventoryLotJpaRepository;
 import com.kb.wms.inventory.adapter.out.persistence.repository.LotJpaRepository;
 import com.kb.wms.inventory.application.port.in.InventoryAdjustmentUseCase;

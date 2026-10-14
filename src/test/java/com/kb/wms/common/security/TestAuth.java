@@ -11,7 +11,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.context.TestSecurityContextHolder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-import com.kb.wms.auth.domain.enums.UserRole;
 
 /**
  * 컨트롤러 테스트에서 토큰 없이 인증 주체를 요청에 싣는다. 필터를 끈 {@code @WebMvcTest}에서도

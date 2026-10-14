@@ -21,9 +21,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
-import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.security.AuthenticatedUser;
+import com.kb.wms.common.security.UserRole;
 import com.kb.wms.inventory.adapter.out.persistence.repository.InventoryLotJpaRepository;
 import com.kb.wms.outbound.application.port.in.OutboundUseCase;
 import com.kb.wms.outbound.application.port.in.StockAllocationUseCase;
@@ -34,8 +34,8 @@ import com.kb.wms.outbound.application.port.out.OutboundRepository;
 import com.kb.wms.outbound.application.port.out.StockAllocationRepository;
 import com.kb.wms.outbound.domain.entity.Outbound;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
-import com.kb.wms.outbound.support.OutboundTestFixture;
 import com.kb.wms.outbound.support.OutboundTestFixture.Scenario;
+import com.kb.wms.outbound.support.OutboundTestFixture;
 
 /**
  * 재고 할당·출고 상태 전이의 동시성 검증. 재고 행·발주 행·출고 행의 비관적 락이 초과 할당과 이중 처리를 막는지 본다.

@@ -21,12 +21,12 @@ import com.kb.wms.auth.application.port.in.command.LoginCommand;
 import com.kb.wms.auth.application.port.in.result.LoginResult;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
 import com.kb.wms.auth.exception.AuthErrorCode;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.JwtProvider;
+import com.kb.wms.common.security.UserRole;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {

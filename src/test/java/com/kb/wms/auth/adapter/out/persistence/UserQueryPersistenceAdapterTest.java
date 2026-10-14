@@ -18,7 +18,7 @@ import com.kb.wms.auth.application.port.in.result.UserAffiliation;
 import com.kb.wms.auth.application.port.out.UserQueryRepository;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
-import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.UserRole;
 import com.kb.wms.store.adapter.out.persistence.entity.StoreMemberJpaEntity;
 import com.kb.wms.store.adapter.out.persistence.repository.StoreMemberJpaRepository;
 import com.kb.wms.warehouse.adapter.out.persistence.entity.WarehouseMemberJpaEntity;

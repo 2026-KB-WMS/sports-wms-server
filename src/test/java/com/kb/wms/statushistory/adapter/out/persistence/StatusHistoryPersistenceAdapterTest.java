@@ -17,8 +17,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.kb.wms.auth.adapter.out.persistence.entity.UserJpaEntity;
 import com.kb.wms.auth.adapter.out.persistence.repository.UserJpaRepository;
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
+import com.kb.wms.common.security.UserRole;
 import com.kb.wms.statushistory.adapter.out.persistence.repository.StatusHistoryJpaRepository;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.statushistory.application.port.in.result.StatusHistoryView;

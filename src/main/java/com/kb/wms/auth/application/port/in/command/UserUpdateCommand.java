@@ -1,7 +1,7 @@
 package com.kb.wms.auth.application.port.in.command;
 
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
+import com.kb.wms.common.security.UserRole;
 
 /**
  * PATCH /api/v1/users/{userId} 요청. 모든 필드는 선택이며, 값이 있는 필드만 부분 수정한다.

@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
-import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.UserRole;
 import com.kb.wms.warehouse.application.port.in.result.WarehouseMemberView;
 import com.kb.wms.warehouse.application.port.out.WarehouseMemberRepository;
 import com.kb.wms.warehouse.domain.entity.WarehouseMember;

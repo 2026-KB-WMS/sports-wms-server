@@ -20,7 +20,7 @@ import org.springframework.test.context.TestPropertySource;
 import com.kb.wms.auth.adapter.out.persistence.entity.UserJpaEntity;
 import com.kb.wms.auth.adapter.out.persistence.repository.UserJpaRepository;
 import com.kb.wms.auth.application.port.in.UserUseCase;
-import com.kb.wms.auth.domain.enums.UserRole;
+import com.kb.wms.common.security.UserRole;
 
 /**
  * 서버가 여러 대 동시에 떠서 모두 첫 관리자를 만들려 해도 한 명만 만들어지고, 어느 쪽도 예외로 기동이 깨지지 않는지 본다.

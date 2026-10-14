@@ -28,9 +28,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.kb.wms.common.exception.ErrorCode;
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.security.UserRole;
 import com.kb.wms.store.application.port.in.StoreUseCase;
 import com.kb.wms.store.application.port.in.command.StoreRegisterCommand;
 import com.kb.wms.store.application.port.in.command.StoreUpdateCommand;

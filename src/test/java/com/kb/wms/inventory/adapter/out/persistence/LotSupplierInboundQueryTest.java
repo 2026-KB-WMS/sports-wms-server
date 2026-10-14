@@ -16,9 +16,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.security.AuthenticatedUser;
+import com.kb.wms.common.security.UserRole;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
 import com.kb.wms.inbound.application.port.out.SupplierRepository;
 import com.kb.wms.inbound.domain.entity.Inbound;

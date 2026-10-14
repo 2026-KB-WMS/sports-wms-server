@@ -19,11 +19,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
 import com.kb.wms.auth.exception.AuthErrorCode;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.security.UserRole;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseMemberAssignCommand;
 import com.kb.wms.warehouse.application.port.in.result.WarehouseMemberView;
 import com.kb.wms.warehouse.application.port.out.WarehouseMemberRepository;
