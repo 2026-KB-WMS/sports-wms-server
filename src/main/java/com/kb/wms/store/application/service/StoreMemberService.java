@@ -6,16 +6,13 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.kb.wms.auth.application.port.in.UserUseCase;
-import com.kb.wms.auth.domain.entity.User;
-import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.auth.domain.enums.UserStatus;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.store.application.port.in.StoreMemberUseCase;
 import com.kb.wms.store.application.port.in.command.StoreMemberAssignCommand;
 import com.kb.wms.store.application.port.in.result.StoreMemberView;
 import com.kb.wms.store.application.port.out.StoreMemberRepository;
+import com.kb.wms.store.application.port.out.StoreMemberUserPort;
 import com.kb.wms.store.application.port.out.StoreRepository;
 import com.kb.wms.store.domain.entity.Store;
 import com.kb.wms.store.domain.entity.StoreMember;
@@ -31,7 +28,7 @@ public class StoreMemberService implements StoreMemberUseCase {
 
     private final StoreMemberRepository storeMemberRepository;
     private final StoreRepository storeRepository;
-    private final UserUseCase userUseCase;
+    private final StoreMemberUserPort storeMemberUserPort;
 
     @Override
     @Transactional
@@ -47,11 +44,11 @@ public class StoreMemberService implements StoreMemberUseCase {
         }
 
         // 없는 사용자는 USER_NOT_FOUND(404). 승인 전 사용자의 소속은 승인 요청(PATCH /users)에서 함께 지정한다.
-        User user = userUseCase.getUser(command.userId());
-        if (user.getRole() != UserRole.STORE_OWNER) {
+        StoreMemberUserPort.Candidate user = storeMemberUserPort.getCandidate(command.userId());
+        if (!user.hasAssignableRole()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "지점 관리자로 배정할 수 있는 역할은 STORE_OWNER입니다.");
         }
-        if (user.getStatus() != UserStatus.ACTIVE) {
+        if (!user.active()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "승인 대기 또는 비활성 사용자에게는 지점 관리자를 배정할 수 없습니다. 승인 요청에서 소속을 함께 지정해주세요.");
         }
@@ -62,7 +59,7 @@ public class StoreMemberService implements StoreMemberUseCase {
 
         StoreMember member = StoreMember.assign(
                 command.storeId(), command.userId(), command.memberRole(), LocalDateTime.now());
-        return StoreMemberView.of(storeMemberRepository.save(member), user.getName(), user.getLoginId());
+        return StoreMemberView.of(storeMemberRepository.save(member), user.name(), user.loginId());
     }
 
     @Override

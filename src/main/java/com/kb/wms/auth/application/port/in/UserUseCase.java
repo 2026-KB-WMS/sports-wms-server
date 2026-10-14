@@ -8,6 +8,7 @@ import com.kb.wms.auth.application.port.in.command.UserSignupCommand;
 import com.kb.wms.auth.application.port.in.command.UserUpdateCommand;
 import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
 import com.kb.wms.auth.application.port.in.result.InitialHqAdminResult;
+import com.kb.wms.auth.application.port.in.result.UserView;
 import com.kb.wms.auth.domain.entity.User;
 
 /**
@@ -22,6 +23,9 @@ public interface UserUseCase {
 
     /** 사용자 한 명 조회. 없으면 404 USER_NOT_FOUND. */
     User getUser(Long userId);
+
+    /** 다른 도메인이 사용자 역할·상태를 확인할 때 쓴다. 없으면 USER_NOT_FOUND. 엔티티를 내보내지 않는다. */
+    UserView getUserView(Long userId);
 
     List<User> getUsers(UserSearchCondition condition);
 

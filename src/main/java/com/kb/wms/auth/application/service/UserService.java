@@ -17,6 +17,7 @@ import com.kb.wms.auth.application.port.in.command.UserSignupCommand;
 import com.kb.wms.auth.application.port.in.command.UserUpdateCommand;
 import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
 import com.kb.wms.auth.application.port.in.result.InitialHqAdminResult;
+import com.kb.wms.auth.application.port.in.result.UserView;
 import com.kb.wms.auth.application.port.out.UserQueryRepository;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
@@ -73,6 +74,13 @@ public class UserService implements UserUseCase {
     public User getUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.USER_NOT_FOUND));
+    }
+
+    @Override
+    public UserView getUserView(Long userId) {
+        User user = getUser(userId);
+        return new UserView(user.getUserId(), user.getName(), user.getLoginId(), user.getRole().name(),
+                user.getStatus() == UserStatus.ACTIVE);
     }
 
     @Override
