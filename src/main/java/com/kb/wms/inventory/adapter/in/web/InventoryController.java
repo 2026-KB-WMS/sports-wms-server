@@ -22,6 +22,7 @@ import com.kb.wms.inventory.adapter.in.web.dto.request.InventoryAdjustRequest;
 import com.kb.wms.inventory.adapter.in.web.dto.response.InventoryAdjustmentResponse;
 import com.kb.wms.inventory.adapter.in.web.dto.response.InventoryDetailResponse;
 import com.kb.wms.inventory.adapter.in.web.dto.response.InventoryLotViewResponse;
+import com.kb.wms.inventory.adapter.in.web.dto.response.InventorySectionSummaryResponse;
 import com.kb.wms.inventory.adapter.in.web.dto.response.InventorySkuSummaryResponse;
 import com.kb.wms.inventory.adapter.in.web.dto.response.InventoryTransactionHistoryResponse;
 import com.kb.wms.inventory.adapter.in.web.dto.response.InventoryTransactionResponse;
@@ -30,6 +31,7 @@ import com.kb.wms.inventory.application.port.in.InventoryAdjustmentUseCase;
 import com.kb.wms.inventory.application.port.in.InventoryQueryUseCase;
 import com.kb.wms.inventory.application.port.in.query.InventoryLotSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventorySearchCondition;
+import com.kb.wms.inventory.application.port.in.query.InventorySectionSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventoryTransactionSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.LowStockSearchCondition;
 import com.kb.wms.inventory.application.port.in.result.InventoryDetail;
@@ -42,7 +44,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 재고 조회/조정. GET /api/v1/inventory(/by-lot|/{inventoryId}|/low-stock|/transactions|/{inventoryId}/transactions),
+ * 재고 조회/조정. GET /api/v1/inventory(/by-section|/by-lot|/{inventoryId}|/low-stock|/transactions|/{inventoryId}/transactions),
  * POST /api/v1/inventory/adjustments
  * 페이지네이션은 프로젝트 전체에 아직 도입하지 않아(#20 1단계) page/size/sort는 받지 않고 전체 목록을 반환한다.
  * 조정 처리자는 토큰 주체다. 담당 창고 범위 검사는 서비스가 한다.
@@ -64,6 +66,23 @@ public class InventoryController {
         List<InventorySkuSummaryResponse> items = inventoryQueryUseCase
                 .getInventories(InventorySearchCondition.unscoped(skuId, warehouseId, keyword), principal).stream()
                 .map(InventorySkuSummaryResponse::from)
+                .toList();
+        return ApiResponse.ok(ItemsResponse.of(items));
+    }
+
+    @GetMapping("/api/v1/inventory/by-section")
+    public ApiResponse<ItemsResponse<InventorySectionSummaryResponse>> getInventoriesBySection(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @RequestParam(required = false) Long warehouseId,
+            @RequestParam(required = false) Long sectionId,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Long skuId,
+            @RequestParam(required = false) String keyword) {
+        List<InventorySectionSummaryResponse> items = inventoryQueryUseCase
+                .getInventoriesBySection(InventorySectionSearchCondition.unscoped(
+                        warehouseId, sectionId, categoryId, skuId, keyword), principal)
+                .stream()
+                .map(InventorySectionSummaryResponse::from)
                 .toList();
         return ApiResponse.ok(ItemsResponse.of(items));
     }

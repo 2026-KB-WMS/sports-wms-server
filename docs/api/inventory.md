@@ -12,12 +12,13 @@
 - 인가(#170): 재고 조정 처리자는 토큰 주체이며 `userId` 쿼리 파라미터는 받지 않는다. 담당 창고 검사는 서비스에서 한다: 목록은 `warehouseId`를 생략하면 담당 창고로 좁히고(본사는 전체), 지정한 `warehouseId`·`sectionId`(구역의 창고)가 담당이 아니면 403이다. 재고 상세·재고별 이력·조정은 재고 행의 창고가 담당이 아니면 403이다. 로트 목록은 담당 창고에 재고가 있거나 입고 완료 이력이 있는 로트만 보이며, 입고 중(검수 중)인 로트는 완료 전까지 창고 관리자 목록에 나타나지 않는다. 로트 상세는 응답을 담당 창고 항목으로 좁히고, 보이는 항목이 없으면 403이다.
 - 수량은 BIGINT(정수). Lot은 별도 생성 API 없이 입고 검수 트랜잭션에서 find-or-create(UNIQUE(sku_id, supplier_id, lot_number), ADR-004 — Notion 원문 기준).
 
-## 엔드포인트 목록 (7 + 3)
+## 엔드포인트 목록 (8 + 3)
 
 | Method | Path | 권한 | 설명 |
 |---|---|---|---|
 | GET | /inventory | WAREHOUSE_MANAGER, HQ_ADMIN | SKU 집계 재고 목록 |
 | POST | /inventory/adjustments | WAREHOUSE_MANAGER | 재고 수량 조정 |
+| GET | /inventory/by-section | WAREHOUSE_MANAGER, HQ_ADMIN | 구역 × SKU 단위 재고 목록 |
 | GET | /inventory/by-lot | WAREHOUSE_MANAGER, HQ_ADMIN | 로트 단위 재고 목록 |
 | GET | /inventory/low-stock | WAREHOUSE_MANAGER, HQ_ADMIN | 안전 재고 미만 SKU |
 | GET | /inventory/transactions | WAREHOUSE_MANAGER, HQ_ADMIN | 전체 재고 증감 이력 |
@@ -56,6 +57,16 @@
   - 수량 변경 + 구역 `current_capacity` 증감 + `InventoryTransaction` 기록은 단일 트랜잭션. 이력의 `transaction_type`=`reference_type`=`ADJUSTMENT`, `reference_id`=null.
   - 동시성: 재고 행을 비관적 락으로 잠근 뒤 `beforeQuantity` 비교. 잠금 순서 구역(section_id 오름차순) → 재고 행(inventory_lot_id 오름차순) — 입고·출고 차감(`ship`)과 동일(ADR-006). 출고 할당·해제(`allocate`/`release`)는 재고 행만 잠근다(전역 락 순서는 [domain/outbound.md](../domain/outbound.md) "결정·미결" 2번, 성능 개선 때 확정).
   - 본사 승인 없이 창고 관리자가 즉시 반영. 성공 시 `last_counted_at`을 조정 시각으로 갱신(같은 트랜잭션).
+
+## GET /inventory/by-section — 구역 × SKU 단위 재고
+
+- Query: `warehouseId`, `sectionId`, `categoryId`, `skuId`, `keyword`(SKU 코드·명). `page`·`size`·`sort`는 받지 않는다(페이지네이션 보류).
+- 정렬은 고정(`warehouseId` 오름차순 → `sectionCode` 오름차순 → `skuCode` 오름차순).
+- 응답 항목: `warehouseId, warehouseName, sectionId, sectionCode, sectionName, skuId, skuCode, skuName, unit, categoryId, categoryName, totalQuantity, availableQuantity, allocatedQuantity, defectiveQuantity`
+- 집계: 구역과 SKU 조합마다 한 행. 수량 기준은 `GET /inventory`와 같다(`totalQuantity`=보유 합, `allocatedQuantity`=할당 합, `defectiveQuantity`=DEFECTIVE 보유 합, `availableQuantity`=AVAILABLE 재고의 (보유−할당) 합). 보유 0 행은 제외한다.
+- `categoryId`는 SKU 상품의 카테고리와 정확히 일치하는 행만 걸러낸다(하위 카테고리 미포함).
+- 창고 관리자는 `warehouseId`를 생략하면 담당 창고 전체가 구역별로 나온다. 행을 눌러 로트별로 볼 때는 `GET /inventory/by-lot?warehouseId&sectionId&skuId`를 쓴다.
+- 에러: 404(존재하지 않는 `warehouseId`/`sectionId`/`categoryId`/`skuId` 필터), 403(비담당 창고·구역)
 
 ## GET /inventory/by-lot — 로트 단위 재고
 

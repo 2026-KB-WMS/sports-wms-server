@@ -11,11 +11,13 @@ import com.kb.wms.inventory.adapter.out.persistence.repository.InventoryTransact
 import com.kb.wms.inventory.adapter.out.persistence.repository.LotJpaRepository;
 import com.kb.wms.inventory.application.port.in.query.InventoryLotSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventorySearchCondition;
+import com.kb.wms.inventory.application.port.in.query.InventorySectionSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventoryTransactionSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.LotSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.LowStockSearchCondition;
 import com.kb.wms.inventory.application.port.in.result.InventoryDetail;
 import com.kb.wms.inventory.application.port.in.result.InventoryLotView;
+import com.kb.wms.inventory.application.port.in.result.InventorySectionSummary;
 import com.kb.wms.inventory.application.port.in.result.InventorySkuSummary;
 import com.kb.wms.inventory.application.port.in.result.InventoryTransactionView;
 import com.kb.wms.inventory.application.port.in.result.LotInboundView;
@@ -38,6 +40,13 @@ public class InventoryQueryPersistenceAdapter implements InventoryQueryRepositor
         return inventoryLotJpaRepository.findSkuSummaries(
                 condition.skuId(), condition.warehouseId(), scoped(condition.warehouseIds()),
                 scopeIds(condition.warehouseIds()), keyword(condition.keyword()));
+    }
+
+    @Override
+    public List<InventorySectionSummary> findSectionSummaries(InventorySectionSearchCondition condition) {
+        return inventoryLotJpaRepository.findSectionSummaries(
+                condition.warehouseId(), condition.sectionId(), condition.categoryId(), condition.skuId(),
+                scoped(condition.warehouseIds()), scopeIds(condition.warehouseIds()), keyword(condition.keyword()));
     }
 
     @Override
@@ -125,6 +134,11 @@ public class InventoryQueryPersistenceAdapter implements InventoryQueryRepositor
     @Override
     public boolean existsSection(Long sectionId) {
         return inventoryLotJpaRepository.existsSectionId(sectionId);
+    }
+
+    @Override
+    public boolean existsCategory(Long categoryId) {
+        return inventoryLotJpaRepository.existsCategoryId(categoryId);
     }
 
     @Override

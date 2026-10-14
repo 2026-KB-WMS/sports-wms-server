@@ -11,10 +11,12 @@ import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inventory.application.port.in.InventoryQueryUseCase;
 import com.kb.wms.inventory.application.port.in.query.InventoryLotSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventorySearchCondition;
+import com.kb.wms.inventory.application.port.in.query.InventorySectionSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventoryTransactionSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.LowStockSearchCondition;
 import com.kb.wms.inventory.application.port.in.result.InventoryDetail;
 import com.kb.wms.inventory.application.port.in.result.InventoryLotView;
+import com.kb.wms.inventory.application.port.in.result.InventorySectionSummary;
 import com.kb.wms.inventory.application.port.in.result.InventorySkuSummary;
 import com.kb.wms.inventory.application.port.in.result.InventoryTransactionView;
 import com.kb.wms.inventory.application.port.in.result.LowStockItem;
@@ -44,6 +46,19 @@ public class InventoryQueryService implements InventoryQueryUseCase {
         validateWarehouseId(condition.warehouseId());
         return inventoryQueryRepository.findSkuSummaries(new InventorySearchCondition(
                 condition.skuId(), condition.warehouseId(), condition.keyword(), scope));
+    }
+
+    @Override
+    public List<InventorySectionSummary> getInventoriesBySection(InventorySectionSearchCondition condition,
+                                                                AuthenticatedUser actor) {
+        List<Long> scope = scopeOf(actor, condition.warehouseId(), condition.sectionId());
+        validateSkuId(condition.skuId());
+        validateWarehouseId(condition.warehouseId());
+        validateSectionId(condition.sectionId());
+        validateCategoryId(condition.categoryId());
+        return inventoryQueryRepository.findSectionSummaries(new InventorySectionSearchCondition(
+                condition.warehouseId(), condition.sectionId(), condition.categoryId(), condition.skuId(),
+                condition.keyword(), scope));
     }
 
     @Override
@@ -150,6 +165,12 @@ public class InventoryQueryService implements InventoryQueryUseCase {
     private void validateSectionId(Long sectionId) {
         if (sectionId != null && !inventoryQueryRepository.existsSection(sectionId)) {
             throw new BusinessException(InventoryErrorCode.SECTION_NOT_FOUND);
+        }
+    }
+
+    private void validateCategoryId(Long categoryId) {
+        if (categoryId != null && !inventoryQueryRepository.existsCategory(categoryId)) {
+            throw new BusinessException(InventoryErrorCode.CATEGORY_NOT_FOUND);
         }
     }
 

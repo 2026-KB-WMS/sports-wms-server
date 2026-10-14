@@ -33,11 +33,13 @@ import com.kb.wms.inventory.application.port.in.InventoryQueryUseCase;
 import com.kb.wms.inventory.application.port.in.command.InventoryAdjustCommand;
 import com.kb.wms.inventory.application.port.in.query.InventoryLotSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventorySearchCondition;
+import com.kb.wms.inventory.application.port.in.query.InventorySectionSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventoryTransactionSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.LowStockSearchCondition;
 import com.kb.wms.inventory.application.port.in.result.InventoryAdjustmentResult;
 import com.kb.wms.inventory.application.port.in.result.InventoryDetail;
 import com.kb.wms.inventory.application.port.in.result.InventoryLotView;
+import com.kb.wms.inventory.application.port.in.result.InventorySectionSummary;
 import com.kb.wms.inventory.application.port.in.result.InventorySkuSummary;
 import com.kb.wms.inventory.application.port.in.result.InventoryTransactionView;
 import com.kb.wms.inventory.application.port.in.result.LowStockItem;
@@ -110,6 +112,22 @@ class InventoryControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].inventoryLotId").value(1))
                 .andExpect(jsonPath("$.data.items[0].sectionCode").value("A-01"))
+                .andExpect(jsonPath("$.data.items[0].availableQuantity").value(80));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/inventory/by-section: 구역 × SKU 집계 목록을 반환한다")
+    void getInventoriesBySection_success() throws Exception {
+        InventorySectionSummary summary = new InventorySectionSummary(4L, "서울센터", 5L, "A-01", "1구역",
+                3L, "SKU-001", "상품A", "EA", 7L, "라켓", 100L, 80L, 20L, 0L);
+        when(inventoryQueryUseCase.getInventoriesBySection(any(InventorySectionSearchCondition.class), any()))
+                .thenReturn(List.of(summary));
+
+        mockMvc.perform(get("/api/v1/inventory/by-section").param("categoryId", "7"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].warehouseName").value("서울센터"))
+                .andExpect(jsonPath("$.data.items[0].sectionCode").value("A-01"))
+                .andExpect(jsonPath("$.data.items[0].categoryName").value("라켓"))
                 .andExpect(jsonPath("$.data.items[0].availableQuantity").value(80));
     }
 

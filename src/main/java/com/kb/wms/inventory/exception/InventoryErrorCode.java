@@ -19,6 +19,7 @@ public enum InventoryErrorCode implements DomainErrorCode {
     SKU_NOT_FOUND(ErrorCode.NOT_FOUND, "SKU를 찾을 수 없습니다."),
     WAREHOUSE_NOT_FOUND(ErrorCode.NOT_FOUND, "창고를 찾을 수 없습니다."),
     SECTION_NOT_FOUND(ErrorCode.NOT_FOUND, "구역을 찾을 수 없습니다."),
+    CATEGORY_NOT_FOUND(ErrorCode.NOT_FOUND, "카테고리를 찾을 수 없습니다."),
     SUPPLIER_NOT_FOUND(ErrorCode.NOT_FOUND, "공급처를 찾을 수 없습니다."),
     STALE_QUANTITY(ErrorCode.CONFLICT, "조회 이후 재고 수량이 변경되었습니다. 현재 수량을 다시 확인해주세요."),
     BELOW_ALLOCATED_QUANTITY(ErrorCode.CONFLICT, "보유 수량은 할당 수량보다 작게 조정할 수 없습니다."),
