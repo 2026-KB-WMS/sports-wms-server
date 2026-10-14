@@ -28,4 +28,4 @@
 
 - 모든 메서드가 `AuthenticatedUser actor`를 받아 **발주에 배정된 창고** 기준으로 담당 창고를 검사한다.
 - 상태를 바꾸는 흐름은 응답을 위해 처리 후 **뷰를 다시 조회**한다(`updatedAt` 확정 등).
-- 호출자는 컨트롤러뿐이다. 발주 도메인이 출고 쪽을 부를 때는 이 UseCase가 아니라 발주의 `StoreOrderOutboundPort`를 통해 출고의 `StoreOrderOutboundAdapter`가 처리한다.
+- 호출자는 컨트롤러뿐이다. 발주 도메인이 출고 쪽을 부를 때는 이 UseCase가 아니라 `OutboundOrderLinkUseCase`를 발주의 `StoreOrderOutboundAdapter`가 호출한다.

@@ -27,9 +27,9 @@
 auth ──(UserUseCase)──▶ warehouse, store  (소속 배정)
 inbound ──(포트·어댑터)──▶ inventory (입고 반영, 로트), warehouse (구역), product (매입 단가)
 storeorder ◀──(StoreOrderFulfillmentUseCase)── outbound ──▶ inventory (할당·차감)
-storeorder ──(StoreOrderOutboundPort)──▶ outbound 어댑터
+storeorder ──(StoreOrderOutboundPort, OutboundOrderLinkUseCase)──▶ outbound
 store ──(StoreOrderPresencePort)──▶ storeorder
-warehouse, product ──(UsagePort, 읽기 전용 JPQL)──▶ inbound, inventory, outbound, storeorder
+warehouse, product ──(UsagePort, 소유 도메인의 UsageUseCase)──▶ inbound, outbound, storeorder
 모든 도메인 ──▶ common, statushistory
 ```
 
