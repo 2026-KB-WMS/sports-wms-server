@@ -6,6 +6,7 @@ import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionUpdateCommand;
 import com.kb.wms.warehouse.application.port.in.query.WarehouseSectionSearchCondition;
+import com.kb.wms.warehouse.application.port.in.result.WarehouseSectionView;
 import com.kb.wms.warehouse.domain.entity.WarehouseSection;
 
 /**
@@ -23,6 +24,9 @@ public interface WarehouseSectionUseCase {
     List<WarehouseSection> getSections(WarehouseSectionSearchCondition condition);
 
     WarehouseSection getSection(Long sectionId);
+
+    /** 다른 도메인이 구역의 소속 창고·유형·활성 여부를 확인할 때 쓴다. 없으면 SECTION_NOT_FOUND. */
+    WarehouseSectionView getSectionView(Long sectionId);
 
     /** 사용자 요청용 단건 조회. 구역이 속한 창고가 담당 창고(본사는 전체)가 아니면 403 FORBIDDEN. */
     WarehouseSection getSection(Long sectionId, AuthenticatedUser actor);

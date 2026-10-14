@@ -6,13 +6,14 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.warehouse.application.port.in.WarehouseSectionUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseSectionUpdateCommand;
 import com.kb.wms.warehouse.application.port.in.query.WarehouseSectionSearchCondition;
+import com.kb.wms.warehouse.application.port.in.result.WarehouseSectionView;
 import com.kb.wms.warehouse.application.port.out.StockPresencePort;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
 import com.kb.wms.warehouse.application.port.out.WarehouseSectionRepository;
@@ -110,6 +111,13 @@ public class WarehouseSectionService implements WarehouseSectionUseCase {
     public WarehouseSection getSection(Long sectionId) {
         return warehouseSectionRepository.findById(sectionId)
                 .orElseThrow(() -> new BusinessException(WarehouseErrorCode.SECTION_NOT_FOUND));
+    }
+
+    @Override
+    public WarehouseSectionView getSectionView(Long sectionId) {
+        WarehouseSection section = getSection(sectionId);
+        return new WarehouseSectionView(section.getSectionId(), section.getWarehouseId(),
+                section.getSectionType(), section.isActive());
     }
 
     @Override

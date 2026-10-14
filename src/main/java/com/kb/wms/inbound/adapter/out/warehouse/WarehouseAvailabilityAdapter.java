@@ -20,12 +20,12 @@ public class WarehouseAvailabilityAdapter implements WarehouseAvailabilityPort {
 
     @Override
     public void requireExists(Long warehouseId) {
-        warehouseUseCase.getWarehouse(warehouseId);
+        warehouseUseCase.getWarehouseView(warehouseId);
     }
 
     @Override
     public void requireActive(Long warehouseId) {
-        if (!warehouseUseCase.getWarehouse(warehouseId).isActive()) {
+        if (!warehouseUseCase.getWarehouseView(warehouseId).active()) {
             throw new BusinessException(ErrorCode.CONFLICT, "비활성 창고에는 발주를 등록할 수 없습니다.");
         }
     }
