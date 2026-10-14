@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.product.application.port.in.ProductSkuUseCase;
-import com.kb.wms.product.domain.entity.ProductSku;
+import com.kb.wms.product.application.port.in.result.ProductSkuView;
 import com.kb.wms.storeorder.application.port.out.SkuSupplyPricePort;
 import com.kb.wms.storeorder.exception.StoreOrderErrorCode;
 
@@ -24,13 +24,13 @@ public class SkuSupplyPriceAdapter implements SkuSupplyPricePort {
 
     @Override
     public BigDecimal getOrderableSupplyPrice(Long skuId) {
-        ProductSku sku = productSkuUseCase.getSku(skuId);
-        if (!sku.isActive()) {
+        ProductSkuView sku = productSkuUseCase.getSkuView(skuId);
+        if (!sku.active()) {
             throw new BusinessException(ErrorCode.CONFLICT, "비활성 SKU는 발주할 수 없습니다. skuId=" + skuId);
         }
-        if (sku.getCurrentSupplyPrice() == null) {
+        if (sku.currentSupplyPrice() == null) {
             throw new BusinessException(StoreOrderErrorCode.SUPPLY_PRICE_MISSING);
         }
-        return sku.getCurrentSupplyPrice();
+        return sku.currentSupplyPrice();
     }
 }

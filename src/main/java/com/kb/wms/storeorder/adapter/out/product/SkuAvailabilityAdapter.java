@@ -20,7 +20,7 @@ public class SkuAvailabilityAdapter implements SkuAvailabilityPort {
 
     @Override
     public void requireActive(Long skuId) {
-        if (!productSkuUseCase.getSku(skuId).isActive()) {
+        if (!productSkuUseCase.getSkuView(skuId).active()) {
             throw new BusinessException(ErrorCode.CONFLICT, "비활성 SKU가 포함된 발주는 승인할 수 없습니다. skuId=" + skuId);
         }
     }
