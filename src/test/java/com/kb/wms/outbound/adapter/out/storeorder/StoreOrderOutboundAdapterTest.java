@@ -95,7 +95,7 @@ class StoreOrderOutboundAdapterTest {
         List<StoreOrderOutboundView> views = adapter.findOutbounds(1L);
 
         assertThat(views).extracting(StoreOrderOutboundView::outboundNo).containsExactly("OB-1", "OB-2");
-        assertThat(views.get(0).status()).isEqualTo(StoreOrderOutboundStatus.CANCELED);
+        assertThat(views.get(0).status()).isEqualTo("CANCELED");
     }
 
     @Test

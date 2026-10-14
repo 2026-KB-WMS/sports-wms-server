@@ -6,7 +6,6 @@ import java.util.List;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderDetails;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderOutboundView;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderStatusHistoryView;
-import com.kb.wms.storeorder.domain.enums.StoreOrderOutboundStatus;
 import com.kb.wms.storeorder.domain.enums.StoreOrderProgressStage;
 import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
 
@@ -27,7 +26,7 @@ public record StoreOrderDetailsResponse(
     public record Outbound(
             Long outboundId,
             String outboundNo,
-            StoreOrderOutboundStatus status,
+            String status,
             LocalDateTime shippedAt,
             LocalDateTime deliveredAt
     ) {

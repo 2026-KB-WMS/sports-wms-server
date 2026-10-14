@@ -84,7 +84,7 @@ public class StoreOrderOutboundAdapter implements StoreOrderOutboundPort {
     @Transactional(readOnly = true)
     public List<StoreOrderOutboundView> findOutbounds(Long storeOrderId) {
         return outboundRepository.findByStoreOrderId(storeOrderId).stream()
-                .map(o -> new StoreOrderOutboundView(o.getOutboundId(), o.getOutboundNo(), toStatus(o.getStatus()),
+                .map(o -> new StoreOrderOutboundView(o.getOutboundId(), o.getOutboundNo(), o.getStatus().name(),
                         o.getShippedAt(), o.getDeliveredAt()))
                 .toList();
     }

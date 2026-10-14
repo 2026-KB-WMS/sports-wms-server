@@ -29,7 +29,7 @@ class OutboundStockAdapterTest {
     @InjectMocks OutboundStockAdapter adapter;
 
     private StockLotView lot(Long id, long onHand, long allocated) {
-        return new StockLotView(id, 1L, 1L, QualityStatus.AVAILABLE, onHand, allocated);
+        return new StockLotView(id, 1L, 1L, "AVAILABLE", onHand, allocated);
     }
 
     @Test

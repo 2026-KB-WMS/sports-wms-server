@@ -310,7 +310,7 @@ class OutboundFlowIntegrationTest {
 
         Long outboundId = createOutbound(s);
         assertThat(storeOrderUseCase.getStoreOrderDetails(s.orderId(), HQ).outbounds()).hasSize(1)
-                .allSatisfy(o -> assertThat(o.status().name()).isEqualTo("READY"));
+                .allSatisfy(o -> assertThat(o.status()).isEqualTo("READY"));
         outboundUseCase.startPicking(outboundId, hq(USER));
         Long lineId = outboundUseCase.getOutbound(outboundId, HQ).items().get(0).outboundLineId();
         fulfillmentUseCase.completePicking(new OutboundPickingCompleteCommand(outboundId,
