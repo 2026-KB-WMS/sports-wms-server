@@ -15,7 +15,7 @@ UserManagementService ──▶ UserUseCase (상태 변경)
 
 ## 의존
 
-`UserUseCase`, `WarehouseMemberUseCase`, `StoreMemberUseCase`
+`UserUseCase`, `WarehouseManagerAssignPort`, `StoreOwnerAssignPort`(각각 창고·지점의 멤버 배정 유스케이스에 어댑터가 연결)
 
 ## updateUser(command)
 

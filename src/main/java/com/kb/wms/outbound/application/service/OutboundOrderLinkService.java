@@ -1,4 +1,4 @@
-package com.kb.wms.outbound.adapter.out.storeorder;
+package com.kb.wms.outbound.application.service;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -10,13 +10,16 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
 
+import com.kb.wms.outbound.application.port.in.OutboundOrderLinkUseCase;
+import com.kb.wms.outbound.application.port.in.result.OrderFulfillmentCancelResult;
+import com.kb.wms.outbound.application.port.in.result.OrderOutboundSummary;
 import com.kb.wms.outbound.application.port.out.OutboundRepository;
 import com.kb.wms.outbound.application.port.out.OutboundStockPort;
 import com.kb.wms.outbound.application.port.out.OutboundStockPort.StockQuantity;
@@ -27,21 +30,17 @@ import com.kb.wms.outbound.domain.entity.Outbound;
 import com.kb.wms.outbound.domain.entity.StockAllocation;
 import com.kb.wms.outbound.domain.enums.AllocationStatus;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
-import com.kb.wms.storeorder.application.port.in.result.StoreOrderFulfillmentCancelResult;
-import com.kb.wms.storeorder.application.port.in.result.StoreOrderOutboundView;
-import com.kb.wms.storeorder.application.port.out.StoreOrderOutboundPort;
-import com.kb.wms.storeorder.domain.enums.StoreOrderOutboundStatus;
 import com.kb.wms.outbound.domain.enums.OutboundHistoryEntityType;
 
 import lombok.RequiredArgsConstructor;
 
 /**
- * 지점 발주가 정의한 출고 연동 포트({@link StoreOrderOutboundPort})의 구현.
- * 의존 방향은 발주 → 포트 ← 출고 어댑터이며, 발주와 출고는 서로의 엔티티를 참조하지 않고 ID로만 연결한다(ADR-005).
+ * 지점 발주 도메인에 출고·재고 할당 조회와 정리를 제공한다. 발주와 출고는 서로의 엔티티를 참조하지 않고
+ * ID로만 연결하며(ADR-005), 상태는 이름 문자열로 내보낸다.
  */
-@Component
+@Service
 @RequiredArgsConstructor
-public class StoreOrderOutboundAdapter implements StoreOrderOutboundPort {
+public class OutboundOrderLinkService implements OutboundOrderLinkUseCase {
 
     /** 발주 취소에 따른 자동 처리의 상태 이력 사유. */
     static final String AUTO_CANCEL_REASON = "발주 취소로 인한 자동 처리";
@@ -61,30 +60,30 @@ public class StoreOrderOutboundAdapter implements StoreOrderOutboundPort {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<StoreOrderOutboundStatus> findLatestOutboundStatus(Long storeOrderId) {
+    public Optional<String> findLatestOutboundStatus(Long storeOrderId) {
         List<Outbound> outbounds = outboundRepository.findByStoreOrderId(storeOrderId);
         if (outbounds.isEmpty()) {
             return Optional.empty();
         }
-        return Optional.of(toStatus(outbounds.get(outbounds.size() - 1).getStatus()));
+        return Optional.of(outbounds.get(outbounds.size() - 1).getStatus().name());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Map<Long, StoreOrderOutboundStatus> findLatestOutboundStatuses(Collection<Long> storeOrderIds) {
-        Map<Long, StoreOrderOutboundStatus> latest = new HashMap<>();
+    public Map<Long, String> findLatestOutboundStatuses(Collection<Long> storeOrderIds) {
+        Map<Long, String> latest = new HashMap<>();
         // 생성 순(출고 ID 오름차순)이라 같은 발주의 뒤 출고가 앞 출고를 덮어쓴다.
         for (Outbound outbound : outboundRepository.findByStoreOrderIds(storeOrderIds)) {
-            latest.put(outbound.getStoreOrderId(), toStatus(outbound.getStatus()));
+            latest.put(outbound.getStoreOrderId(), outbound.getStatus().name());
         }
         return latest;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<StoreOrderOutboundView> findOutbounds(Long storeOrderId) {
+    public List<OrderOutboundSummary> findOutbounds(Long storeOrderId) {
         return outboundRepository.findByStoreOrderId(storeOrderId).stream()
-                .map(o -> new StoreOrderOutboundView(o.getOutboundId(), o.getOutboundNo(), o.getStatus().name(),
+                .map(o -> new OrderOutboundSummary(o.getOutboundId(), o.getOutboundNo(), o.getStatus().name(),
                         o.getShippedAt(), o.getDeliveredAt()))
                 .toList();
     }
@@ -115,7 +114,7 @@ public class StoreOrderOutboundAdapter implements StoreOrderOutboundPort {
      */
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public StoreOrderFulfillmentCancelResult cancelFulfillment(Long storeOrderId, Long changedBy) {
+    public OrderFulfillmentCancelResult cancelFulfillment(Long storeOrderId, Long changedBy) {
         LocalDateTime now = LocalDateTime.now();
 
         List<Outbound> readyOutbounds = outboundRepository
@@ -129,7 +128,7 @@ public class StoreOrderOutboundAdapter implements StoreOrderOutboundPort {
 
         int released = releaseAllocated(storeOrderId, AUTO_CANCEL_REASON, changedBy, now);
 
-        return new StoreOrderFulfillmentCancelResult(released, readyOutbounds.size());
+        return new OrderFulfillmentCancelResult(released, readyOutbounds.size());
     }
 
     /**
@@ -167,9 +166,5 @@ public class StoreOrderOutboundAdapter implements StoreOrderOutboundPort {
                 .map(e -> new LineQuantity(e.getKey(), e.getValue()))
                 .toList());
         return allocations.size();
-    }
-
-    private StoreOrderOutboundStatus toStatus(OutboundStatus status) {
-        return StoreOrderOutboundStatus.valueOf(status.name());
     }
 }

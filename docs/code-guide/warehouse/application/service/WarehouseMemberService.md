@@ -6,7 +6,7 @@
 
 ## 의존
 
-`WarehouseMemberRepository`, `WarehouseRepository`, `UserUseCase`(auth 도메인)
+`WarehouseMemberRepository`, `WarehouseRepository`, `WarehouseMemberUserPort`(auth 도메인 연결은 `WarehouseMemberUserAdapter`)
 
 ## 메서드
 
@@ -23,7 +23,7 @@
 | 1 | `memberRole`이 허용 값(MANAGER)인지 | 400 `VALIDATION_ERROR` |
 | 2 | 창고 존재 | 404 `WAREHOUSE_NOT_FOUND` |
 | 3 | 창고 활성 | 409 `CONFLICT` |
-| 4 | 사용자 존재 (`userUseCase.getUser`) | 404 `USER_NOT_FOUND` |
+| 4 | 사용자 존재 (`warehouseMemberUserPort.getCandidate`) | 404 `USER_NOT_FOUND` |
 | 5 | 사용자 역할이 `WAREHOUSE_MANAGER` | 400 `VALIDATION_ERROR` |
 | 6 | 사용자 상태가 `ACTIVE` | 409 `CONFLICT` (승인 대기·비활성) |
 | 7 | 같은 (창고, 사용자) 배정이 없음 | 409 `ALREADY_ASSIGNED` |

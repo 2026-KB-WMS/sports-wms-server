@@ -16,7 +16,7 @@
 지점(store) ─ hasInProgressOrders ─▶ StoreOrderPresenceUseCase ──┐
 출고(outbound) ─ 수량·상태 변경 ───▶ StoreOrderFulfillmentUseCase ┼─▶ 지점 발주(storeorder)
                                      StoreOrderUseCase ◀── 컨트롤러 │
-지점 발주 ─ StoreOrderOutboundPort ─▶ 출고 어댑터(outbound) ◀───────┘
+지점 발주 ─ StoreOrderOutboundPort ─▶ OutboundOrderLinkUseCase(outbound)
 ```
 
 ## StoreOrderUseCase 메서드

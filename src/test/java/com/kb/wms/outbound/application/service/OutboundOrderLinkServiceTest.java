@@ -1,4 +1,4 @@
-package com.kb.wms.outbound.adapter.out.storeorder;
+package com.kb.wms.outbound.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -22,6 +22,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.outbound.application.port.in.result.OrderFulfillmentCancelResult;
+import com.kb.wms.outbound.application.port.in.result.OrderOutboundSummary;
 import com.kb.wms.outbound.application.port.out.OutboundRepository;
 import com.kb.wms.outbound.application.port.out.OutboundStockPort.StockQuantity;
 import com.kb.wms.outbound.application.port.out.OutboundStockPort;
@@ -34,12 +36,9 @@ import com.kb.wms.outbound.domain.enums.AllocationStatus;
 import com.kb.wms.outbound.domain.enums.OutboundHistoryEntityType;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.storeorder.application.port.in.result.StoreOrderFulfillmentCancelResult;
-import com.kb.wms.storeorder.application.port.in.result.StoreOrderOutboundView;
-import com.kb.wms.storeorder.domain.enums.StoreOrderOutboundStatus;
 
 @ExtendWith(MockitoExtension.class)
-class StoreOrderOutboundAdapterTest {
+class OutboundOrderLinkServiceTest {
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 5, 9, 0);
 
@@ -48,7 +47,7 @@ class StoreOrderOutboundAdapterTest {
     @Mock OutboundStockPort outboundStockPort;
     @Mock StoreOrderPort storeOrderPort;
     @Mock StatusHistoryUseCase statusHistoryUseCase;
-    @InjectMocks StoreOrderOutboundAdapter adapter;
+    @InjectMocks OutboundOrderLinkService service;
 
     private Outbound outbound(Long id, String no, Long storeOrderId, OutboundStatus status) {
         return Outbound.builder().outboundId(id).outboundNo(no).storeOrderId(storeOrderId).status(status).build();
@@ -66,8 +65,8 @@ class StoreOrderOutboundAdapterTest {
                 outbound(1L, "OB-1", 1L, OutboundStatus.CANCELED), outbound(2L, "OB-2", 1L, OutboundStatus.PICKING)));
         when(outboundRepository.findByStoreOrderId(2L)).thenReturn(List.of());
 
-        assertThat(adapter.findLatestOutboundStatus(1L)).contains(StoreOrderOutboundStatus.PICKING);
-        assertThat(adapter.findLatestOutboundStatus(2L)).isEmpty();
+        assertThat(service.findLatestOutboundStatus(1L)).contains("PICKING");
+        assertThat(service.findLatestOutboundStatus(2L)).isEmpty();
     }
 
     @Test
@@ -78,10 +77,10 @@ class StoreOrderOutboundAdapterTest {
                 outbound(2L, "OB-2", 2L, OutboundStatus.DELIVERED),
                 outbound(3L, "OB-3", 1L, OutboundStatus.READY)));
 
-        Map<Long, StoreOrderOutboundStatus> result = adapter.findLatestOutboundStatuses(Set.of(1L, 2L, 3L));
+        Map<Long, String> result = service.findLatestOutboundStatuses(Set.of(1L, 2L, 3L));
 
-        assertThat(result).containsEntry(1L, StoreOrderOutboundStatus.READY)
-                .containsEntry(2L, StoreOrderOutboundStatus.DELIVERED)
+        assertThat(result).containsEntry(1L, "READY")
+                .containsEntry(2L, "DELIVERED")
                 .doesNotContainKey(3L);
     }
 
@@ -92,9 +91,9 @@ class StoreOrderOutboundAdapterTest {
         when(outboundRepository.findByStoreOrderId(1L)).thenReturn(List.of(
                 outbound(1L, "OB-1", 1L, OutboundStatus.CANCELED), shipped));
 
-        List<StoreOrderOutboundView> views = adapter.findOutbounds(1L);
+        List<OrderOutboundSummary> views = service.findOutbounds(1L);
 
-        assertThat(views).extracting(StoreOrderOutboundView::outboundNo).containsExactly("OB-1", "OB-2");
+        assertThat(views).extracting(OrderOutboundSummary::outboundNo).containsExactly("OB-1", "OB-2");
         assertThat(views.get(0).status()).isEqualTo("CANCELED");
     }
 
@@ -108,8 +107,8 @@ class StoreOrderOutboundAdapterTest {
                 OutboundStatus.READY, OutboundStatus.PICKING, OutboundStatus.PICKED, OutboundStatus.SHIPPED)))
                 .thenReturn(false);
 
-        assertThat(adapter.existsPickingStarted(1L)).isTrue();
-        assertThat(adapter.existsInProgressOutbound(1L)).isFalse();
+        assertThat(service.existsPickingStarted(1L)).isTrue();
+        assertThat(service.existsInProgressOutbound(1L)).isFalse();
     }
 
     @Test
@@ -121,9 +120,9 @@ class StoreOrderOutboundAdapterTest {
         when(stockAllocationRepository.existsByStoreOrderIdAndStatus(3L, AllocationStatus.ALLOCATED)).thenReturn(false);
         when(outboundRepository.existsNotCanceledByStoreOrderId(3L)).thenReturn(false);
 
-        assertThat(adapter.existsActiveFulfillment(1L)).isTrue();
-        assertThat(adapter.existsActiveFulfillment(2L)).isTrue();
-        assertThat(adapter.existsActiveFulfillment(3L)).isFalse();
+        assertThat(service.existsActiveFulfillment(1L)).isTrue();
+        assertThat(service.existsActiveFulfillment(2L)).isTrue();
+        assertThat(service.existsActiveFulfillment(3L)).isFalse();
     }
 
     @Test
@@ -138,7 +137,7 @@ class StoreOrderOutboundAdapterTest {
         when(stockAllocationRepository.findByStoreOrderIdAndStatusForUpdate(1L, AllocationStatus.ALLOCATED))
                 .thenReturn(List.of(a1, a2, a3));
 
-        StoreOrderFulfillmentCancelResult result = adapter.cancelFulfillment(1L, 9L);
+        OrderFulfillmentCancelResult result = service.cancelFulfillment(1L, 9L);
 
         assertThat(result.canceledOutboundCount()).isEqualTo(1);
         assertThat(result.releasedAllocationCount()).isEqualTo(3);
@@ -173,9 +172,9 @@ class StoreOrderOutboundAdapterTest {
         when(stockAllocationRepository.findByStoreOrderIdAndStatusForUpdate(1L, AllocationStatus.ALLOCATED))
                 .thenReturn(List.of());
 
-        StoreOrderFulfillmentCancelResult result = adapter.cancelFulfillment(1L, 9L);
+        OrderFulfillmentCancelResult result = service.cancelFulfillment(1L, 9L);
 
-        assertThat(result).isEqualTo(StoreOrderFulfillmentCancelResult.NONE);
+        assertThat(result).isEqualTo(new OrderFulfillmentCancelResult(0, 0));
         verifyNoInteractions(outboundStockPort, storeOrderPort, statusHistoryUseCase);
         verify(outboundRepository, never()).save(any());
         verify(stockAllocationRepository, never()).save(any());
@@ -189,7 +188,7 @@ class StoreOrderOutboundAdapterTest {
         when(stockAllocationRepository.findByStoreOrderIdAndStatusForUpdate(1L, AllocationStatus.ALLOCATED))
                 .thenReturn(List.of(a1, a2));
 
-        int released = adapter.releaseUnlinkedAllocations(1L, 9L);
+        int released = service.releaseUnlinkedAllocations(1L, 9L);
 
         assertThat(released).isEqualTo(2);
         assertThat(List.of(a1, a2)).allSatisfy(a -> {
@@ -216,7 +215,7 @@ class StoreOrderOutboundAdapterTest {
         when(stockAllocationRepository.findByStoreOrderIdAndStatusForUpdate(1L, AllocationStatus.ALLOCATED))
                 .thenReturn(List.of());
 
-        assertThat(adapter.releaseUnlinkedAllocations(1L, 9L)).isZero();
+        assertThat(service.releaseUnlinkedAllocations(1L, 9L)).isZero();
 
         verifyNoInteractions(outboundStockPort, storeOrderPort, statusHistoryUseCase);
         verify(stockAllocationRepository, never()).save(any());

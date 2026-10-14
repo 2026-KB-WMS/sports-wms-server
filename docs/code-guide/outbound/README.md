@@ -21,7 +21,8 @@
 1. `domain/entity/` (StockAllocation → Outbound → OutboundLine), `domain/enums/Enums.md`
 2. `application/port/in/UseCases.md` : 업무 순서와 서비스 A·B·C
 3. `application/service/StockAllocationService.md` → `OutboundService.md` → `OutboundFulfillmentService.md`
-4. `adapter/out/Adapters.md` : 발주 도메인과의 연동 (`StoreOrderOutboundAdapter`)
+4. `application/service/OutboundOrderLinkService.md` : 발주 도메인에 제공하는 출고·할당 조회와 정리
+   `adapter/out/Adapters.md` : 발주 도메인의 서비스를 부르는 어댑터
 5. `adapter/in/web/`, `adapter/out/persistence/`
 
 ## 문서 위치
