@@ -20,7 +20,14 @@ public class InboundSectionAdapter implements InboundSectionPort {
     @Override
     public SectionInfo getSection(Long sectionId) {
         WarehouseSectionView section = warehouseSectionUseCase.getSectionView(sectionId);
-        return new SectionInfo(section.sectionId(), section.warehouseId(), section.sectionType(),
+        return new SectionInfo(section.sectionId(), section.warehouseId(), toKind(section.sectionType()),
                 section.active());
+    }
+
+    private static SectionKind toKind(String sectionType) {
+        return switch (sectionType) {
+            case "DEFECT" -> SectionKind.DEFECT;
+            default -> SectionKind.OTHER;
+        };
     }
 }

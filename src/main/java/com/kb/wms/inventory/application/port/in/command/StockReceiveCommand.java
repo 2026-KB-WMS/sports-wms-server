@@ -1,6 +1,5 @@
 package com.kb.wms.inventory.application.port.in.command;
 
-import com.kb.wms.inventory.domain.enums.QualityStatus;
 
 /**
  * 입고 완료 시 한 재고 행(구역 + 로트)에 보유 수량을 더한다. 행이 없으면 만든다.
@@ -12,7 +11,7 @@ import com.kb.wms.inventory.domain.enums.QualityStatus;
 public record StockReceiveCommand(
         Long sectionId,
         Long lotId,
-        QualityStatus qualityStatus,
+        String qualityStatus,
         long quantity,
         Long inboundId,
         Long userId

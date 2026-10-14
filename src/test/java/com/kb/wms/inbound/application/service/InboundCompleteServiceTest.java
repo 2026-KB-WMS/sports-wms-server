@@ -31,6 +31,7 @@ import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.result.InboundCompleteResult;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
 import com.kb.wms.inbound.application.port.out.InboundStockPort.ReceivedStock;
+import com.kb.wms.inbound.application.port.out.InboundStockPort.StockQuality;
 import com.kb.wms.inbound.application.port.out.InboundStockPort.StockReceipt;
 import com.kb.wms.inbound.application.port.out.InboundStockPort;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
@@ -152,7 +153,7 @@ class InboundCompleteServiceTest {
         givenPurchaseOrder(PurchaseOrderStatus.CONFIRMED,
                 purchaseOrderLine(11L, 100, 0, PurchaseOrderLineStatus.REQUESTED));
         when(inboundStockPort.receive(anyLong(), anyLong(), anyList())).thenReturn(List.of(
-                new ReceivedStock(2L, 31L, false, 101L), new ReceivedStock(9L, 31L, true, 105L)));
+                new ReceivedStock(2L, 31L, StockQuality.AVAILABLE, 101L), new ReceivedStock(9L, 31L, StockQuality.DEFECTIVE, 105L)));
         stubSaves();
 
         InboundCompleteResult result = inboundCompleteService.completeInbound(7L, ACTOR);
@@ -161,7 +162,7 @@ class InboundCompleteServiceTest {
         verify(inboundStockPort).receive(org.mockito.ArgumentMatchers.eq(7L),
                 org.mockito.ArgumentMatchers.eq(USER), receipts.capture());
         assertThat(receipts.getValue()).containsExactly(
-                new StockReceipt(2L, 31L, false, 58L), new StockReceipt(9L, 31L, true, 2L));
+                new StockReceipt(2L, 31L, StockQuality.AVAILABLE, 58L), new StockReceipt(9L, 31L, StockQuality.DEFECTIVE, 2L));
 
         assertThat(result.inbound().getStatus()).isEqualTo(InboundStatus.COMPLETED);
         assertThat(result.inbound().getReceivedBy()).isEqualTo(USER);
@@ -183,7 +184,7 @@ class InboundCompleteServiceTest {
                 purchaseOrderLine(11L, 60, 0, PurchaseOrderLineStatus.REQUESTED),
                 purchaseOrderLine(12L, 10, 10, PurchaseOrderLineStatus.COMPLETED));
         when(inboundStockPort.receive(anyLong(), anyLong(), anyList()))
-                .thenReturn(List.of(new ReceivedStock(2L, 31L, false, 101L)));
+                .thenReturn(List.of(new ReceivedStock(2L, 31L, StockQuality.AVAILABLE, 101L)));
         stubSaves();
         when(purchaseOrderRepository.save(any(PurchaseOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -203,7 +204,7 @@ class InboundCompleteServiceTest {
                 purchaseOrderLine(11L, 60, 0, PurchaseOrderLineStatus.REQUESTED),
                 purchaseOrderLine(12L, 10, 0, PurchaseOrderLineStatus.REQUESTED));
         when(inboundStockPort.receive(anyLong(), anyLong(), anyList()))
-                .thenReturn(List.of(new ReceivedStock(2L, 31L, false, 101L)));
+                .thenReturn(List.of(new ReceivedStock(2L, 31L, StockQuality.AVAILABLE, 101L)));
         stubSaves();
 
         InboundCompleteResult result = inboundCompleteService.completeInbound(7L, ACTOR);
@@ -222,7 +223,7 @@ class InboundCompleteServiceTest {
                 purchaseOrderLine(11L, 100, 0, PurchaseOrderLineStatus.REQUESTED),
                 purchaseOrderLine(12L, 100, 0, PurchaseOrderLineStatus.REQUESTED));
         when(inboundStockPort.receive(anyLong(), anyLong(), anyList())).thenReturn(List.of(
-                new ReceivedStock(2L, 31L, false, 101L), new ReceivedStock(9L, 32L, true, 105L)));
+                new ReceivedStock(2L, 31L, StockQuality.AVAILABLE, 101L), new ReceivedStock(9L, 32L, StockQuality.DEFECTIVE, 105L)));
         stubSaves();
 
         InboundCompleteResult result = inboundCompleteService.completeInbound(7L, ACTOR);
@@ -230,7 +231,7 @@ class InboundCompleteServiceTest {
         ArgumentCaptor<List<StockReceipt>> receipts = ArgumentCaptor.forClass(List.class);
         verify(inboundStockPort).receive(anyLong(), anyLong(), receipts.capture());
         assertThat(receipts.getValue()).containsExactly(
-                new StockReceipt(2L, 31L, false, 50L), new StockReceipt(9L, 32L, true, 5L));
+                new StockReceipt(2L, 31L, StockQuality.AVAILABLE, 50L), new StockReceipt(9L, 32L, StockQuality.DEFECTIVE, 5L));
         assertThat(result.inventory()).containsExactly(
                 new InboundCompleteResult.ReflectedInventory(21L, 101L, 50L, null, 0L),
                 new InboundCompleteResult.ReflectedInventory(22L, null, 0L, 105L, 5L));
@@ -245,8 +246,8 @@ class InboundCompleteServiceTest {
         givenPurchaseOrder(PurchaseOrderStatus.CONFIRMED,
                 purchaseOrderLine(11L, 100, 10, PurchaseOrderLineStatus.PARTIALLY_RECEIVED));
         when(inboundStockPort.receive(anyLong(), anyLong(), anyList())).thenReturn(List.of(
-                new ReceivedStock(2L, 31L, false, 101L), new ReceivedStock(2L, 32L, false, 102L),
-                new ReceivedStock(9L, 32L, true, 105L)));
+                new ReceivedStock(2L, 31L, StockQuality.AVAILABLE, 101L), new ReceivedStock(2L, 32L, StockQuality.AVAILABLE, 102L),
+                new ReceivedStock(9L, 32L, StockQuality.DEFECTIVE, 105L)));
         stubSaves();
 
         InboundCompleteResult result = inboundCompleteService.completeInbound(7L, ACTOR);
@@ -264,7 +265,7 @@ class InboundCompleteServiceTest {
         givenPurchaseOrder(PurchaseOrderStatus.CONFIRMED,
                 purchaseOrderLine(11L, 100, 0, PurchaseOrderLineStatus.REQUESTED));
         when(inboundStockPort.receive(anyLong(), anyLong(), anyList())).thenReturn(List.of(
-                new ReceivedStock(2L, 31L, false, 101L), new ReceivedStock(9L, 31L, true, 105L)));
+                new ReceivedStock(2L, 31L, StockQuality.AVAILABLE, 101L), new ReceivedStock(9L, 31L, StockQuality.DEFECTIVE, 105L)));
         stubSaves();
 
         inboundCompleteService.completeInbound(7L, ACTOR);
@@ -282,7 +283,7 @@ class InboundCompleteServiceTest {
         givenPurchaseOrder(PurchaseOrderStatus.CONFIRMED,
                 purchaseOrderLine(11L, 60, 0, PurchaseOrderLineStatus.REQUESTED));
         when(inboundStockPort.receive(anyLong(), anyLong(), anyList())).thenReturn(List.of(
-                new ReceivedStock(2L, 31L, false, 101L), new ReceivedStock(9L, 31L, true, 105L)));
+                new ReceivedStock(2L, 31L, StockQuality.AVAILABLE, 101L), new ReceivedStock(9L, 31L, StockQuality.DEFECTIVE, 105L)));
         stubSaves();
         when(purchaseOrderRepository.save(any(PurchaseOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -371,7 +372,7 @@ class InboundCompleteServiceTest {
         givenPurchaseOrder(PurchaseOrderStatus.CONFIRMED,
                 purchaseOrderLine(11L, 100, 50, PurchaseOrderLineStatus.PARTIALLY_RECEIVED));
         when(inboundStockPort.receive(anyLong(), anyLong(), anyList())).thenReturn(List.of(
-                new ReceivedStock(2L, 31L, false, 101L), new ReceivedStock(9L, 31L, true, 105L)));
+                new ReceivedStock(2L, 31L, StockQuality.AVAILABLE, 101L), new ReceivedStock(9L, 31L, StockQuality.DEFECTIVE, 105L)));
 
         assertError(() -> inboundCompleteService.completeInbound(7L, ACTOR), ErrorCode.CONFLICT.name());
         verify(purchaseOrderRepository, never()).saveLines(anyList());

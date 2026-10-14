@@ -161,7 +161,7 @@ class StoreOrderFulfillmentServiceTest {
 
         StoreOrderFulfillmentOrderView result = service.completeIfFulfilled(1L, 9L);
 
-        assertThat(result.status()).isEqualTo(StoreOrderStatus.COMPLETED);
+        assertThat(result.status()).isEqualTo("COMPLETED");
         verify(statusHistoryUseCase).record(StoreOrderHistoryEntityType.STORE_ORDER.name(), 1L,
                 "ASSIGNED", "COMPLETED", null, 9L);
     }
@@ -176,7 +176,7 @@ class StoreOrderFulfillmentServiceTest {
 
         StoreOrderFulfillmentOrderView result = service.completeIfFulfilled(1L, 9L);
 
-        assertThat(result.status()).isEqualTo(StoreOrderStatus.ASSIGNED);
+        assertThat(result.status()).isEqualTo("ASSIGNED");
         verify(storeOrderRepository, never()).save(any());
         verify(statusHistoryUseCase, never()).record(any(), any(), any(), any(), any(), any());
     }
@@ -189,7 +189,7 @@ class StoreOrderFulfillmentServiceTest {
 
         StoreOrderFulfillmentOrderView result = service.completeIfFulfilled(1L, 9L);
 
-        assertThat(result.status()).isEqualTo(StoreOrderStatus.ON_HOLD);
+        assertThat(result.status()).isEqualTo("ON_HOLD");
         verify(storeOrderRepository, never()).findLinesByStoreOrderId(eq(1L));
     }
 

@@ -19,6 +19,7 @@ import com.kb.wms.inbound.application.port.in.result.InboundCompleteResult.Refle
 import com.kb.wms.inbound.application.port.in.result.InboundCompleteResult;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
 import com.kb.wms.inbound.application.port.out.InboundStockPort.ReceivedStock;
+import com.kb.wms.inbound.application.port.out.InboundStockPort.StockQuality;
 import com.kb.wms.inbound.application.port.out.InboundStockPort.StockReceipt;
 import com.kb.wms.inbound.application.port.out.InboundStockPort;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
@@ -108,26 +109,28 @@ public class InboundCompleteService implements InboundCompleteUseCase {
         for (InboundLine line : lines) {
             if (line.getAcceptedQuantity() > 0) {
                 receipts.add(new StockReceipt(
-                        line.getAcceptedSectionId(), line.getLotId(), false, line.getAcceptedQuantity()));
+                        line.getAcceptedSectionId(), line.getLotId(), StockQuality.AVAILABLE,
+                        line.getAcceptedQuantity()));
             }
             if (line.getDefectiveQuantity() > 0) {
                 receipts.add(new StockReceipt(
-                        line.getDefectSectionId(), line.getLotId(), true, line.getDefectiveQuantity()));
+                        line.getDefectSectionId(), line.getLotId(), StockQuality.DEFECTIVE,
+                        line.getDefectiveQuantity()));
             }
         }
 
         Map<String, Long> inventoryLotIds = new HashMap<>();
         for (ReceivedStock received : inboundStockPort.receive(inboundId, userId, receipts)) {
-            inventoryLotIds.put(stockKey(received.sectionId(), received.lotId(), received.defective()),
+            inventoryLotIds.put(stockKey(received.sectionId(), received.lotId(), received.quality()),
                     received.inventoryLotId());
         }
 
         List<ReflectedInventory> result = new ArrayList<>(lines.size());
         for (InboundLine line : lines) {
             Long acceptedId = line.getAcceptedQuantity() > 0
-                    ? inventoryLotIds.get(stockKey(line.getAcceptedSectionId(), line.getLotId(), false)) : null;
+                    ? inventoryLotIds.get(stockKey(line.getAcceptedSectionId(), line.getLotId(), StockQuality.AVAILABLE)) : null;
             Long defectiveId = line.getDefectiveQuantity() > 0
-                    ? inventoryLotIds.get(stockKey(line.getDefectSectionId(), line.getLotId(), true)) : null;
+                    ? inventoryLotIds.get(stockKey(line.getDefectSectionId(), line.getLotId(), StockQuality.DEFECTIVE)) : null;
             result.add(new ReflectedInventory(
                     line.getInboundLineId(), acceptedId, line.getAcceptedQuantity(),
                     defectiveId, line.getDefectiveQuantity()));
@@ -169,7 +172,7 @@ public class InboundCompleteService implements InboundCompleteUseCase {
                 .toList();
     }
 
-    private static String stockKey(Long sectionId, Long lotId, boolean defective) {
-        return sectionId + "/" + lotId + "/" + defective;
+    private static String stockKey(Long sectionId, Long lotId, StockQuality quality) {
+        return sectionId + "/" + lotId + "/" + quality;
     }
 }

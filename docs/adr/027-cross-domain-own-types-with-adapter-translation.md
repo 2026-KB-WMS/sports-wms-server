@@ -13,6 +13,7 @@
 - **enum 변환은 이름으로 한다.** 발주 쪽에 상태가 추가되면 변환이 예외로 거절되므로(조용히 통과시키지 않는다) 출고 enum과 어댑터를 함께 갱신한다.
 - **JSON 응답은 바꾸지 않는다.** `OutboundDeliverResponse.storeOrder.status`는 enum 이름이 같아 값이 그대로다. API 명세 변경 없음.
 - **적용 범위**: 처음에는 출고 → 지점 발주 경계에 적용했고, 이어서 다른 도메인 `port.in`이 돌려주던 엔티티 직접 사용을 같은 방식으로 정리했다(#253). 타 도메인 enum 의존은 후속으로 정리한다.
+- **enum 경계 규칙**: 다른 도메인이 쓰는 `port.in` 결과 객체와 command는 enum 대신 문자열 이름을 쓴다. 받는 쪽은 자기 enum을 정의하고 어댑터에서 `switch`로 명시 매핑한다(입고의 `StockQuality`·`SectionKind`, 지점·창고 멤버의 `MemberRole`, 계정의 배정 포트 `StoreOwnerAssignPort`·`WarehouseManagerAssignPort`는 역할 코드를 어댑터만 안다). 상대가 구분하지 않는 값은 `OTHER`로 모으고, 품질처럼 값이 닫혀 있으면 모르는 값을 거절한다. 같은 도메인 안의 웹 DTO·command·result는 enum을 유지한다(#255).
 - **엔티티 대신 읽기용 결과 객체를 돌려준다.** 호출 쪽 어댑터가 쓰던 조회는 `port.in`에 결과 객체를 돌려주는 메서드를 추가해 쓴다: `ProductSkuUseCase.getSkuView`, `WarehouseUseCase.getWarehouseView`, `WarehouseSectionUseCase.getSectionView`, `StoreUseCase.getStoreView`, `UserUseCase.getUserView`. 엔티티를 돌려주는 기존 메서드는 자기 도메인 안에서 계속 쓴다. 호출 쪽은 이 결과 객체를 어댑터에서만 받고 자기 포트 타입으로 변환한다(예: 지점·창고 관리자 배정은 `StoreMemberUserPort`·`WarehouseMemberUserPort`의 `Candidate`를 쓰고, 인증 도메인의 `UserView` 변환은 `adapter.out.auth`가 맡는다). 다른 도메인이 쓰는 재고 반영 포트(`InventoryStockUseCase`)와 `LotUseCase.findOrRegister`는 반환 타입 자체를 `StockLotView`, `RegisteredLotView`로 바꿨다.
 
 ## 근거

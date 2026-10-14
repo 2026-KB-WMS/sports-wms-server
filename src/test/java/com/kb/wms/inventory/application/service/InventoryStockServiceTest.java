@@ -73,7 +73,7 @@ class InventoryStockServiceTest {
     @Test
     @DisplayName("기존 재고 행이 없으면 새로 만들어 보유 수량을 늘리고 구역 사용 용량을 채운다")
     void receive_newInventoryLot_success() {
-        StockReceiveCommand command = new StockReceiveCommand(10L, 5L, QualityStatus.AVAILABLE, 50L, 1L, 9L);
+        StockReceiveCommand command = new StockReceiveCommand(10L, 5L, "AVAILABLE", 50L, 1L, 9L);
         Lot lot = Lot.register(1L, 1L, "LOT-001", null, null, BigDecimal.TEN);
         when(lotRepository.findById(5L)).thenReturn(Optional.of(lot));
         when(inventoryLotRepository.findBySectionIdAndLotIdForUpdate(10L, 5L)).thenReturn(Optional.empty());
@@ -90,8 +90,8 @@ class InventoryStockServiceTest {
     @Test
     @DisplayName("입고는 재고 행을 찾기(잠그기) 전에 관련 구역 행을 먼저 잠근다 (동시 첫 입고 시 재고 행 중복 생성 방지)")
     void receive_locksSectionsBeforeInventoryRows() {
-        StockReceiveCommand first = new StockReceiveCommand(20L, 5L, QualityStatus.AVAILABLE, 10L, 1L, 9L);
-        StockReceiveCommand second = new StockReceiveCommand(10L, 5L, QualityStatus.AVAILABLE, 10L, 1L, 9L);
+        StockReceiveCommand first = new StockReceiveCommand(20L, 5L, "AVAILABLE", 10L, 1L, 9L);
+        StockReceiveCommand second = new StockReceiveCommand(10L, 5L, "AVAILABLE", 10L, 1L, 9L);
         Lot lot = Lot.register(1L, 1L, "LOT-001", null, null, BigDecimal.TEN);
         when(lotRepository.findById(5L)).thenReturn(Optional.of(lot));
         when(inventoryLotRepository.findBySectionIdAndLotIdForUpdate(anyLong(), anyLong())).thenReturn(Optional.empty());
@@ -108,7 +108,7 @@ class InventoryStockServiceTest {
     @Test
     @DisplayName("입고 수량이 0 이하이면 VALIDATION_ERROR 예외를 던진다")
     void receive_quantityNotPositive() {
-        StockReceiveCommand command = new StockReceiveCommand(10L, 5L, QualityStatus.AVAILABLE, 0L, 1L, 9L);
+        StockReceiveCommand command = new StockReceiveCommand(10L, 5L, "AVAILABLE", 0L, 1L, 9L);
 
         assertThatThrownBy(() -> inventoryStockService.receive(List.of(command)))
                 .isInstanceOf(BusinessException.class)
@@ -120,7 +120,7 @@ class InventoryStockServiceTest {
     @Test
     @DisplayName("존재하지 않는 로트로 입고하면 LOT_NOT_FOUND 예외를 던진다")
     void receive_lotNotFound() {
-        StockReceiveCommand command = new StockReceiveCommand(10L, 999L, QualityStatus.AVAILABLE, 50L, 1L, 9L);
+        StockReceiveCommand command = new StockReceiveCommand(10L, 999L, "AVAILABLE", 50L, 1L, 9L);
         when(lotRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> inventoryStockService.receive(List.of(command)))
@@ -132,7 +132,7 @@ class InventoryStockServiceTest {
     @Test
     @DisplayName("가용 상태가 아닌 로트로 입고하면 LOT_NOT_AVAILABLE 예외를 던진다")
     void receive_lotNotAvailable() {
-        StockReceiveCommand command = new StockReceiveCommand(10L, 5L, QualityStatus.AVAILABLE, 50L, 1L, 9L);
+        StockReceiveCommand command = new StockReceiveCommand(10L, 5L, "AVAILABLE", 50L, 1L, 9L);
         Lot lot = Lot.register(1L, 1L, "LOT-001", null, null, BigDecimal.TEN);
         lot.quarantine();
         when(lotRepository.findById(5L)).thenReturn(Optional.of(lot));
@@ -146,7 +146,7 @@ class InventoryStockServiceTest {
     @Test
     @DisplayName("같은 구역·로트의 기존 재고와 품질 상태가 다르면 CONFLICT 예외를 던진다")
     void receive_qualityStatusMismatch() {
-        StockReceiveCommand command = new StockReceiveCommand(10L, 5L, QualityStatus.AVAILABLE, 50L, 1L, 9L);
+        StockReceiveCommand command = new StockReceiveCommand(10L, 5L, "AVAILABLE", 50L, 1L, 9L);
         Lot lot = Lot.register(1L, 1L, "LOT-001", null, null, BigDecimal.TEN);
         InventoryLot existing = InventoryLot.open(10L, 5L, QualityStatus.DEFECTIVE);
         when(lotRepository.findById(5L)).thenReturn(Optional.of(lot));
@@ -238,7 +238,7 @@ class InventoryStockServiceTest {
     @Test
     @DisplayName("SKU가 비활성이면 입고 시 SKU_NOT_ACTIVE 예외를 던지고 재고를 만들지 않는다")
     void receive_skuNotActive() {
-        StockReceiveCommand command = new StockReceiveCommand(10L, 5L, QualityStatus.AVAILABLE, 50L, 1L, 9L);
+        StockReceiveCommand command = new StockReceiveCommand(10L, 5L, "AVAILABLE", 50L, 1L, 9L);
         when(lotRepository.findById(5L)).thenReturn(Optional.of(availableLot()));
         doThrow(new BusinessException(InventoryErrorCode.SKU_NOT_ACTIVE)).when(skuStatusPort).requireActive(1L);
 

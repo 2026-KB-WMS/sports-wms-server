@@ -11,14 +11,18 @@ public interface InboundSectionPort {
     /**
      * 검수에서 구역을 검증하는 데 필요한 정보만 담는다.
      *
-     * @param sectionType 구역 유형 코드(불량 구역은 DEFECT)
+     * @param kind 입고가 구분하는 구역 종류. 불량 구역이 아니면 OTHER
      */
-    record SectionInfo(Long sectionId, Long warehouseId, String sectionType, boolean active) {
-
-        private static final String DEFECT_TYPE = "DEFECT";
+    record SectionInfo(Long sectionId, Long warehouseId, SectionKind kind, boolean active) {
 
         public boolean isDefect() {
-            return DEFECT_TYPE.equals(sectionType);
+            return kind == SectionKind.DEFECT;
         }
+    }
+
+    /** 창고 도메인의 구역 유형을 입고가 필요한 만큼만 구분한 값. 변환은 어댑터가 한다. */
+    enum SectionKind {
+        DEFECT,
+        OTHER
     }
 }

@@ -49,7 +49,9 @@ class StoreMemberServiceTest {
             Store.register("ST-GANGNAM", "강남점", "서울시 강남구", "김점주", "02-333-1234");
 
     private StoreMemberUserPort.Candidate candidate(UserRole role, UserStatus status) {
-        return new StoreMemberUserPort.Candidate("김담당", "member01", role.name(), status == UserStatus.ACTIVE);
+        return new StoreMemberUserPort.Candidate("김담당", "member01",
+                role == UserRole.STORE_OWNER ? StoreMemberUserPort.MemberRole.STORE_OWNER : StoreMemberUserPort.MemberRole.OTHER,
+                status == UserStatus.ACTIVE);
     }
 
     @Test

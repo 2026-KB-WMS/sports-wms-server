@@ -11,15 +11,19 @@ public interface WarehouseMemberUserPort {
     /**
      * 배정 후보 사용자 정보.
      *
-     * @param role   역할 코드 문자열
+     * @param role   이 도메인이 구분하는 역할. 창고 관리자가 아니면 OTHER
      * @param active 활성(승인 완료) 상태 여부
      */
-    record Candidate(String name, String loginId, String role, boolean active) {
-
-        private static final String ASSIGNABLE_ROLE = "WAREHOUSE_MANAGER";
+    record Candidate(String name, String loginId, MemberRole role, boolean active) {
 
         public boolean hasAssignableRole() {
-            return ASSIGNABLE_ROLE.equals(role);
+            return role == MemberRole.WAREHOUSE_MANAGER;
         }
+    }
+
+    /** 인증 도메인의 역할을 이 도메인이 필요한 만큼만 구분한 값. 변환은 어댑터가 한다. */
+    enum MemberRole {
+        WAREHOUSE_MANAGER,
+        OTHER
     }
 }

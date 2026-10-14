@@ -175,8 +175,8 @@ class InventoryServiceIntegrationTest {
         @DisplayName("기존 행에는 더하고, 없는 구역·로트는 새 행을 만들며 행마다 INBOUND 이력을 남긴다")
         void receive() {
             List<StockLotView> result = stockUseCase.receive(List.of(
-                    new StockReceiveCommand(sectionR1, lotA, QualityStatus.AVAILABLE, 58, 7L, USER),
-                    new StockReceiveCommand(sectionD1, lotA, QualityStatus.DEFECTIVE, 2, 7L, USER)));
+                    new StockReceiveCommand(sectionR1, lotA, "AVAILABLE", 58, 7L, USER),
+                    new StockReceiveCommand(sectionD1, lotA, "DEFECTIVE", 2, 7L, USER)));
 
             assertThat(result).hasSize(2);
             flushAndClear();
@@ -200,13 +200,13 @@ class InventoryServiceIntegrationTest {
             Long lotQ = lotRepository.save(quarantined).getLotId();
 
             assertError(() -> stockUseCase.receive(List.of(
-                    new StockReceiveCommand(sectionR1, lotQ, QualityStatus.AVAILABLE, 1, 7L, USER))),
+                    new StockReceiveCommand(sectionR1, lotQ, "AVAILABLE", 1, 7L, USER))),
                     "LOT_NOT_AVAILABLE");
             assertError(() -> stockUseCase.receive(List.of(
-                    new StockReceiveCommand(sectionR1, lotA, QualityStatus.DEFECTIVE, 1, 7L, USER))),
+                    new StockReceiveCommand(sectionR1, lotA, "DEFECTIVE", 1, 7L, USER))),
                     "CONFLICT");
             assertError(() -> stockUseCase.receive(List.of(
-                    new StockReceiveCommand(sectionD1, lotA, QualityStatus.DEFECTIVE, 51, 7L, USER))),
+                    new StockReceiveCommand(sectionD1, lotA, "DEFECTIVE", 51, 7L, USER))),
                     "SECTION_CAPACITY_EXCEEDED");
         }
     }

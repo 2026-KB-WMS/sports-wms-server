@@ -25,6 +25,7 @@ import com.kb.wms.inventory.application.port.out.SkuStatusPort;
 import com.kb.wms.inventory.domain.entity.InventoryLot;
 import com.kb.wms.inventory.domain.entity.InventoryTransaction;
 import com.kb.wms.inventory.domain.entity.Lot;
+import com.kb.wms.inventory.domain.enums.QualityStatus;
 import com.kb.wms.inventory.domain.enums.ReferenceType;
 import com.kb.wms.inventory.domain.enums.TransactionType;
 import com.kb.wms.inventory.exception.InventoryErrorCode;
@@ -72,10 +73,11 @@ public class InventoryStockService implements InventoryStockUseCase {
             }
             skuStatusPort.requireActive(lot.getSkuId());
 
+            QualityStatus quality = QualityStatus.valueOf(command.qualityStatus());
             InventoryLot inventoryLot = inventoryLotRepository
                     .findBySectionIdAndLotIdForUpdate(command.sectionId(), command.lotId())
-                    .orElseGet(() -> InventoryLot.open(command.sectionId(), command.lotId(), command.qualityStatus()));
-            if (inventoryLot.getQualityStatus() != command.qualityStatus()) {
+                    .orElseGet(() -> InventoryLot.open(command.sectionId(), command.lotId(), quality));
+            if (inventoryLot.getQualityStatus() != quality) {
                 throw new BusinessException(ErrorCode.CONFLICT,
                         "같은 구역·로트의 기존 재고와 품질 상태가 다릅니다.");
             }
@@ -198,7 +200,7 @@ public class InventoryStockService implements InventoryStockUseCase {
     private List<StockLotView> toViews(List<InventoryLot> lots) {
         return lots.stream()
                 .map(lot -> new StockLotView(lot.getInventoryLotId(), lot.getSectionId(), lot.getLotId(),
-                        lot.getQualityStatus(), lot.getOnHandQuantity(), lot.getAllocatedQuantity()))
+                        lot.getQualityStatus().name(), lot.getOnHandQuantity(), lot.getAllocatedQuantity()))
                 .toList();
     }
 

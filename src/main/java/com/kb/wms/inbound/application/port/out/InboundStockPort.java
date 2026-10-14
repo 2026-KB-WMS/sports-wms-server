@@ -14,10 +14,15 @@ public interface InboundStockPort {
      */
     List<ReceivedStock> receive(Long inboundId, Long userId, List<StockReceipt> receipts);
 
-    /** @param defective true면 불량(DEFECTIVE) 재고로, false면 가용(AVAILABLE) 재고로 반영한다. */
-    record StockReceipt(Long sectionId, Long lotId, boolean defective, long quantity) {
+    /** 입고가 재고에 반영하는 수량의 품질. 재고 도메인의 품질 상태와는 어댑터에서만 서로 변환한다. */
+    enum StockQuality {
+        AVAILABLE,
+        DEFECTIVE
     }
 
-    record ReceivedStock(Long sectionId, Long lotId, boolean defective, Long inventoryLotId) {
+    record StockReceipt(Long sectionId, Long lotId, StockQuality quality, long quantity) {
+    }
+
+    record ReceivedStock(Long sectionId, Long lotId, StockQuality quality, Long inventoryLotId) {
     }
 }

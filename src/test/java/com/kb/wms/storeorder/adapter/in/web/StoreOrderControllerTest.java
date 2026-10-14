@@ -357,7 +357,7 @@ class StoreOrderControllerTest {
         when(storeOrderUseCase.getStoreOrderDetails(eq(7L), any()))
                 .thenReturn(new StoreOrderDetails(7L, "SO-20261002-0001", StoreOrderStatus.ASSIGNED,
                         StoreOrderProgressStage.PREPARING, lines(),
-                        List.of(new StoreOrderOutboundView(100L, "OB-1", StoreOrderOutboundStatus.PICKING, null, null)),
+                        List.of(new StoreOrderOutboundView(100L, "OB-1", "PICKING", null, null)),
                         List.of(new StoreOrderStatusHistoryView("REQUESTED", "APPROVED", null, 5L, "김본사", T1))));
 
         mockMvc.perform(get("/api/v1/orders/{orderId}/details", 7L))

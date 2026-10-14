@@ -50,7 +50,9 @@ class WarehouseMemberServiceTest {
             Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.valueOf(1000));
 
     private WarehouseMemberUserPort.Candidate candidate(UserRole role, UserStatus status) {
-        return new WarehouseMemberUserPort.Candidate("김담당", "member01", role.name(), status == UserStatus.ACTIVE);
+        return new WarehouseMemberUserPort.Candidate("김담당", "member01",
+                role == UserRole.WAREHOUSE_MANAGER ? WarehouseMemberUserPort.MemberRole.WAREHOUSE_MANAGER : WarehouseMemberUserPort.MemberRole.OTHER,
+                status == UserStatus.ACTIVE);
     }
 
     @Test

@@ -6,13 +6,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.kb.wms.auth.application.port.in.UserManagementUseCase;
 import com.kb.wms.auth.application.port.in.UserUseCase;
 import com.kb.wms.auth.application.port.in.command.UserUpdateCommand;
+import com.kb.wms.auth.application.port.out.StoreOwnerAssignPort;
+import com.kb.wms.auth.application.port.out.WarehouseManagerAssignPort;
 import com.kb.wms.auth.domain.entity.User;
-import com.kb.wms.store.application.port.in.StoreMemberUseCase;
-import com.kb.wms.store.application.port.in.command.StoreMemberAssignCommand;
-import com.kb.wms.store.domain.enums.StoreManagementType;
-import com.kb.wms.warehouse.application.port.in.WarehouseMemberUseCase;
-import com.kb.wms.warehouse.application.port.in.command.WarehouseMemberAssignCommand;
-import com.kb.wms.warehouse.domain.enums.WarehouseManagementType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,19 +22,17 @@ import lombok.RequiredArgsConstructor;
 public class UserManagementService implements UserManagementUseCase {
 
     private final UserUseCase userUseCase;
-    private final WarehouseMemberUseCase warehouseMemberUseCase;
-    private final StoreMemberUseCase storeMemberUseCase;
+    private final WarehouseManagerAssignPort warehouseManagerAssignPort;
+    private final StoreOwnerAssignPort storeOwnerAssignPort;
 
     @Override
     public User updateUser(UserUpdateCommand command) {
         // 상태를 ACTIVE로 바꾼 뒤 배정해야 배정 서비스의 "활성 사용자만" 검사를 통과한다.
         User user = userUseCase.updateUser(command);
         if (command.warehouseId() != null) {
-            warehouseMemberUseCase.assignManager(new WarehouseMemberAssignCommand(
-                    command.warehouseId(), user.getUserId(), WarehouseManagementType.MANAGER.getCode()));
+            warehouseManagerAssignPort.assignManager(command.warehouseId(), user.getUserId());
         } else if (command.storeId() != null) {
-            storeMemberUseCase.assignManager(new StoreMemberAssignCommand(
-                    command.storeId(), user.getUserId(), StoreManagementType.OWNER.getCode()));
+            storeOwnerAssignPort.assignOwner(command.storeId(), user.getUserId());
         }
         return user;
     }

@@ -3,6 +3,7 @@ package com.kb.wms.auth.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -22,11 +23,9 @@ import com.kb.wms.auth.application.port.in.command.UserUpdateCommand;
 import com.kb.wms.auth.domain.entity.User;
 import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
+import com.kb.wms.auth.application.port.out.StoreOwnerAssignPort;
+import com.kb.wms.auth.application.port.out.WarehouseManagerAssignPort;
 import com.kb.wms.common.exception.BusinessException;
-import com.kb.wms.store.application.port.in.StoreMemberUseCase;
-import com.kb.wms.store.application.port.in.command.StoreMemberAssignCommand;
-import com.kb.wms.warehouse.application.port.in.WarehouseMemberUseCase;
-import com.kb.wms.warehouse.application.port.in.command.WarehouseMemberAssignCommand;
 
 @ExtendWith(MockitoExtension.class)
 class UserManagementServiceTest {
@@ -37,9 +36,9 @@ class UserManagementServiceTest {
     @Mock
     private UserUseCase userUseCase;
     @Mock
-    private WarehouseMemberUseCase warehouseMemberUseCase;
+    private WarehouseManagerAssignPort warehouseManagerAssignPort;
     @Mock
-    private StoreMemberUseCase storeMemberUseCase;
+    private StoreOwnerAssignPort storeOwnerAssignPort;
 
     @InjectMocks
     private UserManagementService userManagementService;
@@ -63,11 +62,10 @@ class UserManagementServiceTest {
         User result = userManagementService.updateUser(command);
 
         assertThat(result.getUserId()).isEqualTo(USER_ID);
-        InOrder order = inOrder(userUseCase, warehouseMemberUseCase);
+        InOrder order = inOrder(userUseCase, warehouseManagerAssignPort);
         order.verify(userUseCase).updateUser(command);
-        order.verify(warehouseMemberUseCase)
-                .assignManager(new WarehouseMemberAssignCommand(3L, USER_ID, "MANAGER"));
-        verifyNoInteractions(storeMemberUseCase);
+        order.verify(warehouseManagerAssignPort).assignManager(3L, USER_ID);
+        verifyNoInteractions(storeOwnerAssignPort);
     }
 
     @Test
@@ -78,10 +76,10 @@ class UserManagementServiceTest {
 
         userManagementService.updateUser(command);
 
-        InOrder order = inOrder(userUseCase, storeMemberUseCase);
+        InOrder order = inOrder(userUseCase, storeOwnerAssignPort);
         order.verify(userUseCase).updateUser(command);
-        order.verify(storeMemberUseCase).assignManager(new StoreMemberAssignCommand(5L, USER_ID, "OWNER"));
-        verifyNoInteractions(warehouseMemberUseCase);
+        order.verify(storeOwnerAssignPort).assignOwner(5L, USER_ID);
+        verifyNoInteractions(warehouseManagerAssignPort);
     }
 
     @Test
@@ -92,7 +90,7 @@ class UserManagementServiceTest {
 
         userManagementService.updateUser(command);
 
-        verifyNoInteractions(warehouseMemberUseCase, storeMemberUseCase);
+        verifyNoInteractions(warehouseManagerAssignPort, storeOwnerAssignPort);
     }
 
     @Test
@@ -100,10 +98,10 @@ class UserManagementServiceTest {
     void updateUser_assignFailurePropagates() {
         UserUpdateCommand command = command(3L, null);
         when(userUseCase.updateUser(command)).thenReturn(user(UserRole.WAREHOUSE_MANAGER));
-        when(warehouseMemberUseCase.assignManager(any())).thenThrow(new BusinessException(
-                com.kb.wms.common.exception.ErrorCode.CONFLICT, "비활성 창고"));
+        doThrow(new BusinessException(com.kb.wms.common.exception.ErrorCode.CONFLICT, "비활성 창고"))
+                .when(warehouseManagerAssignPort).assignManager(any(), any());
 
         assertThatThrownBy(() -> userManagementService.updateUser(command)).isInstanceOf(BusinessException.class);
-        verify(storeMemberUseCase, never()).assignManager(any());
+        verify(storeOwnerAssignPort, never()).assignOwner(any(), any());
     }
 }

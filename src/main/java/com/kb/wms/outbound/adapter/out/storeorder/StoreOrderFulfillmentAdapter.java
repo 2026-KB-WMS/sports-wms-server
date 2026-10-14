@@ -81,7 +81,7 @@ public class StoreOrderFulfillmentAdapter implements StoreOrderPort {
 
     private OrderView toView(StoreOrderFulfillmentOrderView order) {
         return new OrderView(order.storeOrderId(), order.orderNo(), order.warehouseId(),
-                StoreOrderState.valueOf(order.status().name()));
+                StoreOrderState.valueOf(order.status()));
     }
 
     private LineView toView(StoreOrderFulfillmentLineView line) {

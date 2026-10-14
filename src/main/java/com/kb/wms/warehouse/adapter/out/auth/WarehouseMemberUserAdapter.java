@@ -20,6 +20,13 @@ public class WarehouseMemberUserAdapter implements WarehouseMemberUserPort {
     @Override
     public Candidate getCandidate(Long userId) {
         UserView user = userUseCase.getUserView(userId);
-        return new Candidate(user.name(), user.loginId(), user.role(), user.active());
+        return new Candidate(user.name(), user.loginId(), toRole(user.role()), user.active());
+    }
+
+    private static MemberRole toRole(String role) {
+        return switch (role) {
+            case "WAREHOUSE_MANAGER" -> MemberRole.WAREHOUSE_MANAGER;
+            default -> MemberRole.OTHER;
+        };
     }
 }

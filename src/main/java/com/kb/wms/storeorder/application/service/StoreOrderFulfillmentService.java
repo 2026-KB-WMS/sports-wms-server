@@ -118,7 +118,7 @@ public class StoreOrderFulfillmentService implements StoreOrderFulfillmentUseCas
 
     private StoreOrderFulfillmentOrderView toView(StoreOrder order) {
         return new StoreOrderFulfillmentOrderView(order.getStoreOrderId(), order.getOrderNo(),
-                order.getWarehouseId(), order.getStatus());
+                order.getWarehouseId(), order.getStatus().name());
     }
 
     private StoreOrderFulfillmentLineView toView(StoreOrderLine line) {
