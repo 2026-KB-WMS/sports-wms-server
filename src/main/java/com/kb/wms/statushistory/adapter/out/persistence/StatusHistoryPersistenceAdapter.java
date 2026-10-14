@@ -10,7 +10,6 @@ import com.kb.wms.statushistory.adapter.out.persistence.repository.StatusHistory
 import com.kb.wms.statushistory.application.port.in.result.StatusHistoryView;
 import com.kb.wms.statushistory.application.port.out.StatusHistoryRepository;
 import com.kb.wms.statushistory.domain.entity.StatusHistory;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,7 +25,7 @@ public class StatusHistoryPersistenceAdapter implements StatusHistoryRepository 
     }
 
     @Override
-    public List<StatusHistory> findByEntity(StatusHistoryEntityType entityType, Long entityId) {
+    public List<StatusHistory> findByEntity(String entityType, Long entityId) {
         return statusHistoryJpaRepository
                 .findByEntityTypeAndEntityIdOrderByChangedAtAscStatusHistoryIdAsc(entityType, entityId)
                 .stream()
@@ -35,12 +34,12 @@ public class StatusHistoryPersistenceAdapter implements StatusHistoryRepository 
     }
 
     @Override
-    public List<StatusHistoryView> findViewsByEntity(StatusHistoryEntityType entityType, Long entityId) {
+    public List<StatusHistoryView> findViewsByEntity(String entityType, Long entityId) {
         return statusHistoryJpaRepository.findViewsByEntity(entityType, entityId);
     }
 
     @Override
-    public Optional<StatusHistory> findLatestByToStatus(StatusHistoryEntityType entityType, Long entityId,
+    public Optional<StatusHistory> findLatestByToStatus(String entityType, Long entityId,
                                                         String toStatus) {
         return statusHistoryJpaRepository
                 .findFirstByEntityTypeAndEntityIdAndToStatusOrderByChangedAtDescStatusHistoryIdDesc(

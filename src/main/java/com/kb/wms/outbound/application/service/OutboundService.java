@@ -11,11 +11,9 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
-import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.outbound.application.port.in.OutboundUseCase;
 import com.kb.wms.outbound.application.port.in.command.OutboundCancelCommand;
 import com.kb.wms.outbound.application.port.in.command.OutboundCreateCommand;
@@ -30,16 +28,18 @@ import com.kb.wms.outbound.application.port.in.result.OutboundView;
 import com.kb.wms.outbound.application.port.out.OutboundQueryRepository;
 import com.kb.wms.outbound.application.port.out.OutboundRepository;
 import com.kb.wms.outbound.application.port.out.StockAllocationRepository;
-import com.kb.wms.outbound.application.port.out.StoreOrderPort;
 import com.kb.wms.outbound.application.port.out.StoreOrderPort.LineSnapshot;
 import com.kb.wms.outbound.application.port.out.StoreOrderPort.OrderSnapshot;
-import com.kb.wms.outbound.domain.enums.StoreOrderState;
+import com.kb.wms.outbound.application.port.out.StoreOrderPort;
 import com.kb.wms.outbound.domain.entity.Outbound;
 import com.kb.wms.outbound.domain.entity.OutboundLine;
 import com.kb.wms.outbound.domain.entity.StockAllocation;
 import com.kb.wms.outbound.domain.enums.AllocationStatus;
+import com.kb.wms.outbound.domain.enums.OutboundHistoryEntityType;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
+import com.kb.wms.outbound.domain.enums.StoreOrderState;
 import com.kb.wms.outbound.exception.OutboundErrorCode;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
 import lombok.RequiredArgsConstructor;
 
@@ -96,7 +96,7 @@ public class OutboundService implements OutboundUseCase {
         outboundRepository.saveLines(allocations.stream()
                 .map(a -> OutboundLine.create(outbound.getOutboundId(), a.getAllocationId()))
                 .toList());
-        statusHistoryUseCase.record(StatusHistoryEntityType.OUTBOUND, outbound.getOutboundId(),
+        statusHistoryUseCase.record(OutboundHistoryEntityType.OUTBOUND.name(), outbound.getOutboundId(),
                 null, OutboundStatus.READY.name(), null, command.userId());
 
         OutboundView view = findViewOrThrow(outbound.getOutboundId());
@@ -158,7 +158,7 @@ public class OutboundService implements OutboundUseCase {
 
         outbound.startPicking();
         outboundRepository.save(outbound);
-        statusHistoryUseCase.record(StatusHistoryEntityType.OUTBOUND, outboundId,
+        statusHistoryUseCase.record(OutboundHistoryEntityType.OUTBOUND.name(), outboundId,
                 OutboundStatus.READY.name(), OutboundStatus.PICKING.name(), null, userId);
 
         OutboundView view = findViewOrThrow(outboundId);
@@ -186,7 +186,7 @@ public class OutboundService implements OutboundUseCase {
 
         outbound.cancel();
         outboundRepository.save(outbound);
-        statusHistoryUseCase.record(StatusHistoryEntityType.OUTBOUND, command.outboundId(),
+        statusHistoryUseCase.record(OutboundHistoryEntityType.OUTBOUND.name(), command.outboundId(),
                 OutboundStatus.READY.name(), OutboundStatus.CANCELED.name(), reason, command.userId());
 
         OutboundView view = findViewOrThrow(command.outboundId());
@@ -213,7 +213,7 @@ public class OutboundService implements OutboundUseCase {
         List<OutboundLineView> items = outboundQueryRepository.findOutboundLineViews(outboundId);
         String cancelReason = view.status() == OutboundStatus.CANCELED
                 ? statusHistoryUseCase
-                        .findStatusReason(StatusHistoryEntityType.OUTBOUND, outboundId, OutboundStatus.CANCELED.name())
+                        .findStatusReason(OutboundHistoryEntityType.OUTBOUND.name(), outboundId, OutboundStatus.CANCELED.name())
                         .orElse(null)
                 : null;
         return new OutboundDetail(view, items, cancelReason);

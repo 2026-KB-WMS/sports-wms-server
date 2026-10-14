@@ -12,37 +12,37 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
-import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.outbound.application.port.in.OutboundFulfillmentUseCase;
-import com.kb.wms.outbound.application.port.in.command.OutboundPickingCompleteCommand;
 import com.kb.wms.outbound.application.port.in.command.OutboundPickingCompleteCommand.PickedLine;
+import com.kb.wms.outbound.application.port.in.command.OutboundPickingCompleteCommand;
 import com.kb.wms.outbound.application.port.in.result.OutboundDeliverResult;
-import com.kb.wms.outbound.application.port.in.result.OutboundPickingCompleteResult;
 import com.kb.wms.outbound.application.port.in.result.OutboundPickingCompleteResult.InventoryState;
 import com.kb.wms.outbound.application.port.in.result.OutboundPickingCompleteResult.PickedItem;
+import com.kb.wms.outbound.application.port.in.result.OutboundPickingCompleteResult;
 import com.kb.wms.outbound.application.port.in.result.OutboundShipResult;
 import com.kb.wms.outbound.application.port.in.result.OutboundView;
 import com.kb.wms.outbound.application.port.out.OutboundQueryRepository;
 import com.kb.wms.outbound.application.port.out.OutboundRepository;
-import com.kb.wms.outbound.application.port.out.OutboundStockPort;
 import com.kb.wms.outbound.application.port.out.OutboundStockPort.StockPick;
 import com.kb.wms.outbound.application.port.out.OutboundStockPort.StockState;
+import com.kb.wms.outbound.application.port.out.OutboundStockPort;
 import com.kb.wms.outbound.application.port.out.SkuSupplyPricePort;
 import com.kb.wms.outbound.application.port.out.StockAllocationRepository;
-import com.kb.wms.outbound.application.port.out.StoreOrderPort;
 import com.kb.wms.outbound.application.port.out.StoreOrderPort.LinePicked;
 import com.kb.wms.outbound.application.port.out.StoreOrderPort.LineSnapshot;
 import com.kb.wms.outbound.application.port.out.StoreOrderPort.OrderSnapshot;
+import com.kb.wms.outbound.application.port.out.StoreOrderPort;
 import com.kb.wms.outbound.domain.entity.Outbound;
 import com.kb.wms.outbound.domain.entity.OutboundLine;
 import com.kb.wms.outbound.domain.entity.StockAllocation;
 import com.kb.wms.outbound.domain.enums.AllocationStatus;
+import com.kb.wms.outbound.domain.enums.OutboundHistoryEntityType;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
 import com.kb.wms.outbound.exception.OutboundErrorCode;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
 import lombok.RequiredArgsConstructor;
 
@@ -125,10 +125,10 @@ public class OutboundFulfillmentService implements OutboundFulfillmentUseCase {
         outbound.completePicking();
         outboundRepository.save(outbound);
         for (OutboundLine line : lines) {
-            statusHistoryUseCase.record(StatusHistoryEntityType.STOCK_ALLOCATION, line.getAllocationId(),
+            statusHistoryUseCase.record(OutboundHistoryEntityType.STOCK_ALLOCATION.name(), line.getAllocationId(),
                     AllocationStatus.ALLOCATED.name(), AllocationStatus.PICKED.name(), null, command.userId());
         }
-        statusHistoryUseCase.record(StatusHistoryEntityType.OUTBOUND, outbound.getOutboundId(),
+        statusHistoryUseCase.record(OutboundHistoryEntityType.OUTBOUND.name(), outbound.getOutboundId(),
                 OutboundStatus.PICKING.name(), OutboundStatus.PICKED.name(), null, command.userId());
 
         List<PickedItem> items = savedLines.stream().map(line -> {
@@ -155,7 +155,7 @@ public class OutboundFulfillmentService implements OutboundFulfillmentUseCase {
         }
         outbound.ship(LocalDateTime.now(), userId);
         outboundRepository.save(outbound);
-        statusHistoryUseCase.record(StatusHistoryEntityType.OUTBOUND, outboundId,
+        statusHistoryUseCase.record(OutboundHistoryEntityType.OUTBOUND.name(), outboundId,
                 OutboundStatus.PICKED.name(), OutboundStatus.SHIPPED.name(), null, userId);
 
         OutboundView view = findViewOrThrow(outboundId);
@@ -174,7 +174,7 @@ public class OutboundFulfillmentService implements OutboundFulfillmentUseCase {
         }
         outbound.deliver(LocalDateTime.now());
         outboundRepository.save(outbound);
-        statusHistoryUseCase.record(StatusHistoryEntityType.OUTBOUND, outboundId,
+        statusHistoryUseCase.record(OutboundHistoryEntityType.OUTBOUND.name(), outboundId,
                 OutboundStatus.SHIPPED.name(), OutboundStatus.DELIVERED.name(), null, userId);
 
         List<Long> allocationIds = outboundRepository.findLinesByOutboundId(outboundId).stream()

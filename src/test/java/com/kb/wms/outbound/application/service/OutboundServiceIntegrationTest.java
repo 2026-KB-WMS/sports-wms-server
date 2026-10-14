@@ -17,10 +17,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
-import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inventory.adapter.out.persistence.entity.InventoryLotJpaEntity;
 import com.kb.wms.inventory.adapter.out.persistence.entity.LotJpaEntity;
 import com.kb.wms.inventory.adapter.out.persistence.repository.InventoryLotJpaRepository;
@@ -39,10 +37,12 @@ import com.kb.wms.outbound.application.port.in.result.OutboundCreateResult;
 import com.kb.wms.outbound.application.port.in.result.OutboundDetail;
 import com.kb.wms.outbound.application.port.in.result.OutboundPickingStartResult;
 import com.kb.wms.outbound.application.port.in.result.OutboundSummary;
+import com.kb.wms.outbound.domain.enums.OutboundHistoryEntityType;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
 import com.kb.wms.product.adapter.out.persistence.entity.ProductSkuJpaEntity;
 import com.kb.wms.product.adapter.out.persistence.repository.ProductSkuJpaRepository;
 import com.kb.wms.product.domain.enums.ProductStatus;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.store.adapter.out.persistence.entity.StoreJpaEntity;
 import com.kb.wms.store.adapter.out.persistence.repository.StoreJpaRepository;
 import com.kb.wms.store.domain.enums.StoreStatus;
@@ -165,7 +165,7 @@ class OutboundServiceIntegrationTest {
         assertThat(result.view().note()).isEqualTo("오전 출고");
         assertThat(result.view().storeName()).isEqualTo("강남점");
         assertThat(result.lineCount()).isEqualTo(2);
-        assertThat(statusHistoryUseCase.findHistory(StatusHistoryEntityType.OUTBOUND,
+        assertThat(statusHistoryUseCase.findHistory(OutboundHistoryEntityType.OUTBOUND.name(),
                 result.view().outboundId())).hasSize(1);
     }
 
@@ -270,7 +270,7 @@ class OutboundServiceIntegrationTest {
         OutboundPickingStartResult result = useCase.startPicking(outboundId, hq(USER));
 
         assertThat(result.status()).isEqualTo(OutboundStatus.PICKING);
-        assertThat(statusHistoryUseCase.findHistory(StatusHistoryEntityType.OUTBOUND, outboundId)).hasSize(2);
+        assertThat(statusHistoryUseCase.findHistory(OutboundHistoryEntityType.OUTBOUND.name(), outboundId)).hasSize(2);
         assertThatThrownBy(() -> useCase.startPicking(outboundId, hq(USER)))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("CONFLICT"));
         assertThatThrownBy(() -> allocationUseCase.release(new StockAllocationReleaseCommand(ids.get(0), "사유", USER), HQ))

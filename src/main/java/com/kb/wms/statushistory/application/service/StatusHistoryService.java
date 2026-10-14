@@ -12,7 +12,6 @@ import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.statushistory.application.port.in.result.StatusHistoryView;
 import com.kb.wms.statushistory.application.port.out.StatusHistoryRepository;
 import com.kb.wms.statushistory.domain.entity.StatusHistory;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,7 +25,7 @@ public class StatusHistoryService implements StatusHistoryUseCase {
     // MANDATORY: 호출한 도메인 서비스 트랜잭션에 참여한다. 없으면 예외로 단독 커밋을 막는다.
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public StatusHistory record(StatusHistoryEntityType entityType, Long entityId,
+    public StatusHistory record(String entityType, Long entityId,
                                 String fromStatus, String toStatus, String reason, Long changedBy) {
         StatusHistory history = StatusHistory.record(
                 entityType, entityId, fromStatus, toStatus, reason, changedBy, LocalDateTime.now());
@@ -34,17 +33,17 @@ public class StatusHistoryService implements StatusHistoryUseCase {
     }
 
     @Override
-    public List<StatusHistory> findHistory(StatusHistoryEntityType entityType, Long entityId) {
+    public List<StatusHistory> findHistory(String entityType, Long entityId) {
         return statusHistoryRepository.findByEntity(entityType, entityId);
     }
 
     @Override
-    public List<StatusHistoryView> findHistoryViews(StatusHistoryEntityType entityType, Long entityId) {
+    public List<StatusHistoryView> findHistoryViews(String entityType, Long entityId) {
         return statusHistoryRepository.findViewsByEntity(entityType, entityId);
     }
 
     @Override
-    public Optional<String> findStatusReason(StatusHistoryEntityType entityType, Long entityId,
+    public Optional<String> findStatusReason(String entityType, Long entityId,
                                              String currentStatus) {
         return statusHistoryRepository.findLatestByToStatus(entityType, entityId, currentStatus)
                 .map(StatusHistory::getReason);

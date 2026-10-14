@@ -29,26 +29,26 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
-import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.command.InboundInspectCommand;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
-import com.kb.wms.inbound.application.port.out.InboundSectionPort;
 import com.kb.wms.inbound.application.port.out.InboundSectionPort.SectionInfo;
+import com.kb.wms.inbound.application.port.out.InboundSectionPort;
 import com.kb.wms.inbound.application.port.out.LotPort;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.InboundLine;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.entity.PurchaseOrderLine;
+import com.kb.wms.inbound.domain.enums.InboundHistoryEntityType;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
 import com.kb.wms.inventory.exception.InventoryErrorCode;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
 @ExtendWith(MockitoExtension.class)
 class InboundInspectServiceTest {
@@ -226,7 +226,7 @@ class InboundInspectServiceTest {
         assertThat(saved.getReceivedBy()).isEqualTo(USER);
         assertThat(saved.getReceivedAt()).isNotNull();
         verify(statusHistoryUseCase).record(
-                StatusHistoryEntityType.INBOUND, 7L, "ARRIVED", "INSPECTING", null, USER);
+                InboundHistoryEntityType.INBOUND.name(), 7L, "ARRIVED", "INSPECTING", null, USER);
     }
 
     @Test

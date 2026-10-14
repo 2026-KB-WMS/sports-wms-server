@@ -26,11 +26,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
-import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderCancelCommand;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderRegisterCommand;
 import com.kb.wms.inbound.application.port.in.query.PurchaseOrderSearchCondition;
@@ -47,10 +45,12 @@ import com.kb.wms.inbound.application.port.out.WarehouseAvailabilityPort;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.entity.PurchaseOrderLine;
 import com.kb.wms.inbound.domain.entity.Supplier;
+import com.kb.wms.inbound.domain.enums.InboundHistoryEntityType;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderLineStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
 import com.kb.wms.inbound.exception.SupplierErrorCode;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.warehouse.exception.WarehouseErrorCode;
 
 @ExtendWith(MockitoExtension.class)
@@ -230,7 +230,7 @@ class PurchaseOrderServiceTest {
         assertThat(lines.get(1).getLineAmount()).isEqualByComparingTo("50000");
 
         verify(statusHistoryUseCase).record(
-                StatusHistoryEntityType.PURCHASE_ORDER, 4L, null, "REQUESTED", null, 5L);
+                InboundHistoryEntityType.PURCHASE_ORDER.name(), 4L, null, "REQUESTED", null, 5L);
     }
 
     @Test
@@ -357,7 +357,7 @@ class PurchaseOrderServiceTest {
         assertThat(result.getStatus()).isEqualTo(PurchaseOrderStatus.CONFIRMED);
         verify(purchaseOrderRepository).save(result);
         verify(statusHistoryUseCase).record(
-                StatusHistoryEntityType.PURCHASE_ORDER, 4L, "REQUESTED", "CONFIRMED", null, 5L);
+                InboundHistoryEntityType.PURCHASE_ORDER.name(), 4L, "REQUESTED", "CONFIRMED", null, 5L);
     }
 
     @Test
@@ -415,7 +415,7 @@ class PurchaseOrderServiceTest {
 
         assertThat(result.getStatus()).isEqualTo(PurchaseOrderStatus.CANCELED);
         verify(statusHistoryUseCase).record(
-                StatusHistoryEntityType.PURCHASE_ORDER, 4L, "REQUESTED", "CANCELED", null, 5L);
+                InboundHistoryEntityType.PURCHASE_ORDER.name(), 4L, "REQUESTED", "CANCELED", null, 5L);
     }
 
     @Test
@@ -429,7 +429,7 @@ class PurchaseOrderServiceTest {
                 4L, new PurchaseOrderCancelCommand("공급업체 재고 부족으로 납품 불가", 5L), HQ);
 
         assertThat(result.getStatus()).isEqualTo(PurchaseOrderStatus.CANCELED);
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.PURCHASE_ORDER, 4L,
+        verify(statusHistoryUseCase).record(InboundHistoryEntityType.PURCHASE_ORDER.name(), 4L,
                 "CONFIRMED", "CANCELED", "공급업체 재고 부족으로 납품 불가", 5L);
     }
 
@@ -545,7 +545,7 @@ class PurchaseOrderServiceTest {
     void getPurchaseOrder_canceled_fillsCancelReason() {
         when(purchaseOrderQueryRepository.findView(4L))
                 .thenReturn(Optional.of(viewWithStatus(PurchaseOrderStatus.CANCELED)));
-        when(statusHistoryUseCase.findStatusReason(StatusHistoryEntityType.PURCHASE_ORDER, 4L, "CANCELED"))
+        when(statusHistoryUseCase.findStatusReason(InboundHistoryEntityType.PURCHASE_ORDER.name(), 4L, "CANCELED"))
                 .thenReturn(Optional.of("공급업체 재고 부족"));
 
         assertThat(purchaseOrderService.getPurchaseOrder(4L, HQ).cancelReason()).isEqualTo("공급업체 재고 부족");
@@ -556,7 +556,7 @@ class PurchaseOrderServiceTest {
     void getPurchaseOrder_canceledWithoutReason() {
         when(purchaseOrderQueryRepository.findView(4L))
                 .thenReturn(Optional.of(viewWithStatus(PurchaseOrderStatus.CANCELED)));
-        when(statusHistoryUseCase.findStatusReason(StatusHistoryEntityType.PURCHASE_ORDER, 4L, "CANCELED"))
+        when(statusHistoryUseCase.findStatusReason(InboundHistoryEntityType.PURCHASE_ORDER.name(), 4L, "CANCELED"))
                 .thenReturn(Optional.empty());
 
         assertThat(purchaseOrderService.getPurchaseOrder(4L, HQ).cancelReason()).isNull();

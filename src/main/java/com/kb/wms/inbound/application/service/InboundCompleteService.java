@@ -10,28 +10,28 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
-import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.InboundCompleteUseCase;
-import com.kb.wms.inbound.application.port.in.result.InboundCompleteResult;
 import com.kb.wms.inbound.application.port.in.result.InboundCompleteResult.PurchaseOrderLineProgress;
 import com.kb.wms.inbound.application.port.in.result.InboundCompleteResult.ReflectedInventory;
+import com.kb.wms.inbound.application.port.in.result.InboundCompleteResult;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
-import com.kb.wms.inbound.application.port.out.InboundStockPort;
 import com.kb.wms.inbound.application.port.out.InboundStockPort.ReceivedStock;
 import com.kb.wms.inbound.application.port.out.InboundStockPort.StockReceipt;
+import com.kb.wms.inbound.application.port.out.InboundStockPort;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.InboundLine;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.entity.PurchaseOrderLine;
+import com.kb.wms.inbound.domain.enums.InboundHistoryEntityType;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
 import lombok.RequiredArgsConstructor;
 
@@ -89,13 +89,13 @@ public class InboundCompleteService implements InboundCompleteUseCase {
             purchaseOrder.complete();
             purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
             // 마지막 입고 완료로 발주가 자동 완료되는 전이도 이력에 남기고, 처리자는 입고를 완료한 사용자로 한다.
-            statusHistoryUseCase.record(StatusHistoryEntityType.PURCHASE_ORDER, purchaseOrder.getPurchaseOrderId(),
+            statusHistoryUseCase.record(InboundHistoryEntityType.PURCHASE_ORDER.name(), purchaseOrder.getPurchaseOrderId(),
                     purchaseOrderFrom.name(), purchaseOrder.getStatus().name(), null, userId);
         }
 
         inbound.complete(userId, LocalDateTime.now());
         Inbound saved = inboundRepository.save(inbound);
-        statusHistoryUseCase.record(StatusHistoryEntityType.INBOUND, inboundId,
+        statusHistoryUseCase.record(InboundHistoryEntityType.INBOUND.name(), inboundId,
                 InboundStatus.INSPECTING.name(), saved.getStatus().name(), null, userId);
 
         return new InboundCompleteResult(

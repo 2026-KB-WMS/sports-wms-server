@@ -21,11 +21,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.kb.wms.inventory.domain.enums.LotStatus;
 import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inventory.application.port.in.command.LotRegisterCommand;
 import com.kb.wms.inventory.application.port.in.command.LotStatusChangeCommand;
 import com.kb.wms.inventory.application.port.in.query.LotSearchCondition;
@@ -36,9 +35,10 @@ import com.kb.wms.inventory.application.port.out.InventoryQueryRepository;
 import com.kb.wms.inventory.application.port.out.LotRepository;
 import com.kb.wms.inventory.domain.entity.InventoryLot;
 import com.kb.wms.inventory.domain.entity.Lot;
+import com.kb.wms.inventory.domain.enums.InventoryHistoryEntityType;
+import com.kb.wms.inventory.domain.enums.LotStatus;
 import com.kb.wms.inventory.exception.InventoryErrorCode;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 
 @ExtendWith(MockitoExtension.class)
 class LotServiceTest {
@@ -306,7 +306,7 @@ class LotServiceTest {
         org.mockito.ArgumentCaptor<Lot> saved = org.mockito.ArgumentCaptor.forClass(Lot.class);
         verify(lotRepository).save(saved.capture());
         assertThat(saved.getValue().getStatus()).isEqualTo(LotStatus.QUARANTINED);
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.LOT, 5L, "AVAILABLE", "QUARANTINED", "품질 이상", 1L);
+        verify(statusHistoryUseCase).record(InventoryHistoryEntityType.LOT.name(), 5L, "AVAILABLE", "QUARANTINED", "품질 이상", 1L);
     }
 
     @Test
@@ -331,7 +331,7 @@ class LotServiceTest {
 
         lotService.changeLotStatus(5L, new LotStatusChangeCommand(LotStatus.AVAILABLE, "재검사 통과", 1L));
 
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.LOT, 5L, "QUARANTINED", "AVAILABLE", "재검사 통과", 1L);
+        verify(statusHistoryUseCase).record(InventoryHistoryEntityType.LOT.name(), 5L, "QUARANTINED", "AVAILABLE", "재검사 통과", 1L);
     }
 
     @Test
@@ -354,7 +354,7 @@ class LotServiceTest {
 
         lotService.changeLotStatus(5L, new LotStatusChangeCommand(LotStatus.DISPOSED, "폐기 처리", 1L));
 
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.LOT, 5L, "EXPIRED", "DISPOSED", "폐기 처리", 1L);
+        verify(statusHistoryUseCase).record(InventoryHistoryEntityType.LOT.name(), 5L, "EXPIRED", "DISPOSED", "폐기 처리", 1L);
     }
 
     @Test

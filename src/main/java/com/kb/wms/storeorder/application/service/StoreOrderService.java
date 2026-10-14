@@ -13,11 +13,10 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.storeorder.application.port.in.StoreOrderUseCase;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderAssignCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderCancelCommand;
@@ -47,6 +46,7 @@ import com.kb.wms.storeorder.application.port.out.StoreOrderRepository;
 import com.kb.wms.storeorder.application.port.out.WarehouseAvailabilityPort;
 import com.kb.wms.storeorder.domain.entity.StoreOrder;
 import com.kb.wms.storeorder.domain.entity.StoreOrderLine;
+import com.kb.wms.storeorder.domain.enums.StoreOrderHistoryEntityType;
 import com.kb.wms.storeorder.domain.enums.StoreOrderOutboundStatus;
 import com.kb.wms.storeorder.domain.enums.StoreOrderProgressStage;
 import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
@@ -110,7 +110,7 @@ public class StoreOrderService implements StoreOrderUseCase {
         }
         storeOrderRepository.saveLines(lines);
 
-        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, saved.getStoreOrderId(),
+        statusHistoryUseCase.record(StoreOrderHistoryEntityType.STORE_ORDER.name(), saved.getStoreOrderId(),
                 null, StoreOrderStatus.REQUESTED.name(), null, command.createdBy());
 
         return saved.getStoreOrderId();
@@ -191,7 +191,7 @@ public class StoreOrderService implements StoreOrderUseCase {
         StoreOrderOutboundStatus latest = storeOrderOutboundPort.findLatestOutboundStatus(storeOrderId).orElse(null);
 
         List<StoreOrderStatusHistoryView> history = statusHistoryUseCase
-                .findHistoryViews(StatusHistoryEntityType.STORE_ORDER, storeOrderId).stream()
+                .findHistoryViews(StoreOrderHistoryEntityType.STORE_ORDER.name(), storeOrderId).stream()
                 .map(h -> new StoreOrderStatusHistoryView(
                         h.fromStatus(), h.toStatus(), h.reason(), h.changedBy(), h.changedByName(), h.changedAt()))
                 .toList();
@@ -225,7 +225,7 @@ public class StoreOrderService implements StoreOrderUseCase {
         StoreOrderStatus from = order.getStatus();
         order.approve();
         StoreOrder saved = storeOrderRepository.save(order);
-        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, storeOrderId,
+        statusHistoryUseCase.record(StoreOrderHistoryEntityType.STORE_ORDER.name(), storeOrderId,
                 from.name(), saved.getStatus().name(), null, changedBy);
 
         return new StoreOrderStatusChange(storeOrderId, saved.getOrderNo(), saved.getStatus(), null,
@@ -251,7 +251,7 @@ public class StoreOrderService implements StoreOrderUseCase {
         order.reject();
         StoreOrder saved = storeOrderRepository.save(order);
         cancelLines(command.storeOrderId());
-        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, command.storeOrderId(),
+        statusHistoryUseCase.record(StoreOrderHistoryEntityType.STORE_ORDER.name(), command.storeOrderId(),
                 from.name(), saved.getStatus().name(), reason, command.changedBy());
 
         return new StoreOrderStatusChange(command.storeOrderId(), saved.getOrderNo(), saved.getStatus(), reason,
@@ -298,7 +298,7 @@ public class StoreOrderService implements StoreOrderUseCase {
         order.cancel();
         StoreOrder saved = storeOrderRepository.save(order);
         cancelLines(command.storeOrderId());
-        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, command.storeOrderId(),
+        statusHistoryUseCase.record(StoreOrderHistoryEntityType.STORE_ORDER.name(), command.storeOrderId(),
                 from.name(), saved.getStatus().name(), reason, command.changedBy());
 
         return new StoreOrderCancelResult(command.storeOrderId(), saved.getOrderNo(), saved.getStatus(), reason,
@@ -350,7 +350,7 @@ public class StoreOrderService implements StoreOrderUseCase {
         }
 
         StoreOrder saved = storeOrderRepository.save(order);
-        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, command.storeOrderId(),
+        statusHistoryUseCase.record(StoreOrderHistoryEntityType.STORE_ORDER.name(), command.storeOrderId(),
                 from.name(), saved.getStatus().name(), historyReason, command.changedBy());
 
         StoreOrderView view = storeOrderQueryRepository.findView(command.storeOrderId()).orElse(null);
@@ -379,7 +379,7 @@ public class StoreOrderService implements StoreOrderUseCase {
         StoreOrderStatus from = order.getStatus();
         order.hold();
         StoreOrder saved = storeOrderRepository.save(order);
-        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, command.storeOrderId(),
+        statusHistoryUseCase.record(StoreOrderHistoryEntityType.STORE_ORDER.name(), command.storeOrderId(),
                 from.name(), saved.getStatus().name(), reason, command.changedBy());
 
         return new StoreOrderStatusChange(command.storeOrderId(), saved.getOrderNo(), saved.getStatus(), reason,
@@ -404,7 +404,7 @@ public class StoreOrderService implements StoreOrderUseCase {
         StoreOrderStatus from = order.getStatus();
         order.resume();
         StoreOrder saved = storeOrderRepository.save(order);
-        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, command.storeOrderId(),
+        statusHistoryUseCase.record(StoreOrderHistoryEntityType.STORE_ORDER.name(), command.storeOrderId(),
                 from.name(), saved.getStatus().name(), reason, command.changedBy());
 
         return new StoreOrderStatusChange(command.storeOrderId(), saved.getOrderNo(), saved.getStatus(), null,
@@ -443,7 +443,7 @@ public class StoreOrderService implements StoreOrderUseCase {
         StoreOrderStatus from = order.getStatus();
         order.complete();
         StoreOrder saved = storeOrderRepository.save(order);
-        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, command.storeOrderId(),
+        statusHistoryUseCase.record(StoreOrderHistoryEntityType.STORE_ORDER.name(), command.storeOrderId(),
                 from.name(), saved.getStatus().name(), reason, command.changedBy());
 
         List<StoreOrderCompletePartialResult.Item> items = storeOrderQueryRepository
@@ -572,7 +572,7 @@ public class StoreOrderService implements StoreOrderUseCase {
             return null;
         }
         return statusHistoryUseCase
-                .findStatusReason(StatusHistoryEntityType.STORE_ORDER, view.storeOrderId(), view.status().name())
+                .findStatusReason(StoreOrderHistoryEntityType.STORE_ORDER.name(), view.storeOrderId(), view.status().name())
                 .orElse(null);
     }
 

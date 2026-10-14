@@ -17,10 +17,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
-import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inventory.adapter.out.persistence.entity.InventoryLotJpaEntity;
 import com.kb.wms.inventory.adapter.out.persistence.entity.LotJpaEntity;
 import com.kb.wms.inventory.adapter.out.persistence.repository.InventoryLotJpaRepository;
@@ -31,18 +29,20 @@ import com.kb.wms.outbound.application.port.in.OutboundFulfillmentUseCase;
 import com.kb.wms.outbound.application.port.in.OutboundUseCase;
 import com.kb.wms.outbound.application.port.in.StockAllocationUseCase;
 import com.kb.wms.outbound.application.port.in.command.OutboundCreateCommand;
-import com.kb.wms.outbound.application.port.in.command.OutboundPickingCompleteCommand;
 import com.kb.wms.outbound.application.port.in.command.OutboundPickingCompleteCommand.PickedLine;
+import com.kb.wms.outbound.application.port.in.command.OutboundPickingCompleteCommand;
 import com.kb.wms.outbound.application.port.in.command.StockAllocateCommand;
 import com.kb.wms.outbound.application.port.in.result.OutboundDeliverResult;
 import com.kb.wms.outbound.application.port.in.result.OutboundLineView;
 import com.kb.wms.outbound.application.port.in.result.OutboundPickingCompleteResult;
 import com.kb.wms.outbound.application.port.in.result.OutboundShipResult;
+import com.kb.wms.outbound.domain.enums.OutboundHistoryEntityType;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
 import com.kb.wms.outbound.domain.enums.StoreOrderState;
 import com.kb.wms.product.adapter.out.persistence.entity.ProductSkuJpaEntity;
 import com.kb.wms.product.adapter.out.persistence.repository.ProductSkuJpaRepository;
 import com.kb.wms.product.domain.enums.ProductStatus;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.store.adapter.out.persistence.entity.StoreJpaEntity;
 import com.kb.wms.store.adapter.out.persistence.repository.StoreJpaRepository;
 import com.kb.wms.store.domain.enums.StoreStatus;
@@ -50,6 +50,7 @@ import com.kb.wms.storeorder.adapter.out.persistence.entity.StoreOrderJpaEntity;
 import com.kb.wms.storeorder.adapter.out.persistence.entity.StoreOrderLineJpaEntity;
 import com.kb.wms.storeorder.adapter.out.persistence.repository.StoreOrderJpaRepository;
 import com.kb.wms.storeorder.adapter.out.persistence.repository.StoreOrderLineJpaRepository;
+import com.kb.wms.storeorder.domain.enums.StoreOrderHistoryEntityType;
 import com.kb.wms.storeorder.domain.enums.StoreOrderLineStatus;
 import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
 import com.kb.wms.warehouse.adapter.out.persistence.entity.WarehouseJpaEntity;
@@ -221,7 +222,7 @@ class OutboundFulfillmentServiceIntegrationTest {
         assertThat(a.getAllocatedQuantity()).isZero();
         assertThat(a.getShippedQuantity()).isEqualTo(3);
         assertThat(a.getStatus()).isNotEqualTo(StoreOrderLineStatus.COMPLETED); // 항목 상태는 배송 완료에서 바뀐다
-        assertThat(statusHistoryUseCase.findHistory(StatusHistoryEntityType.OUTBOUND, outboundId)).hasSize(3);
+        assertThat(statusHistoryUseCase.findHistory(OutboundHistoryEntityType.OUTBOUND.name(), outboundId)).hasSize(3);
     }
 
     @Test
@@ -355,7 +356,7 @@ class OutboundFulfillmentServiceIntegrationTest {
         assertThat(result.storeOrderStatus()).isEqualTo(StoreOrderState.COMPLETED);
         assertThat(orderLine(lineA).getStatus()).isEqualTo(StoreOrderLineStatus.COMPLETED);
         assertThat(orderLine(lineB).getStatus()).isEqualTo(StoreOrderLineStatus.COMPLETED);
-        assertThat(statusHistoryUseCase.findHistory(StatusHistoryEntityType.STORE_ORDER, order)).isNotEmpty();
+        assertThat(statusHistoryUseCase.findHistory(StoreOrderHistoryEntityType.STORE_ORDER.name(), order)).isNotEmpty();
         assertThatThrownBy(() -> useCase.deliver(outboundId, hq(USER)))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("CONFLICT"));
     }

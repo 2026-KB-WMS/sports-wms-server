@@ -8,11 +8,9 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
-import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.InboundUseCase;
 import com.kb.wms.inbound.application.port.in.command.InboundCancelCommand;
 import com.kb.wms.inbound.application.port.in.command.InboundRegisterCommand;
@@ -28,9 +26,11 @@ import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
 import com.kb.wms.inbound.application.port.out.WarehouseAvailabilityPort;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
+import com.kb.wms.inbound.domain.enums.InboundHistoryEntityType;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
 import lombok.RequiredArgsConstructor;
 
@@ -92,7 +92,7 @@ public class InboundService implements InboundUseCase {
         Inbound saved = inboundRepository.save(Inbound.register(
                 nextInboundNo(LocalDate.now()), purchaseOrder.getPurchaseOrderId(), purchaseOrder.getWarehouseId(),
                 command.arrivedAt() == null ? now : command.arrivedAt(), command.note()));
-        statusHistoryUseCase.record(StatusHistoryEntityType.INBOUND, saved.getInboundId(),
+        statusHistoryUseCase.record(InboundHistoryEntityType.INBOUND.name(), saved.getInboundId(),
                 null, InboundStatus.ARRIVED.name(), null, command.userId());
         return saved.getInboundId();
     }
@@ -126,7 +126,7 @@ public class InboundService implements InboundUseCase {
         }
         // 취소 사유는 CANCELED로 바뀔 때의 상태 이력에서 읽는다.
         return view.withCancelReason(statusHistoryUseCase
-                .findStatusReason(StatusHistoryEntityType.INBOUND, inboundId, InboundStatus.CANCELED.name())
+                .findStatusReason(InboundHistoryEntityType.INBOUND.name(), inboundId, InboundStatus.CANCELED.name())
                 .orElse(null));
     }
 
@@ -166,7 +166,7 @@ public class InboundService implements InboundUseCase {
         InboundStatus from = inbound.getStatus();
         inbound.cancel();
         Inbound saved = inboundRepository.save(inbound);
-        statusHistoryUseCase.record(StatusHistoryEntityType.INBOUND, inboundId,
+        statusHistoryUseCase.record(InboundHistoryEntityType.INBOUND.name(), inboundId,
                 from.name(), saved.getStatus().name(), reason, command.userId());
         return saved;
     }

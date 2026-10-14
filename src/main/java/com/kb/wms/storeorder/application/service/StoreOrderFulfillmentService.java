@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.storeorder.application.port.in.StoreOrderFulfillmentUseCase;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderLinePickedCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderLineQuantityCommand;
@@ -21,6 +20,7 @@ import com.kb.wms.storeorder.application.port.in.result.StoreOrderFulfillmentOrd
 import com.kb.wms.storeorder.application.port.out.StoreOrderRepository;
 import com.kb.wms.storeorder.domain.entity.StoreOrder;
 import com.kb.wms.storeorder.domain.entity.StoreOrderLine;
+import com.kb.wms.storeorder.domain.enums.StoreOrderHistoryEntityType;
 import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
 import com.kb.wms.storeorder.exception.StoreOrderErrorCode;
 
@@ -106,7 +106,7 @@ public class StoreOrderFulfillmentService implements StoreOrderFulfillmentUseCas
         StoreOrderStatus from = order.getStatus();
         order.complete();
         StoreOrder saved = storeOrderRepository.save(order);
-        statusHistoryUseCase.record(StatusHistoryEntityType.STORE_ORDER, storeOrderId,
+        statusHistoryUseCase.record(StoreOrderHistoryEntityType.STORE_ORDER.name(), storeOrderId,
                 from.name(), saved.getStatus().name(), null, changedBy);
         return toView(saved);
     }

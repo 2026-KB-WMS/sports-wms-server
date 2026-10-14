@@ -15,11 +15,9 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
-import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.outbound.application.port.in.StockAllocationUseCase;
 import com.kb.wms.outbound.application.port.in.command.StockAllocateCommand;
 import com.kb.wms.outbound.application.port.in.command.StockAllocationReleaseCommand;
@@ -27,23 +25,25 @@ import com.kb.wms.outbound.application.port.in.query.StockAllocationSearchCondit
 import com.kb.wms.outbound.application.port.in.result.FefoStockCandidate;
 import com.kb.wms.outbound.application.port.in.result.StockAllocateResult;
 import com.kb.wms.outbound.application.port.in.result.StockAllocationDetail;
-import com.kb.wms.outbound.application.port.in.result.StockAllocationShortage;
 import com.kb.wms.outbound.application.port.in.result.StockAllocationReleaseResult;
+import com.kb.wms.outbound.application.port.in.result.StockAllocationShortage;
 import com.kb.wms.outbound.application.port.in.result.StockAllocationSummary;
 import com.kb.wms.outbound.application.port.in.result.StockAllocationView;
 import com.kb.wms.outbound.application.port.out.OutboundQueryRepository;
-import com.kb.wms.outbound.application.port.out.OutboundStockPort;
 import com.kb.wms.outbound.application.port.out.OutboundStockPort.StockQuantity;
 import com.kb.wms.outbound.application.port.out.OutboundStockPort.StockState;
+import com.kb.wms.outbound.application.port.out.OutboundStockPort;
 import com.kb.wms.outbound.application.port.out.StockAllocationRepository;
-import com.kb.wms.outbound.application.port.out.StoreOrderPort;
 import com.kb.wms.outbound.application.port.out.StoreOrderPort.LineQuantity;
 import com.kb.wms.outbound.application.port.out.StoreOrderPort.LineSnapshot;
 import com.kb.wms.outbound.application.port.out.StoreOrderPort.OrderSnapshot;
-import com.kb.wms.outbound.domain.enums.StoreOrderState;
+import com.kb.wms.outbound.application.port.out.StoreOrderPort;
 import com.kb.wms.outbound.domain.entity.StockAllocation;
 import com.kb.wms.outbound.domain.enums.AllocationStatus;
+import com.kb.wms.outbound.domain.enums.OutboundHistoryEntityType;
+import com.kb.wms.outbound.domain.enums.StoreOrderState;
 import com.kb.wms.outbound.exception.OutboundErrorCode;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
 import lombok.RequiredArgsConstructor;
 
@@ -112,7 +112,7 @@ public class StockAllocationService implements StockAllocationUseCase {
                 .toList());
 
         for (StockAllocation allocation : saved) {
-            statusHistoryUseCase.record(StatusHistoryEntityType.STOCK_ALLOCATION, allocation.getAllocationId(),
+            statusHistoryUseCase.record(OutboundHistoryEntityType.STOCK_ALLOCATION.name(), allocation.getAllocationId(),
                     null, AllocationStatus.ALLOCATED.name(), null, command.userId());
         }
 
@@ -157,7 +157,7 @@ public class StockAllocationService implements StockAllocationUseCase {
                 List.of(new StockQuantity(saved.getInventoryLotId(), saved.getAllocatedQuantity())));
         storeOrderPort.decreaseAllocated(
                 List.of(new LineQuantity(saved.getStoreOrderLineId(), saved.getAllocatedQuantity())));
-        statusHistoryUseCase.record(StatusHistoryEntityType.STOCK_ALLOCATION, saved.getAllocationId(),
+        statusHistoryUseCase.record(OutboundHistoryEntityType.STOCK_ALLOCATION.name(), saved.getAllocationId(),
                 AllocationStatus.ALLOCATED.name(), AllocationStatus.RELEASED.name(), reason, command.userId());
 
         StockState state = states.get(0);

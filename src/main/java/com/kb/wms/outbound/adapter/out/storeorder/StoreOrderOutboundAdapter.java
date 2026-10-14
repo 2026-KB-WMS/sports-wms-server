@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 
 
 import com.kb.wms.outbound.application.port.out.OutboundRepository;
@@ -32,6 +31,7 @@ import com.kb.wms.storeorder.application.port.in.result.StoreOrderFulfillmentCan
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderOutboundView;
 import com.kb.wms.storeorder.application.port.out.StoreOrderOutboundPort;
 import com.kb.wms.storeorder.domain.enums.StoreOrderOutboundStatus;
+import com.kb.wms.outbound.domain.enums.OutboundHistoryEntityType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -123,7 +123,7 @@ public class StoreOrderOutboundAdapter implements StoreOrderOutboundPort {
         for (Outbound outbound : readyOutbounds) {
             outbound.cancel();
             outboundRepository.save(outbound);
-            statusHistoryUseCase.record(StatusHistoryEntityType.OUTBOUND, outbound.getOutboundId(),
+            statusHistoryUseCase.record(OutboundHistoryEntityType.OUTBOUND.name(), outbound.getOutboundId(),
                     OutboundStatus.READY.name(), OutboundStatus.CANCELED.name(), AUTO_CANCEL_REASON, changedBy);
         }
 
@@ -155,7 +155,7 @@ public class StoreOrderOutboundAdapter implements StoreOrderOutboundPort {
         for (StockAllocation allocation : allocations) {
             allocation.release(now);
             stockAllocationRepository.save(allocation);
-            statusHistoryUseCase.record(StatusHistoryEntityType.STOCK_ALLOCATION, allocation.getAllocationId(),
+            statusHistoryUseCase.record(OutboundHistoryEntityType.STOCK_ALLOCATION.name(), allocation.getAllocationId(),
                     AllocationStatus.ALLOCATED.name(), AllocationStatus.RELEASED.name(), reason, changedBy);
             quantityByLot.merge(allocation.getInventoryLotId(), allocation.getAllocatedQuantity(), Long::sum);
             quantityByLine.merge(allocation.getStoreOrderLineId(), allocation.getAllocatedQuantity(), Long::sum);

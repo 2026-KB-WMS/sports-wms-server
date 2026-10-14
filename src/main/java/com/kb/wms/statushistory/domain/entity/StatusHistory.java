@@ -2,7 +2,6 @@ package com.kb.wms.statushistory.domain.entity;
 
 import java.time.LocalDateTime;
 
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -20,7 +19,7 @@ public class StatusHistory {
     public static final int MAX_REASON_LENGTH = 500;
 
     private Long statusHistoryId;
-    private StatusHistoryEntityType entityType;
+    private String entityType;
     private Long entityId;
     /** 최초 생성 기록이면 null. */
     private String fromStatus;
@@ -30,7 +29,7 @@ public class StatusHistory {
     private LocalDateTime changedAt;
 
     @Builder
-    private StatusHistory(Long statusHistoryId, StatusHistoryEntityType entityType, Long entityId,
+    private StatusHistory(Long statusHistoryId, String entityType, Long entityId,
                           String fromStatus, String toStatus, String reason, Long changedBy,
                           LocalDateTime changedAt) {
         this.statusHistoryId = statusHistoryId;
@@ -46,7 +45,7 @@ public class StatusHistory {
     /**
      * 상태 변경 이력 생성. 최초 생성이면 fromStatus에 null을 넣는다. 처리자(changedBy)는 필수이고, 시스템 자동 전이는 트리거한 사용자를 넣는다. 빈 사유는 null로 정리한다.
      */
-    public static StatusHistory record(StatusHistoryEntityType entityType, Long entityId,
+    public static StatusHistory record(String entityType, Long entityId,
                                        String fromStatus, String toStatus, String reason,
                                        Long changedBy, LocalDateTime changedAt) {
         if (entityType == null) {
