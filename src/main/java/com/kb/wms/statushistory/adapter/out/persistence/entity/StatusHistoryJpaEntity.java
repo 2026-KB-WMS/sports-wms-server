@@ -3,12 +3,9 @@ package com.kb.wms.statushistory.adapter.out.persistence.entity;
 import java.time.LocalDateTime;
 
 import com.kb.wms.statushistory.domain.entity.StatusHistory;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -37,9 +34,8 @@ public class StatusHistoryJpaEntity {
     @Column(name = "status_history_id")
     private Long statusHistoryId;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "entity_type", nullable = false, length = 30)
-    private StatusHistoryEntityType entityType;
+    private String entityType;
 
     @Column(name = "entity_id", nullable = false)
     private Long entityId;
@@ -60,7 +56,7 @@ public class StatusHistoryJpaEntity {
     private LocalDateTime changedAt;
 
     @Builder
-    private StatusHistoryJpaEntity(Long statusHistoryId, StatusHistoryEntityType entityType, Long entityId,
+    private StatusHistoryJpaEntity(Long statusHistoryId, String entityType, Long entityId,
                                    String fromStatus, String toStatus, String reason, Long changedBy,
                                    LocalDateTime changedAt) {
         this.statusHistoryId = statusHistoryId;

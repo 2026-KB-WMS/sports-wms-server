@@ -13,25 +13,25 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
-import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.InboundInspectUseCase;
 import com.kb.wms.inbound.application.port.in.command.InboundInspectCommand;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
-import com.kb.wms.inbound.application.port.out.InboundSectionPort;
 import com.kb.wms.inbound.application.port.out.InboundSectionPort.SectionInfo;
+import com.kb.wms.inbound.application.port.out.InboundSectionPort;
 import com.kb.wms.inbound.application.port.out.LotPort;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.InboundLine;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.entity.PurchaseOrderLine;
+import com.kb.wms.inbound.domain.enums.InboundHistoryEntityType;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
 import lombok.RequiredArgsConstructor;
 
@@ -100,7 +100,7 @@ public class InboundInspectService implements InboundInspectUseCase {
         inboundRepository.saveLines(lines);
         // 검수 중 상태에서 항목을 다시 저장하는 호출은 상태가 바뀌지 않으므로 이력을 남기지 않는다.
         if (from != saved.getStatus()) {
-            statusHistoryUseCase.record(StatusHistoryEntityType.INBOUND, saved.getInboundId(),
+            statusHistoryUseCase.record(InboundHistoryEntityType.INBOUND.name(), saved.getInboundId(),
                     from.name(), saved.getStatus().name(), null, command.userId());
         }
         return saved;

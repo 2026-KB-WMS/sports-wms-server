@@ -14,10 +14,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
-import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inventory.adapter.out.persistence.entity.InventoryTransactionJpaEntity;
 import com.kb.wms.inventory.adapter.out.persistence.repository.InventoryLotJpaRepository;
 import com.kb.wms.inventory.adapter.out.persistence.repository.InventoryTransactionJpaRepository;
@@ -26,17 +24,19 @@ import com.kb.wms.outbound.application.port.in.OutboundUseCase;
 import com.kb.wms.outbound.application.port.in.StockAllocationUseCase;
 import com.kb.wms.outbound.application.port.in.command.OutboundCancelCommand;
 import com.kb.wms.outbound.application.port.in.command.OutboundCreateCommand;
-import com.kb.wms.outbound.application.port.in.command.OutboundPickingCompleteCommand;
 import com.kb.wms.outbound.application.port.in.command.OutboundPickingCompleteCommand.PickedLine;
+import com.kb.wms.outbound.application.port.in.command.OutboundPickingCompleteCommand;
 import com.kb.wms.outbound.application.port.in.command.StockAllocateCommand;
 import com.kb.wms.outbound.application.port.in.result.OutboundCreateResult;
 import com.kb.wms.outbound.application.port.out.OutboundRepository;
 import com.kb.wms.outbound.application.port.out.StockAllocationRepository;
 import com.kb.wms.outbound.domain.enums.AllocationStatus;
+import com.kb.wms.outbound.domain.enums.OutboundHistoryEntityType;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
 import com.kb.wms.outbound.domain.enums.StoreOrderState;
-import com.kb.wms.outbound.support.OutboundTestFixture;
 import com.kb.wms.outbound.support.OutboundTestFixture.Scenario;
+import com.kb.wms.outbound.support.OutboundTestFixture;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.storeorder.adapter.out.persistence.repository.StoreOrderJpaRepository;
 import com.kb.wms.storeorder.adapter.out.persistence.repository.StoreOrderLineJpaRepository;
 import com.kb.wms.storeorder.application.port.in.StoreOrderUseCase;
@@ -44,6 +44,7 @@ import com.kb.wms.storeorder.application.port.in.command.StoreOrderCancelCommand
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderCancelResult;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderCompletePartialResult;
+import com.kb.wms.storeorder.domain.enums.StoreOrderHistoryEntityType;
 import com.kb.wms.storeorder.domain.enums.StoreOrderLineStatus;
 import com.kb.wms.storeorder.domain.enums.StoreOrderProgressStage;
 import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
@@ -96,7 +97,7 @@ class OutboundFlowIntegrationTest {
     private record InventoryRow(long onHand, long allocated) {
     }
 
-    private int historyCount(StatusHistoryEntityType type, Long id) {
+    private int historyCount(String type, Long id) {
         return statusHistoryUseCase.findHistory(type, id).size();
     }
 
@@ -161,11 +162,11 @@ class OutboundFlowIntegrationTest {
         assertThat(orderLine(s).getStatus()).isEqualTo(StoreOrderLineStatus.COMPLETED);
 
         // 상태 이력: 출고 5건(null→READY→PICKING→PICKED→SHIPPED→DELIVERED), 할당 2건(→ALLOCATED, →PICKED)
-        assertThat(historyCount(StatusHistoryEntityType.OUTBOUND, outboundId)).isEqualTo(5);
-        assertThat(historyCount(StatusHistoryEntityType.OUTBOUND, second)).isEqualTo(5);
+        assertThat(historyCount(OutboundHistoryEntityType.OUTBOUND.name(), outboundId)).isEqualTo(5);
+        assertThat(historyCount(OutboundHistoryEntityType.OUTBOUND.name(), second)).isEqualTo(5);
         Long firstAllocation = created.items().get(0).allocationId();
-        assertThat(historyCount(StatusHistoryEntityType.STOCK_ALLOCATION, firstAllocation)).isEqualTo(2);
-        assertThat(historyCount(StatusHistoryEntityType.STORE_ORDER, s.orderId())).isEqualTo(1);
+        assertThat(historyCount(OutboundHistoryEntityType.STOCK_ALLOCATION.name(), firstAllocation)).isEqualTo(2);
+        assertThat(historyCount(StoreOrderHistoryEntityType.STORE_ORDER.name(), s.orderId())).isEqualTo(1);
     }
 
     // ---------- 지점 발주 연동 ----------
@@ -234,7 +235,7 @@ class OutboundFlowIntegrationTest {
         assertThat(inventory(s.inventoryLotId())).isEqualTo(new InventoryRow(50, 0));
         assertThat(orderLine(s).getAllocatedQuantity()).isZero();
 
-        var history = statusHistoryUseCase.findHistory(StatusHistoryEntityType.STOCK_ALLOCATION, allocationId);
+        var history = statusHistoryUseCase.findHistory(OutboundHistoryEntityType.STOCK_ALLOCATION.name(), allocationId);
         assertThat(history).hasSize(2);
         var released = history.get(1);
         assertThat(released.getFromStatus()).isEqualTo("ALLOCATED");

@@ -17,10 +17,10 @@ import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.statushistory.domain.entity.StatusHistory;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.store.application.port.in.StoreUseCase;
 import com.kb.wms.store.application.port.in.command.StoreRegisterCommand;
 import com.kb.wms.store.domain.entity.Store;
+import com.kb.wms.store.domain.enums.StoreHistoryEntityType;
 import com.kb.wms.store.exception.StoreErrorCode;
 import com.kb.wms.storeorder.application.port.out.StoreOrderRepository;
 import com.kb.wms.storeorder.domain.entity.StoreOrder;
@@ -86,7 +86,7 @@ class StoreDeactivationWithOrdersTest {
 
         storeUseCase.deactivateStore(store.getStoreId(), "  폐점 처리  ", 7L);
 
-        List<StatusHistory> history = statusHistoryUseCase.findHistory(StatusHistoryEntityType.STORE, store.getStoreId());
+        List<StatusHistory> history = statusHistoryUseCase.findHistory(StoreHistoryEntityType.STORE.name(), store.getStoreId());
         assertThat(history).hasSize(1);
         assertThat(history.get(0).getFromStatus()).isEqualTo("ACTIVE");
         assertThat(history.get(0).getToStatus()).isEqualTo("INACTIVE");
@@ -101,7 +101,7 @@ class StoreDeactivationWithOrdersTest {
 
         storeUseCase.deactivateStore(store.getStoreId(), null, 7L);
 
-        List<StatusHistory> history = statusHistoryUseCase.findHistory(StatusHistoryEntityType.STORE, store.getStoreId());
+        List<StatusHistory> history = statusHistoryUseCase.findHistory(StoreHistoryEntityType.STORE.name(), store.getStoreId());
         assertThat(history).hasSize(1);
         assertThat(history.get(0).getReason()).isNull();
     }

@@ -5,15 +5,14 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.locationcode.LocationCodeIssuer;
 import com.kb.wms.common.locationcode.LocationType;
 import com.kb.wms.common.locationcode.RegionCode;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.statushistory.domain.entity.StatusHistory;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.store.application.port.in.StoreUseCase;
 import com.kb.wms.store.application.port.in.command.StoreRegisterCommand;
 import com.kb.wms.store.application.port.in.command.StoreUpdateCommand;
@@ -24,6 +23,7 @@ import com.kb.wms.store.application.port.out.StoreOrderPresencePort;
 import com.kb.wms.store.application.port.out.StoreRepository;
 import com.kb.wms.store.domain.entity.Store;
 import com.kb.wms.store.domain.entity.StoreMember;
+import com.kb.wms.store.domain.enums.StoreHistoryEntityType;
 import com.kb.wms.store.domain.enums.StoreStatus;
 import com.kb.wms.store.exception.StoreErrorCode;
 
@@ -138,7 +138,7 @@ public class StoreService implements StoreUseCase {
         }
         store.deactivate();
         Store saved = storeRepository.save(store);
-        statusHistoryUseCase.record(StatusHistoryEntityType.STORE, storeId,
+        statusHistoryUseCase.record(StoreHistoryEntityType.STORE.name(), storeId,
                 StoreStatus.ACTIVE.name(), StoreStatus.INACTIVE.name(), reason, userId);
         return saved;
     }
@@ -156,7 +156,7 @@ public class StoreService implements StoreUseCase {
         }
         store.activate();
         Store saved = storeRepository.save(store);
-        statusHistoryUseCase.record(StatusHistoryEntityType.STORE, storeId,
+        statusHistoryUseCase.record(StoreHistoryEntityType.STORE.name(), storeId,
                 StoreStatus.INACTIVE.name(), StoreStatus.ACTIVE.name(), null, userId);
         return saved;
     }

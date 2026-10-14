@@ -29,13 +29,13 @@ import com.kb.wms.auth.application.port.in.result.UserAffiliation;
 import com.kb.wms.auth.application.port.out.UserQueryRepository;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
+import com.kb.wms.auth.domain.enums.AuthHistoryEntityType;
 import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
 import com.kb.wms.auth.exception.AuthErrorCode;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -282,7 +282,7 @@ class UserServiceTest {
         User result = userService.updateUser(statusUpdate(USER_ID, UserStatus.ACTIVE));
 
         assertThat(result.getStatus()).isEqualTo(UserStatus.ACTIVE);
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.USER, USER_ID,
+        verify(statusHistoryUseCase).record(AuthHistoryEntityType.USER.name(), USER_ID,
                 "PENDING", "ACTIVE", null, ADMIN_ID);
     }
 
@@ -315,7 +315,7 @@ class UserServiceTest {
         User result = userService.updateUser(approveWith(3L, null, UserStatus.ACTIVE));
 
         assertThat(result.getStatus()).isEqualTo(UserStatus.ACTIVE);
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.USER, USER_ID,
+        verify(statusHistoryUseCase).record(AuthHistoryEntityType.USER.name(), USER_ID,
                 "PENDING", "ACTIVE", null, ADMIN_ID);
     }
 
@@ -445,7 +445,7 @@ class UserServiceTest {
 
         assertThat(result.getStatus()).isEqualTo(UserStatus.INACTIVE);
         verify(userQueryRepository, never()).findAffiliation(any());
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.USER, USER_ID,
+        verify(statusHistoryUseCase).record(AuthHistoryEntityType.USER.name(), USER_ID,
                 "PENDING", "INACTIVE", null, ADMIN_ID);
     }
 
@@ -462,9 +462,9 @@ class UserServiceTest {
         assertThat(userService.updateUser(statusUpdate(USER_ID, UserStatus.ACTIVE)).getStatus())
                 .isEqualTo(UserStatus.ACTIVE);
 
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.USER, USER_ID,
+        verify(statusHistoryUseCase).record(AuthHistoryEntityType.USER.name(), USER_ID,
                 "ACTIVE", "INACTIVE", null, ADMIN_ID);
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.USER, USER_ID,
+        verify(statusHistoryUseCase).record(AuthHistoryEntityType.USER.name(), USER_ID,
                 "INACTIVE", "ACTIVE", null, ADMIN_ID);
     }
 

@@ -12,11 +12,9 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
-import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.PurchaseOrderUseCase;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderCancelCommand;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderRegisterCommand;
@@ -24,8 +22,8 @@ import com.kb.wms.inbound.application.port.in.query.PurchaseOrderSearchCondition
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderDetails;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderSummary;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderView;
-import com.kb.wms.inbound.application.port.out.PurchaseOrderQueryRepository;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
+import com.kb.wms.inbound.application.port.out.PurchaseOrderQueryRepository;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
 import com.kb.wms.inbound.application.port.out.SkuPurchasePricePort;
 import com.kb.wms.inbound.application.port.out.SupplierRepository;
@@ -33,9 +31,11 @@ import com.kb.wms.inbound.application.port.out.WarehouseAvailabilityPort;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.entity.PurchaseOrderLine;
 import com.kb.wms.inbound.domain.entity.Supplier;
+import com.kb.wms.inbound.domain.enums.InboundHistoryEntityType;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
 import com.kb.wms.inbound.exception.SupplierErrorCode;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
 import lombok.RequiredArgsConstructor;
 
@@ -94,7 +94,7 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         }
         purchaseOrderRepository.saveLines(lines);
 
-        statusHistoryUseCase.record(StatusHistoryEntityType.PURCHASE_ORDER, saved.getPurchaseOrderId(),
+        statusHistoryUseCase.record(InboundHistoryEntityType.PURCHASE_ORDER.name(), saved.getPurchaseOrderId(),
                 null, PurchaseOrderStatus.REQUESTED.name(), null, command.createdBy());
 
         return saved.getPurchaseOrderId();
@@ -130,7 +130,7 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         }
         // 취소 사유는 CANCELED로 바뀔 때의 상태 이력에서 읽는다. 사유 없이 취소했으면 null.
         return view.withCancelReason(statusHistoryUseCase
-                .findStatusReason(StatusHistoryEntityType.PURCHASE_ORDER, purchaseOrderId,
+                .findStatusReason(InboundHistoryEntityType.PURCHASE_ORDER.name(), purchaseOrderId,
                         PurchaseOrderStatus.CANCELED.name())
                 .orElse(null));
     }
@@ -158,7 +158,7 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         }
         purchaseOrder.confirm();
         PurchaseOrder saved = purchaseOrderRepository.save(purchaseOrder);
-        statusHistoryUseCase.record(StatusHistoryEntityType.PURCHASE_ORDER, purchaseOrderId,
+        statusHistoryUseCase.record(InboundHistoryEntityType.PURCHASE_ORDER.name(), purchaseOrderId,
                 PurchaseOrderStatus.REQUESTED.name(), saved.getStatus().name(), null, userId);
         return saved;
     }
@@ -197,7 +197,7 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         PurchaseOrderStatus from = purchaseOrder.getStatus();
         purchaseOrder.cancel();
         PurchaseOrder saved = purchaseOrderRepository.save(purchaseOrder);
-        statusHistoryUseCase.record(StatusHistoryEntityType.PURCHASE_ORDER, purchaseOrderId,
+        statusHistoryUseCase.record(InboundHistoryEntityType.PURCHASE_ORDER.name(), purchaseOrderId,
                 from.name(), saved.getStatus().name(), hasReason ? reason : null, command.userId());
         return saved;
     }

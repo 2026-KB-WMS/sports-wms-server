@@ -26,17 +26,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.statushistory.application.port.in.result.StatusHistoryView;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
-import com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand;
-import com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand;
-import com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand;
-import com.kb.wms.storeorder.application.port.in.command.StoreOrderRegisterCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderCancelCommand;
+import com.kb.wms.storeorder.application.port.in.command.StoreOrderCompletePartialCommand;
+import com.kb.wms.storeorder.application.port.in.command.StoreOrderHoldCommand;
+import com.kb.wms.storeorder.application.port.in.command.StoreOrderRegisterCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderRejectCommand;
+import com.kb.wms.storeorder.application.port.in.command.StoreOrderResumeCommand;
 import com.kb.wms.storeorder.application.port.in.query.StoreOrderSearchCondition;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderCancelResult;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderDetail;
@@ -56,6 +55,7 @@ import com.kb.wms.storeorder.application.port.out.StoreOrderRepository;
 import com.kb.wms.storeorder.application.port.out.WarehouseAvailabilityPort;
 import com.kb.wms.storeorder.domain.entity.StoreOrder;
 import com.kb.wms.storeorder.domain.entity.StoreOrderLine;
+import com.kb.wms.storeorder.domain.enums.StoreOrderHistoryEntityType;
 import com.kb.wms.storeorder.domain.enums.StoreOrderLineStatus;
 import com.kb.wms.storeorder.domain.enums.StoreOrderOutboundStatus;
 import com.kb.wms.storeorder.domain.enums.StoreOrderProgressStage;
@@ -181,7 +181,7 @@ class StoreOrderServiceTest {
         assertThat(lines.get(1).getRequestedUnitSupplyPrice()).isEqualByComparingTo("200.00");
 
         verify(statusHistoryUseCase).record(
-                StatusHistoryEntityType.STORE_ORDER, 77L, null, "REQUESTED", null, 5L);
+                StoreOrderHistoryEntityType.STORE_ORDER.name(), 77L, null, "REQUESTED", null, 5L);
     }
 
     @Test
@@ -342,7 +342,7 @@ class StoreOrderServiceTest {
     void getStoreOrder_rejectedHasReason() {
         when(storeOrderQueryRepository.findView(5L)).thenReturn(Optional.of(view(5L, StoreOrderStatus.REJECTED, 0)));
         when(storeOrderOutboundPort.findLatestOutboundStatus(5L)).thenReturn(Optional.empty());
-        when(statusHistoryUseCase.findStatusReason(StatusHistoryEntityType.STORE_ORDER, 5L, "REJECTED"))
+        when(statusHistoryUseCase.findStatusReason(StoreOrderHistoryEntityType.STORE_ORDER.name(), 5L, "REJECTED"))
                 .thenReturn(Optional.of("단가 협의 필요"));
 
         StoreOrderDetail detail = storeOrderService.getStoreOrder(5L, HQ);
@@ -376,7 +376,7 @@ class StoreOrderServiceTest {
         when(storeOrderQueryRepository.findLineViews(7L)).thenReturn(List.of(lineView));
         when(storeOrderOutboundPort.findOutbounds(7L)).thenReturn(List.of());
         LocalDateTime at = LocalDateTime.of(2026, 10, 4, 9, 0);
-        when(statusHistoryUseCase.findHistoryViews(StatusHistoryEntityType.STORE_ORDER, 7L)).thenReturn(List.of(
+        when(statusHistoryUseCase.findHistoryViews(StoreOrderHistoryEntityType.STORE_ORDER.name(), 7L)).thenReturn(List.of(
                 new StatusHistoryView(null, "REQUESTED", null, 5L, "점주", at),
                 new StatusHistoryView("REQUESTED", "APPROVED", null, 2L, null, at)));
 
@@ -459,7 +459,7 @@ class StoreOrderServiceTest {
         verify(skuAvailabilityPort).requireActive(10L);
         verify(skuAvailabilityPort).requireActive(11L);
         verify(statusHistoryUseCase).record(
-                StatusHistoryEntityType.STORE_ORDER, 1L, "REQUESTED", "APPROVED", null, 2L);
+                StoreOrderHistoryEntityType.STORE_ORDER.name(), 1L, "REQUESTED", "APPROVED", null, 2L);
     }
 
     @Test
@@ -534,7 +534,7 @@ class StoreOrderServiceTest {
         assertThat(capturedSavedLines()).extracting(StoreOrderLine::getStatus)
                 .containsOnly(StoreOrderLineStatus.CANCELED);
         verify(statusHistoryUseCase).record(
-                StatusHistoryEntityType.STORE_ORDER, 1L, "REQUESTED", "REJECTED", "단가 협의 필요", 2L);
+                StoreOrderHistoryEntityType.STORE_ORDER.name(), 1L, "REQUESTED", "REJECTED", "단가 협의 필요", 2L);
     }
 
     @Test
@@ -597,7 +597,7 @@ class StoreOrderServiceTest {
                 .containsOnly(StoreOrderLineStatus.CANCELED);
         verify(storeOrderOutboundPort, never()).cancelFulfillment(anyLong(), anyLong());
         verify(statusHistoryUseCase).record(
-                StatusHistoryEntityType.STORE_ORDER, 1L, "REQUESTED", "CANCELED", null, 5L);
+                StoreOrderHistoryEntityType.STORE_ORDER.name(), 1L, "REQUESTED", "CANCELED", null, 5L);
     }
 
     @Test
@@ -618,7 +618,7 @@ class StoreOrderServiceTest {
             assertThat(result.releasedAllocationCount()).isEqualTo(2);
             assertThat(result.canceledOutboundCount()).isEqualTo(1);
             verify(statusHistoryUseCase).record(
-                    StatusHistoryEntityType.STORE_ORDER, 1L, status.name(), "CANCELED", "재고 이슈", 2L);
+                    StoreOrderHistoryEntityType.STORE_ORDER.name(), 1L, status.name(), "CANCELED", "재고 이슈", 2L);
             org.mockito.Mockito.clearInvocations(statusHistoryUseCase, storeOrderRepository);
         }
     }
@@ -711,7 +711,7 @@ class StoreOrderServiceTest {
         verify(warehouseAvailabilityPort).requireActive(3L);
         verify(storeOrderOutboundPort, never()).existsActiveFulfillment(anyLong());
         verify(statusHistoryUseCase).record(
-                StatusHistoryEntityType.STORE_ORDER, 1L, "APPROVED", "ASSIGNED", null, 2L);
+                StoreOrderHistoryEntityType.STORE_ORDER.name(), 1L, "APPROVED", "ASSIGNED", null, 2L);
     }
 
     @Test
@@ -725,7 +725,7 @@ class StoreOrderServiceTest {
 
         assertThat(result.status()).isEqualTo(StoreOrderStatus.ASSIGNED);
         assertThat(result.warehouseId()).isEqualTo(4L);
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.STORE_ORDER, 1L, "ASSIGNED", "ASSIGNED",
+        verify(statusHistoryUseCase).record(StoreOrderHistoryEntityType.STORE_ORDER.name(), 1L, "ASSIGNED", "ASSIGNED",
                 "창고 변경 3 → 4: 재고 부족", 2L);
     }
 
@@ -835,7 +835,7 @@ class StoreOrderServiceTest {
         assertThat(result.status()).isEqualTo(StoreOrderStatus.ON_HOLD);
         assertThat(result.statusReason()).isEqualTo("재고 부족");
         verify(statusHistoryUseCase).record(
-                StatusHistoryEntityType.STORE_ORDER, 1L, "ASSIGNED", "ON_HOLD", "재고 부족", 7L);
+                StoreOrderHistoryEntityType.STORE_ORDER.name(), 1L, "ASSIGNED", "ON_HOLD", "재고 부족", 7L);
     }
 
     @Test
@@ -872,7 +872,7 @@ class StoreOrderServiceTest {
         assertThat(result.statusReason()).isNull();
         verify(warehouseAvailabilityPort).requireActive(3L);
         verify(statusHistoryUseCase).record(
-                StatusHistoryEntityType.STORE_ORDER, 1L, "ON_HOLD", "ASSIGNED", "재고 입고", 7L);
+                StoreOrderHistoryEntityType.STORE_ORDER.name(), 1L, "ON_HOLD", "ASSIGNED", "재고 입고", 7L);
     }
 
     @Test
@@ -932,7 +932,7 @@ class StoreOrderServiceTest {
         verify(storeOrderRepository, never()).saveLines(any());
         verify(storeOrderOutboundPort).releaseUnlinkedAllocations(1L, 7L);
         verify(statusHistoryUseCase).record(
-                StatusHistoryEntityType.STORE_ORDER, 1L, "ASSIGNED", "COMPLETED", "공급 중단", 7L);
+                StoreOrderHistoryEntityType.STORE_ORDER.name(), 1L, "ASSIGNED", "COMPLETED", "공급 중단", 7L);
     }
 
     @Test

@@ -19,7 +19,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.statushistory.application.port.out.StatusHistoryRepository;
 import com.kb.wms.statushistory.domain.entity.StatusHistory;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 
 @ExtendWith(MockitoExtension.class)
 class StatusHistoryServiceTest {
@@ -36,12 +35,12 @@ class StatusHistoryServiceTest {
         when(statusHistoryRepository.save(any(StatusHistory.class))).thenAnswer(i -> i.getArgument(0));
 
         statusHistoryService.record(
-                StatusHistoryEntityType.STORE_ORDER, 5L, "REQUESTED", "REJECTED", "재고 부족", 7L);
+                "STORE_ORDER", 5L, "REQUESTED", "REJECTED", "재고 부족", 7L);
 
         ArgumentCaptor<StatusHistory> captor = ArgumentCaptor.forClass(StatusHistory.class);
         verify(statusHistoryRepository).save(captor.capture());
         StatusHistory saved = captor.getValue();
-        assertThat(saved.getEntityType()).isEqualTo(StatusHistoryEntityType.STORE_ORDER);
+        assertThat(saved.getEntityType()).isEqualTo("STORE_ORDER");
         assertThat(saved.getEntityId()).isEqualTo(5L);
         assertThat(saved.getFromStatus()).isEqualTo("REQUESTED");
         assertThat(saved.getToStatus()).isEqualTo("REJECTED");
@@ -54,22 +53,22 @@ class StatusHistoryServiceTest {
     @DisplayName("이력 조회는 저장소 결과를 그대로 돌려준다")
     void findHistory_delegates() {
         StatusHistory first = StatusHistory.record(
-                StatusHistoryEntityType.INBOUND, 1L, null, "ARRIVED", null, 1L, LocalDateTime.now());
-        when(statusHistoryRepository.findByEntity(StatusHistoryEntityType.INBOUND, 1L))
+                "INBOUND", 1L, null, "ARRIVED", null, 1L, LocalDateTime.now());
+        when(statusHistoryRepository.findByEntity("INBOUND", 1L))
                 .thenReturn(List.of(first));
 
-        assertThat(statusHistoryService.findHistory(StatusHistoryEntityType.INBOUND, 1L)).containsExactly(first);
+        assertThat(statusHistoryService.findHistory("INBOUND", 1L)).containsExactly(first);
     }
 
     @Test
     @DisplayName("현재 상태로 바뀔 때 기록된 사유를 돌려준다")
     void findStatusReason_returnsReason() {
         StatusHistory rejected = StatusHistory.record(
-                StatusHistoryEntityType.STORE_ORDER, 1L, "REQUESTED", "REJECTED", "재고 부족", 1L, LocalDateTime.now());
-        when(statusHistoryRepository.findLatestByToStatus(StatusHistoryEntityType.STORE_ORDER, 1L, "REJECTED"))
+                "STORE_ORDER", 1L, "REQUESTED", "REJECTED", "재고 부족", 1L, LocalDateTime.now());
+        when(statusHistoryRepository.findLatestByToStatus("STORE_ORDER", 1L, "REJECTED"))
                 .thenReturn(Optional.of(rejected));
 
-        assertThat(statusHistoryService.findStatusReason(StatusHistoryEntityType.STORE_ORDER, 1L, "REJECTED"))
+        assertThat(statusHistoryService.findStatusReason("STORE_ORDER", 1L, "REJECTED"))
                 .contains("재고 부족");
     }
 
@@ -77,15 +76,15 @@ class StatusHistoryServiceTest {
     @DisplayName("이력이 없거나 사유가 없으면 빈 값을 돌려준다")
     void findStatusReason_empty() {
         StatusHistory noReason = StatusHistory.record(
-                StatusHistoryEntityType.STORE_ORDER, 1L, "REQUESTED", "APPROVED", null, 1L, LocalDateTime.now());
-        when(statusHistoryRepository.findLatestByToStatus(StatusHistoryEntityType.STORE_ORDER, 1L, "APPROVED"))
+                "STORE_ORDER", 1L, "REQUESTED", "APPROVED", null, 1L, LocalDateTime.now());
+        when(statusHistoryRepository.findLatestByToStatus("STORE_ORDER", 1L, "APPROVED"))
                 .thenReturn(Optional.of(noReason));
-        when(statusHistoryRepository.findLatestByToStatus(StatusHistoryEntityType.STORE_ORDER, 1L, "CANCELED"))
+        when(statusHistoryRepository.findLatestByToStatus("STORE_ORDER", 1L, "CANCELED"))
                 .thenReturn(Optional.empty());
 
-        assertThat(statusHistoryService.findStatusReason(StatusHistoryEntityType.STORE_ORDER, 1L, "APPROVED"))
+        assertThat(statusHistoryService.findStatusReason("STORE_ORDER", 1L, "APPROVED"))
                 .isEmpty();
-        assertThat(statusHistoryService.findStatusReason(StatusHistoryEntityType.STORE_ORDER, 1L, "CANCELED"))
+        assertThat(statusHistoryService.findStatusReason("STORE_ORDER", 1L, "CANCELED"))
                 .isEmpty();
     }
 }

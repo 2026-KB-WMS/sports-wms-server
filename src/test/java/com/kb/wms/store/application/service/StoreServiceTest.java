@@ -19,14 +19,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.locationcode.LocationCodeIssuer;
 import com.kb.wms.common.locationcode.LocationType;
 import com.kb.wms.common.locationcode.RegionCode;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.store.application.port.in.command.StoreRegisterCommand;
 import com.kb.wms.store.application.port.in.command.StoreUpdateCommand;
 import com.kb.wms.store.application.port.in.query.StoreSearchCondition;
@@ -36,6 +35,7 @@ import com.kb.wms.store.application.port.out.StoreOrderPresencePort;
 import com.kb.wms.store.application.port.out.StoreRepository;
 import com.kb.wms.store.domain.entity.Store;
 import com.kb.wms.store.domain.entity.StoreMember;
+import com.kb.wms.store.domain.enums.StoreHistoryEntityType;
 import com.kb.wms.store.exception.StoreErrorCode;
 
 @ExtendWith(MockitoExtension.class)
@@ -238,7 +238,7 @@ class StoreServiceTest {
         Store result = storeService.deactivateStore(1L, "폐점", 5L);
 
         assertThat(result.isActive()).isFalse();
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.STORE, 1L, "ACTIVE", "INACTIVE", "폐점", 5L);
+        verify(statusHistoryUseCase).record(StoreHistoryEntityType.STORE.name(), 1L, "ACTIVE", "INACTIVE", "폐점", 5L);
     }
 
     @Test
@@ -262,7 +262,7 @@ class StoreServiceTest {
         Store result = storeService.activateStore(1L, 5L);
 
         assertThat(result.isActive()).isTrue();
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.STORE, 1L, "INACTIVE", "ACTIVE", null, 5L);
+        verify(statusHistoryUseCase).record(StoreHistoryEntityType.STORE.name(), 1L, "INACTIVE", "ACTIVE", null, 5L);
     }
 
     @Test

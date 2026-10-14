@@ -23,14 +23,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
 import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
-import com.kb.wms.statushistory.adapter.out.persistence.repository.StatusHistoryJpaRepository;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.adapter.out.persistence.entity.ProductSkuJpaEntity;
 import com.kb.wms.product.adapter.out.persistence.repository.ProductSkuJpaRepository;
 import com.kb.wms.product.domain.enums.ProductStatus;
+import com.kb.wms.statushistory.adapter.out.persistence.repository.StatusHistoryJpaRepository;
 import com.kb.wms.store.adapter.out.persistence.entity.StoreJpaEntity;
 import com.kb.wms.store.adapter.out.persistence.repository.StoreJpaRepository;
 import com.kb.wms.store.domain.enums.StoreStatus;
@@ -42,6 +41,7 @@ import com.kb.wms.storeorder.application.port.in.command.StoreOrderRejectCommand
 import com.kb.wms.storeorder.application.port.out.StoreOrderRepository;
 import com.kb.wms.storeorder.domain.entity.StoreOrder;
 import com.kb.wms.storeorder.domain.entity.StoreOrderLine;
+import com.kb.wms.storeorder.domain.enums.StoreOrderHistoryEntityType;
 import com.kb.wms.storeorder.domain.enums.StoreOrderLineStatus;
 import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
 
@@ -91,7 +91,7 @@ class StoreOrderConcurrencyTest {
         storeOrderIds.forEach(id -> {
             statusHistoryJpaRepository.deleteAll(statusHistoryJpaRepository
                     .findByEntityTypeAndEntityIdOrderByChangedAtAscStatusHistoryIdAsc(
-                            StatusHistoryEntityType.STORE_ORDER, id));
+                            StoreOrderHistoryEntityType.STORE_ORDER.name(), id));
             storeOrderLineJpaRepository.deleteAll(storeOrderLineJpaRepository.findAll().stream()
                     .filter(line -> id.equals(line.getStoreOrderId())).toList());
             storeOrderJpaRepository.deleteById(id);
@@ -187,7 +187,7 @@ class StoreOrderConcurrencyTest {
 
     private int historyCount(Long orderId) {
         return statusHistoryJpaRepository.findByEntityTypeAndEntityIdOrderByChangedAtAscStatusHistoryIdAsc(
-                StatusHistoryEntityType.STORE_ORDER, orderId).size();
+                StoreOrderHistoryEntityType.STORE_ORDER.name(), orderId).size();
     }
 
     /** 모든 작업을 같은 순간에 시작시키고, 작업별 예외(성공이면 null)를 입력 순서대로 돌려준다. */

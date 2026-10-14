@@ -24,13 +24,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderLinePickedCommand;
 import com.kb.wms.storeorder.application.port.in.command.StoreOrderLineQuantityCommand;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderFulfillmentOrderView;
 import com.kb.wms.storeorder.application.port.out.StoreOrderRepository;
 import com.kb.wms.storeorder.domain.entity.StoreOrder;
 import com.kb.wms.storeorder.domain.entity.StoreOrderLine;
+import com.kb.wms.storeorder.domain.enums.StoreOrderHistoryEntityType;
 import com.kb.wms.storeorder.domain.enums.StoreOrderLineStatus;
 import com.kb.wms.storeorder.domain.enums.StoreOrderStatus;
 
@@ -162,7 +162,7 @@ class StoreOrderFulfillmentServiceTest {
         StoreOrderFulfillmentOrderView result = service.completeIfFulfilled(1L, 9L);
 
         assertThat(result.status()).isEqualTo(StoreOrderStatus.COMPLETED);
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.STORE_ORDER, 1L,
+        verify(statusHistoryUseCase).record(StoreOrderHistoryEntityType.STORE_ORDER.name(), 1L,
                 "ASSIGNED", "COMPLETED", null, 9L);
     }
 

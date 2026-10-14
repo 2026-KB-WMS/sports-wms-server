@@ -27,11 +27,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
-import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.command.InboundCancelCommand;
 import com.kb.wms.inbound.application.port.in.command.InboundRegisterCommand;
 import com.kb.wms.inbound.application.port.in.query.InboundSearchCondition;
@@ -46,10 +44,12 @@ import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
 import com.kb.wms.inbound.application.port.out.WarehouseAvailabilityPort;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
+import com.kb.wms.inbound.domain.enums.InboundHistoryEntityType;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.warehouse.exception.WarehouseErrorCode;
 
 @ExtendWith(MockitoExtension.class)
@@ -154,7 +154,7 @@ class InboundServiceTest {
         assertThat(saved.getInboundNo())
                 .isEqualTo("IB-" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + "-0003");
         verify(statusHistoryUseCase).record(
-                StatusHistoryEntityType.INBOUND, 7L, null, "ARRIVED", null, 5L);
+                InboundHistoryEntityType.INBOUND.name(), 7L, null, "ARRIVED", null, 5L);
     }
 
     @Test
@@ -256,7 +256,7 @@ class InboundServiceTest {
             Inbound result = inboundService.cancelInbound(7L, new InboundCancelCommand("잘못된 발주에 등록", 5L), HQ);
 
             assertThat(result.getStatus()).isEqualTo(InboundStatus.CANCELED);
-            verify(statusHistoryUseCase).record(StatusHistoryEntityType.INBOUND, 7L,
+            verify(statusHistoryUseCase).record(InboundHistoryEntityType.INBOUND.name(), 7L,
                     status.name(), "CANCELED", "잘못된 발주에 등록", 5L);
         }
     }
@@ -316,7 +316,7 @@ class InboundServiceTest {
     @DisplayName("취소된 입고를 조회하면 상태 이력의 취소 사유를 cancelReason으로 채운다")
     void getInbound_canceled_fillsCancelReason() {
         when(inboundQueryRepository.findView(7L)).thenReturn(Optional.of(viewWithStatus(InboundStatus.CANCELED)));
-        when(statusHistoryUseCase.findStatusReason(StatusHistoryEntityType.INBOUND, 7L, "CANCELED"))
+        when(statusHistoryUseCase.findStatusReason(InboundHistoryEntityType.INBOUND.name(), 7L, "CANCELED"))
                 .thenReturn(Optional.of("잘못된 발주에 등록"));
 
         assertThat(inboundService.getInbound(7L, HQ).cancelReason()).isEqualTo("잘못된 발주에 등록");

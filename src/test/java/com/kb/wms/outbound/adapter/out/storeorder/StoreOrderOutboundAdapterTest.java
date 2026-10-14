@@ -22,18 +22,18 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
-import com.kb.wms.outbound.application.port.out.OutboundStockPort;
-import com.kb.wms.outbound.application.port.out.OutboundStockPort.StockQuantity;
 import com.kb.wms.outbound.application.port.out.OutboundRepository;
+import com.kb.wms.outbound.application.port.out.OutboundStockPort.StockQuantity;
+import com.kb.wms.outbound.application.port.out.OutboundStockPort;
 import com.kb.wms.outbound.application.port.out.StockAllocationRepository;
-import com.kb.wms.outbound.application.port.out.StoreOrderPort;
 import com.kb.wms.outbound.application.port.out.StoreOrderPort.LineQuantity;
+import com.kb.wms.outbound.application.port.out.StoreOrderPort;
 import com.kb.wms.outbound.domain.entity.Outbound;
 import com.kb.wms.outbound.domain.entity.StockAllocation;
 import com.kb.wms.outbound.domain.enums.AllocationStatus;
+import com.kb.wms.outbound.domain.enums.OutboundHistoryEntityType;
 import com.kb.wms.outbound.domain.enums.OutboundStatus;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderFulfillmentCancelResult;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderOutboundView;
 import com.kb.wms.storeorder.domain.enums.StoreOrderOutboundStatus;
@@ -158,11 +158,11 @@ class StoreOrderOutboundAdapterTest {
         assertThat(lines.getValue()).containsExactly(
                 new LineQuantity(100L, 10), new LineQuantity(101L, 3));
 
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.OUTBOUND, 10L, "READY", "CANCELED",
+        verify(statusHistoryUseCase).record(OutboundHistoryEntityType.OUTBOUND.name(), 10L, "READY", "CANCELED",
                 "발주 취소로 인한 자동 처리", 9L);
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.STOCK_ALLOCATION, 20L, "ALLOCATED", "RELEASED",
+        verify(statusHistoryUseCase).record(OutboundHistoryEntityType.STOCK_ALLOCATION.name(), 20L, "ALLOCATED", "RELEASED",
                 "발주 취소로 인한 자동 처리", 9L);
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.STOCK_ALLOCATION, 22L, "ALLOCATED", "RELEASED",
+        verify(statusHistoryUseCase).record(OutboundHistoryEntityType.STOCK_ALLOCATION.name(), 22L, "ALLOCATED", "RELEASED",
                 "발주 취소로 인한 자동 처리", 9L);
     }
 
@@ -203,9 +203,9 @@ class StoreOrderOutboundAdapterTest {
         verify(storeOrderPort).decreaseAllocated(lines.capture());
         assertThat(lines.getValue()).containsExactly(
                 new LineQuantity(100L, 6), new LineQuantity(101L, 3));
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.STOCK_ALLOCATION, 20L, "ALLOCATED", "RELEASED",
+        verify(statusHistoryUseCase).record(OutboundHistoryEntityType.STOCK_ALLOCATION.name(), 20L, "ALLOCATED", "RELEASED",
                 "발주 부분 종결로 인한 자동 해제", 9L);
-        verify(statusHistoryUseCase).record(StatusHistoryEntityType.STOCK_ALLOCATION, 22L, "ALLOCATED", "RELEASED",
+        verify(statusHistoryUseCase).record(OutboundHistoryEntityType.STOCK_ALLOCATION.name(), 22L, "ALLOCATED", "RELEASED",
                 "발주 부분 종결로 인한 자동 해제", 9L);
         verifyNoInteractions(outboundRepository);
     }

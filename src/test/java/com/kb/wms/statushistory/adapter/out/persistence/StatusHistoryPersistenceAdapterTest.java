@@ -24,7 +24,6 @@ import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.statushistory.application.port.in.result.StatusHistoryView;
 import com.kb.wms.statushistory.application.port.out.StatusHistoryRepository;
 import com.kb.wms.statushistory.domain.entity.StatusHistory;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 
 /**
  * 상태 이력 영속성 어댑터와 기록 서비스의 트랜잭션 동작 검증.
@@ -34,7 +33,7 @@ import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class StatusHistoryPersistenceAdapterTest {
 
-    private static final StatusHistoryEntityType ORDER = StatusHistoryEntityType.STORE_ORDER;
+    private static final String ORDER = "STORE_ORDER";
     private static final String USER_PREFIX = "sh-name-";
 
     @Autowired
@@ -59,7 +58,7 @@ class StatusHistoryPersistenceAdapterTest {
                 .filter(user -> user.getLoginId().startsWith(USER_PREFIX)).toList());
     }
 
-    private StatusHistory history(StatusHistoryEntityType type, Long entityId, String from, String to,
+    private StatusHistory history(String type, Long entityId, String from, String to,
                                   String reason, LocalDateTime changedAt) {
         return StatusHistory.record(type, entityId, from, to, reason, 1L, changedAt);
     }
@@ -84,7 +83,7 @@ class StatusHistoryPersistenceAdapterTest {
         statusHistoryRepository.save(history(ORDER, 1L, null, "REQUESTED", null, base));
         statusHistoryRepository.save(history(ORDER, 1L, "APPROVED", "ASSIGNED", null, base.plusHours(2)));
         statusHistoryRepository.save(history(ORDER, 2L, null, "REQUESTED", null, base));
-        statusHistoryRepository.save(history(StatusHistoryEntityType.INBOUND, 1L, null, "ARRIVED", null, base));
+        statusHistoryRepository.save(history("INBOUND", 1L, null, "ARRIVED", null, base));
 
         List<StatusHistory> result = statusHistoryRepository.findByEntity(ORDER, 1L);
 

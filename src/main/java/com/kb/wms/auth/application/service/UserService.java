@@ -20,13 +20,13 @@ import com.kb.wms.auth.application.port.in.result.InitialHqAdminResult;
 import com.kb.wms.auth.application.port.out.UserQueryRepository;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
+import com.kb.wms.auth.domain.enums.AuthHistoryEntityType;
 import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
 import com.kb.wms.auth.exception.AuthErrorCode;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -166,7 +166,7 @@ public class UserService implements UserUseCase {
 
         User saved = userRepository.save(user);
         if (newStatus != null) {
-            statusHistoryUseCase.record(StatusHistoryEntityType.USER, saved.getUserId(),
+            statusHistoryUseCase.record(AuthHistoryEntityType.USER.name(), saved.getUserId(),
                     fromStatus.name(), newStatus.name(), null, command.actorUserId());
         }
         return saved;

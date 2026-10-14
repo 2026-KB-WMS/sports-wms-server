@@ -17,11 +17,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
-import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
-import com.kb.wms.statushistory.domain.entity.StatusHistory;
-import com.kb.wms.statushistory.domain.enums.StatusHistoryEntityType;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inventory.adapter.out.persistence.entity.InventoryLotJpaEntity;
 import com.kb.wms.inventory.adapter.out.persistence.entity.LotJpaEntity;
 import com.kb.wms.inventory.adapter.out.persistence.repository.InventoryLotJpaRepository;
@@ -43,9 +40,12 @@ import com.kb.wms.outbound.domain.entity.Outbound;
 import com.kb.wms.outbound.domain.entity.OutboundLine;
 import com.kb.wms.outbound.domain.entity.StockAllocation;
 import com.kb.wms.outbound.domain.enums.AllocationStatus;
+import com.kb.wms.outbound.domain.enums.OutboundHistoryEntityType;
 import com.kb.wms.product.adapter.out.persistence.entity.ProductSkuJpaEntity;
 import com.kb.wms.product.adapter.out.persistence.repository.ProductSkuJpaRepository;
 import com.kb.wms.product.domain.enums.ProductStatus;
+import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
+import com.kb.wms.statushistory.domain.entity.StatusHistory;
 import com.kb.wms.store.adapter.out.persistence.entity.StoreJpaEntity;
 import com.kb.wms.store.adapter.out.persistence.repository.StoreJpaRepository;
 import com.kb.wms.store.domain.enums.StoreStatus;
@@ -212,7 +212,7 @@ class StockAllocationServiceIntegrationTest {
         assertThat(lineAllocated(lineB)).isEqualTo(5);
 
         Long firstId = itemsOfA.get(0).allocationId();
-        List<StatusHistory> history = statusHistoryUseCase.findHistory(StatusHistoryEntityType.STOCK_ALLOCATION, firstId);
+        List<StatusHistory> history = statusHistoryUseCase.findHistory(OutboundHistoryEntityType.STOCK_ALLOCATION.name(), firstId);
         assertThat(history).hasSize(1);
         assertThat(history.get(0).getFromStatus()).isNull();
         assertThat(history.get(0).getToStatus()).isEqualTo("ALLOCATED");
@@ -384,7 +384,7 @@ class StockAllocationServiceIntegrationTest {
         assertThat(inventoryAllocated(lotLate)).isZero();
         assertThat(lineAllocated(lineA)).isEqualTo(6);
         List<StatusHistory> history = statusHistoryUseCase
-                .findHistory(StatusHistoryEntityType.STOCK_ALLOCATION, target.allocationId());
+                .findHistory(OutboundHistoryEntityType.STOCK_ALLOCATION.name(), target.allocationId());
         assertThat(history).hasSize(2);
         assertThat(history.get(1).getFromStatus()).isEqualTo("ALLOCATED");
         assertThat(history.get(1).getToStatus()).isEqualTo("RELEASED");
