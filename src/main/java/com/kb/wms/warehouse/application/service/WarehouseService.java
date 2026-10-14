@@ -5,18 +5,19 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.locationcode.LocationCodeIssuer;
 import com.kb.wms.common.locationcode.LocationType;
 import com.kb.wms.common.locationcode.RegionCode;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.warehouse.application.port.in.WarehouseSectionCapacityUseCase;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseRegisterCommand;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseUpdateCommand;
 import com.kb.wms.warehouse.application.port.in.query.WarehouseSearchCondition;
 import com.kb.wms.warehouse.application.port.in.result.WarehouseMembershipSummary;
+import com.kb.wms.warehouse.application.port.in.result.WarehouseView;
 import com.kb.wms.warehouse.application.port.out.StockPresencePort;
 import com.kb.wms.warehouse.application.port.out.WarehouseMemberRepository;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
@@ -76,6 +77,12 @@ public class WarehouseService implements WarehouseUseCase {
     public Warehouse getWarehouse(Long warehouseId) {
         return warehouseRepository.findById(warehouseId)
                 .orElseThrow(() -> new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND));
+    }
+
+    @Override
+    public WarehouseView getWarehouseView(Long warehouseId) {
+        Warehouse warehouse = getWarehouse(warehouseId);
+        return new WarehouseView(warehouse.getWarehouseId(), warehouse.getName(), warehouse.isActive());
     }
 
     @Override

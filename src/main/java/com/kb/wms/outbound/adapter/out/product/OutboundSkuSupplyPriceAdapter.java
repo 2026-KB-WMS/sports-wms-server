@@ -19,6 +19,6 @@ public class OutboundSkuSupplyPriceAdapter implements SkuSupplyPricePort {
 
     @Override
     public Optional<BigDecimal> findCurrentSupplyPrice(Long skuId) {
-        return Optional.ofNullable(productSkuUseCase.getSku(skuId).getCurrentSupplyPrice());
+        return Optional.ofNullable(productSkuUseCase.getSkuView(skuId).currentSupplyPrice());
     }
 }

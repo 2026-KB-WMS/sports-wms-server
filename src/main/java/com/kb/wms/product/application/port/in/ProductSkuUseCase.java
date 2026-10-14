@@ -9,6 +9,7 @@ import com.kb.wms.product.application.port.in.command.ProductSkuUpdateCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
 import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
 import com.kb.wms.product.domain.entity.ProductSku;
+import com.kb.wms.product.application.port.in.result.ProductSkuView;
 
 /**
  * SKU 등록/조회/옵션 연결 유스케이스.
@@ -29,6 +30,9 @@ public interface ProductSkuUseCase {
     List<ProductSku> getSkus(ProductSkuSearchCondition condition);
 
     ProductSku getSku(Long skuId);
+
+    /** 다른 도메인이 SKU 활성 여부·현재 단가를 확인할 때 쓴다. 없으면 SKU_NOT_FOUND. 엔티티를 내보내지 않는다. */
+    ProductSkuView getSkuView(Long skuId);
 
     /** 사용자 요청용 목록 조회. 점주(STORE_OWNER)에게는 활성 SKU만 돌려준다. */
     List<ProductSku> getSkus(ProductSkuSearchCondition condition, AuthenticatedUser actor);

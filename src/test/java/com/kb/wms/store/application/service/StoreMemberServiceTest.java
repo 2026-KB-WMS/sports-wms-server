@@ -18,8 +18,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.kb.wms.auth.application.port.in.UserUseCase;
-import com.kb.wms.auth.domain.entity.User;
 import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
 import com.kb.wms.auth.exception.AuthErrorCode;
@@ -28,6 +26,7 @@ import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.store.application.port.in.command.StoreMemberAssignCommand;
 import com.kb.wms.store.application.port.in.result.StoreMemberView;
 import com.kb.wms.store.application.port.out.StoreMemberRepository;
+import com.kb.wms.store.application.port.out.StoreMemberUserPort;
 import com.kb.wms.store.application.port.out.StoreRepository;
 import com.kb.wms.store.domain.entity.Store;
 import com.kb.wms.store.domain.entity.StoreMember;
@@ -41,7 +40,7 @@ class StoreMemberServiceTest {
     @Mock
     private StoreRepository storeRepository;
     @Mock
-    private UserUseCase userUseCase;
+    private StoreMemberUserPort storeMemberUserPort;
 
     @InjectMocks
     private StoreMemberService storeMemberService;
@@ -49,10 +48,8 @@ class StoreMemberServiceTest {
     private final Store activeStore =
             Store.register("ST-GANGNAM", "강남점", "서울시 강남구", "김점주", "02-333-1234");
 
-    private User user(UserRole role, UserStatus status) {
-        return User.builder().userId(10L).loginId("member01").passwordHash("hashed")
-                .name("김담당").email("member01@example.com").phone("010-1234-5678")
-                .role(role).status(status).build();
+    private StoreMemberUserPort.Candidate candidate(UserRole role, UserStatus status) {
+        return new StoreMemberUserPort.Candidate("김담당", "member01", role.name(), status == UserStatus.ACTIVE);
     }
 
     @Test
@@ -60,7 +57,7 @@ class StoreMemberServiceTest {
     void assignManager_success() {
         StoreMemberAssignCommand command = new StoreMemberAssignCommand(1L, 10L, "OWNER");
         when(storeRepository.findById(1L)).thenReturn(Optional.of(activeStore));
-        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.STORE_OWNER, UserStatus.ACTIVE));
+        when(storeMemberUserPort.getCandidate(10L)).thenReturn(candidate(UserRole.STORE_OWNER, UserStatus.ACTIVE));
         when(storeMemberRepository.existsByStoreIdAndUserId(1L, 10L)).thenReturn(false);
         when(storeMemberRepository.save(any(StoreMember.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -118,7 +115,7 @@ class StoreMemberServiceTest {
     void assignManager_alreadyAssigned() {
         StoreMemberAssignCommand command = new StoreMemberAssignCommand(1L, 10L, "OWNER");
         when(storeRepository.findById(1L)).thenReturn(Optional.of(activeStore));
-        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.STORE_OWNER, UserStatus.ACTIVE));
+        when(storeMemberUserPort.getCandidate(10L)).thenReturn(candidate(UserRole.STORE_OWNER, UserStatus.ACTIVE));
         when(storeMemberRepository.existsByStoreIdAndUserId(1L, 10L)).thenReturn(true);
 
         assertThatThrownBy(() -> storeMemberService.assignManager(command))
@@ -133,7 +130,7 @@ class StoreMemberServiceTest {
     void assignManager_userNotFound() {
         StoreMemberAssignCommand command = new StoreMemberAssignCommand(1L, 10L, "OWNER");
         when(storeRepository.findById(1L)).thenReturn(Optional.of(activeStore));
-        when(userUseCase.getUser(10L)).thenThrow(new BusinessException(AuthErrorCode.USER_NOT_FOUND));
+        when(storeMemberUserPort.getCandidate(10L)).thenThrow(new BusinessException(AuthErrorCode.USER_NOT_FOUND));
 
         assertThatThrownBy(() -> storeMemberService.assignManager(command))
                 .isInstanceOf(BusinessException.class)
@@ -147,7 +144,7 @@ class StoreMemberServiceTest {
     void assignManager_wrongUserRole() {
         StoreMemberAssignCommand command = new StoreMemberAssignCommand(1L, 10L, "OWNER");
         when(storeRepository.findById(1L)).thenReturn(Optional.of(activeStore));
-        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.HQ_ADMIN, UserStatus.ACTIVE));
+        when(storeMemberUserPort.getCandidate(10L)).thenReturn(candidate(UserRole.HQ_ADMIN, UserStatus.ACTIVE));
 
         assertThatThrownBy(() -> storeMemberService.assignManager(command))
                 .isInstanceOf(BusinessException.class)
@@ -161,7 +158,7 @@ class StoreMemberServiceTest {
     void assignManager_pendingUser() {
         StoreMemberAssignCommand command = new StoreMemberAssignCommand(1L, 10L, "OWNER");
         when(storeRepository.findById(1L)).thenReturn(Optional.of(activeStore));
-        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.STORE_OWNER, UserStatus.PENDING));
+        when(storeMemberUserPort.getCandidate(10L)).thenReturn(candidate(UserRole.STORE_OWNER, UserStatus.PENDING));
 
         assertThatThrownBy(() -> storeMemberService.assignManager(command))
                 .isInstanceOf(BusinessException.class)
@@ -175,7 +172,7 @@ class StoreMemberServiceTest {
     void assignManager_inactiveUser() {
         StoreMemberAssignCommand command = new StoreMemberAssignCommand(1L, 10L, "OWNER");
         when(storeRepository.findById(1L)).thenReturn(Optional.of(activeStore));
-        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.STORE_OWNER, UserStatus.INACTIVE));
+        when(storeMemberUserPort.getCandidate(10L)).thenReturn(candidate(UserRole.STORE_OWNER, UserStatus.INACTIVE));
 
         assertThatThrownBy(() -> storeMemberService.assignManager(command))
                 .isInstanceOf(BusinessException.class)

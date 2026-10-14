@@ -32,8 +32,8 @@ import com.kb.wms.outbound.application.port.out.OutboundStockPort;
 import com.kb.wms.outbound.application.port.out.SkuSupplyPricePort;
 import com.kb.wms.outbound.application.port.out.StockAllocationRepository;
 import com.kb.wms.outbound.application.port.out.StoreOrderPort.LinePicked;
-import com.kb.wms.outbound.application.port.out.StoreOrderPort.LineSnapshot;
-import com.kb.wms.outbound.application.port.out.StoreOrderPort.OrderSnapshot;
+import com.kb.wms.outbound.application.port.out.StoreOrderPort.LineView;
+import com.kb.wms.outbound.application.port.out.StoreOrderPort.OrderView;
 import com.kb.wms.outbound.application.port.out.StoreOrderPort;
 import com.kb.wms.outbound.domain.entity.Outbound;
 import com.kb.wms.outbound.domain.entity.OutboundLine;
@@ -93,9 +93,9 @@ public class OutboundFulfillmentService implements OutboundFulfillmentUseCase {
             throw new BusinessException(OutboundErrorCode.NOTHING_PICKED);
         }
 
-        Map<Long, LineSnapshot> orderLines = storeOrderPort
+        Map<Long, LineView> orderLines = storeOrderPort
                 .getLinesForUpdate(outbound.getStoreOrderId()).stream()
-                .collect(Collectors.toMap(LineSnapshot::storeOrderLineId, Function.identity()));
+                .collect(Collectors.toMap(LineView::storeOrderLineId, Function.identity()));
         Map<Long, BigDecimal> prices = resolvePrices(lines, allocations, orderLines);
 
         List<StockPick> picks = lines.stream().map(line -> {
@@ -184,7 +184,7 @@ public class OutboundFulfillmentService implements OutboundFulfillmentUseCase {
         storeOrderPort.refreshLineStatuses(orderLineIds);
 
         Long storeOrderId = outbound.getStoreOrderId();
-        OrderSnapshot order;
+        OrderView order;
         if (outboundRepository.existsByStoreOrderIdAndStatusIn(storeOrderId, IN_PROGRESS)) {
             order = storeOrderPort.getOrder(storeOrderId);
         } else {
@@ -244,10 +244,10 @@ public class OutboundFulfillmentService implements OutboundFulfillmentUseCase {
 
     /** 출고 항목별 확정 공급 단가. 발주 항목 스냅샷 → SKU 현재 단가 순이며, 둘 다 없으면 SUPPLY_PRICE_MISSING. */
     private Map<Long, BigDecimal> resolvePrices(List<OutboundLine> lines, Map<Long, StockAllocation> allocations,
-            Map<Long, LineSnapshot> orderLines) {
+            Map<Long, LineView> orderLines) {
         Map<Long, BigDecimal> prices = new java.util.HashMap<>();
         for (OutboundLine line : lines) {
-            LineSnapshot orderLine = orderLines.get(allocations.get(line.getAllocationId()).getStoreOrderLineId());
+            LineView orderLine = orderLines.get(allocations.get(line.getAllocationId()).getStoreOrderLineId());
             if (orderLine == null) {
                 throw new BusinessException(OutboundErrorCode.ALLOCATION_NOT_ACTIVE);
             }
@@ -268,7 +268,7 @@ public class OutboundFulfillmentService implements OutboundFulfillmentUseCase {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "출고를 선택해주세요.");
         }
         OutboundView view = findViewOrThrow(outboundId);
-        OrderSnapshot order = storeOrderPort.getOrderForUpdate(view.storeOrderId());
+        OrderView order = storeOrderPort.getOrderForUpdate(view.storeOrderId());
         actor.requireWarehouseAccess(order.warehouseId());
         return outboundRepository.findByIdForUpdate(outboundId)
                 .orElseThrow(() -> new BusinessException(OutboundErrorCode.OUTBOUND_NOT_FOUND));

@@ -19,8 +19,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.kb.wms.auth.application.port.in.UserUseCase;
-import com.kb.wms.auth.domain.entity.User;
 import com.kb.wms.auth.domain.enums.UserRole;
 import com.kb.wms.auth.domain.enums.UserStatus;
 import com.kb.wms.auth.exception.AuthErrorCode;
@@ -29,6 +27,7 @@ import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseMemberAssignCommand;
 import com.kb.wms.warehouse.application.port.in.result.WarehouseMemberView;
 import com.kb.wms.warehouse.application.port.out.WarehouseMemberRepository;
+import com.kb.wms.warehouse.application.port.out.WarehouseMemberUserPort;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
 import com.kb.wms.warehouse.domain.entity.WarehouseMember;
@@ -42,7 +41,7 @@ class WarehouseMemberServiceTest {
     @Mock
     private WarehouseRepository warehouseRepository;
     @Mock
-    private UserUseCase userUseCase;
+    private WarehouseMemberUserPort warehouseMemberUserPort;
 
     @InjectMocks
     private WarehouseMemberService warehouseMemberService;
@@ -50,10 +49,8 @@ class WarehouseMemberServiceTest {
     private final Warehouse activeWarehouse =
             Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.valueOf(1000));
 
-    private User user(UserRole role, UserStatus status) {
-        return User.builder().userId(10L).loginId("member01").passwordHash("hashed")
-                .name("김담당").email("member01@example.com").phone("010-1234-5678")
-                .role(role).status(status).build();
+    private WarehouseMemberUserPort.Candidate candidate(UserRole role, UserStatus status) {
+        return new WarehouseMemberUserPort.Candidate("김담당", "member01", role.name(), status == UserStatus.ACTIVE);
     }
 
     @Test
@@ -61,7 +58,7 @@ class WarehouseMemberServiceTest {
     void assignManager_success() {
         WarehouseMemberAssignCommand command = new WarehouseMemberAssignCommand(1L, 10L, "MANAGER");
         when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
-        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.WAREHOUSE_MANAGER, UserStatus.ACTIVE));
+        when(warehouseMemberUserPort.getCandidate(10L)).thenReturn(candidate(UserRole.WAREHOUSE_MANAGER, UserStatus.ACTIVE));
         when(warehouseMemberRepository.existsByWarehouseIdAndUserId(1L, 10L)).thenReturn(false);
         when(warehouseMemberRepository.save(any(WarehouseMember.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -120,7 +117,7 @@ class WarehouseMemberServiceTest {
     void assignManager_alreadyAssigned() {
         WarehouseMemberAssignCommand command = new WarehouseMemberAssignCommand(1L, 10L, "MANAGER");
         when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
-        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.WAREHOUSE_MANAGER, UserStatus.ACTIVE));
+        when(warehouseMemberUserPort.getCandidate(10L)).thenReturn(candidate(UserRole.WAREHOUSE_MANAGER, UserStatus.ACTIVE));
         when(warehouseMemberRepository.existsByWarehouseIdAndUserId(1L, 10L)).thenReturn(true);
 
         assertThatThrownBy(() -> warehouseMemberService.assignManager(command))
@@ -135,7 +132,7 @@ class WarehouseMemberServiceTest {
     void assignManager_userNotFound() {
         WarehouseMemberAssignCommand command = new WarehouseMemberAssignCommand(1L, 10L, "MANAGER");
         when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
-        when(userUseCase.getUser(10L)).thenThrow(new BusinessException(AuthErrorCode.USER_NOT_FOUND));
+        when(warehouseMemberUserPort.getCandidate(10L)).thenThrow(new BusinessException(AuthErrorCode.USER_NOT_FOUND));
 
         assertThatThrownBy(() -> warehouseMemberService.assignManager(command))
                 .isInstanceOf(BusinessException.class)
@@ -149,7 +146,7 @@ class WarehouseMemberServiceTest {
     void assignManager_wrongUserRole() {
         WarehouseMemberAssignCommand command = new WarehouseMemberAssignCommand(1L, 10L, "MANAGER");
         when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
-        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.HQ_ADMIN, UserStatus.ACTIVE));
+        when(warehouseMemberUserPort.getCandidate(10L)).thenReturn(candidate(UserRole.HQ_ADMIN, UserStatus.ACTIVE));
 
         assertThatThrownBy(() -> warehouseMemberService.assignManager(command))
                 .isInstanceOf(BusinessException.class)
@@ -163,7 +160,7 @@ class WarehouseMemberServiceTest {
     void assignManager_pendingUser() {
         WarehouseMemberAssignCommand command = new WarehouseMemberAssignCommand(1L, 10L, "MANAGER");
         when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
-        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.WAREHOUSE_MANAGER, UserStatus.PENDING));
+        when(warehouseMemberUserPort.getCandidate(10L)).thenReturn(candidate(UserRole.WAREHOUSE_MANAGER, UserStatus.PENDING));
 
         assertThatThrownBy(() -> warehouseMemberService.assignManager(command))
                 .isInstanceOf(BusinessException.class)
@@ -177,7 +174,7 @@ class WarehouseMemberServiceTest {
     void assignManager_inactiveUser() {
         WarehouseMemberAssignCommand command = new WarehouseMemberAssignCommand(1L, 10L, "MANAGER");
         when(warehouseRepository.findById(1L)).thenReturn(Optional.of(activeWarehouse));
-        when(userUseCase.getUser(10L)).thenReturn(user(UserRole.WAREHOUSE_MANAGER, UserStatus.INACTIVE));
+        when(warehouseMemberUserPort.getCandidate(10L)).thenReturn(candidate(UserRole.WAREHOUSE_MANAGER, UserStatus.INACTIVE));
 
         assertThatThrownBy(() -> warehouseMemberService.assignManager(command))
                 .isInstanceOf(BusinessException.class)

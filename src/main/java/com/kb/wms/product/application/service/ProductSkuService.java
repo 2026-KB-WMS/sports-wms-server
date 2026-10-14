@@ -22,8 +22,9 @@ import com.kb.wms.product.application.port.in.ProductSkuUseCase;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
 import com.kb.wms.product.application.port.in.command.ProductSkuUpdateCommand;
 import com.kb.wms.product.application.port.in.command.SkuOptionConnectCommand;
-import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
 import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
+import com.kb.wms.product.application.port.in.result.ProductSkuView;
+import com.kb.wms.product.application.port.in.result.SkuOptionSummary;
 import com.kb.wms.product.application.port.out.BrandRepository;
 import com.kb.wms.product.application.port.out.CategoryRepository;
 import com.kb.wms.product.application.port.out.OptionGroupRepository;
@@ -213,6 +214,13 @@ public class ProductSkuService implements ProductSkuUseCase {
     public ProductSku getSku(Long skuId) {
         return productSkuRepository.findById(skuId)
                 .orElseThrow(() -> new BusinessException(ProductErrorCode.SKU_NOT_FOUND));
+    }
+
+    @Override
+    public ProductSkuView getSkuView(Long skuId) {
+        ProductSku sku = getSku(skuId);
+        return new ProductSkuView(sku.getSkuId(), sku.isActive(), sku.getCurrentPurchasePrice(),
+                sku.getCurrentSupplyPrice());
     }
 
     /** 점주에게는 판매 가능한(활성) SKU만 보이므로, isActive 필터가 무엇이든 활성 SKU로 고정한다. */

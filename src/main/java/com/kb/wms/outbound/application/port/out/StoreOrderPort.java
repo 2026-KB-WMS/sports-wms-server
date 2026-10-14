@@ -15,16 +15,16 @@ import com.kb.wms.outbound.domain.enums.StoreOrderState;
 public interface StoreOrderPort {
 
     /** 발주 헤더를 조회한다. 없으면 404 STORE_ORDER_NOT_FOUND. */
-    OrderSnapshot getOrder(Long storeOrderId);
+    OrderView getOrder(Long storeOrderId);
 
     /** 비관적 쓰기 락으로 발주 헤더를 조회한다. 없으면 404 STORE_ORDER_NOT_FOUND. */
-    OrderSnapshot getOrderForUpdate(Long storeOrderId);
+    OrderView getOrderForUpdate(Long storeOrderId);
 
     /** 발주 항목을 항목 ID 오름차순으로 조회한다. */
-    List<LineSnapshot> getLines(Long storeOrderId);
+    List<LineView> getLines(Long storeOrderId);
 
     /** 발주 항목을 비관적 쓰기 락으로 항목 ID 오름차순 조회한다. */
-    List<LineSnapshot> getLinesForUpdate(Long storeOrderId);
+    List<LineView> getLinesForUpdate(Long storeOrderId);
 
     /** 재고 할당에 따라 항목의 할당 수량을 늘린다. */
     void increaseAllocated(List<LineQuantity> quantities);
@@ -43,10 +43,10 @@ public interface StoreOrderPort {
      *
      * @param changedBy 이력의 처리자(요청자)
      */
-    OrderSnapshot completeIfFulfilled(Long storeOrderId, Long changedBy);
+    OrderView completeIfFulfilled(Long storeOrderId, Long changedBy);
 
     /** 출고가 필요로 하는 발주 헤더 값. */
-    record OrderSnapshot(Long storeOrderId, String orderNo, Long warehouseId, StoreOrderState state) {
+    record OrderView(Long storeOrderId, String orderNo, Long warehouseId, StoreOrderState state) {
     }
 
     /**
@@ -55,7 +55,7 @@ public interface StoreOrderPort {
      * @param unallocatedQuantity      아직 재고를 할당하지 못한 수량
      * @param requestedUnitSupplyPrice 발주 시점 공급 단가 스냅샷(없을 수 있다)
      */
-    record LineSnapshot(Long storeOrderLineId, Long skuId, long unallocatedQuantity,
+    record LineView(Long storeOrderLineId, Long skuId, long unallocatedQuantity,
                         BigDecimal requestedUnitSupplyPrice) {
     }
 

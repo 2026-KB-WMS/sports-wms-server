@@ -20,7 +20,7 @@ public class SkuStatusAdapter implements SkuStatusPort {
 
     @Override
     public void requireActive(Long skuId) {
-        if (!productSkuUseCase.getSku(skuId).isActive()) {
+        if (!productSkuUseCase.getSkuView(skuId).active()) {
             throw new BusinessException(InventoryErrorCode.SKU_NOT_ACTIVE);
         }
     }

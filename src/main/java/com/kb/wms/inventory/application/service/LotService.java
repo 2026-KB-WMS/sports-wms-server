@@ -16,6 +16,7 @@ import com.kb.wms.inventory.application.port.in.command.LotStatusChangeCommand;
 import com.kb.wms.inventory.application.port.in.query.LotSearchCondition;
 import com.kb.wms.inventory.application.port.in.result.LotInboundView;
 import com.kb.wms.inventory.application.port.in.result.LotSummary;
+import com.kb.wms.inventory.application.port.in.result.RegisteredLotView;
 import com.kb.wms.inventory.application.port.out.InventoryLotRepository;
 import com.kb.wms.inventory.application.port.out.InventoryQueryRepository;
 import com.kb.wms.inventory.application.port.out.LotRepository;
@@ -137,7 +138,12 @@ public class LotService implements LotUseCase {
      */
     @Override
     @Transactional
-    public Lot findOrRegister(LotRegisterCommand command) {
+    public RegisteredLotView findOrRegister(LotRegisterCommand command) {
+        Lot lot = findOrRegisterLot(command);
+        return new RegisteredLotView(lot.getLotId(), lot.getLotNumber(), lot.getUnitCost());
+    }
+
+    private Lot findOrRegisterLot(LotRegisterCommand command) {
         if (command.manufacturedDate() != null && command.expiryDate() != null
                 && command.expiryDate().isBefore(command.manufacturedDate())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "유통기한은 제조일 이후여야 합니다.");

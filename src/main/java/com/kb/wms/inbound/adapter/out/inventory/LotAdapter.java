@@ -25,6 +25,6 @@ public class LotAdapter implements LotPort {
                                   LocalDate manufacturedDate, LocalDate expiryDate, BigDecimal unitCost) {
         return lotUseCase.findOrRegister(
                 new LotRegisterCommand(skuId, supplierId, lotNumber, manufacturedDate, expiryDate, unitCost))
-                .getLotId();
+                .lotId();
     }
 }

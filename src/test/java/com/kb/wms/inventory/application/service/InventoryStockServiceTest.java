@@ -28,6 +28,7 @@ import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inventory.application.port.in.command.StockQuantityCommand;
 import com.kb.wms.inventory.application.port.in.command.StockReceiveCommand;
 import com.kb.wms.inventory.application.port.in.command.StockShipCommand;
+import com.kb.wms.inventory.application.port.in.result.StockLotView;
 import com.kb.wms.inventory.application.port.out.InventoryLotRepository;
 import com.kb.wms.inventory.application.port.out.InventoryTransactionRepository;
 import com.kb.wms.inventory.application.port.out.LotRepository;
@@ -78,10 +79,10 @@ class InventoryStockServiceTest {
         when(inventoryLotRepository.findBySectionIdAndLotIdForUpdate(10L, 5L)).thenReturn(Optional.empty());
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        List<InventoryLot> result = inventoryStockService.receive(List.of(command));
+        List<StockLotView> result = inventoryStockService.receive(List.of(command));
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).getOnHandQuantity()).isEqualTo(50L);
+        assertThat(result.get(0).onHandQuantity()).isEqualTo(50L);
         verify(sectionCapacityPort).occupy(10L, 50L);
         verify(inventoryTransactionRepository).save(any());
     }
@@ -169,9 +170,9 @@ class InventoryStockServiceTest {
         when(lotRepository.findById(5L)).thenReturn(Optional.of(availableLot()));
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        List<InventoryLot> result = inventoryStockService.allocate(List.of(command));
+        List<StockLotView> result = inventoryStockService.allocate(List.of(command));
 
-        assertThat(result.get(0).getAllocatedQuantity()).isEqualTo(30L);
+        assertThat(result.get(0).allocatedQuantity()).isEqualTo(30L);
     }
 
     @Test
@@ -275,9 +276,9 @@ class InventoryStockServiceTest {
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        List<InventoryLot> result = inventoryStockService.release(List.of(command));
+        List<StockLotView> result = inventoryStockService.release(List.of(command));
 
-        assertThat(result.get(0).getAllocatedQuantity()).isEqualTo(10L);
+        assertThat(result.get(0).allocatedQuantity()).isEqualTo(10L);
     }
 
     @Test
@@ -305,10 +306,10 @@ class InventoryStockServiceTest {
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        List<InventoryLot> result = inventoryStockService.ship(List.of(command));
+        List<StockLotView> result = inventoryStockService.ship(List.of(command));
 
-        assertThat(result.get(0).getOnHandQuantity()).isEqualTo(70L);
-        assertThat(result.get(0).getAllocatedQuantity()).isEqualTo(0L);
+        assertThat(result.get(0).onHandQuantity()).isEqualTo(70L);
+        assertThat(result.get(0).allocatedQuantity()).isEqualTo(0L);
         verify(sectionCapacityPort).vacate(10L, 30L);
         verify(inventoryTransactionRepository).save(any());
     }
@@ -322,10 +323,10 @@ class InventoryStockServiceTest {
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        List<InventoryLot> result = inventoryStockService.ship(List.of(command));
+        List<StockLotView> result = inventoryStockService.ship(List.of(command));
 
-        assertThat(result.get(0).getOnHandQuantity()).isEqualTo(80L);
-        assertThat(result.get(0).getAllocatedQuantity()).isEqualTo(0L);
+        assertThat(result.get(0).onHandQuantity()).isEqualTo(80L);
+        assertThat(result.get(0).allocatedQuantity()).isEqualTo(0L);
         verify(sectionCapacityPort).vacate(10L, 20L);
     }
 

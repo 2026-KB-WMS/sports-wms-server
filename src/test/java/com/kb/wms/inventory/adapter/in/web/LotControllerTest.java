@@ -37,7 +37,7 @@ import com.kb.wms.inventory.domain.enums.LotStatus;
 import com.kb.wms.inventory.domain.enums.QualityStatus;
 import com.kb.wms.inventory.exception.InventoryErrorCode;
 import com.kb.wms.warehouse.application.port.in.WarehouseUseCase;
-import com.kb.wms.warehouse.domain.entity.Warehouse;
+import com.kb.wms.warehouse.application.port.in.result.WarehouseView;
 
 @WebMvcTest(LotController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -103,12 +103,11 @@ class LotControllerTest {
                 BigDecimal.TEN, null, null);
         InventoryLotView view = new InventoryLotView(10L, 1L, "LOT-001", 2L, "SKU-001", "상품A",
                 4L, 5L, "A-01", "1구역", 100L, 20L, 80L, QualityStatus.AVAILABLE, null, null);
-        Warehouse warehouse =
-                Warehouse.register("WH-001", "서울 물류센터", "서울시 강남구", "02-1234-5678", BigDecimal.valueOf(1000));
         when(lotUseCase.getLot(eq(1L), any())).thenReturn(summary);
         when(inventoryQueryUseCase.getInventoriesByLot(eq(InventoryLotSearchCondition.ofLot(1L)), any()))
                 .thenReturn(List.of(view));
-        when(warehouseUseCase.getWarehouse(4L)).thenReturn(warehouse);
+        when(warehouseUseCase.getWarehouseView(4L))
+                .thenReturn(new WarehouseView(4L, "서울 물류센터", true));
         when(lotUseCase.getLotInbounds(eq(1L), any())).thenReturn(List.of(new LotInboundView(
                 7L, "IB-20261001-0001", 4L, LocalDateTime.of(2026, 10, 1, 14, 30),
                 100L, 95L, 5L, new BigDecimal("1200.00"))));

@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import com.kb.wms.inventory.application.port.in.InventoryStockUseCase;
 import com.kb.wms.inventory.application.port.in.command.StockQuantityCommand;
 import com.kb.wms.inventory.application.port.in.command.StockShipCommand;
-import com.kb.wms.inventory.domain.entity.InventoryLot;
+import com.kb.wms.inventory.application.port.in.result.StockLotView;
 import com.kb.wms.outbound.application.port.out.OutboundStockPort;
 
 import lombok.RequiredArgsConstructor;
@@ -46,9 +46,9 @@ public class OutboundStockAdapter implements OutboundStockPort {
                 .toList();
     }
 
-    private List<StockState> toStates(List<InventoryLot> lots) {
+    private List<StockState> toStates(List<StockLotView> lots) {
         return lots.stream()
-                .map(lot -> new StockState(lot.getInventoryLotId(), lot.getOnHandQuantity(), lot.getAllocatedQuantity()))
+                .map(lot -> new StockState(lot.inventoryLotId(), lot.onHandQuantity(), lot.allocatedQuantity()))
                 .toList();
     }
 }

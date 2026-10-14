@@ -28,8 +28,8 @@ import com.kb.wms.outbound.application.port.in.result.OutboundView;
 import com.kb.wms.outbound.application.port.out.OutboundQueryRepository;
 import com.kb.wms.outbound.application.port.out.OutboundRepository;
 import com.kb.wms.outbound.application.port.out.StockAllocationRepository;
-import com.kb.wms.outbound.application.port.out.StoreOrderPort.LineSnapshot;
-import com.kb.wms.outbound.application.port.out.StoreOrderPort.OrderSnapshot;
+import com.kb.wms.outbound.application.port.out.StoreOrderPort.LineView;
+import com.kb.wms.outbound.application.port.out.StoreOrderPort.OrderView;
 import com.kb.wms.outbound.application.port.out.StoreOrderPort;
 import com.kb.wms.outbound.domain.entity.Outbound;
 import com.kb.wms.outbound.domain.entity.OutboundLine;
@@ -78,7 +78,7 @@ public class OutboundService implements OutboundUseCase {
                     "비고는 " + NOTE_MAX_LENGTH + "자 이하여야 합니다.");
         }
 
-        OrderSnapshot order = storeOrderPort.getOrderForUpdate(command.storeOrderId());
+        OrderView order = storeOrderPort.getOrderForUpdate(command.storeOrderId());
         actor.requireWarehouseAccess(order.warehouseId());
         if (order.state() != StoreOrderState.ASSIGNED) {
             throw new BusinessException(ErrorCode.CONFLICT,
@@ -117,15 +117,15 @@ public class OutboundService implements OutboundUseCase {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "출고에 묶을 SKU를 하나 이상 지정해주세요.");
         }
         Set<Long> requested = new HashSet<>(skuIds);
-        List<LineSnapshot> lines = storeOrderPort.getLines(storeOrderId);
-        Set<Long> inOrder = lines.stream().map(LineSnapshot::skuId).collect(Collectors.toSet());
+        List<LineView> lines = storeOrderPort.getLines(storeOrderId);
+        Set<Long> inOrder = lines.stream().map(LineView::skuId).collect(Collectors.toSet());
         List<Long> unknown = requested.stream().filter(id -> !inOrder.contains(id)).sorted().toList();
         if (!unknown.isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "발주에 없는 SKU입니다. skuId=" + unknown);
         }
         Set<Long> lineIds = lines.stream()
                 .filter(line -> requested.contains(line.skuId()))
-                .map(LineSnapshot::storeOrderLineId)
+                .map(LineView::storeOrderLineId)
                 .collect(Collectors.toSet());
         return allocations.stream().filter(a -> lineIds.contains(a.getStoreOrderLineId())).toList();
     }
@@ -140,7 +140,7 @@ public class OutboundService implements OutboundUseCase {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "READY 상태의 출고만 피킹을 시작할 수 있습니다. 현재 상태: " + outbound.getStatus());
         }
-        OrderSnapshot order = storeOrderPort.getOrder(outbound.getStoreOrderId());
+        OrderView order = storeOrderPort.getOrder(outbound.getStoreOrderId());
         if (order.state() != StoreOrderState.ASSIGNED) {
             throw new BusinessException(OutboundErrorCode.ORDER_NOT_ASSIGNED,
                     OutboundErrorCode.ORDER_NOT_ASSIGNED.getDefaultMessage() + " 현재 상태: " + order.state());
@@ -228,7 +228,7 @@ public class OutboundService implements OutboundUseCase {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "출고를 선택해주세요.");
         }
         OutboundView view = findViewOrThrow(outboundId);
-        OrderSnapshot order = storeOrderPort.getOrderForUpdate(view.storeOrderId());
+        OrderView order = storeOrderPort.getOrderForUpdate(view.storeOrderId());
         actor.requireWarehouseAccess(order.warehouseId());
         return outboundRepository.findByIdForUpdate(outboundId)
                 .orElseThrow(() -> new BusinessException(OutboundErrorCode.OUTBOUND_NOT_FOUND));

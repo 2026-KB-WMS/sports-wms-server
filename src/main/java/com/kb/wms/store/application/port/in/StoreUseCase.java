@@ -7,6 +7,7 @@ import com.kb.wms.store.application.port.in.command.StoreRegisterCommand;
 import com.kb.wms.store.application.port.in.command.StoreUpdateCommand;
 import com.kb.wms.store.application.port.in.query.StoreSearchCondition;
 import com.kb.wms.store.application.port.in.result.StoreMembershipSummary;
+import com.kb.wms.store.application.port.in.result.StoreView;
 import com.kb.wms.store.domain.entity.Store;
 
 /**
@@ -20,6 +21,9 @@ public interface StoreUseCase {
     List<Store> getStores(StoreSearchCondition condition);
 
     Store getStore(Long storeId);
+
+    /** 다른 도메인이 지점 활성 여부를 확인할 때 쓴다. 없으면 STORE_NOT_FOUND. 엔티티를 내보내지 않는다. */
+    StoreView getStoreView(Long storeId);
 
     /** 사용자 요청용 단건 조회. 담당 지점(본사는 전체)이 아니면 403 FORBIDDEN. 다른 도메인의 내부 조회는 주체 없는 버전을 쓴다. */
     Store getStore(Long storeId, AuthenticatedUser actor);

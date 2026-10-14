@@ -20,12 +20,12 @@ public class StoreOrderWarehouseAvailabilityAdapter implements WarehouseAvailabi
 
     @Override
     public void requireExists(Long warehouseId) {
-        warehouseUseCase.getWarehouse(warehouseId);
+        warehouseUseCase.getWarehouseView(warehouseId);
     }
 
     @Override
     public void requireActive(Long warehouseId) {
-        if (!warehouseUseCase.getWarehouse(warehouseId).isActive()) {
+        if (!warehouseUseCase.getWarehouseView(warehouseId).active()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "비활성 창고는 배정하거나 재개할 수 없습니다. warehouseId=" + warehouseId);
         }

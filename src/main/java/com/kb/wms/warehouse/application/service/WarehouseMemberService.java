@@ -6,16 +6,13 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.kb.wms.auth.application.port.in.UserUseCase;
-import com.kb.wms.auth.domain.entity.User;
-import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.auth.domain.enums.UserStatus;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.warehouse.application.port.in.WarehouseMemberUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseMemberAssignCommand;
 import com.kb.wms.warehouse.application.port.in.result.WarehouseMemberView;
 import com.kb.wms.warehouse.application.port.out.WarehouseMemberRepository;
+import com.kb.wms.warehouse.application.port.out.WarehouseMemberUserPort;
 import com.kb.wms.warehouse.application.port.out.WarehouseRepository;
 import com.kb.wms.warehouse.domain.entity.Warehouse;
 import com.kb.wms.warehouse.domain.entity.WarehouseMember;
@@ -31,7 +28,7 @@ public class WarehouseMemberService implements WarehouseMemberUseCase {
 
     private final WarehouseMemberRepository warehouseMemberRepository;
     private final WarehouseRepository warehouseRepository;
-    private final UserUseCase userUseCase;
+    private final WarehouseMemberUserPort warehouseMemberUserPort;
 
     @Override
     @Transactional
@@ -47,12 +44,12 @@ public class WarehouseMemberService implements WarehouseMemberUseCase {
         }
 
         // 없는 사용자는 USER_NOT_FOUND(404). 승인 전 사용자의 소속은 승인 요청(PATCH /users)에서 함께 지정한다.
-        User user = userUseCase.getUser(command.userId());
-        if (user.getRole() != UserRole.WAREHOUSE_MANAGER) {
+        WarehouseMemberUserPort.Candidate user = warehouseMemberUserPort.getCandidate(command.userId());
+        if (!user.hasAssignableRole()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     "창고 관리자로 배정할 수 있는 역할은 WAREHOUSE_MANAGER입니다.");
         }
-        if (user.getStatus() != UserStatus.ACTIVE) {
+        if (!user.active()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "승인 대기 또는 비활성 사용자에게는 창고 관리자를 배정할 수 없습니다. 승인 요청에서 소속을 함께 지정해주세요.");
         }
@@ -63,7 +60,7 @@ public class WarehouseMemberService implements WarehouseMemberUseCase {
 
         WarehouseMember member = WarehouseMember.assign(
                 command.warehouseId(), command.userId(), command.memberRole(), LocalDateTime.now());
-        return WarehouseMemberView.of(warehouseMemberRepository.save(member), user.getName(), user.getLoginId());
+        return WarehouseMemberView.of(warehouseMemberRepository.save(member), user.name(), user.loginId());
     }
 
     @Override

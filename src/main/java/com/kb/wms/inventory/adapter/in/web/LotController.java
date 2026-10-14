@@ -85,7 +85,7 @@ public class LotController {
 
     private LotDetailResponse.InventoryItem toInventoryItem(InventoryLotView view, Map<Long, String> warehouseNames) {
         String warehouseName = warehouseNames.computeIfAbsent(view.warehouseId(),
-                id -> warehouseUseCase.getWarehouse(id).getName());
+                id -> warehouseUseCase.getWarehouseView(id).name());
         return new LotDetailResponse.InventoryItem(
                 view.inventoryLotId(),
                 view.warehouseId(),

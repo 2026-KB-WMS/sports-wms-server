@@ -30,6 +30,7 @@ import com.kb.wms.inventory.application.port.in.command.LotStatusChangeCommand;
 import com.kb.wms.inventory.application.port.in.query.LotSearchCondition;
 import com.kb.wms.inventory.application.port.in.result.LotInboundView;
 import com.kb.wms.inventory.application.port.in.result.LotSummary;
+import com.kb.wms.inventory.application.port.in.result.RegisteredLotView;
 import com.kb.wms.inventory.application.port.out.InventoryLotRepository;
 import com.kb.wms.inventory.application.port.out.InventoryQueryRepository;
 import com.kb.wms.inventory.application.port.out.LotRepository;
@@ -163,10 +164,10 @@ class LotServiceTest {
         when(lotRepository.findBySkuIdAndSupplierIdAndLotNumber(1L, 1L, "LOT-001")).thenReturn(Optional.empty());
         when(lotRepository.save(any(Lot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Lot result = lotService.findOrRegister(command);
+        RegisteredLotView result = lotService.findOrRegister(command);
 
-        assertThat(result.getLotNumber()).isEqualTo("LOT-001");
-        assertThat(result.getUnitCost()).isEqualByComparingTo(BigDecimal.TEN);
+        assertThat(result.lotNumber()).isEqualTo("LOT-001");
+        assertThat(result.unitCost()).isEqualByComparingTo(BigDecimal.TEN);
     }
 
     @Test
@@ -177,9 +178,9 @@ class LotServiceTest {
         Lot existing = Lot.register(1L, 1L, "LOT-001", LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1), BigDecimal.TEN);
         when(lotRepository.findBySkuIdAndSupplierIdAndLotNumber(1L, 1L, "LOT-001")).thenReturn(Optional.of(existing));
 
-        Lot result = lotService.findOrRegister(command);
+        RegisteredLotView result = lotService.findOrRegister(command);
 
-        assertThat(result).isSameAs(existing);
+        assertThat(result.lotNumber()).isEqualTo(existing.getLotNumber());
         verify(lotRepository, never()).save(any());
     }
 

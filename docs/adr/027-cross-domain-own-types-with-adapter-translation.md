@@ -7,12 +7,13 @@
 도메인 간 호출은 상대 도메인의 `application.port.in`을 거치지만, 그 포트가 엔티티와 enum을 그대로 돌려줬다. 출고 서비스 3개(`StockAllocationService`, `OutboundService`, `OutboundFulfillmentService`)가 지점 발주의 `StoreOrder`, `StoreOrderLine`, `StoreOrderStatus`를 직접 import해 getter를 불렀다(ArchUnit 점검에서 위반 52건). 발주 모델이 바뀌면 출고 코드가 같이 깨지고, 지점 발주를 OMS로 분리할 때는 엔티티를 공유할 수 없다. DDD 관점에서도 출고가 발주의 모델을 그대로 쓰면 발주의 용어와 변경이 출고 안으로 새어 든다.
 
 ## 결정
-- **출고는 지점 발주를 자기 타입으로만 다룬다.** `outbound.application.port.out.StoreOrderPort`가 발주 스냅샷(`OrderSnapshot`, `LineSnapshot`)과 수량 변경 타입(`LineQuantity`, `LinePicked`), 출고 자기 enum(`outbound.domain.enums.StoreOrderState`)을 정의한다. 출고 서비스·응답 DTO는 이 타입만 import한다.
+- **출고는 지점 발주를 자기 타입으로만 다룬다.** `outbound.application.port.out.StoreOrderPort`가 발주 스냅샷(`OrderView`, `LineView`)과 수량 변경 타입(`LineQuantity`, `LinePicked`), 출고 자기 enum(`outbound.domain.enums.StoreOrderState`)을 정의한다. 출고 서비스·응답 DTO는 이 타입만 import한다.
 - **변환은 어댑터 한 곳에서 한다.** `outbound.adapter.out.storeorder.StoreOrderFulfillmentAdapter`가 발주의 `port.in`을 호출하고 결과를 출고 타입으로 바꾼다. 출고 안에서 `storeorder` 타입을 아는 곳은 `adapter.out.storeorder` 패키지뿐이다.
 - **발주의 `port.in`은 엔티티를 밖으로 내보내지 않는다.** `StoreOrderFulfillmentUseCase`는 `port.in.result`의 읽기용 결과 객체(`StoreOrderFulfillmentOrderView`, `StoreOrderFulfillmentLineView`)를 돌려준다.
 - **enum 변환은 이름으로 한다.** 발주 쪽에 상태가 추가되면 변환이 예외로 거절되므로(조용히 통과시키지 않는다) 출고 enum과 어댑터를 함께 갱신한다.
 - **JSON 응답은 바꾸지 않는다.** `OutboundDeliverResponse.storeOrder.status`는 enum 이름이 같아 값이 그대로다. API 명세 변경 없음.
-- **적용 범위**: 이번에는 출고 → 지점 발주 경계만 적용한다. 다른 도메인 쌍은 위반이 남아 있으며, 분리 후보이거나 변경이 잦은 경계부터 같은 방식으로 정리한다.
+- **적용 범위**: 처음에는 출고 → 지점 발주 경계에 적용했고, 이어서 다른 도메인 `port.in`이 돌려주던 엔티티 직접 사용을 같은 방식으로 정리했다(#253). 타 도메인 enum 의존은 후속으로 정리한다.
+- **엔티티 대신 읽기용 결과 객체를 돌려준다.** 호출 쪽 어댑터가 쓰던 조회는 `port.in`에 결과 객체를 돌려주는 메서드를 추가해 쓴다: `ProductSkuUseCase.getSkuView`, `WarehouseUseCase.getWarehouseView`, `WarehouseSectionUseCase.getSectionView`, `StoreUseCase.getStoreView`, `UserUseCase.getUserView`. 엔티티를 돌려주는 기존 메서드는 자기 도메인 안에서 계속 쓴다. 호출 쪽은 이 결과 객체를 어댑터에서만 받고 자기 포트 타입으로 변환한다(예: 지점·창고 관리자 배정은 `StoreMemberUserPort`·`WarehouseMemberUserPort`의 `Candidate`를 쓰고, 인증 도메인의 `UserView` 변환은 `adapter.out.auth`가 맡는다). 다른 도메인이 쓰는 재고 반영 포트(`InventoryStockUseCase`)와 `LotUseCase.findOrRegister`는 반환 타입 자체를 `StockLotView`, `RegisteredLotView`로 바꿨다.
 
 ## 근거
 - OMS 분리 시 어댑터 구현만 HTTP 호출 등으로 바꾸면 되고 출고 서비스는 건드리지 않는다. 경계를 모놀리스 안에서 먼저 코드로 드러내 두는 것이다.
