@@ -35,8 +35,8 @@ import com.kb.wms.outbound.application.port.out.OutboundStockPort.StockState;
 import com.kb.wms.outbound.application.port.out.OutboundStockPort;
 import com.kb.wms.outbound.application.port.out.StockAllocationRepository;
 import com.kb.wms.outbound.application.port.out.StoreOrderPort.LineQuantity;
-import com.kb.wms.outbound.application.port.out.StoreOrderPort.LineSnapshot;
-import com.kb.wms.outbound.application.port.out.StoreOrderPort.OrderSnapshot;
+import com.kb.wms.outbound.application.port.out.StoreOrderPort.LineView;
+import com.kb.wms.outbound.application.port.out.StoreOrderPort.OrderView;
 import com.kb.wms.outbound.application.port.out.StoreOrderPort;
 import com.kb.wms.outbound.domain.entity.StockAllocation;
 import com.kb.wms.outbound.domain.enums.AllocationStatus;
@@ -72,15 +72,15 @@ public class StockAllocationService implements StockAllocationUseCase {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "할당할 발주를 선택해주세요.");
         }
 
-        OrderSnapshot order = storeOrderPort.getOrderForUpdate(command.storeOrderId());
+        OrderView order = storeOrderPort.getOrderForUpdate(command.storeOrderId());
         actor.requireWarehouseAccess(order.warehouseId());
         if (order.state() != StoreOrderState.ASSIGNED) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "배정된 발주만 재고를 할당할 수 있습니다. 현재 상태: " + order.state());
         }
 
-        List<LineSnapshot> lines = storeOrderPort.getLinesForUpdate(order.storeOrderId());
-        List<LineSnapshot> targets = selectTargets(lines, command.skuIds()).stream()
+        List<LineView> lines = storeOrderPort.getLinesForUpdate(order.storeOrderId());
+        List<LineView> targets = selectTargets(lines, command.skuIds()).stream()
                 .filter(line -> line.unallocatedQuantity() > 0)
                 .toList();
         if (targets.isEmpty()) {
@@ -137,7 +137,7 @@ public class StockAllocationService implements StockAllocationUseCase {
         // 발주 → 할당 순으로 잠그기 위해, 잠그지 않는 조회로 발주를 먼저 찾는다.
         StockAllocationView view = outboundQueryRepository.findAllocationView(command.allocationId())
                 .orElseThrow(() -> new BusinessException(OutboundErrorCode.ALLOCATION_NOT_FOUND));
-        OrderSnapshot order = storeOrderPort.getOrderForUpdate(view.storeOrderId());
+        OrderView order = storeOrderPort.getOrderForUpdate(view.storeOrderId());
         actor.requireWarehouseAccess(order.warehouseId());
         StockAllocation allocation = stockAllocationRepository.findByIdForUpdate(command.allocationId())
                 .orElseThrow(() -> new BusinessException(OutboundErrorCode.ALLOCATION_NOT_FOUND));
@@ -188,7 +188,7 @@ public class StockAllocationService implements StockAllocationUseCase {
      * 요청한 SKU의 발주 항목만 고른다. skuIds가 null이면 발주 전체다.
      * 한 발주 안에서 SKU는 중복될 수 없으므로 SKU로 항목이 하나로 정해진다.
      */
-    private List<LineSnapshot> selectTargets(List<LineSnapshot> lines, List<Long> skuIds) {
+    private List<LineView> selectTargets(List<LineView> lines, List<Long> skuIds) {
         if (skuIds == null) {
             return lines;
         }
@@ -196,7 +196,7 @@ public class StockAllocationService implements StockAllocationUseCase {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "할당할 SKU를 하나 이상 지정해주세요.");
         }
         Set<Long> requested = new HashSet<>(skuIds);
-        Set<Long> inOrder = lines.stream().map(LineSnapshot::skuId).collect(Collectors.toSet());
+        Set<Long> inOrder = lines.stream().map(LineView::skuId).collect(Collectors.toSet());
         List<Long> unknown = requested.stream().filter(id -> !inOrder.contains(id)).sorted().toList();
         if (!unknown.isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
@@ -210,16 +210,16 @@ public class StockAllocationService implements StockAllocationUseCase {
      * 재고가 모자란 항목은 가용 수량만큼만 채우고 모자란 수량을 shortages에 담는다.
      * 아무것도 못 채웠을 때의 거절은 호출한 쪽이 한다.
      */
-    private FefoPlacement placeByFefo(Long warehouseId, List<LineSnapshot> targets) {
+    private FefoPlacement placeByFefo(Long warehouseId, List<LineView> targets) {
         Map<Long, List<FefoStockCandidate>> candidatesBySku = outboundQueryRepository
-                .findFefoCandidates(warehouseId, targets.stream().map(LineSnapshot::skuId).distinct().toList())
+                .findFefoCandidates(warehouseId, targets.stream().map(LineView::skuId).distinct().toList())
                 .stream()
                 .collect(Collectors.groupingBy(FefoStockCandidate::skuId, LinkedHashMap::new, Collectors.toList()));
 
         List<Placement> placements = new ArrayList<>();
         List<StockAllocationShortage> shortages = new ArrayList<>();
         Map<Long, Long> availableByLot = new HashMap<>();
-        for (LineSnapshot line : targets) {
+        for (LineView line : targets) {
             long remaining = line.unallocatedQuantity();
             long requested = remaining;
             for (FefoStockCandidate candidate : candidatesBySku.getOrDefault(line.skuId(), List.of())) {

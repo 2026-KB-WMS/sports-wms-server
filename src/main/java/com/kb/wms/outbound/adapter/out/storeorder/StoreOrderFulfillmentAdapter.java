@@ -26,23 +26,23 @@ public class StoreOrderFulfillmentAdapter implements StoreOrderPort {
     private final StoreOrderFulfillmentUseCase storeOrderFulfillmentUseCase;
 
     @Override
-    public OrderSnapshot getOrder(Long storeOrderId) {
-        return toSnapshot(storeOrderFulfillmentUseCase.getOrder(storeOrderId));
+    public OrderView getOrder(Long storeOrderId) {
+        return toView(storeOrderFulfillmentUseCase.getOrder(storeOrderId));
     }
 
     @Override
-    public OrderSnapshot getOrderForUpdate(Long storeOrderId) {
-        return toSnapshot(storeOrderFulfillmentUseCase.getOrderForUpdate(storeOrderId));
+    public OrderView getOrderForUpdate(Long storeOrderId) {
+        return toView(storeOrderFulfillmentUseCase.getOrderForUpdate(storeOrderId));
     }
 
     @Override
-    public List<LineSnapshot> getLines(Long storeOrderId) {
-        return storeOrderFulfillmentUseCase.getLines(storeOrderId).stream().map(this::toSnapshot).toList();
+    public List<LineView> getLines(Long storeOrderId) {
+        return storeOrderFulfillmentUseCase.getLines(storeOrderId).stream().map(this::toView).toList();
     }
 
     @Override
-    public List<LineSnapshot> getLinesForUpdate(Long storeOrderId) {
-        return storeOrderFulfillmentUseCase.getLinesForUpdate(storeOrderId).stream().map(this::toSnapshot).toList();
+    public List<LineView> getLinesForUpdate(Long storeOrderId) {
+        return storeOrderFulfillmentUseCase.getLinesForUpdate(storeOrderId).stream().map(this::toView).toList();
     }
 
     @Override
@@ -69,8 +69,8 @@ public class StoreOrderFulfillmentAdapter implements StoreOrderPort {
     }
 
     @Override
-    public OrderSnapshot completeIfFulfilled(Long storeOrderId, Long changedBy) {
-        return toSnapshot(storeOrderFulfillmentUseCase.completeIfFulfilled(storeOrderId, changedBy));
+    public OrderView completeIfFulfilled(Long storeOrderId, Long changedBy) {
+        return toView(storeOrderFulfillmentUseCase.completeIfFulfilled(storeOrderId, changedBy));
     }
 
     private List<StoreOrderLineQuantityCommand> toCommands(List<LineQuantity> quantities) {
@@ -79,13 +79,13 @@ public class StoreOrderFulfillmentAdapter implements StoreOrderPort {
                 .toList();
     }
 
-    private OrderSnapshot toSnapshot(StoreOrderFulfillmentOrderView order) {
-        return new OrderSnapshot(order.storeOrderId(), order.orderNo(), order.warehouseId(),
+    private OrderView toView(StoreOrderFulfillmentOrderView order) {
+        return new OrderView(order.storeOrderId(), order.orderNo(), order.warehouseId(),
                 StoreOrderState.valueOf(order.status().name()));
     }
 
-    private LineSnapshot toSnapshot(StoreOrderFulfillmentLineView line) {
-        return new LineSnapshot(line.storeOrderLineId(), line.skuId(), line.unallocatedQuantity(),
+    private LineView toView(StoreOrderFulfillmentLineView line) {
+        return new LineView(line.storeOrderLineId(), line.skuId(), line.unallocatedQuantity(),
                 line.requestedUnitSupplyPrice());
     }
 }
