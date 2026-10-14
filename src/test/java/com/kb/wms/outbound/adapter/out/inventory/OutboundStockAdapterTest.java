@@ -16,7 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.kb.wms.inventory.application.port.in.InventoryStockUseCase;
 import com.kb.wms.inventory.application.port.in.command.StockQuantityCommand;
 import com.kb.wms.inventory.application.port.in.command.StockShipCommand;
-import com.kb.wms.inventory.domain.entity.InventoryLot;
+import com.kb.wms.inventory.application.port.in.result.StockLotView;
 import com.kb.wms.inventory.domain.enums.QualityStatus;
 import com.kb.wms.outbound.application.port.out.OutboundStockPort.StockPick;
 import com.kb.wms.outbound.application.port.out.OutboundStockPort.StockQuantity;
@@ -28,11 +28,8 @@ class OutboundStockAdapterTest {
     @Mock InventoryStockUseCase inventoryStockUseCase;
     @InjectMocks OutboundStockAdapter adapter;
 
-    private InventoryLot lot(Long id, long onHand, long allocated) {
-        return InventoryLot.builder()
-                .inventoryLotId(id).sectionId(1L).lotId(1L)
-                .onHandQuantity(onHand).allocatedQuantity(allocated)
-                .qualityStatus(QualityStatus.AVAILABLE).build();
+    private StockLotView lot(Long id, long onHand, long allocated) {
+        return new StockLotView(id, 1L, 1L, QualityStatus.AVAILABLE, onHand, allocated);
     }
 
     @Test

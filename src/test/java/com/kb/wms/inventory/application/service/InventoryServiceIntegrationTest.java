@@ -17,8 +17,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.auth.domain.enums.UserRole;
-import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
+import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inventory.application.port.in.InventoryAdjustmentUseCase;
 import com.kb.wms.inventory.application.port.in.InventoryQueryUseCase;
 import com.kb.wms.inventory.application.port.in.InventoryStockUseCase;
@@ -35,6 +35,8 @@ import com.kb.wms.inventory.application.port.in.query.LotSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.LowStockSearchCondition;
 import com.kb.wms.inventory.application.port.in.result.InventoryAdjustmentResult;
 import com.kb.wms.inventory.application.port.in.result.InventoryTransactionView;
+import com.kb.wms.inventory.application.port.in.result.RegisteredLotView;
+import com.kb.wms.inventory.application.port.in.result.StockLotView;
 import com.kb.wms.inventory.application.port.out.InventoryLotRepository;
 import com.kb.wms.inventory.application.port.out.LotRepository;
 import com.kb.wms.inventory.domain.entity.InventoryLot;
@@ -172,7 +174,7 @@ class InventoryServiceIntegrationTest {
         @Test
         @DisplayName("기존 행에는 더하고, 없는 구역·로트는 새 행을 만들며 행마다 INBOUND 이력을 남긴다")
         void receive() {
-            List<InventoryLot> result = stockUseCase.receive(List.of(
+            List<StockLotView> result = stockUseCase.receive(List.of(
                     new StockReceiveCommand(sectionR1, lotA, QualityStatus.AVAILABLE, 58, 7L, USER),
                     new StockReceiveCommand(sectionD1, lotA, QualityStatus.DEFECTIVE, 2, 7L, USER)));
 
@@ -281,14 +283,14 @@ class InventoryServiceIntegrationTest {
         @Test
         @DisplayName("같은 SKU·공급처·로트 번호면 기존 로트를 재사용하고, 없으면 새로 만든다")
         void reuseOrCreate() {
-            Lot same = lotUseCase.findOrRegister(new LotRegisterCommand(
+            RegisteredLotView same = lotUseCase.findOrRegister(new LotRegisterCommand(
                     skuId, 3L, "LOT-A", null, LocalDate.of(2027, 1, 1), new BigDecimal("60000.00")));
-            assertThat(same.getLotId()).isEqualTo(lotA);
+            assertThat(same.lotId()).isEqualTo(lotA);
 
-            Lot created = lotUseCase.findOrRegister(new LotRegisterCommand(
+            RegisteredLotView created = lotUseCase.findOrRegister(new LotRegisterCommand(
                     skuId, 3L, "LOT-NEW", null, null, BigDecimal.valueOf(55000)));
-            assertThat(created.getLotId()).isNotEqualTo(lotA);
-            assertThat(created.isAvailable()).isTrue();
+            assertThat(created.lotId()).isNotEqualTo(lotA);
+            assertThat(created.lotNumber()).isEqualTo("LOT-NEW");
         }
 
         @Test

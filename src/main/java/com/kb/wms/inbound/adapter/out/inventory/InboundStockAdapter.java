@@ -29,8 +29,8 @@ public class InboundStockAdapter implements InboundStockPort {
                         receipt.quantity(), inboundId, userId))
                 .toList();
         return inventoryStockUseCase.receive(commands).stream()
-                .map(lot -> new ReceivedStock(lot.getSectionId(), lot.getLotId(),
-                        lot.getQualityStatus() == QualityStatus.DEFECTIVE, lot.getInventoryLotId()))
+                .map(lot -> new ReceivedStock(lot.sectionId(), lot.lotId(),
+                        lot.qualityStatus() == QualityStatus.DEFECTIVE, lot.inventoryLotId()))
                 .toList();
     }
 }

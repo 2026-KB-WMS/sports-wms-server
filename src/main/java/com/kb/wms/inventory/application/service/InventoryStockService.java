@@ -16,6 +16,7 @@ import com.kb.wms.inventory.application.port.in.InventoryStockUseCase;
 import com.kb.wms.inventory.application.port.in.command.StockQuantityCommand;
 import com.kb.wms.inventory.application.port.in.command.StockReceiveCommand;
 import com.kb.wms.inventory.application.port.in.command.StockShipCommand;
+import com.kb.wms.inventory.application.port.in.result.StockLotView;
 import com.kb.wms.inventory.application.port.out.InventoryLotRepository;
 import com.kb.wms.inventory.application.port.out.InventoryTransactionRepository;
 import com.kb.wms.inventory.application.port.out.LotRepository;
@@ -54,7 +55,7 @@ public class InventoryStockService implements InventoryStockUseCase {
      * (구역 잠금을 기다린 두 번째 요청은 첫 요청이 만든 행을 찾아 수량을 더한다).
      */
     @Override
-    public List<InventoryLot> receive(List<StockReceiveCommand> commands) {
+    public List<StockLotView> receive(List<StockReceiveCommand> commands) {
         List<StockReceiveCommand> ordered = commands.stream()
                 .sorted(Comparator.comparing(StockReceiveCommand::sectionId)
                         .thenComparing(StockReceiveCommand::lotId))
@@ -89,7 +90,7 @@ public class InventoryStockService implements InventoryStockUseCase {
                     ReferenceType.INBOUND, command.inboundId(), null, command.userId()));
             results.add(saved);
         }
-        return results;
+        return toViews(results);
     }
 
     /**
@@ -97,7 +98,7 @@ public class InventoryStockService implements InventoryStockUseCase {
      * 로트가 AVAILABLE이 아니면(만료·격리 등) LOT_NOT_AVAILABLE로 거절한다.
      */
     @Override
-    public List<InventoryLot> allocate(List<StockQuantityCommand> commands) {
+    public List<StockLotView> allocate(List<StockQuantityCommand> commands) {
         Map<Long, InventoryLot> locked = lockAll(commands.stream().map(StockQuantityCommand::inventoryLotId).toList());
         for (StockQuantityCommand command : commands) {
             requirePositive(command.quantity(), "할당 수량");
@@ -115,11 +116,11 @@ public class InventoryStockService implements InventoryStockUseCase {
             }
             inventoryLot.allocate(command.quantity());
         }
-        return saveAll(locked);
+        return toViews(saveAll(locked));
     }
 
     @Override
-    public List<InventoryLot> release(List<StockQuantityCommand> commands) {
+    public List<StockLotView> release(List<StockQuantityCommand> commands) {
         Map<Long, InventoryLot> locked = lockAll(commands.stream().map(StockQuantityCommand::inventoryLotId).toList());
         for (StockQuantityCommand command : commands) {
             requirePositive(command.quantity(), "해제 수량");
@@ -131,7 +132,7 @@ public class InventoryStockService implements InventoryStockUseCase {
             }
             inventoryLot.release(command.quantity());
         }
-        return saveAll(locked);
+        return toViews(saveAll(locked));
     }
 
     /**
@@ -139,7 +140,7 @@ public class InventoryStockService implements InventoryStockUseCase {
      * 부족분(allocated - picked)의 예약은 풀려 다시 가용 재고가 된다. 피킹 수량이 있으면 OUTBOUND 이력을 남긴다.
      */
     @Override
-    public List<InventoryLot> ship(List<StockShipCommand> commands) {
+    public List<StockLotView> ship(List<StockShipCommand> commands) {
         // 입고와 같은 잠금 순서(구역 → 재고 행)를 지키기 위해, 재고 행의 구역을 먼저 읽어 구역부터 잠근다.
         sectionCapacityPort.lock(commands.stream()
                 .map(StockShipCommand::inventoryLotId).distinct()
@@ -175,7 +176,7 @@ public class InventoryStockService implements InventoryStockUseCase {
                         command.userId()));
             }
         }
-        return saveAll(locked);
+        return toViews(saveAll(locked));
     }
 
     /** 중복을 제거한 ID를 오름차순으로 잠근다. 하나라도 없으면 NOT_FOUND. */
@@ -192,6 +193,13 @@ public class InventoryStockService implements InventoryStockUseCase {
                             InventoryErrorCode.INVENTORY_NOT_FOUND.getDefaultMessage() + " (재고 " + id + ")");
                 });
         return locked;
+    }
+
+    private List<StockLotView> toViews(List<InventoryLot> lots) {
+        return lots.stream()
+                .map(lot -> new StockLotView(lot.getInventoryLotId(), lot.getSectionId(), lot.getLotId(),
+                        lot.getQualityStatus(), lot.getOnHandQuantity(), lot.getAllocatedQuantity()))
+                .toList();
     }
 
     private List<InventoryLot> saveAll(Map<Long, InventoryLot> locked) {
