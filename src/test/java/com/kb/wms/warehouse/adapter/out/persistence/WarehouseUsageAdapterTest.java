@@ -66,4 +66,13 @@ class WarehouseUsageAdapterTest {
         assertThat(warehouseUsagePort.isSectionReferenced(9004L)).isTrue();
         assertThat(warehouseUsagePort.isSectionReferenced(9005L)).isFalse();
     }
+
+    @Test
+    @DisplayName("진행 중 입고·창고 발주·출고·지점 발주 조회는 데이터가 없으면 false로 실행된다(쿼리 문법·엔티티 이름 확인)")
+    void emptyInProgressQueries() {
+        assertThat(warehouseUsagePort.hasInProgressInbounds(9101L)).isFalse();
+        assertThat(warehouseUsagePort.hasInProgressPurchaseOrders(9101L)).isFalse();
+        assertThat(warehouseUsagePort.hasInProgressOutbounds(9101L)).isFalse();
+        assertThat(warehouseUsagePort.hasInProgressStoreOrders(9101L)).isFalse();
+    }
 }
