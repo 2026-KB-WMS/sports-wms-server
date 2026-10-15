@@ -8,6 +8,8 @@
 | `InboundInspectUseCase` | `InboundInspectService` | `inspectInbound` | `InboundController` |
 | `InboundCompleteUseCase` | `InboundCompleteService` | `completeInbound` | `InboundController` |
 | `PurchaseOrderUseCase` | `PurchaseOrderService` | `registerPurchaseOrder`, `getPurchaseOrders`, `getPurchaseOrder`, `getPurchaseOrderDetails`, `confirmPurchaseOrder`, `rejectPurchaseOrder`, `cancelPurchaseOrder` | `PurchaseOrderController` |
+| `SupplierOrderUseCase` | `SupplierOrderService` | `getSupplierOrders`, `getSupplierOrder` | `SupplierOrderController` |
+| `SkuSupplierUseCase` | `SkuSupplierService` | `getSuppliers`, `registerSupplier`, `removeSupplier` | `SkuSupplierController` |
 | `SupplierUseCase` | `SupplierService` | `registerSupplier`, `getSuppliers`, `getSupplier`, `updateSupplier`, `deactivateSupplier`, `activateSupplier` | `SupplierController` |
 
 ## 설계 포인트
