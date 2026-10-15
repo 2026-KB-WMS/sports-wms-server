@@ -52,6 +52,11 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/api/v1/auth/me", "/api/v1/auth/me/password").authenticated()
                         .requestMatchers("/api/v1/users/**").hasRole("HQ_ADMIN")
+                        // SKU↔공급처 매핑은 공급처 정보라 점주에게 열지 않는다. 아래 상품 조회 규칙보다 먼저 매칭해야 한다.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/products/skus/*/suppliers")
+                        .hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
+                        .requestMatchers("/api/v1/products/skus/*/suppliers", "/api/v1/products/skus/*/suppliers/*")
+                        .hasRole("HQ_ADMIN")
                         // 상품: 조회는 인증된 모든 역할, 등록·수정은 본사만
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/**").authenticated()
                         .requestMatchers("/api/v1/products/**").hasRole("HQ_ADMIN")
@@ -76,16 +81,19 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/stores", "/api/v1/stores/managers").hasRole("HQ_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/stores/*").hasAnyRole("HQ_ADMIN", "STORE_OWNER")
                         .requestMatchers("/api/v1/stores/**").hasRole("HQ_ADMIN")
-                        // 입고: 공급처 조회는 본사+창고 관리자(창고 관리자는 활성만), 발주 등록·입고 쓰기는 창고 관리자, 확정은 본사.
+                        // 입고: 공급처 조회는 본사+창고 관리자(창고 관리자는 활성만), 발주 등록·입고 쓰기는 창고 관리자,
+                        // 확정·반려는 본사, 공급처 발주서는 조회만(본사+창고 관리자).
                         // 담당 창고 범위와 발주 취소의 작성자·상태별 권한은 서비스가 검사한다.
                         .requestMatchers(HttpMethod.GET, "/api/v1/suppliers", "/api/v1/suppliers/*")
                         .hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
                         .requestMatchers("/api/v1/suppliers/**").hasRole("HQ_ADMIN")
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/purchase-orders/*/confirm").hasRole("HQ_ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/purchase-orders/*/confirm",
+                                "/api/v1/purchase-orders/*/reject").hasRole("HQ_ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/purchase-orders/*/cancel")
                         .hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
                         .requestMatchers(HttpMethod.POST, "/api/v1/purchase-orders").hasRole("WAREHOUSE_MANAGER")
-                        .requestMatchers(HttpMethod.GET, "/api/v1/purchase-orders/**", "/api/v1/inbounds/**")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/purchase-orders/**", "/api/v1/supplier-orders/**",
+                                "/api/v1/inbounds/**")
                         .hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
                         .requestMatchers("/api/v1/inbounds/**").hasRole("WAREHOUSE_MANAGER")
                         // 지점 발주: 등록은 점주, 전체 목록·승인·반려·배정은 본사, 보류·재개·부분 종결은 창고 관리자, 취소는 본사+점주.

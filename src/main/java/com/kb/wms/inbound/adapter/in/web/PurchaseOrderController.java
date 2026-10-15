@@ -22,9 +22,11 @@ import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.inbound.adapter.in.web.dto.request.PurchaseOrderCancelRequest;
 import com.kb.wms.inbound.adapter.in.web.dto.request.PurchaseOrderConfirmRequest;
 import com.kb.wms.inbound.adapter.in.web.dto.request.PurchaseOrderRegisterRequest;
+import com.kb.wms.inbound.adapter.in.web.dto.request.PurchaseOrderRejectRequest;
 import com.kb.wms.inbound.adapter.in.web.dto.response.PurchaseOrderConfirmResponse;
 import com.kb.wms.inbound.adapter.in.web.dto.response.PurchaseOrderDetailsResponse;
 import com.kb.wms.inbound.adapter.in.web.dto.response.PurchaseOrderRegisterResponse;
+import com.kb.wms.inbound.adapter.in.web.dto.response.PurchaseOrderRejectResponse;
 import com.kb.wms.inbound.adapter.in.web.dto.response.PurchaseOrderResponse;
 import com.kb.wms.inbound.adapter.in.web.dto.response.PurchaseOrderStatusResponse;
 import com.kb.wms.inbound.adapter.in.web.dto.response.PurchaseOrderSummaryResponse;
@@ -40,8 +42,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 발주 등록/조회/확정/취소.
- * POST, GET /api/v1/purchase-orders, GET .../{id}, GET .../{id}/details, PATCH .../{id}/confirm, PATCH .../{id}/cancel
+ * 발주(요청) 등록/조회/확정/반려/취소.
+ * POST, GET /api/v1/purchase-orders, GET .../{id}, GET .../{id}/details,
+ * PATCH .../{id}/confirm, PATCH .../{id}/reject, PATCH .../{id}/cancel
  *
  * <p>처리 사용자는 토큰 주체이고, 역할은 SecurityConfig가, 담당 창고 범위와 취소 권한(작성자·상태별)은 서비스가 검사한다.
  * 목록은 페이지네이션 없이 전체를 반환한다(공통 페이징 도입 시 추가).
@@ -107,6 +110,16 @@ public class PurchaseOrderController {
         PurchaseOrderConfirmRequest body = request != null ? request : new PurchaseOrderConfirmRequest(null);
         return ApiResponse.ok(PurchaseOrderConfirmResponse.from(
                 purchaseOrderUseCase.confirmPurchaseOrder(purchaseOrderId, body.toCommand(principal.userId()))));
+    }
+
+    @PatchMapping("/{purchaseOrderId}/reject")
+    public ApiResponse<PurchaseOrderRejectResponse> rejectPurchaseOrder(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @PathVariable Long purchaseOrderId,
+            @Valid @RequestBody PurchaseOrderRejectRequest request) {
+        PurchaseOrder rejected = purchaseOrderUseCase.rejectPurchaseOrder(
+                purchaseOrderId, request.toCommand(principal.userId()), principal);
+        return ApiResponse.ok(PurchaseOrderRejectResponse.of(rejected, request.reason()));
     }
 
     @PatchMapping("/{purchaseOrderId}/cancel")
