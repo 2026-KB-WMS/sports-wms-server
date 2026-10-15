@@ -4,9 +4,9 @@
 
 | 리포지토리 | 엔티티 | 직접 정의한 메서드 |
 |---|---|---|
-| `InboundJpaRepository` | `InboundJpaEntity` | `existsByInboundNo`, `countByInboundNoStartingWith`, `findByIdForUpdate`, `existsInProgressByPurchaseOrderId`, `existsNotCanceledByPurchaseOrderId`, `search`, `findView`, `findAssignableSections`, `findDefectSections` |
+| `InboundJpaRepository` | `InboundJpaEntity` | `existsByInboundNo`, `countByInboundNoStartingWith`, `findByIdForUpdate`, `existsInProgressByPurchaseOrderId`, `existsInProgressBySupplierOrderId`, `existsNotCanceledByPurchaseOrderId`, `search`, `findView`, `findAssignableSections`, `findDefectSections` |
 | `InboundLineJpaRepository` | `InboundLineJpaEntity` | `findByInboundIdOrderByInboundLineIdAsc`, `deleteByInboundId`, `findLineViews` |
-| `PurchaseOrderJpaRepository` | `PurchaseOrderJpaEntity` | `existsByPurchaseOrderNo`, `countByPurchaseOrderNoStartingWith`, `findByIdForUpdate`, `existsInProgressBySupplierId`, `search`, `findView` |
+| `PurchaseOrderJpaRepository` | `PurchaseOrderJpaEntity` | `existsByPurchaseOrderNo`, `countByPurchaseOrderNoStartingWith`, `findByIdForUpdate`, `search`, `findView` |
 | `PurchaseOrderLineJpaRepository` | `PurchaseOrderLineJpaEntity` | `findByPurchaseOrderIdOrderByPurchaseOrderLineIdAsc`, `findByPurchaseOrderIdForUpdate`, `findLineViews` |
 | `SupplierJpaRepository` | `SupplierJpaEntity` | `existsBySupplierCode`, `search` |
 
@@ -23,7 +23,8 @@
 | `InboundLineJpaRepository.deleteByInboundId` | `@Modifying(flushAutomatically, clearAutomatically)` 벌크 삭제. 검수 항목 교체 시 새 항목과 유니크 키가 겹치지 않도록 **즉시 삭제하고 영속성 컨텍스트를 비운다** |
 | `InboundLineJpaRepository.findLineViews` | 발주 항목(단가 스냅샷·SKU), 로트, 구역(left join), 처리자명을 붙여 조회. SKU 코드·로트 번호순 |
 | `PurchaseOrderJpaRepository.search` | 창고·공급처를 붙이고 항목과 **inner join**해 항목 수·금액 합계 집계(발주는 항목이 1개 이상). 등록 일시 내림차순 |
-| `PurchaseOrderJpaRepository.existsInProgressBySupplierId` | 상태가 REQUESTED·CONFIRMED |
+| `InboundJpaRepository.existsInProgressBySupplierOrderId` | 상태가 ARRIVED·INSPECTING |
+| `SupplierOrderJpaRepository.existsInProgressBySupplierId` | 상태가 ISSUED·PARTIALLY_RECEIVED |
 | `PurchaseOrderLineJpaRepository.findByPurchaseOrderIdForUpdate` | `PESSIMISTIC_WRITE`, 항목 ID 오름차순 |
 | `PurchaseOrderLineJpaRepository.findLineViews` | SKU 정보를 붙이고 `remainingQuantity`를 `case`로 계산 (SKU 코드순) |
 | `SupplierJpaRepository.search` | keyword가 공급처명·코드·담당자명에 매칭. 공급처명, ID 오름차순 |
