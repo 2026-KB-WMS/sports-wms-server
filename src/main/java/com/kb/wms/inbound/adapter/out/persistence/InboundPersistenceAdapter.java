@@ -24,7 +24,8 @@ public class InboundPersistenceAdapter implements InboundRepository {
 
     @Override
     public Inbound save(Inbound inbound) {
-        return inboundJpaRepository.save(InboundJpaEntity.fromDomain(inbound)).toDomain();
+        // 응답이 저장 결과의 updatedAt을 쓰므로 flush해서 감사 필드(createdAt·updatedAt)가 채워진 값을 돌려준다.
+        return inboundJpaRepository.saveAndFlush(InboundJpaEntity.fromDomain(inbound)).toDomain();
     }
 
     @Override
