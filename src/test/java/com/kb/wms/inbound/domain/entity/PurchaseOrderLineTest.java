@@ -105,6 +105,39 @@ class PurchaseOrderLineTest {
     }
 
     @Test
+    @DisplayName("항목을 등록하면 공급처는 비어 있고, 입고 전에는 지정과 변경을 할 수 있다")
+    void assignSupplier_beforeReceiving() {
+        PurchaseOrderLine line = newLine(100);
+        assertThat(line.getSupplierId()).isNull();
+
+        line.assignSupplier(3L);
+        assertThat(line.getSupplierId()).isEqualTo(3L);
+
+        line.assignSupplier(7L);
+        assertThat(line.getSupplierId()).isEqualTo(7L);
+    }
+
+    @Test
+    @DisplayName("공급처 ID가 없으면 지정할 수 없다")
+    void assignSupplier_null_throws() {
+        PurchaseOrderLine line = newLine(100);
+
+        assertThatThrownBy(() -> line.assignSupplier(null)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(line.getSupplierId()).isNull();
+    }
+
+    @Test
+    @DisplayName("입고가 시작된 항목의 공급처는 바꿀 수 없다")
+    void assignSupplier_afterReceiving_throws() {
+        PurchaseOrderLine line = newLine(100);
+        line.assignSupplier(3L);
+        line.receive(10);
+
+        assertThatThrownBy(() -> line.assignSupplier(7L)).isInstanceOf(IllegalStateException.class);
+        assertThat(line.getSupplierId()).isEqualTo(3L);
+    }
+
+    @Test
     @DisplayName("이미 전량 입고된 항목에 입고하면 예외가 발생한다")
     void receive_afterCompleted_throws() {
         PurchaseOrderLine line = newLine(100);

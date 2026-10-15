@@ -23,6 +23,7 @@ public class PurchaseOrderLine {
     private Long purchaseOrderLineId;
     private Long purchaseOrderId;
     private Long skuId;
+    private Long supplierId;
     private Long expectedQuantity;
     private Long receivedQuantity;
     private BigDecimal lineAmount;
@@ -32,12 +33,14 @@ public class PurchaseOrderLine {
     private LocalDateTime updatedAt;
 
     @Builder
-    private PurchaseOrderLine(Long purchaseOrderLineId, Long purchaseOrderId, Long skuId, Long expectedQuantity,
-                              Long receivedQuantity, BigDecimal lineAmount, BigDecimal orderedUnitPrice,
-                              PurchaseOrderLineStatus status, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    private PurchaseOrderLine(Long purchaseOrderLineId, Long purchaseOrderId, Long skuId, Long supplierId,
+                              Long expectedQuantity, Long receivedQuantity, BigDecimal lineAmount,
+                              BigDecimal orderedUnitPrice, PurchaseOrderLineStatus status,
+                              LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.purchaseOrderLineId = purchaseOrderLineId;
         this.purchaseOrderId = purchaseOrderId;
         this.skuId = skuId;
+        this.supplierId = supplierId;
         this.expectedQuantity = expectedQuantity;
         this.receivedQuantity = receivedQuantity == null ? 0L : receivedQuantity;
         this.lineAmount = lineAmount;
@@ -81,6 +84,20 @@ public class PurchaseOrderLine {
         this.status = this.receivedQuantity >= this.expectedQuantity
                 ? PurchaseOrderLineStatus.COMPLETED
                 : PurchaseOrderLineStatus.PARTIALLY_RECEIVED;
+    }
+
+    /**
+     * 본사 관리자가 확정할 때 라인의 공급처를 지정한다. 입고가 시작되기 전(REQUESTED)에만 지정·변경할 수 있다.
+     * 해당 SKU에 매핑된 공급처인지는 서비스에서 확인한다.
+     */
+    public void assignSupplier(Long supplierId) {
+        if (supplierId == null) {
+            throw new IllegalArgumentException("공급처 ID는 필수입니다.");
+        }
+        if (this.status != PurchaseOrderLineStatus.REQUESTED) {
+            throw new IllegalStateException("입고가 시작된 발주 항목의 공급처는 바꿀 수 없습니다. 현재 상태: " + this.status);
+        }
+        this.supplierId = supplierId;
     }
 
     public boolean isCompleted() {
