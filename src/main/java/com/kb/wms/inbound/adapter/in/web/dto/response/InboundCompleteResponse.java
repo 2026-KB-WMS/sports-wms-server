@@ -7,10 +7,11 @@ import com.kb.wms.inbound.application.port.in.result.InboundCompleteResult;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderLineStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
+import com.kb.wms.inbound.domain.enums.SupplierOrderStatus;
 
 /**
  * PATCH /api/v1/inbounds/{inboundId}/complete (입고 완료) 응답: 완료된 입고, 반영된 재고 행,
- * 갱신된 발주·발주 항목 상태.
+ * 갱신된 공급처 발주서·발주·발주 항목 상태.
  */
 public record InboundCompleteResponse(
         Long inboundId,
@@ -19,6 +20,7 @@ public record InboundCompleteResponse(
         LocalDateTime receivedAt,
         Long receivedBy,
         List<Inventory> inventory,
+        SupplierOrder supplierOrder,
         PurchaseOrder purchaseOrder,
         List<PurchaseOrderLine> purchaseOrderLines
 ) {
@@ -30,6 +32,9 @@ public record InboundCompleteResponse(
             Long defectiveInventoryLotId,
             long defectiveQuantity
     ) {
+    }
+
+    public record SupplierOrder(Long supplierOrderId, SupplierOrderStatus status) {
     }
 
     public record PurchaseOrder(Long purchaseOrderId, PurchaseOrderStatus status) {
@@ -52,6 +57,7 @@ public record InboundCompleteResponse(
                                 item.inboundLineId(), item.acceptedInventoryLotId(), item.acceptedQuantity(),
                                 item.defectiveInventoryLotId(), item.defectiveQuantity()))
                         .toList(),
+                new SupplierOrder(result.supplierOrderId(), result.supplierOrderStatus()),
                 new PurchaseOrder(result.purchaseOrderId(), result.purchaseOrderStatus()),
                 result.purchaseOrderLines().stream()
                         .map(line -> new PurchaseOrderLine(

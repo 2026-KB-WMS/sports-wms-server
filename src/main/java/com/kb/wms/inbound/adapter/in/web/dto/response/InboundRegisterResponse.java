@@ -13,6 +13,10 @@ public record InboundRegisterResponse(
         String inboundNo,
         Long purchaseOrderId,
         String purchaseOrderNo,
+        Long supplierOrderId,
+        String supplierOrderNo,
+        Long supplierId,
+        String supplierName,
         Long warehouseId,
         String warehouseName,
         InboundStatus status,
@@ -27,6 +31,7 @@ public record InboundRegisterResponse(
     public static InboundRegisterResponse from(InboundView view) {
         return new InboundRegisterResponse(
                 view.inboundId(), view.inboundNo(), view.purchaseOrderId(), view.purchaseOrderNo(),
+                view.supplierOrderId(), view.supplierOrderNo(), view.supplierId(), view.supplierName(),
                 view.warehouseId(), view.warehouseName(), view.status(), view.arrivedAt(),
                 view.receivedAt(), view.receivedBy(), view.receivedByName(), view.note(), view.createdAt());
     }

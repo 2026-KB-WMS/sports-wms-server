@@ -50,6 +50,7 @@ import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderLineStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
+import com.kb.wms.inbound.domain.enums.SupplierOrderStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
 import com.kb.wms.inventory.exception.InventoryErrorCode;
 
@@ -99,7 +100,8 @@ class InboundControllerTest {
 
     private static InboundView view(InboundStatus status) {
         return new InboundView(
-                7L, "IB-20260925-0001", 4L, "PO-20260921-0001", PurchaseOrderStatus.CONFIRMED, 3L, "공급처 A",
+                7L, "IB-20260925-0001", 4L, "PO-20260921-0001", PurchaseOrderStatus.CONFIRMED,
+                8L, "SO-20260921-0001", 3L, "공급처 A",
                 1L, "서울 물류센터", status, LocalDateTime.of(2026, 9, 25, 9, 10),
                 null, null, null, "1차 입고", 1L, LocalDateTime.of(2026, 9, 25, 9, 12),
                 LocalDateTime.of(2026, 9, 25, 11, 0));
@@ -107,7 +109,7 @@ class InboundControllerTest {
 
     private static InboundSummary summary() {
         return new InboundSummary(
-                7L, "IB-20260925-0001", 4L, "PO-20260921-0001", 3L, "공급처 A", 1L, "서울 물류센터",
+                7L, "IB-20260925-0001", 4L, "PO-20260921-0001", 8L, "SO-20260921-0001", 3L, "공급처 A", 1L, "서울 물류센터",
                 InboundStatus.INSPECTING, LocalDateTime.of(2026, 9, 25, 9, 10), null, null, null, 1L);
     }
 
@@ -124,6 +126,7 @@ class InboundControllerTest {
                 .inboundId(7L)
                 .inboundNo("IB-20260925-0001")
                 .purchaseOrderId(4L)
+                .supplierOrderId(8L)
                 .warehouseId(1L)
                 .status(status)
                 .receivedAt(status == InboundStatus.COMPLETED ? LocalDateTime.of(2026, 9, 25, 11, 30) : null)
@@ -149,7 +152,7 @@ class InboundControllerTest {
         mockMvc.perform(post("/api/v1/inbounds")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                { "purchaseOrderId": 4, "arrivedAt": "2026-09-25T09:10:00", "note": "1차 입고" }
+                                { "supplierOrderId": 8, "arrivedAt": "2026-09-25T09:10:00", "note": "1차 입고" }
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
@@ -158,6 +161,12 @@ class InboundControllerTest {
                 .andExpect(jsonPath("$.data.inboundNo").value("IB-20260925-0001"))
                 .andExpect(jsonPath("$.data.purchaseOrderId").value(4))
                 .andExpect(jsonPath("$.data.purchaseOrderNo").value("PO-20260921-0001"))
+                .andExpect(jsonPath("$.data.supplierOrderId").value(8))
+                .andExpect(jsonPath("$.data.supplierOrderNo").value("SO-20260921-0001"))
+                .andExpect(jsonPath("$.data.supplierOrderId").value(8))
+                .andExpect(jsonPath("$.data.supplierOrderNo").value("SO-20260921-0001"))
+                .andExpect(jsonPath("$.data.supplierId").value(3))
+                .andExpect(jsonPath("$.data.supplierName").value("공급처 A"))
                 .andExpect(jsonPath("$.data.warehouseId").value(1))
                 .andExpect(jsonPath("$.data.warehouseName").value("서울 물류센터"))
                 .andExpect(jsonPath("$.data.status").value("ARRIVED"))
@@ -165,13 +174,13 @@ class InboundControllerTest {
 
         ArgumentCaptor<InboundRegisterCommand> captor = ArgumentCaptor.forClass(InboundRegisterCommand.class);
         verify(inboundUseCase).registerInbound(captor.capture(), any());
-        assertThat(captor.getValue().purchaseOrderId()).isEqualTo(4L);
+        assertThat(captor.getValue().supplierOrderId()).isEqualTo(8L);
         assertThat(captor.getValue().arrivedAt()).isEqualTo(LocalDateTime.of(2026, 9, 25, 9, 10));
         assertThat(captor.getValue().note()).isEqualTo("1차 입고");
     }
 
     @Test
-    @DisplayName("발주 ID가 없거나 비고가 1000자를 넘으면 400 VALIDATION_ERROR이고 서비스를 호출하지 않는다")
+    @DisplayName("공급처 발주서 ID가 없거나 비고가 1000자를 넘으면 400 VALIDATION_ERROR이고 서비스를 호출하지 않는다")
     void register_validation() throws Exception {
         mockMvc.perform(post("/api/v1/inbounds")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -181,7 +190,7 @@ class InboundControllerTest {
 
         mockMvc.perform(post("/api/v1/inbounds")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{ \"purchaseOrderId\": 4, \"note\": \"" + "가".repeat(1001) + "\" }"))
+                        .content("{ \"supplierOrderId\": 8, \"note\": \"" + "가".repeat(1001) + "\" }"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
 
@@ -189,14 +198,14 @@ class InboundControllerTest {
     }
 
     @Test
-    @DisplayName("같은 발주에 진행 중인 입고가 있으면 409 INBOUND_IN_PROGRESS를 반환한다")
+    @DisplayName("같은 발주서에 진행 중인 입고가 있으면 409 INBOUND_IN_PROGRESS를 반환한다")
     void register_inProgress() throws Exception {
         when(inboundUseCase.registerInbound(any(InboundRegisterCommand.class), any()))
                 .thenThrow(new BusinessException(InboundErrorCode.INBOUND_IN_PROGRESS));
 
         mockMvc.perform(post("/api/v1/inbounds")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{ \"purchaseOrderId\": 4 }"))
+                        .content("{ \"supplierOrderId\": 8 }"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.errorCode").value("INBOUND_IN_PROGRESS"));
@@ -213,11 +222,14 @@ class InboundControllerTest {
                         .param("status", "INSPECTING")
                         .param("warehouseId", "1")
                         .param("purchaseOrderId", "4")
+                        .param("supplierOrderId", "8")
                         .param("keyword", "IB-")
                         .param("arrivedFrom", "2026-09-01T00:00:00")
                         .param("arrivedTo", "2026-09-30T23:59:59"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].inboundId").value(7))
+                .andExpect(jsonPath("$.data.items[0].supplierOrderId").value(8))
+                .andExpect(jsonPath("$.data.items[0].supplierOrderNo").value("SO-20260921-0001"))
                 .andExpect(jsonPath("$.data.items[0].supplierName").value("공급처 A"))
                 .andExpect(jsonPath("$.data.items[0].status").value("INSPECTING"))
                 .andExpect(jsonPath("$.data.items[0].lineCount").value(1));
@@ -228,6 +240,7 @@ class InboundControllerTest {
         assertThat(condition.status()).isEqualTo(InboundStatus.INSPECTING);
         assertThat(condition.warehouseId()).isEqualTo(1L);
         assertThat(condition.purchaseOrderId()).isEqualTo(4L);
+        assertThat(condition.supplierOrderId()).isEqualTo(8L);
         assertThat(condition.keyword()).isEqualTo("IB-");
         assertThat(condition.arrivedFrom()).isEqualTo(LocalDateTime.of(2026, 9, 1, 0, 0));
         assertThat(condition.arrivedTo()).isEqualTo(LocalDateTime.of(2026, 9, 30, 23, 59, 59));
@@ -404,6 +417,7 @@ class InboundControllerTest {
         when(inboundCompleteUseCase.completeInbound(eq(7L), any())).thenReturn(new InboundCompleteResult(
                 inbound(InboundStatus.COMPLETED),
                 List.of(new InboundCompleteResult.ReflectedInventory(21L, 101L, 58L, 105L, 2L)),
+                8L, SupplierOrderStatus.PARTIALLY_RECEIVED,
                 4L, PurchaseOrderStatus.CONFIRMED,
                 List.of(new InboundCompleteResult.PurchaseOrderLineProgress(
                         11L, 100L, 60L, PurchaseOrderLineStatus.PARTIALLY_RECEIVED))));
@@ -419,6 +433,8 @@ class InboundControllerTest {
                 .andExpect(jsonPath("$.data.inventory[0].acceptedQuantity").value(58))
                 .andExpect(jsonPath("$.data.inventory[0].defectiveInventoryLotId").value(105))
                 .andExpect(jsonPath("$.data.inventory[0].defectiveQuantity").value(2))
+                .andExpect(jsonPath("$.data.supplierOrder.supplierOrderId").value(8))
+                .andExpect(jsonPath("$.data.supplierOrder.status").value("PARTIALLY_RECEIVED"))
                 .andExpect(jsonPath("$.data.purchaseOrder.purchaseOrderId").value(4))
                 .andExpect(jsonPath("$.data.purchaseOrder.status").value("CONFIRMED"))
                 .andExpect(jsonPath("$.data.purchaseOrderLines[0].purchaseOrderLineId").value(11))

@@ -12,15 +12,12 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 /**
- * POST /api/v1/purchase-orders 요청 바디.
+ * POST /api/v1/purchase-orders 요청 바디. 창고 관리자는 SKU와 수량만 요청하고 공급처는 본사가 확정할 때 지정한다.
  * 발주 단가는 받지 않고 등록 시점의 SKU 매입 단가를 서비스가 스냅샷한다.
  */
 public record PurchaseOrderRegisterRequest(
         @NotNull(message = "창고 ID는 필수 값입니다.")
         Long warehouseId,
-
-        @NotNull(message = "공급처 ID는 필수 값입니다.")
-        Long supplierId,
 
         LocalDateTime expectedAt,
 
@@ -49,6 +46,6 @@ public record PurchaseOrderRegisterRequest(
         List<PurchaseOrderRegisterCommand.Line> commandLines = lines.stream()
                 .map(line -> new PurchaseOrderRegisterCommand.Line(line.skuId(), line.expectedQuantity()))
                 .toList();
-        return new PurchaseOrderRegisterCommand(warehouseId, supplierId, expectedAt, note, userId, commandLines);
+        return new PurchaseOrderRegisterCommand(warehouseId, expectedAt, note, userId, commandLines);
     }
 }

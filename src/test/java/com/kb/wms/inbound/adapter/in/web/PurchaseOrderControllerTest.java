@@ -33,15 +33,20 @@ import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.UserRole;
 import com.kb.wms.inbound.application.port.in.PurchaseOrderUseCase;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderCancelCommand;
+import com.kb.wms.inbound.application.port.in.command.PurchaseOrderConfirmCommand;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderRegisterCommand;
 import com.kb.wms.inbound.application.port.in.query.PurchaseOrderSearchCondition;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderDetails;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderLineView;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderSummary;
+import com.kb.wms.inbound.application.port.in.result.PurchaseOrderSupplierView;
+import com.kb.wms.inbound.application.port.in.result.SupplierOrderSummary;
+import com.kb.wms.inbound.application.port.in.result.PurchaseOrderConfirmResult;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderView;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderLineStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
+import com.kb.wms.inbound.domain.enums.SupplierOrderStatus;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
 
 @WebMvcTest(PurchaseOrderController.class)
@@ -51,7 +56,6 @@ class PurchaseOrderControllerTest {
     private static final String REGISTER_BODY = """
             {
               "warehouseId": 1,
-              "supplierId": 3,
               "expectedAt": "2030-09-25T09:00:00",
               "note": "정기 보충 발주",
               "lines": [
@@ -77,7 +81,7 @@ class PurchaseOrderControllerTest {
 
     private static PurchaseOrderView view(PurchaseOrderStatus status) {
         return new PurchaseOrderView(
-                4L, "PO-20261002-0001", 1L, "서울 물류센터", 3L, "공급처 A", status,
+                4L, "PO-20261002-0001", 1L, "서울 물류센터", status,
                 LocalDateTime.of(2030, 9, 25, 9, 0), "정기 보충 발주", 1L, BigDecimal.valueOf(6000000), 5L,
                 "김작성", LocalDateTime.of(2026, 10, 2, 12, 0), LocalDateTime.of(2026, 10, 2, 13, 0));
     }
@@ -86,7 +90,7 @@ class PurchaseOrderControllerTest {
         return new PurchaseOrderLineView(
                 11L, 1L, "SKU-0001-RED-G4", "배드민턴 라켓 A 빨강 G4", "EA", 100L, 60L, 40L,
                 BigDecimal.valueOf(60000), BigDecimal.valueOf(6000000), PurchaseOrderLineStatus.PARTIALLY_RECEIVED,
-                3L, "공급처 A");
+                3L, "공급처 A", 21L);
     }
 
     private static PurchaseOrder purchaseOrder(PurchaseOrderStatus status) {
@@ -94,11 +98,16 @@ class PurchaseOrderControllerTest {
                 .purchaseOrderId(4L)
                 .purchaseOrderNo("PO-20261002-0001")
                 .warehouseId(1L)
-                .supplierId(3L)
                 .status(status)
                 .createdBy(5L)
                 .updatedAt(LocalDateTime.of(2026, 10, 2, 14, 0))
                 .build();
+    }
+
+    private static SupplierOrderSummary supplierOrderSummary() {
+        return new SupplierOrderSummary(
+                21L, "SO-20261002-0001", 4L, "PO-20261002-0001", 3L, "공급처 A", 1L, "서울 물류센터",
+                SupplierOrderStatus.ISSUED, 2L, BigDecimal.valueOf(6050000), LocalDateTime.of(2026, 10, 2, 14, 0));
     }
 
     // ---------- 등록 ----------
@@ -120,7 +129,8 @@ class PurchaseOrderControllerTest {
                 .andExpect(jsonPath("$.data.purchaseOrderId").value(4))
                 .andExpect(jsonPath("$.data.purchaseOrderNo").value("PO-20261002-0001"))
                 .andExpect(jsonPath("$.data.warehouseName").value("서울 물류센터"))
-                .andExpect(jsonPath("$.data.supplierName").value("공급처 A"))
+                .andExpect(jsonPath("$.data.supplierId").doesNotExist())
+                .andExpect(jsonPath("$.data.supplierName").doesNotExist())
                 .andExpect(jsonPath("$.data.status").value("REQUESTED"))
                 .andExpect(jsonPath("$.data.totalAmount").value(6000000.0))
                 .andExpect(jsonPath("$.data.createdBy").value(5))
@@ -128,7 +138,10 @@ class PurchaseOrderControllerTest {
                 .andExpect(jsonPath("$.data.lines[0].skuCode").value("SKU-0001-RED-G4"))
                 .andExpect(jsonPath("$.data.lines[0].expectedQuantity").value(100))
                 .andExpect(jsonPath("$.data.lines[0].orderedUnitPrice").value(60000.0))
-                .andExpect(jsonPath("$.data.lines[0].lineAmount").value(6000000.0));
+                .andExpect(jsonPath("$.data.lines[0].lineAmount").value(6000000.0))
+                .andExpect(jsonPath("$.data.lines[0].supplierId").value(3))
+                .andExpect(jsonPath("$.data.lines[0].supplierName").value("공급처 A"))
+                .andExpect(jsonPath("$.data.lines[0].supplierOrderId").value(21));
     }
 
     @Test
@@ -149,7 +162,6 @@ class PurchaseOrderControllerTest {
         verify(purchaseOrderUseCase).registerPurchaseOrder(captor.capture(), any());
         PurchaseOrderRegisterCommand command = captor.getValue();
         assertThat(command.warehouseId()).isEqualTo(1L);
-        assertThat(command.supplierId()).isEqualTo(3L);
         assertThat(command.expectedAt()).isEqualTo(LocalDateTime.of(2030, 9, 25, 9, 0));
         assertThat(command.note()).isEqualTo("정기 보충 발주");
         assertThat(command.createdBy()).isEqualTo(5L);
@@ -159,7 +171,7 @@ class PurchaseOrderControllerTest {
     }
 
     @Test
-    @DisplayName("창고·공급처가 없거나 발주 항목이 비어 있으면 400 VALIDATION_ERROR를 반환한다")
+    @DisplayName("창고가 없거나 발주 항목이 비어 있으면 400 VALIDATION_ERROR를 반환한다")
     void register_missingRequiredFields() throws Exception {
         mockMvc.perform(post("/api/v1/purchase-orders")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -180,7 +192,6 @@ class PurchaseOrderControllerTest {
                         .content("""
                                 {
                                   "warehouseId": 1,
-                                  "supplierId": 3,
                                   "lines": [ { "skuId": 1, "expectedQuantity": 0 }, { "expectedQuantity": 5 } ]
                                 }
                                 """))
@@ -197,7 +208,6 @@ class PurchaseOrderControllerTest {
                         .content("""
                                 {
                                   "warehouseId": 1,
-                                  "supplierId": 3,
                                   "note": "%s",
                                   "lines": [ { "skuId": 1, "expectedQuantity": 1 } ]
                                 }
@@ -240,9 +250,11 @@ class PurchaseOrderControllerTest {
     void getPurchaseOrders_success() throws Exception {
         when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class), any()))
                 .thenReturn(List.of(new PurchaseOrderSummary(
-                        4L, "PO-20261002-0001", 1L, "서울 물류센터", 3L, "공급처 A", PurchaseOrderStatus.REQUESTED,
+                        4L, "PO-20261002-0001", 1L, "서울 물류센터", PurchaseOrderStatus.CONFIRMED,
                         null, 2L, BigDecimal.valueOf(6050000), 5L, "김작성",
-                        LocalDateTime.of(2026, 10, 2, 12, 0))));
+                        LocalDateTime.of(2026, 10, 2, 12, 0))
+                        .withSuppliers(List.of(new PurchaseOrderSupplierView(4L, 3L, "공급처 A"),
+                                new PurchaseOrderSupplierView(4L, 7L, "공급처 B")))));
 
         mockMvc.perform(get("/api/v1/purchase-orders"))
                 .andExpect(status().isOk())
@@ -251,8 +263,11 @@ class PurchaseOrderControllerTest {
                 .andExpect(jsonPath("$.data.items[0].purchaseOrderNo").value("PO-20261002-0001"))
                 .andExpect(jsonPath("$.data.items[0].createdByName").value("김작성"))
                 .andExpect(jsonPath("$.data.items[0].warehouseName").value("서울 물류센터"))
-                .andExpect(jsonPath("$.data.items[0].supplierName").value("공급처 A"))
-                .andExpect(jsonPath("$.data.items[0].status").value("REQUESTED"))
+                .andExpect(jsonPath("$.data.items[0].supplierName").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].suppliers[0].supplierId").value(3))
+                .andExpect(jsonPath("$.data.items[0].suppliers[0].supplierName").value("공급처 A"))
+                .andExpect(jsonPath("$.data.items[0].suppliers[1].supplierName").value("공급처 B"))
+                .andExpect(jsonPath("$.data.items[0].status").value("CONFIRMED"))
                 .andExpect(jsonPath("$.data.items[0].lineCount").value(2))
                 .andExpect(jsonPath("$.data.items[0].totalAmount").value(6050000.0))
                 .andExpect(jsonPath("$.data.items[0].note").doesNotExist());
@@ -342,7 +357,30 @@ class PurchaseOrderControllerTest {
                 .andExpect(jsonPath("$.data.totalAmount").value(6000000.0))
                 .andExpect(jsonPath("$.data.createdBy").value(5))
                 .andExpect(jsonPath("$.data.createdByName").value("김작성"))
+                .andExpect(jsonPath("$.data.supplierName").doesNotExist())
+                .andExpect(jsonPath("$.data.rejectReason").isEmpty())
+                .andExpect(jsonPath("$.data.supplierOrders").isEmpty())
                 .andExpect(jsonPath("$.data.lines").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("발주 헤더 조회는 공급처 발주서 목록과 반려 사유를 담는다")
+    void getPurchaseOrder_withSupplierOrdersAndRejectReason() throws Exception {
+        when(purchaseOrderUseCase.getPurchaseOrder(eq(4L), any())).thenReturn(
+                view(PurchaseOrderStatus.CONFIRMED).withSupplierOrders(List.of(supplierOrderSummary())));
+        when(purchaseOrderUseCase.getPurchaseOrder(eq(5L), any())).thenReturn(
+                view(PurchaseOrderStatus.REJECTED).withRejectReason("수량이 과다함"));
+
+        mockMvc.perform(get("/api/v1/purchase-orders/{purchaseOrderId}", 4L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.supplierOrders[0].supplierOrderId").value(21))
+                .andExpect(jsonPath("$.data.supplierOrders[0].supplierOrderNo").value("SO-20261002-0001"))
+                .andExpect(jsonPath("$.data.supplierOrders[0].supplierName").value("공급처 A"))
+                .andExpect(jsonPath("$.data.supplierOrders[0].status").value("ISSUED"));
+        mockMvc.perform(get("/api/v1/purchase-orders/{purchaseOrderId}", 5L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REJECTED"))
+                .andExpect(jsonPath("$.data.rejectReason").value("수량이 과다함"));
     }
 
     @Test
@@ -382,7 +420,10 @@ class PurchaseOrderControllerTest {
                 .andExpect(jsonPath("$.data.items[0].expectedQuantity").value(100))
                 .andExpect(jsonPath("$.data.items[0].receivedQuantity").value(60))
                 .andExpect(jsonPath("$.data.items[0].remainingQuantity").value(40))
-                .andExpect(jsonPath("$.data.items[0].status").value("PARTIALLY_RECEIVED"));
+                .andExpect(jsonPath("$.data.items[0].status").value("PARTIALLY_RECEIVED"))
+                .andExpect(jsonPath("$.data.items[0].supplierId").value(3))
+                .andExpect(jsonPath("$.data.items[0].supplierName").value("공급처 A"))
+                .andExpect(jsonPath("$.data.items[0].supplierOrderId").value(21));
     }
 
     @Test
@@ -401,26 +442,92 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("발주를 확정하면 200과 CONFIRMED 상태 응답을 반환한다")
     void confirm_success() throws Exception {
-        when(purchaseOrderUseCase.confirmPurchaseOrder(4L, 5L)).thenReturn(purchaseOrder(PurchaseOrderStatus.CONFIRMED));
+        when(purchaseOrderUseCase.confirmPurchaseOrder(eq(4L), any(PurchaseOrderConfirmCommand.class)))
+                .thenReturn(new PurchaseOrderConfirmResult(
+                        purchaseOrder(PurchaseOrderStatus.CONFIRMED), List.of(supplierOrderSummary())));
 
-        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L)
-                        )
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.purchaseOrderId").value(4))
                 .andExpect(jsonPath("$.data.purchaseOrderNo").value("PO-20261002-0001"))
                 .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
                 .andExpect(jsonPath("$.data.updatedAt").exists())
+                .andExpect(jsonPath("$.data.supplierOrders[0].supplierOrderId").value(21))
+                .andExpect(jsonPath("$.data.supplierOrders[0].supplierOrderNo").value("SO-20261002-0001"))
+                .andExpect(jsonPath("$.data.supplierOrders[0].supplierId").value(3))
+                .andExpect(jsonPath("$.data.supplierOrders[0].supplierName").value("공급처 A"))
+                .andExpect(jsonPath("$.data.supplierOrders[0].status").value("ISSUED"))
+                .andExpect(jsonPath("$.data.supplierOrders[0].lineCount").value(2))
+                .andExpect(jsonPath("$.data.supplierOrders[0].totalAmount").value(6050000.0))
                 .andExpect(jsonPath("$.data.warehouseId").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("확정 요청의 라인별 공급처를 커맨드로 전달하고, 바디가 없으면 빈 목록으로 전달한다")
+    void confirm_passesLineSuppliers() throws Exception {
+        when(purchaseOrderUseCase.confirmPurchaseOrder(eq(4L), any(PurchaseOrderConfirmCommand.class)))
+                .thenReturn(new PurchaseOrderConfirmResult(purchaseOrder(PurchaseOrderStatus.CONFIRMED), List.of()));
+
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "lines": [ { "purchaseOrderLineId": 11, "supplierId": 3 },
+                                             { "purchaseOrderLineId": 12, "supplierId": 7 } ] }
+                                """))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<PurchaseOrderConfirmCommand> captor = ArgumentCaptor.forClass(PurchaseOrderConfirmCommand.class);
+        verify(purchaseOrderUseCase, org.mockito.Mockito.times(2)).confirmPurchaseOrder(eq(4L), captor.capture());
+        assertThat(captor.getAllValues().get(0).userId()).isEqualTo(5L);
+        assertThat(captor.getAllValues().get(0).lines()).containsExactly(
+                new PurchaseOrderConfirmCommand.Line(11L, 3L), new PurchaseOrderConfirmCommand.Line(12L, 7L));
+        assertThat(captor.getAllValues().get(1).lines()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("라인의 공급처 ID가 없으면 400 VALIDATION_ERROR를 반환한다")
+    void confirm_invalidLine() throws Exception {
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "lines": [ { "purchaseOrderLineId": 11 } ] }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        verifyNoInteractions(purchaseOrderUseCase);
+    }
+
+    @Test
+    @DisplayName("공급처가 지정되지 않은 라인이 남으면 400 LINE_SUPPLIER_REQUIRED를 반환한다")
+    void confirm_lineSupplierRequired() throws Exception {
+        when(purchaseOrderUseCase.confirmPurchaseOrder(eq(4L), any(PurchaseOrderConfirmCommand.class)))
+                .thenThrow(new BusinessException(PurchaseOrderErrorCode.LINE_SUPPLIER_REQUIRED));
+
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("LINE_SUPPLIER_REQUIRED"));
+    }
+
+    @Test
+    @DisplayName("SKU에 매핑되지 않은 공급처면 409 SKU_SUPPLIER_NOT_MAPPED를 반환한다")
+    void confirm_skuSupplierNotMapped() throws Exception {
+        when(purchaseOrderUseCase.confirmPurchaseOrder(eq(4L), any(PurchaseOrderConfirmCommand.class)))
+                .thenThrow(new BusinessException(PurchaseOrderErrorCode.SKU_SUPPLIER_NOT_MAPPED));
+
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("SKU_SUPPLIER_NOT_MAPPED"));
     }
 
     @Test
     @DisplayName("확정 대기 상태가 아닌 발주를 확정하면 409 CONFLICT를 반환한다")
     void confirm_conflict() throws Exception {
-        when(purchaseOrderUseCase.confirmPurchaseOrder(4L, 5L))
+        when(purchaseOrderUseCase.confirmPurchaseOrder(eq(4L), any(PurchaseOrderConfirmCommand.class)))
                 .thenThrow(new BusinessException(ErrorCode.CONFLICT, "확정 대기 상태의 발주만 확정할 수 있습니다."));
 
-        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L)
-                        )
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("CONFLICT"));
     }
@@ -428,11 +535,10 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("공급처가 비활성이면 409 SUPPLIER_INACTIVE를 반환한다")
     void confirm_supplierInactive() throws Exception {
-        when(purchaseOrderUseCase.confirmPurchaseOrder(4L, 5L))
+        when(purchaseOrderUseCase.confirmPurchaseOrder(eq(4L), any(PurchaseOrderConfirmCommand.class)))
                 .thenThrow(new BusinessException(PurchaseOrderErrorCode.SUPPLIER_INACTIVE));
 
-        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L)
-                        )
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 4L))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("SUPPLIER_INACTIVE"));
     }
@@ -440,11 +546,10 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("없는 발주를 확정하면 404 PURCHASE_ORDER_NOT_FOUND를 반환한다")
     void confirm_notFound() throws Exception {
-        when(purchaseOrderUseCase.confirmPurchaseOrder(999L, 5L))
+        when(purchaseOrderUseCase.confirmPurchaseOrder(eq(999L), any(PurchaseOrderConfirmCommand.class)))
                 .thenThrow(new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND));
 
-        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 999L)
-                        )
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/confirm", 999L))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("PURCHASE_ORDER_NOT_FOUND"));
     }

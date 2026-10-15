@@ -77,12 +77,13 @@ public class InboundController {
             @RequestParam(required = false) InboundStatus status,
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) Long purchaseOrderId,
+            @RequestParam(required = false) Long supplierOrderId,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime arrivedFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime arrivedTo) {
         List<InboundSummaryResponse> items = inboundUseCase
                 .getInbounds(InboundSearchCondition.unscoped(
-                        status, warehouseId, purchaseOrderId, keyword, arrivedFrom, arrivedTo), principal)
+                        status, warehouseId, purchaseOrderId, supplierOrderId, keyword, arrivedFrom, arrivedTo), principal)
                 .stream()
                 .map(InboundSummaryResponse::from)
                 .toList();

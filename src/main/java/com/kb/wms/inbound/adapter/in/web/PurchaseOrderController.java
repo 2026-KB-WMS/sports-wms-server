@@ -20,7 +20,9 @@ import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.inbound.adapter.in.web.dto.request.PurchaseOrderCancelRequest;
+import com.kb.wms.inbound.adapter.in.web.dto.request.PurchaseOrderConfirmRequest;
 import com.kb.wms.inbound.adapter.in.web.dto.request.PurchaseOrderRegisterRequest;
+import com.kb.wms.inbound.adapter.in.web.dto.response.PurchaseOrderConfirmResponse;
 import com.kb.wms.inbound.adapter.in.web.dto.response.PurchaseOrderDetailsResponse;
 import com.kb.wms.inbound.adapter.in.web.dto.response.PurchaseOrderRegisterResponse;
 import com.kb.wms.inbound.adapter.in.web.dto.response.PurchaseOrderResponse;
@@ -98,11 +100,13 @@ public class PurchaseOrderController {
     }
 
     @PatchMapping("/{purchaseOrderId}/confirm")
-    public ApiResponse<PurchaseOrderStatusResponse> confirmPurchaseOrder(
+    public ApiResponse<PurchaseOrderConfirmResponse> confirmPurchaseOrder(
             @AuthenticationPrincipal AuthenticatedUser principal,
-            @PathVariable Long purchaseOrderId) {
-        return ApiResponse.ok(PurchaseOrderStatusResponse.from(
-                purchaseOrderUseCase.confirmPurchaseOrder(purchaseOrderId, principal.userId())));
+            @PathVariable Long purchaseOrderId,
+            @Valid @RequestBody(required = false) PurchaseOrderConfirmRequest request) {
+        PurchaseOrderConfirmRequest body = request != null ? request : new PurchaseOrderConfirmRequest(null);
+        return ApiResponse.ok(PurchaseOrderConfirmResponse.from(
+                purchaseOrderUseCase.confirmPurchaseOrder(purchaseOrderId, body.toCommand(principal.userId()))));
     }
 
     @PatchMapping("/{purchaseOrderId}/cancel")

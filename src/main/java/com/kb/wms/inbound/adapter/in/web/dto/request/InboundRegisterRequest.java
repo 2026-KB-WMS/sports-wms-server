@@ -8,11 +8,11 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * POST /api/v1/inbounds 요청 바디. 입고 대상 창고는 발주의 창고를 따르므로 받지 않는다.
+ * POST /api/v1/inbounds 요청 바디. 입고 대상 창고는 발주서가 속한 요청의 창고를 따르므로 받지 않는다.
  */
 public record InboundRegisterRequest(
-        @NotNull(message = "발주 ID는 필수 값입니다.")
-        Long purchaseOrderId,
+        @NotNull(message = "공급처 발주서 ID는 필수 값입니다.")
+        Long supplierOrderId,
 
         LocalDateTime arrivedAt,
 
@@ -21,6 +21,6 @@ public record InboundRegisterRequest(
 ) {
 
     public InboundRegisterCommand toCommand(Long userId) {
-        return new InboundRegisterCommand(purchaseOrderId, arrivedAt, note, userId);
+        return new InboundRegisterCommand(supplierOrderId, arrivedAt, note, userId);
     }
 }

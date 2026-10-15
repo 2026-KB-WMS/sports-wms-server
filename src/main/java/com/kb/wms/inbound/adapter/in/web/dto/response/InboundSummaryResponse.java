@@ -14,6 +14,8 @@ public record InboundSummaryResponse(
         String inboundNo,
         Long purchaseOrderId,
         String purchaseOrderNo,
+        Long supplierOrderId,
+        String supplierOrderNo,
         Long supplierId,
         String supplierName,
         Long warehouseId,
@@ -29,7 +31,7 @@ public record InboundSummaryResponse(
     public static InboundSummaryResponse from(InboundSummary summary) {
         return new InboundSummaryResponse(
                 summary.inboundId(), summary.inboundNo(), summary.purchaseOrderId(), summary.purchaseOrderNo(),
-                summary.supplierId(), summary.supplierName(), summary.warehouseId(), summary.warehouseName(),
+                summary.supplierOrderId(), summary.supplierOrderNo(), summary.supplierId(), summary.supplierName(), summary.warehouseId(), summary.warehouseName(),
                 summary.status(), summary.arrivedAt(), summary.receivedAt(), summary.receivedBy(),
                 summary.receivedByName(), summary.lineCount());
     }
