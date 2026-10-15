@@ -8,7 +8,7 @@ import com.kb.wms.common.exception.ConstraintErrorCodeProvider;
 import com.kb.wms.common.exception.DomainErrorCode;
 
 /**
- * 창고 도메인 유니크 제약 조건 → 오류 코드 (V3__create_warehouse_tables.sql 기준).
+ * 창고 도메인 유니크 제약 조건 → 오류 코드 (V1__baseline.sql 기준).
  */
 @Component
 public class WarehouseConstraintErrorCodes implements ConstraintErrorCodeProvider {

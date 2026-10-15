@@ -24,6 +24,6 @@
 
 | 제약 이름 | 오류 코드 | 기준 |
 |---|---|---|
-| uk_outbound_no | DUPLICATE_OUTBOUND_NO | `V13__create_outbound_tables.sql` |
+| uk_outbound_no | DUPLICATE_OUTBOUND_NO | `V1__baseline.sql` |
 
 출고 번호는 서버가 채번하므로 동시 생성으로 번호가 겹친 경우에만 DB 제약이 409를 응답한다.

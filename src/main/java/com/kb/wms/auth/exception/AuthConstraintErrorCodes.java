@@ -8,7 +8,7 @@ import com.kb.wms.common.exception.ConstraintErrorCodeProvider;
 import com.kb.wms.common.exception.DomainErrorCode;
 
 /**
- * 회원 도메인 유니크 제약 조건 → 오류 코드 (V14__create_users_table.sql 기준).
+ * 회원 도메인 유니크 제약 조건 → 오류 코드 (V1__baseline.sql 기준).
  */
 @Component
 public class AuthConstraintErrorCodes implements ConstraintErrorCodeProvider {

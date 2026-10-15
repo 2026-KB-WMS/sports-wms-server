@@ -42,3 +42,4 @@
 | [028](028-status-history-entity-type-per-domain.md) | 상태 이력의 엔티티 종류는 소유 도메인이 정의하고, 이력 모듈은 문자열로 받는다 | Accepted | 2026-10-14 |
 | [029](029-purchase-order-line-supplier.md) | 창고 발주의 공급처는 발주 라인 단위로 배정하고, SKU-공급처는 다대다로 매핑한다 | Accepted | 2026-10-15 |
 | [030](030-supplier-order-split.md) | 창고 발주 요청과 공급처 발주서를 분리한다 | Accepted | 2026-10-15 |
+| [031](031-flyway-baseline-squash.md) | Flyway 마이그레이션을 단일 baseline으로 통합하고, 이후 변경은 V2부터 쌓는다 | Accepted | 2026-10-15 |

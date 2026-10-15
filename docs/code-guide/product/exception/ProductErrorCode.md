@@ -19,7 +19,7 @@
 
 ## ProductConstraintErrorCodes
 
-DB 유니크 제약 이름을 도메인 오류 코드로 매핑하는 `@Component`(`ConstraintErrorCodeProvider` 구현). 저장 시 제약 위반이 나면 `GlobalExceptionHandler`가 이 맵으로 변환한다. 기준은 `V2__create_product_tables.sql`.
+DB 유니크 제약 이름을 도메인 오류 코드로 매핑하는 `@Component`(`ConstraintErrorCodeProvider` 구현). 저장 시 제약 위반이 나면 `GlobalExceptionHandler`가 이 맵으로 변환한다. 기준은 `V1__baseline.sql`.
 
 | 제약 이름 | 오류 코드 |
 |---|---|

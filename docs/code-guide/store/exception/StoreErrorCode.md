@@ -18,7 +18,7 @@
 
 ## StoreConstraintErrorCodes
 
-DB 유니크 제약 이름 → 오류 코드 대응표(`V6__create_store_tables.sql` 기준).
+DB 유니크 제약 이름 → 오류 코드 대응표(`V1__baseline.sql` 기준).
 
 | 제약 이름 | 오류 코드 |
 |---|---|

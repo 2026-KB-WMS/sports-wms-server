@@ -20,6 +20,6 @@
 
 | 제약 이름 | 오류 코드 | 기준 |
 |---|---|---|
-| uk_store_order_no | DUPLICATE_STORE_ORDER_NO | `V11__create_store_order_tables.sql` |
+| uk_store_order_no | DUPLICATE_STORE_ORDER_NO | `V1__baseline.sql` |
 
 주문 번호는 서버가 채번하므로 동시 등록으로 번호가 겹친 경우에만 DB 제약이 409를 응답한다. 같은 발주 안의 SKU 중복(`uk_store_order_line_order_sku`)은 서비스가 먼저 400으로 거른다.
