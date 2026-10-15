@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -35,16 +36,20 @@ import com.kb.wms.inbound.application.port.out.InboundStockPort.StockQuality;
 import com.kb.wms.inbound.application.port.out.InboundStockPort.StockReceipt;
 import com.kb.wms.inbound.application.port.out.InboundStockPort;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
+import com.kb.wms.inbound.application.port.out.SupplierOrderRepository;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.InboundLine;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.entity.PurchaseOrderLine;
+import com.kb.wms.inbound.domain.entity.SupplierOrder;
 import com.kb.wms.inbound.domain.enums.InboundHistoryEntityType;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderLineStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
+import com.kb.wms.inbound.domain.enums.SupplierOrderStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
+import com.kb.wms.inbound.exception.SupplierOrderErrorCode;
 import com.kb.wms.inventory.exception.InventoryErrorCode;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
@@ -62,6 +67,9 @@ class InboundCompleteServiceTest {
     private PurchaseOrderRepository purchaseOrderRepository;
 
     @Mock
+    private SupplierOrderRepository supplierOrderRepository;
+
+    @Mock
     private InboundStockPort inboundStockPort;
 
     @Mock
@@ -77,6 +85,7 @@ class InboundCompleteServiceTest {
                 .inboundId(7L)
                 .inboundNo("IB-20261002-0001")
                 .purchaseOrderId(4L)
+                .supplierOrderId(8L)
                 .warehouseId(1L)
                 .status(status)
                 .build();
@@ -87,6 +96,15 @@ class InboundCompleteServiceTest {
                 .purchaseOrderId(4L)
                 .purchaseOrderNo("PO-20261002-0001")
                 .warehouseId(1L)
+                .status(status)
+                .build();
+    }
+
+    private static SupplierOrder supplierOrder(Long id, SupplierOrderStatus status) {
+        return SupplierOrder.builder()
+                .supplierOrderId(id)
+                .supplierOrderNo("SO-20261002-000" + id)
+                .purchaseOrderId(4L)
                 .supplierId(3L)
                 .status(status)
                 .build();
@@ -97,6 +115,8 @@ class InboundCompleteServiceTest {
         return PurchaseOrderLine.builder()
                 .purchaseOrderLineId(id)
                 .purchaseOrderId(4L)
+                .supplierId(3L)
+                .supplierOrderId(8L)
                 .skuId(id)
                 .expectedQuantity(expected)
                 .receivedQuantity(received)
@@ -134,14 +154,23 @@ class InboundCompleteServiceTest {
         when(inboundRepository.findLinesByInboundId(7L)).thenReturn(List.of(lines));
     }
 
+    /** 입고의 공급처 발주서(8L, ISSUED)만 있는 발주. 라인은 그 발주서에 연결된 라인이다. */
     private void givenPurchaseOrder(PurchaseOrderStatus status, PurchaseOrderLine... lines) {
+        givenPurchaseOrder(status, List.of(supplierOrder(8L, SupplierOrderStatus.ISSUED)), lines);
+    }
+
+    private void givenPurchaseOrder(PurchaseOrderStatus status, List<SupplierOrder> supplierOrders,
+                                    PurchaseOrderLine... lines) {
         when(purchaseOrderRepository.findByIdForUpdate(4L)).thenReturn(Optional.of(purchaseOrder(status)));
-        when(purchaseOrderRepository.findLinesByPurchaseOrderIdForUpdate(4L)).thenReturn(List.of(lines));
+        when(supplierOrderRepository.findByPurchaseOrderIdForUpdate(4L)).thenReturn(supplierOrders);
+        when(purchaseOrderRepository.findLinesBySupplierOrderIdForUpdate(8L)).thenReturn(List.of(lines));
     }
 
     private void stubSaves() {
         when(inboundRepository.save(any(Inbound.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(purchaseOrderRepository.saveLines(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(supplierOrderRepository.save(any(SupplierOrder.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     // ---------- 성공 ----------
@@ -171,13 +200,15 @@ class InboundCompleteServiceTest {
                 new InboundCompleteResult.ReflectedInventory(21L, 101L, 58L, 105L, 2L));
         assertThat(result.purchaseOrderLines()).containsExactly(new InboundCompleteResult.PurchaseOrderLineProgress(
                 11L, 100L, 60L, PurchaseOrderLineStatus.PARTIALLY_RECEIVED));
+        assertThat(result.supplierOrderId()).isEqualTo(8L);
+        assertThat(result.supplierOrderStatus()).isEqualTo(SupplierOrderStatus.PARTIALLY_RECEIVED);
         assertThat(result.purchaseOrderId()).isEqualTo(4L);
         assertThat(result.purchaseOrderStatus()).isEqualTo(PurchaseOrderStatus.CONFIRMED);
         verify(purchaseOrderRepository, never()).save(any(PurchaseOrder.class));
     }
 
     @Test
-    @DisplayName("모든 발주 항목이 전량 입고되면 발주도 COMPLETED로 바꾼다")
+    @DisplayName("발주서의 모든 항목이 전량 입고되고 다른 발주서가 없으면 발주서와 발주가 COMPLETED가 된다")
     void complete_allLinesDone_completesPurchaseOrder() {
         givenInspectingInbound(inboundLine(21L, 11L, 31L, 60, 0, 2L, null));
         givenPurchaseOrder(PurchaseOrderStatus.CONFIRMED,
@@ -192,12 +223,51 @@ class InboundCompleteServiceTest {
 
         assertThat(result.purchaseOrderLines()).containsExactly(new InboundCompleteResult.PurchaseOrderLineProgress(
                 11L, 60L, 60L, PurchaseOrderLineStatus.COMPLETED));
+        assertThat(result.supplierOrderStatus()).isEqualTo(SupplierOrderStatus.COMPLETED);
         assertThat(result.purchaseOrderStatus()).isEqualTo(PurchaseOrderStatus.COMPLETED);
         verify(purchaseOrderRepository).save(any(PurchaseOrder.class));
     }
 
     @Test
-    @DisplayName("전량 입고된 항목이 있어도 다른 항목이 남았으면 발주는 CONFIRMED를 유지한다")
+    @DisplayName("다른 공급처 발주서가 아직 진행 중이면 이 발주서만 COMPLETED가 되고 발주는 CONFIRMED를 유지한다")
+    void complete_otherSupplierOrderInProgress_keepsPurchaseOrderConfirmed() {
+        givenInspectingInbound(inboundLine(21L, 11L, 31L, 60, 0, 2L, null));
+        givenPurchaseOrder(PurchaseOrderStatus.CONFIRMED,
+                List.of(supplierOrder(8L, SupplierOrderStatus.ISSUED),
+                        supplierOrder(9L, SupplierOrderStatus.PARTIALLY_RECEIVED)),
+                purchaseOrderLine(11L, 60, 0, PurchaseOrderLineStatus.REQUESTED));
+        when(inboundStockPort.receive(anyLong(), anyLong(), anyList()))
+                .thenReturn(List.of(new ReceivedStock(2L, 31L, StockQuality.AVAILABLE, 101L)));
+        stubSaves();
+
+        InboundCompleteResult result = inboundCompleteService.completeInbound(7L, ACTOR);
+
+        assertThat(result.supplierOrderStatus()).isEqualTo(SupplierOrderStatus.COMPLETED);
+        assertThat(result.purchaseOrderStatus()).isEqualTo(PurchaseOrderStatus.CONFIRMED);
+        verify(purchaseOrderRepository, never()).save(any(PurchaseOrder.class));
+    }
+
+    @Test
+    @DisplayName("다른 발주서가 이미 완료됐다면 마지막 발주서 완료로 발주도 COMPLETED가 된다")
+    void complete_lastSupplierOrder_completesPurchaseOrder() {
+        givenInspectingInbound(inboundLine(21L, 11L, 31L, 60, 0, 2L, null));
+        givenPurchaseOrder(PurchaseOrderStatus.CONFIRMED,
+                List.of(supplierOrder(8L, SupplierOrderStatus.PARTIALLY_RECEIVED),
+                        supplierOrder(9L, SupplierOrderStatus.COMPLETED)),
+                purchaseOrderLine(11L, 60, 0, PurchaseOrderLineStatus.REQUESTED));
+        when(inboundStockPort.receive(anyLong(), anyLong(), anyList()))
+                .thenReturn(List.of(new ReceivedStock(2L, 31L, StockQuality.AVAILABLE, 101L)));
+        stubSaves();
+        when(purchaseOrderRepository.save(any(PurchaseOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        InboundCompleteResult result = inboundCompleteService.completeInbound(7L, ACTOR);
+
+        assertThat(result.supplierOrderStatus()).isEqualTo(SupplierOrderStatus.COMPLETED);
+        assertThat(result.purchaseOrderStatus()).isEqualTo(PurchaseOrderStatus.COMPLETED);
+    }
+
+    @Test
+    @DisplayName("전량 입고된 항목이 있어도 다른 항목이 남았으면 발주서는 PARTIALLY_RECEIVED, 발주는 CONFIRMED를 유지한다")
     void complete_otherLinePending_keepsPurchaseOrderConfirmed() {
         givenInspectingInbound(inboundLine(21L, 11L, 31L, 60, 0, 2L, null));
         givenPurchaseOrder(PurchaseOrderStatus.CONFIRMED,
@@ -209,6 +279,7 @@ class InboundCompleteServiceTest {
 
         InboundCompleteResult result = inboundCompleteService.completeInbound(7L, ACTOR);
 
+        assertThat(result.supplierOrderStatus()).isEqualTo(SupplierOrderStatus.PARTIALLY_RECEIVED);
         assertThat(result.purchaseOrderStatus()).isEqualTo(PurchaseOrderStatus.CONFIRMED);
         verify(purchaseOrderRepository, never()).save(any(PurchaseOrder.class));
     }
@@ -259,8 +330,8 @@ class InboundCompleteServiceTest {
     // ---------- 실패 ----------
 
     @Test
-    @DisplayName("부분 입고 완료는 입고 상태 이력(INSPECTING → COMPLETED)만 남기고 발주 이력은 남기지 않는다")
-    void complete_partial_recordsInboundHistoryOnly() {
+    @DisplayName("부분 입고 완료는 입고 이력(INSPECTING → COMPLETED)과 발주서 이력(ISSUED → PARTIALLY_RECEIVED)을 남기고 발주 이력은 남기지 않는다")
+    void complete_partial_recordsInboundAndSupplierOrderHistory() {
         givenInspectingInbound(inboundLine(21L, 11L, 31L, 58, 2, 2L, 9L));
         givenPurchaseOrder(PurchaseOrderStatus.CONFIRMED,
                 purchaseOrderLine(11L, 100, 0, PurchaseOrderLineStatus.REQUESTED));
@@ -272,12 +343,14 @@ class InboundCompleteServiceTest {
 
         verify(statusHistoryUseCase).record(
                 InboundHistoryEntityType.INBOUND.name(), 7L, "INSPECTING", "COMPLETED", null, USER);
+        verify(statusHistoryUseCase).record(
+                InboundHistoryEntityType.SUPPLIER_ORDER.name(), 8L, "ISSUED", "PARTIALLY_RECEIVED", null, USER);
         verify(statusHistoryUseCase, never()).record(
                 eq(InboundHistoryEntityType.PURCHASE_ORDER.name()), anyLong(), any(), any(), any(), anyLong());
     }
 
     @Test
-    @DisplayName("마지막 입고로 발주가 자동 완료되면 발주 상태 이력(CONFIRMED → COMPLETED)도 남긴다")
+    @DisplayName("마지막 입고로 발주가 자동 완료되면 발주서(ISSUED → COMPLETED)와 발주(CONFIRMED → COMPLETED) 상태 이력도 남긴다")
     void complete_final_recordsPurchaseOrderHistory() {
         givenInspectingInbound(inboundLine(21L, 11L, 31L, 58, 2, 2L, 9L));
         givenPurchaseOrder(PurchaseOrderStatus.CONFIRMED,
@@ -290,9 +363,38 @@ class InboundCompleteServiceTest {
         inboundCompleteService.completeInbound(7L, ACTOR);
 
         verify(statusHistoryUseCase).record(
+                InboundHistoryEntityType.SUPPLIER_ORDER.name(), 8L, "ISSUED", "COMPLETED", null, USER);
+        verify(statusHistoryUseCase).record(
                 InboundHistoryEntityType.PURCHASE_ORDER.name(), 4L, "CONFIRMED", "COMPLETED", null, USER);
         verify(statusHistoryUseCase).record(
                 InboundHistoryEntityType.INBOUND.name(), 7L, "INSPECTING", "COMPLETED", null, USER);
+    }
+
+    @Test
+    @DisplayName("입고의 공급처 발주서를 찾을 수 없으면 SUPPLIER_ORDER_NOT_FOUND를 던지고 재고를 건드리지 않는다")
+    void complete_supplierOrderNotFound() {
+        givenInspectingInbound(inboundLine(21L, 11L, 31L, 58, 2, 2L, 9L));
+        when(purchaseOrderRepository.findByIdForUpdate(4L))
+                .thenReturn(Optional.of(purchaseOrder(PurchaseOrderStatus.CONFIRMED)));
+        when(supplierOrderRepository.findByPurchaseOrderIdForUpdate(4L))
+                .thenReturn(List.of(supplierOrder(9L, SupplierOrderStatus.ISSUED)));
+
+        assertError(() -> inboundCompleteService.completeInbound(7L, ACTOR),
+                SupplierOrderErrorCode.SUPPLIER_ORDER_NOT_FOUND.name());
+        verifyNoInteractions(inboundStockPort);
+    }
+
+    @Test
+    @DisplayName("공급처 발주서가 진행 중이 아니면 CONFLICT를 던지고 재고를 건드리지 않는다")
+    void complete_supplierOrderNotInProgress() {
+        givenInspectingInbound(inboundLine(21L, 11L, 31L, 58, 2, 2L, 9L));
+        when(purchaseOrderRepository.findByIdForUpdate(4L))
+                .thenReturn(Optional.of(purchaseOrder(PurchaseOrderStatus.CONFIRMED)));
+        when(supplierOrderRepository.findByPurchaseOrderIdForUpdate(4L))
+                .thenReturn(List.of(supplierOrder(8L, SupplierOrderStatus.CANCELED)));
+
+        assertError(() -> inboundCompleteService.completeInbound(7L, ACTOR), ErrorCode.CONFLICT.name());
+        verifyNoInteractions(inboundStockPort);
     }
 
     @Test

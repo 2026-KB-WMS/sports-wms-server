@@ -23,13 +23,16 @@ import com.kb.wms.inbound.application.port.in.result.SectionCandidate;
 import com.kb.wms.inbound.application.port.out.InboundQueryRepository;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
+import com.kb.wms.inbound.application.port.out.SupplierOrderRepository;
 import com.kb.wms.inbound.application.port.out.WarehouseAvailabilityPort;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
+import com.kb.wms.inbound.domain.entity.SupplierOrder;
 import com.kb.wms.inbound.domain.enums.InboundHistoryEntityType;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
+import com.kb.wms.inbound.exception.SupplierOrderErrorCode;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
 import lombok.RequiredArgsConstructor;
@@ -53,18 +56,20 @@ public class InboundService implements InboundUseCase {
     private final InboundRepository inboundRepository;
     private final InboundQueryRepository inboundQueryRepository;
     private final PurchaseOrderRepository purchaseOrderRepository;
+    private final SupplierOrderRepository supplierOrderRepository;
     private final WarehouseAvailabilityPort warehouseAvailabilityPort;
     private final StatusHistoryUseCase statusHistoryUseCase;
 
     /**
-     * 확정된 발주에 대해 ARRIVED 입고를 등록한다. 입고 대상 창고는 발주의 창고를 따른다.
-     * 발주 행을 락으로 잡아 같은 발주의 동시 입고 등록·발주 취소와 어긋나지 않게 한다.
+     * 진행 중인 공급처 발주서에 대해 ARRIVED 입고를 등록한다. 입고 대상 창고는 발주서가 속한 요청의 창고를 따른다.
+     * 요청 행 → 발주서 행 순으로 락을 잡아, 같은 요청의 동시 취소·같은 발주서의 동시 입고 등록과 어긋나지 않게 한다.
+     * 진행 중 입고는 발주서당 한 건이고, 다른 발주서의 입고는 병렬로 진행할 수 있다.
      */
     @Override
     @Transactional
     public Long registerInbound(InboundRegisterCommand command, AuthenticatedUser actor) {
-        if (command.purchaseOrderId() == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "발주 ID는 필수입니다.");
+        if (command.supplierOrderId() == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "공급처 발주서 ID는 필수입니다.");
         }
         if (command.userId() == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "처리 사용자는 필수입니다.");
@@ -78,19 +83,25 @@ public class InboundService implements InboundUseCase {
                     "비고는 " + NOTE_MAX_LENGTH + "자 이하여야 합니다.");
         }
 
-        PurchaseOrder purchaseOrder = purchaseOrderRepository.findByIdForUpdate(command.purchaseOrderId())
+        SupplierOrder found = supplierOrderRepository.findById(command.supplierOrderId())
+                .orElseThrow(() -> new BusinessException(SupplierOrderErrorCode.SUPPLIER_ORDER_NOT_FOUND));
+        PurchaseOrder purchaseOrder = purchaseOrderRepository.findByIdForUpdate(found.getPurchaseOrderId())
                 .orElseThrow(() -> new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND));
         actor.requireWarehouseAccess(purchaseOrder.getWarehouseId());
-        if (!purchaseOrder.isConfirmed()) {
+        // 요청 락을 잡은 뒤 발주서를 다시 읽어, 락을 기다리는 사이 취소·완료된 상태를 반영한다.
+        SupplierOrder supplierOrder = supplierOrderRepository.findByIdForUpdate(found.getSupplierOrderId())
+                .orElseThrow(() -> new BusinessException(SupplierOrderErrorCode.SUPPLIER_ORDER_NOT_FOUND));
+        if (!supplierOrder.isInProgress()) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "확정된 발주만 입고를 등록할 수 있습니다. 현재 상태: " + purchaseOrder.getStatus());
+                    "진행 중인 공급처 발주서만 입고를 등록할 수 있습니다. 현재 상태: " + supplierOrder.getStatus());
         }
-        if (inboundRepository.existsInProgressByPurchaseOrderId(purchaseOrder.getPurchaseOrderId())) {
+        if (inboundRepository.existsInProgressBySupplierOrderId(supplierOrder.getSupplierOrderId())) {
             throw new BusinessException(InboundErrorCode.INBOUND_IN_PROGRESS);
         }
 
         Inbound saved = inboundRepository.save(Inbound.register(
-                nextInboundNo(LocalDate.now()), purchaseOrder.getPurchaseOrderId(), purchaseOrder.getWarehouseId(),
+                nextInboundNo(LocalDate.now()), purchaseOrder.getPurchaseOrderId(), supplierOrder.getSupplierOrderId(),
+                purchaseOrder.getWarehouseId(),
                 command.arrivedAt() == null ? now : command.arrivedAt(), command.note()));
         statusHistoryUseCase.record(InboundHistoryEntityType.INBOUND.name(), saved.getInboundId(),
                 null, InboundStatus.ARRIVED.name(), null, command.userId());
@@ -112,8 +123,13 @@ public class InboundService implements InboundUseCase {
                 && purchaseOrderRepository.findById(condition.purchaseOrderId()).isEmpty()) {
             throw new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND);
         }
+        if (condition.supplierOrderId() != null
+                && supplierOrderRepository.findById(condition.supplierOrderId()).isEmpty()) {
+            throw new BusinessException(SupplierOrderErrorCode.SUPPLIER_ORDER_NOT_FOUND);
+        }
         return inboundQueryRepository.search(new InboundSearchCondition(
-                condition.status(), condition.warehouseId(), condition.purchaseOrderId(), condition.keyword(),
+                condition.status(), condition.warehouseId(), condition.purchaseOrderId(),
+                condition.supplierOrderId(), condition.keyword(),
                 condition.arrivedFrom(), condition.arrivedTo(), scope));
     }
 

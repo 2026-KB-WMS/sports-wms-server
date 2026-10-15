@@ -4,7 +4,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * POST /api/v1/purchase-orders 요청. 발주 단가는 요청에서 받지 않고 등록 시점의 SKU 매입 단가를 스냅샷한다.
+ * POST /api/v1/purchase-orders 요청. 창고 관리자는 SKU와 수량만 요청하고, 공급처는 본사가 확정할 때 지정한다.
+ * 발주 단가는 요청에서 받지 않고 등록 시점의 SKU 매입 단가를 스냅샷한다.
  *
  * @param expectedAt 입고 예정 일시 (선택)
  * @param note       발주 비고 (선택)
@@ -12,7 +13,6 @@ import java.util.List;
  */
 public record PurchaseOrderRegisterCommand(
         Long warehouseId,
-        Long supplierId,
         LocalDateTime expectedAt,
         String note,
         Long createdBy,

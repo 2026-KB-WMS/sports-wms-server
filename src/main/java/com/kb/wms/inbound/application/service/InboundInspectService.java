@@ -23,14 +23,15 @@ import com.kb.wms.inbound.application.port.out.InboundSectionPort.SectionInfo;
 import com.kb.wms.inbound.application.port.out.InboundSectionPort;
 import com.kb.wms.inbound.application.port.out.LotPort;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
+import com.kb.wms.inbound.application.port.out.SupplierOrderRepository;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.InboundLine;
-import com.kb.wms.inbound.domain.entity.PurchaseOrder;
+import com.kb.wms.inbound.domain.entity.SupplierOrder;
 import com.kb.wms.inbound.domain.entity.PurchaseOrderLine;
 import com.kb.wms.inbound.domain.enums.InboundHistoryEntityType;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
-import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
+import com.kb.wms.inbound.exception.SupplierOrderErrorCode;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
 import lombok.RequiredArgsConstructor;
@@ -53,6 +54,7 @@ public class InboundInspectService implements InboundInspectUseCase {
 
     private final InboundRepository inboundRepository;
     private final PurchaseOrderRepository purchaseOrderRepository;
+    private final SupplierOrderRepository supplierOrderRepository;
     private final LotPort lotPort;
     private final InboundSectionPort inboundSectionPort;
     private final StatusHistoryUseCase statusHistoryUseCase;
@@ -70,8 +72,8 @@ public class InboundInspectService implements InboundInspectUseCase {
                     "도착 또는 검수 중 상태의 입고만 검수할 수 있습니다. 현재 상태: " + inbound.getStatus());
         }
 
-        PurchaseOrder purchaseOrder = purchaseOrderRepository.findById(inbound.getPurchaseOrderId())
-                .orElseThrow(() -> new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND));
+        SupplierOrder supplierOrder = supplierOrderRepository.findById(inbound.getSupplierOrderId())
+                .orElseThrow(() -> new BusinessException(SupplierOrderErrorCode.SUPPLIER_ORDER_NOT_FOUND));
         Map<Long, PurchaseOrderLine> purchaseOrderLines = resolvePurchaseOrderLines(inbound, command.lines());
 
         validatePrices(purchaseOrderLines, command.lines());
@@ -83,7 +85,7 @@ public class InboundInspectService implements InboundInspectUseCase {
         for (InboundInspectCommand.Line line : command.lines()) {
             PurchaseOrderLine purchaseOrderLine = purchaseOrderLines.get(line.purchaseOrderLineId());
             Long lotId = lotPort.findOrRegisterLot(
-                    purchaseOrderLine.getSkuId(), purchaseOrder.getSupplierId(), line.lotNumber(),
+                    purchaseOrderLine.getSkuId(), supplierOrder.getSupplierId(), line.lotNumber(),
                     line.manufacturedDate(), line.expiryDate(), line.receivedUnitPrice());
             lines.add(InboundLine.register(
                     inbound.getInboundId(), line.purchaseOrderLineId(), lotId,
@@ -161,7 +163,7 @@ public class InboundInspectService implements InboundInspectUseCase {
         }
     }
 
-    /** 요청의 발주 항목을 조회한다. 없으면 404, 다른 발주의 항목이면 400. */
+    /** 요청의 발주 항목을 조회한다. 없으면 404, 이 입고의 공급처 발주서에 속하지 않은 항목이면 400. */
     private Map<Long, PurchaseOrderLine> resolvePurchaseOrderLines(
             Inbound inbound, List<InboundInspectCommand.Line> lines) {
         Map<Long, PurchaseOrderLine> result = new LinkedHashMap<>();
@@ -173,8 +175,8 @@ public class InboundInspectService implements InboundInspectUseCase {
             PurchaseOrderLine purchaseOrderLine = purchaseOrderRepository.findLineById(id)
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                             "발주 항목을 찾을 수 없습니다. purchaseOrderLineId=" + id));
-            if (!purchaseOrderLine.getPurchaseOrderId().equals(inbound.getPurchaseOrderId())) {
-                throw validation("이 입고의 발주에 속하지 않은 발주 항목입니다. purchaseOrderLineId=" + id);
+            if (!inbound.getSupplierOrderId().equals(purchaseOrderLine.getSupplierOrderId())) {
+                throw validation("이 입고의 공급처 발주서에 속하지 않은 발주 항목입니다. purchaseOrderLineId=" + id);
             }
             result.put(id, purchaseOrderLine);
         }

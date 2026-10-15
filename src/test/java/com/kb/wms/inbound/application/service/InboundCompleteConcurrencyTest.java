@@ -30,14 +30,17 @@ import com.kb.wms.inbound.adapter.out.persistence.repository.InboundLineJpaRepos
 import com.kb.wms.inbound.adapter.out.persistence.repository.PurchaseOrderJpaRepository;
 import com.kb.wms.inbound.adapter.out.persistence.repository.PurchaseOrderLineJpaRepository;
 import com.kb.wms.inbound.adapter.out.persistence.repository.SupplierJpaRepository;
+import com.kb.wms.inbound.adapter.out.persistence.repository.SupplierOrderJpaRepository;
 import com.kb.wms.inbound.application.port.in.InboundCompleteUseCase;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
+import com.kb.wms.inbound.application.port.out.SupplierOrderRepository;
 import com.kb.wms.inbound.application.port.out.SupplierRepository;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.InboundLine;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.entity.PurchaseOrderLine;
+import com.kb.wms.inbound.domain.entity.SupplierOrder;
 import com.kb.wms.inbound.domain.entity.Supplier;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderLineStatus;
@@ -82,6 +85,7 @@ class InboundCompleteConcurrencyTest {
     @Autowired private InboundRepository inboundRepository;
     @Autowired private PurchaseOrderRepository purchaseOrderRepository;
     @Autowired private SupplierRepository supplierRepository;
+    @Autowired private SupplierOrderRepository supplierOrderRepository;
     @Autowired private LotRepository lotRepository;
 
     @Autowired private InboundJpaRepository inboundJpaRepository;
@@ -89,6 +93,7 @@ class InboundCompleteConcurrencyTest {
     @Autowired private PurchaseOrderJpaRepository purchaseOrderJpaRepository;
     @Autowired private PurchaseOrderLineJpaRepository purchaseOrderLineJpaRepository;
     @Autowired private SupplierJpaRepository supplierJpaRepository;
+    @Autowired private SupplierOrderJpaRepository supplierOrderJpaRepository;
     @Autowired private InventoryLotJpaRepository inventoryLotJpaRepository;
     @Autowired private InventoryTransactionJpaRepository inventoryTransactionJpaRepository;
     @Autowired private LotJpaRepository lotJpaRepository;
@@ -105,6 +110,7 @@ class InboundCompleteConcurrencyTest {
 
     private final List<Long> purchaseOrderIds = new ArrayList<>();
     private final List<Long> purchaseOrderLineIds = new ArrayList<>();
+    private final List<Long> supplierOrderIds = new ArrayList<>();
     private final List<Long> inboundIds = new ArrayList<>();
 
     @BeforeEach
@@ -148,6 +154,7 @@ class InboundCompleteConcurrencyTest {
             inboundJpaRepository.deleteById(id);
         });
         purchaseOrderLineIds.forEach(purchaseOrderLineJpaRepository::deleteById);
+        supplierOrderIds.forEach(supplierOrderJpaRepository::deleteById);
         purchaseOrderIds.forEach(purchaseOrderJpaRepository::deleteById);
         supplierJpaRepository.deleteById(supplierId);
         lotJpaRepository.deleteById(lotId);
@@ -227,17 +234,25 @@ class InboundCompleteConcurrencyTest {
     /** 확정된 발주(항목 1줄, 발주 수량 20)와 검수 중 입고(입고 10 = 합격 8 + 불량 2)를 만든다. 입고 ID를 돌려준다. */
     private Long prepareInspectingInbound(String suffix) {
         PurchaseOrder purchaseOrder = PurchaseOrder.register(
-                "PO-IBCONC-" + suffix, warehouseId, supplierId, null, null, USER);
+                "PO-IBCONC-" + suffix, warehouseId, null, null, USER);
         purchaseOrder.confirm();
         purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
         purchaseOrderIds.add(purchaseOrder.getPurchaseOrderId());
 
-        PurchaseOrderLine purchaseOrderLine = purchaseOrderRepository.saveLines(List.of(
-                PurchaseOrderLine.register(purchaseOrder.getPurchaseOrderId(), skuId, EXPECTED, BigDecimal.TEN))).get(0);
+        SupplierOrder supplierOrder = supplierOrderRepository.save(SupplierOrder.issue(
+                "SO-IBCONC-" + suffix, purchaseOrder.getPurchaseOrderId(), supplierId));
+        supplierOrderIds.add(supplierOrder.getSupplierOrderId());
+
+        PurchaseOrderLine registered = PurchaseOrderLine.register(
+                purchaseOrder.getPurchaseOrderId(), skuId, EXPECTED, BigDecimal.TEN);
+        registered.assignSupplier(supplierId);
+        registered.attachToSupplierOrder(supplierOrder.getSupplierOrderId());
+        PurchaseOrderLine purchaseOrderLine = purchaseOrderRepository.saveLines(List.of(registered)).get(0);
         purchaseOrderLineIds.add(purchaseOrderLine.getPurchaseOrderLineId());
 
         Inbound inbound = inboundRepository.save(Inbound.register(
-                "IB-IBCONC-" + suffix, purchaseOrder.getPurchaseOrderId(), warehouseId, LocalDateTime.now(), null));
+                "IB-IBCONC-" + suffix, purchaseOrder.getPurchaseOrderId(), supplierOrder.getSupplierOrderId(),
+                warehouseId, LocalDateTime.now(), null));
         inboundIds.add(inbound.getInboundId());
         inbound.inspect();
         inbound = inboundRepository.save(inbound);

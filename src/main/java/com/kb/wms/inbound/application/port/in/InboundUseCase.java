@@ -21,7 +21,7 @@ import com.kb.wms.inbound.domain.entity.Inbound;
  */
 public interface InboundUseCase {
 
-    /** 확정된 발주에 대한 도착(ARRIVED) 입고를 등록하고 입고 ID를 반환한다. 응답 조립은 조회 유스케이스로 한다. */
+    /** 진행 중인 공급처 발주서에 대한 도착(ARRIVED) 입고를 등록하고 입고 ID를 반환한다. 응답 조립은 조회 유스케이스로 한다. */
     Long registerInbound(InboundRegisterCommand command, AuthenticatedUser actor);
 
     List<InboundSummary> getInbounds(InboundSearchCondition condition, AuthenticatedUser actor);

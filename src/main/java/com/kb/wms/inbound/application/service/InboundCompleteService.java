@@ -23,15 +23,19 @@ import com.kb.wms.inbound.application.port.out.InboundStockPort.StockQuality;
 import com.kb.wms.inbound.application.port.out.InboundStockPort.StockReceipt;
 import com.kb.wms.inbound.application.port.out.InboundStockPort;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
+import com.kb.wms.inbound.application.port.out.SupplierOrderRepository;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.InboundLine;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.entity.PurchaseOrderLine;
+import com.kb.wms.inbound.domain.entity.SupplierOrder;
 import com.kb.wms.inbound.domain.enums.InboundHistoryEntityType;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
+import com.kb.wms.inbound.domain.enums.SupplierOrderStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
+import com.kb.wms.inbound.exception.SupplierOrderErrorCode;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
 import lombok.RequiredArgsConstructor;
@@ -39,7 +43,8 @@ import lombok.RequiredArgsConstructor;
 /**
  * 입고 완료. 재고 반영부터 입고 상태 전환까지 한 트랜잭션이다.
  *
- * <p>잠금 순서: 입고 행 → 발주 행 → 발주 항목 행 → (재고 도메인) 구역 행 → 재고 행.
+ * <p>잠금 순서: 입고 행 → 발주(요청) 행 → 공급처 발주서 행들 → 발주 항목 행 → (재고 도메인) 구역 행 → 재고 행.
+ * 완료는 라인 → 공급처 발주서 → 요청 순으로 전파한다.
  * 역할은 SecurityConfig가, 담당 창고 범위는 이 서비스가 입고 행을 잠근 직후 검사한다(ADR-012).
  */
 @Service
@@ -49,6 +54,7 @@ public class InboundCompleteService implements InboundCompleteUseCase {
 
     private final InboundRepository inboundRepository;
     private final PurchaseOrderRepository purchaseOrderRepository;
+    private final SupplierOrderRepository supplierOrderRepository;
     private final InboundStockPort inboundStockPort;
     private final StatusHistoryUseCase statusHistoryUseCase;
 
@@ -79,17 +85,30 @@ public class InboundCompleteService implements InboundCompleteUseCase {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "확정 상태의 발주에 대한 입고만 완료 처리할 수 있습니다. 발주 상태: " + purchaseOrder.getStatus());
         }
+        // 요청의 발주서를 모두 락으로 잡아(발주서 ID 순) 다른 발주서의 동시 완료와 요청 완료 판단이 어긋나지 않게 한다.
+        List<SupplierOrder> supplierOrders =
+                supplierOrderRepository.findByPurchaseOrderIdForUpdate(purchaseOrder.getPurchaseOrderId());
+        SupplierOrder supplierOrder = supplierOrders.stream()
+                .filter(order -> order.getSupplierOrderId().equals(inbound.getSupplierOrderId()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(SupplierOrderErrorCode.SUPPLIER_ORDER_NOT_FOUND));
+        if (!supplierOrder.isInProgress()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "진행 중인 공급처 발주서에 대한 입고만 완료 처리할 수 있습니다. 발주서 상태: " + supplierOrder.getStatus());
+        }
         List<PurchaseOrderLine> purchaseOrderLines =
-                purchaseOrderRepository.findLinesByPurchaseOrderIdForUpdate(purchaseOrder.getPurchaseOrderId());
+                purchaseOrderRepository.findLinesBySupplierOrderIdForUpdate(supplierOrder.getSupplierOrderId());
 
         List<ReflectedInventory> inventory = reflectStock(inboundId, userId, lines);
         List<PurchaseOrderLineProgress> progress = accumulateReceived(lines, purchaseOrderLines);
 
-        if (purchaseOrderLines.stream().allMatch(PurchaseOrderLine::isCompleted)) {
+        supplierOrder = advanceSupplierOrder(supplierOrder, purchaseOrderLines, userId);
+        if (supplierOrder.getStatus() == SupplierOrderStatus.COMPLETED
+                && supplierOrders.stream().allMatch(order -> order.getStatus() == SupplierOrderStatus.COMPLETED)) {
             PurchaseOrderStatus purchaseOrderFrom = purchaseOrder.getStatus();
             purchaseOrder.complete();
             purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
-            // 마지막 입고 완료로 발주가 자동 완료되는 전이도 이력에 남기고, 처리자는 입고를 완료한 사용자로 한다.
+            // 마지막 발주서 완료로 요청이 자동 완료되는 전이도 이력에 남기고, 처리자는 입고를 완료한 사용자로 한다.
             statusHistoryUseCase.record(InboundHistoryEntityType.PURCHASE_ORDER.name(), purchaseOrder.getPurchaseOrderId(),
                     purchaseOrderFrom.name(), purchaseOrder.getStatus().name(), null, userId);
         }
@@ -100,7 +119,29 @@ public class InboundCompleteService implements InboundCompleteUseCase {
                 InboundStatus.INSPECTING.name(), saved.getStatus().name(), null, userId);
 
         return new InboundCompleteResult(
-                saved, inventory, purchaseOrder.getPurchaseOrderId(), purchaseOrder.getStatus(), progress);
+                saved, inventory, supplierOrder.getSupplierOrderId(), supplierOrder.getStatus(),
+                purchaseOrder.getPurchaseOrderId(), purchaseOrder.getStatus(), progress);
+    }
+
+    /**
+     * 발주서 상태를 갱신한다. 소속 라인이 모두 완료면 COMPLETED, 아니면 PARTIALLY_RECEIVED(이미 그 상태면 유지).
+     * 목록의 같은 발주서 객체는 갱신 결과로 바꿔 요청 완료 판단에 반영한다.
+     */
+    private SupplierOrder advanceSupplierOrder(SupplierOrder supplierOrder, List<PurchaseOrderLine> lines,
+                                               Long userId) {
+        SupplierOrderStatus from = supplierOrder.getStatus();
+        if (lines.stream().allMatch(PurchaseOrderLine::isCompleted)) {
+            supplierOrder.complete();
+        } else {
+            supplierOrder.markPartiallyReceived();
+        }
+        if (from == supplierOrder.getStatus()) {
+            return supplierOrder;
+        }
+        SupplierOrder saved = supplierOrderRepository.save(supplierOrder);
+        statusHistoryUseCase.record(InboundHistoryEntityType.SUPPLIER_ORDER.name(), saved.getSupplierOrderId(),
+                from.name(), saved.getStatus().name(), null, userId);
+        return saved;
     }
 
     /** 검수 항목의 합격 수량은 합격 구역 가용 재고로, 불량 수량은 불량 구역 불량 재고로 반영한다. */

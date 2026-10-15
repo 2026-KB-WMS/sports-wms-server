@@ -41,14 +41,18 @@ import com.kb.wms.inbound.application.port.in.result.SectionCandidate;
 import com.kb.wms.inbound.application.port.out.InboundQueryRepository;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
+import com.kb.wms.inbound.application.port.out.SupplierOrderRepository;
 import com.kb.wms.inbound.application.port.out.WarehouseAvailabilityPort;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
+import com.kb.wms.inbound.domain.entity.SupplierOrder;
 import com.kb.wms.inbound.domain.enums.InboundHistoryEntityType;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
+import com.kb.wms.inbound.domain.enums.SupplierOrderStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
+import com.kb.wms.inbound.exception.SupplierOrderErrorCode;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.warehouse.exception.WarehouseErrorCode;
 
@@ -67,6 +71,9 @@ class InboundServiceTest {
     private PurchaseOrderRepository purchaseOrderRepository;
 
     @Mock
+    private SupplierOrderRepository supplierOrderRepository;
+
+    @Mock
     private WarehouseAvailabilityPort warehouseAvailabilityPort;
 
     @Mock
@@ -82,10 +89,28 @@ class InboundServiceTest {
                 .purchaseOrderId(4L)
                 .purchaseOrderNo("PO-20261002-0001")
                 .warehouseId(1L)
-                .supplierId(3L)
                 .status(status)
                 .createdBy(5L)
                 .build();
+    }
+
+    private static SupplierOrder supplierOrder(SupplierOrderStatus status) {
+        return SupplierOrder.builder()
+                .supplierOrderId(8L)
+                .supplierOrderNo("SO-20261002-0001")
+                .purchaseOrderId(4L)
+                .supplierId(3L)
+                .status(status)
+                .build();
+    }
+
+    /** 요청(4L)이 확정 상태이고 발주서(8L)가 주어진 상태인 등록 시나리오를 만든다. */
+    private void givenRegisterTarget(SupplierOrderStatus supplierOrderStatus) {
+        when(supplierOrderRepository.findById(8L)).thenReturn(Optional.of(supplierOrder(supplierOrderStatus)));
+        when(purchaseOrderRepository.findByIdForUpdate(4L))
+                .thenReturn(Optional.of(purchaseOrder(PurchaseOrderStatus.CONFIRMED)));
+        when(supplierOrderRepository.findByIdForUpdate(8L))
+                .thenReturn(Optional.of(supplierOrder(supplierOrderStatus)));
     }
 
     private static Inbound inbound(Long id, InboundStatus status) {
@@ -93,6 +118,7 @@ class InboundServiceTest {
                 .inboundId(id)
                 .inboundNo("IB-20261002-0001")
                 .purchaseOrderId(4L)
+                .supplierOrderId(8L)
                 .warehouseId(1L)
                 .status(status)
                 .arrivedAt(LocalDateTime.of(2026, 10, 2, 9, 0))
@@ -101,7 +127,8 @@ class InboundServiceTest {
 
     private static InboundView viewWithStatus(InboundStatus status) {
         return new InboundView(
-                7L, "IB-20261002-0001", 4L, "PO-20261002-0001", PurchaseOrderStatus.CONFIRMED, 3L, "공급처 A",
+                7L, "IB-20261002-0001", 4L, "PO-20261002-0001", PurchaseOrderStatus.CONFIRMED,
+                8L, "SO-20261002-0001", 3L, "공급처 A",
                 1L, "서울 물류센터", status, LocalDateTime.of(2026, 10, 2, 9, 0),
                 null, null, null, null, 0L, LocalDateTime.of(2026, 10, 2, 9, 5), LocalDateTime.of(2026, 10, 2, 10, 0));
     }
@@ -120,6 +147,7 @@ class InboundServiceTest {
                     .inboundId(id)
                     .inboundNo(source.getInboundNo())
                     .purchaseOrderId(source.getPurchaseOrderId())
+                    .supplierOrderId(source.getSupplierOrderId())
                     .warehouseId(source.getWarehouseId())
                     .status(source.getStatus())
                     .arrivedAt(source.getArrivedAt())
@@ -131,16 +159,15 @@ class InboundServiceTest {
     // ---------- 등록 ----------
 
     @Test
-    @DisplayName("확정된 발주에 입고를 등록하면 발주의 창고로 ARRIVED 입고가 만들어지고 입고 ID를 반환한다")
+    @DisplayName("진행 중인 공급처 발주서에 입고를 등록하면 요청의 창고로 ARRIVED 입고가 만들어지고 입고 ID를 반환한다")
     void register_success() {
-        when(purchaseOrderRepository.findByIdForUpdate(4L))
-                .thenReturn(Optional.of(purchaseOrder(PurchaseOrderStatus.CONFIRMED)));
-        when(inboundRepository.existsInProgressByPurchaseOrderId(4L)).thenReturn(false);
+        givenRegisterTarget(SupplierOrderStatus.ISSUED);
+        when(inboundRepository.existsInProgressBySupplierOrderId(8L)).thenReturn(false);
         when(inboundRepository.countByInboundNoPrefix(any())).thenReturn(2L);
         stubSaveAssigningId(7L);
         LocalDateTime arrivedAt = LocalDateTime.now().minusHours(1);
 
-        Long inboundId = inboundService.registerInbound(new InboundRegisterCommand(4L, arrivedAt, "1차 입고", 5L), HQ);
+        Long inboundId = inboundService.registerInbound(new InboundRegisterCommand(8L, arrivedAt, "1차 입고", 5L), HQ);
 
         assertThat(inboundId).isEqualTo(7L);
         ArgumentCaptor<Inbound> captor = ArgumentCaptor.forClass(Inbound.class);
@@ -148,6 +175,7 @@ class InboundServiceTest {
         Inbound saved = captor.getValue();
         assertThat(saved.getStatus()).isEqualTo(InboundStatus.ARRIVED);
         assertThat(saved.getPurchaseOrderId()).isEqualTo(4L);
+        assertThat(saved.getSupplierOrderId()).isEqualTo(8L);
         assertThat(saved.getWarehouseId()).isEqualTo(1L);
         assertThat(saved.getArrivedAt()).isEqualTo(arrivedAt);
         assertThat(saved.getNote()).isEqualTo("1차 입고");
@@ -160,14 +188,13 @@ class InboundServiceTest {
     @Test
     @DisplayName("도착 일시를 생략하면 요청 시각으로 채운다")
     void register_defaultArrivedAt() {
-        when(purchaseOrderRepository.findByIdForUpdate(4L))
-                .thenReturn(Optional.of(purchaseOrder(PurchaseOrderStatus.CONFIRMED)));
-        when(inboundRepository.existsInProgressByPurchaseOrderId(4L)).thenReturn(false);
+        givenRegisterTarget(SupplierOrderStatus.PARTIALLY_RECEIVED);
+        when(inboundRepository.existsInProgressBySupplierOrderId(8L)).thenReturn(false);
         when(inboundRepository.countByInboundNoPrefix(any())).thenReturn(0L);
         stubSaveAssigningId(7L);
         LocalDateTime before = LocalDateTime.now();
 
-        inboundService.registerInbound(new InboundRegisterCommand(4L, null, null, 5L), HQ);
+        inboundService.registerInbound(new InboundRegisterCommand(8L, null, null, 5L), HQ);
 
         ArgumentCaptor<Inbound> captor = ArgumentCaptor.forClass(Inbound.class);
         verify(inboundRepository).save(captor.capture());
@@ -176,70 +203,79 @@ class InboundServiceTest {
     }
 
     @Test
-    @DisplayName("발주 ID가 없으면 VALIDATION_ERROR를 던진다")
-    void register_missingPurchaseOrderId() {
+    @DisplayName("공급처 발주서 ID가 없으면 VALIDATION_ERROR를 던진다")
+    void register_missingSupplierOrderId() {
         assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(null, null, null, 5L), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
-        verifyNoInteractions(purchaseOrderRepository, inboundRepository);
+        verifyNoInteractions(supplierOrderRepository, purchaseOrderRepository, inboundRepository);
     }
 
     @Test
     @DisplayName("처리 사용자가 없으면 VALIDATION_ERROR를 던진다")
     void register_missingUserId() {
-        assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(4L, null, null, null), HQ),
+        assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(8L, null, null, null), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
-        verifyNoInteractions(purchaseOrderRepository, inboundRepository, statusHistoryUseCase);
+        verifyNoInteractions(supplierOrderRepository, purchaseOrderRepository, inboundRepository, statusHistoryUseCase);
     }
 
     @Test
     @DisplayName("도착 일시가 미래이면 VALIDATION_ERROR를 던진다")
     void register_arrivedAtInFuture() {
         assertError(() -> inboundService.registerInbound(
-                        new InboundRegisterCommand(4L, LocalDateTime.now().plusDays(1), null, 5L), HQ),
+                        new InboundRegisterCommand(8L, LocalDateTime.now().plusDays(1), null, 5L), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
-        verifyNoInteractions(purchaseOrderRepository, inboundRepository);
+        verifyNoInteractions(supplierOrderRepository, purchaseOrderRepository, inboundRepository);
     }
 
     @Test
     @DisplayName("비고가 1000자를 넘으면 VALIDATION_ERROR를 던진다")
     void register_noteTooLong() {
         assertError(() -> inboundService.registerInbound(
-                        new InboundRegisterCommand(4L, null, "가".repeat(1001), 5L), HQ),
+                        new InboundRegisterCommand(8L, null, "가".repeat(1001), 5L), HQ),
                 ErrorCode.VALIDATION_ERROR.name());
-        verifyNoInteractions(purchaseOrderRepository, inboundRepository);
+        verifyNoInteractions(supplierOrderRepository, purchaseOrderRepository, inboundRepository);
     }
 
     @Test
-    @DisplayName("없는 발주에 입고를 등록하면 PURCHASE_ORDER_NOT_FOUND를 던진다")
-    void register_purchaseOrderNotFound() {
-        when(purchaseOrderRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
+    @DisplayName("없는 공급처 발주서에 입고를 등록하면 SUPPLIER_ORDER_NOT_FOUND를 던진다")
+    void register_supplierOrderNotFound() {
+        when(supplierOrderRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(999L, null, null, 5L), HQ),
+                SupplierOrderErrorCode.SUPPLIER_ORDER_NOT_FOUND.name());
+        verify(inboundRepository, never()).save(any(Inbound.class));
+    }
+
+    @Test
+    @DisplayName("발주서가 속한 요청을 찾을 수 없으면 PURCHASE_ORDER_NOT_FOUND를 던진다")
+    void register_purchaseOrderNotFound() {
+        when(supplierOrderRepository.findById(8L)).thenReturn(Optional.of(supplierOrder(SupplierOrderStatus.ISSUED)));
+        when(purchaseOrderRepository.findByIdForUpdate(4L)).thenReturn(Optional.empty());
+
+        assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(8L, null, null, 5L), HQ),
                 PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND.name());
         verify(inboundRepository, never()).save(any(Inbound.class));
     }
 
     @Test
-    @DisplayName("확정(CONFIRMED) 상태가 아닌 발주에는 입고를 등록할 수 없다")
-    void register_purchaseOrderNotConfirmed() {
-        for (PurchaseOrderStatus status : List.of(
-                PurchaseOrderStatus.REQUESTED, PurchaseOrderStatus.COMPLETED, PurchaseOrderStatus.CANCELED)) {
-            when(purchaseOrderRepository.findByIdForUpdate(4L)).thenReturn(Optional.of(purchaseOrder(status)));
+    @DisplayName("진행 중(ISSUED·PARTIALLY_RECEIVED)이 아닌 발주서에는 입고를 등록할 수 없다")
+    void register_supplierOrderNotInProgress() {
+        for (SupplierOrderStatus status : List.of(SupplierOrderStatus.COMPLETED, SupplierOrderStatus.CANCELED)) {
+            givenRegisterTarget(status);
 
-            assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(4L, null, null, 5L), HQ),
+            assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(8L, null, null, 5L), HQ),
                     ErrorCode.CONFLICT.name());
         }
         verify(inboundRepository, never()).save(any(Inbound.class));
     }
 
     @Test
-    @DisplayName("같은 발주에 완료되지 않은 입고가 있으면 INBOUND_IN_PROGRESS를 던진다")
+    @DisplayName("같은 발주서에 완료되지 않은 입고가 있으면 INBOUND_IN_PROGRESS를 던진다")
     void register_inboundInProgress() {
-        when(purchaseOrderRepository.findByIdForUpdate(4L))
-                .thenReturn(Optional.of(purchaseOrder(PurchaseOrderStatus.CONFIRMED)));
-        when(inboundRepository.existsInProgressByPurchaseOrderId(4L)).thenReturn(true);
+        givenRegisterTarget(SupplierOrderStatus.ISSUED);
+        when(inboundRepository.existsInProgressBySupplierOrderId(8L)).thenReturn(true);
 
-        assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(4L, null, null, 5L), HQ),
+        assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(8L, null, null, 5L), HQ),
                 InboundErrorCode.INBOUND_IN_PROGRESS.name());
         verify(inboundRepository, never()).save(any(Inbound.class));
     }
@@ -337,8 +373,9 @@ class InboundServiceTest {
     @DisplayName("입고 목록은 조건을 조회 리포지토리에 넘겨 결과를 그대로 반환한다")
     void getInbounds_delegates() {
         InboundSearchCondition condition = InboundSearchCondition.unscoped(
-                InboundStatus.ARRIVED, 1L, 4L, "IB-", null, null);
+                InboundStatus.ARRIVED, 1L, 4L, 8L, "IB-", null, null);
         when(purchaseOrderRepository.findById(4L)).thenReturn(java.util.Optional.of(purchaseOrder(PurchaseOrderStatus.CONFIRMED)));
+        when(supplierOrderRepository.findById(8L)).thenReturn(Optional.of(supplierOrder(SupplierOrderStatus.ISSUED)));
         when(inboundQueryRepository.search(condition)).thenReturn(List.of());
 
         assertThat(inboundService.getInbounds(condition, HQ)).isEmpty();
@@ -353,7 +390,7 @@ class InboundServiceTest {
                 .when(warehouseAvailabilityPort).requireExists(999L);
 
         assertError(() -> inboundService.getInbounds(
-                InboundSearchCondition.unscoped(null, 999L, null, null, null, null), HQ),
+                InboundSearchCondition.unscoped(null, 999L, null, null, null, null, null), HQ),
                 WarehouseErrorCode.WAREHOUSE_NOT_FOUND.name());
         verifyNoInteractions(inboundQueryRepository);
     }
@@ -364,8 +401,19 @@ class InboundServiceTest {
         when(purchaseOrderRepository.findById(999L)).thenReturn(java.util.Optional.empty());
 
         assertError(() -> inboundService.getInbounds(
-                InboundSearchCondition.unscoped(null, null, 999L, null, null, null), HQ),
+                InboundSearchCondition.unscoped(null, null, 999L, null, null, null, null), HQ),
                 PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND.name());
+        verifyNoInteractions(inboundQueryRepository);
+    }
+
+    @Test
+    @DisplayName("입고 목록의 supplierOrderId 필터가 존재하지 않으면 SUPPLIER_ORDER_NOT_FOUND 404를 던지고 조회하지 않는다")
+    void getInbounds_unknownSupplierOrder_notFound() {
+        when(supplierOrderRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertError(() -> inboundService.getInbounds(
+                InboundSearchCondition.unscoped(null, null, null, 999L, null, null, null), HQ),
+                SupplierOrderErrorCode.SUPPLIER_ORDER_NOT_FOUND.name());
         verifyNoInteractions(inboundQueryRepository);
     }
 
@@ -373,7 +421,7 @@ class InboundServiceTest {
     @DisplayName("도착 시작 일시가 종료 일시보다 늦으면 VALIDATION_ERROR를 던진다")
     void getInbounds_invalidDateRange() {
         InboundSearchCondition condition = InboundSearchCondition.unscoped(
-                null, null, null, null,
+                null, null, null, null, null,
                 LocalDateTime.of(2026, 10, 2, 0, 0), LocalDateTime.of(2026, 10, 1, 0, 0));
 
         assertError(() -> inboundService.getInbounds(condition, HQ), ErrorCode.VALIDATION_ERROR.name());
@@ -392,7 +440,8 @@ class InboundServiceTest {
     @DisplayName("입고 상세는 헤더 식별 정보와 검수 항목을 합쳐 반환한다")
     void getInboundDetails_success() {
         InboundView view = new InboundView(
-                7L, "IB-20261002-0001", 4L, "PO-20261002-0001", PurchaseOrderStatus.CONFIRMED, 3L, "공급처 A",
+                7L, "IB-20261002-0001", 4L, "PO-20261002-0001", PurchaseOrderStatus.CONFIRMED,
+                8L, "SO-20261002-0001", 3L, "공급처 A",
                 1L, "서울 물류센터", InboundStatus.INSPECTING, LocalDateTime.of(2026, 10, 2, 9, 0),
                 null, null, null, null, 1L, LocalDateTime.of(2026, 10, 2, 9, 5), LocalDateTime.of(2026, 10, 2, 10, 0));
         InboundLineView lineView = new InboundLineView(
@@ -474,13 +523,14 @@ class InboundServiceTest {
             new AuthenticatedUser(6L, UserRole.WAREHOUSE_MANAGER, List.of(9L), List.of());
 
     @Test
-    @DisplayName("입고 등록은 발주의 창고가 담당 창고일 때만 할 수 있다")
+    @DisplayName("입고 등록은 발주서가 속한 요청의 창고가 담당 창고일 때만 할 수 있다")
     void register_otherWarehouse_forbidden() {
+        when(supplierOrderRepository.findById(8L)).thenReturn(Optional.of(supplierOrder(SupplierOrderStatus.ISSUED)));
         when(purchaseOrderRepository.findByIdForUpdate(4L))
                 .thenReturn(java.util.Optional.of(purchaseOrder(PurchaseOrderStatus.CONFIRMED)));
 
         assertError(() -> inboundService.registerInbound(
-                        new InboundRegisterCommand(4L, null, null, 6L), OTHER_MANAGER),
+                        new InboundRegisterCommand(8L, null, null, 6L), OTHER_MANAGER),
                 ErrorCode.FORBIDDEN.name());
         verify(inboundRepository, never()).save(any());
     }
@@ -489,13 +539,13 @@ class InboundServiceTest {
     @DisplayName("입고 목록은 창고를 생략하면 담당 창고로 좁히고, 비담당 창고를 지정하면 403이다")
     void getInbounds_scope() {
         when(inboundQueryRepository.search(
-                new InboundSearchCondition(null, null, null, null, null, null, List.of(1L, 2L))))
+                new InboundSearchCondition(null, null, null, null, null, null, null, List.of(1L, 2L))))
                 .thenReturn(List.of());
 
         assertThat(inboundService.getInbounds(
-                InboundSearchCondition.unscoped(null, null, null, null, null, null), MANAGER)).isEmpty();
+                InboundSearchCondition.unscoped(null, null, null, null, null, null, null), MANAGER)).isEmpty();
         assertError(() -> inboundService.getInbounds(
-                InboundSearchCondition.unscoped(null, 3L, null, null, null, null), MANAGER), ErrorCode.FORBIDDEN.name());
+                InboundSearchCondition.unscoped(null, 3L, null, null, null, null, null), MANAGER), ErrorCode.FORBIDDEN.name());
         verifyNoInteractions(warehouseAvailabilityPort);
     }
 

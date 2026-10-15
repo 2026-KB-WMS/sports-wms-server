@@ -38,15 +38,16 @@ import com.kb.wms.inbound.application.port.out.InboundSectionPort.SectionInfo;
 import com.kb.wms.inbound.application.port.out.InboundSectionPort;
 import com.kb.wms.inbound.application.port.out.LotPort;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
+import com.kb.wms.inbound.application.port.out.SupplierOrderRepository;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.InboundLine;
-import com.kb.wms.inbound.domain.entity.PurchaseOrder;
+import com.kb.wms.inbound.domain.entity.SupplierOrder;
 import com.kb.wms.inbound.domain.entity.PurchaseOrderLine;
 import com.kb.wms.inbound.domain.enums.InboundHistoryEntityType;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
-import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
+import com.kb.wms.inbound.domain.enums.SupplierOrderStatus;
 import com.kb.wms.inbound.exception.InboundErrorCode;
-import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
+import com.kb.wms.inbound.exception.SupplierOrderErrorCode;
 import com.kb.wms.inventory.exception.InventoryErrorCode;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
@@ -63,6 +64,9 @@ class InboundInspectServiceTest {
 
     @Mock
     private PurchaseOrderRepository purchaseOrderRepository;
+
+    @Mock
+    private SupplierOrderRepository supplierOrderRepository;
 
     @Mock
     private LotPort lotPort;
@@ -83,25 +87,28 @@ class InboundInspectServiceTest {
                 .inboundId(7L)
                 .inboundNo("IB-20261002-0001")
                 .purchaseOrderId(4L)
+                .supplierOrderId(8L)
                 .warehouseId(1L)
                 .status(status)
                 .build();
     }
 
-    private static PurchaseOrder purchaseOrder() {
-        return PurchaseOrder.builder()
+    private static SupplierOrder supplierOrder() {
+        return SupplierOrder.builder()
+                .supplierOrderId(8L)
+                .supplierOrderNo("SO-20261002-0001")
                 .purchaseOrderId(4L)
-                .purchaseOrderNo("PO-20261002-0001")
-                .warehouseId(1L)
                 .supplierId(3L)
-                .status(PurchaseOrderStatus.CONFIRMED)
+                .status(SupplierOrderStatus.ISSUED)
                 .build();
     }
 
-    private static PurchaseOrderLine purchaseOrderLine(Long id, Long purchaseOrderId, long expected, long received) {
+    private static PurchaseOrderLine purchaseOrderLine(Long id, Long supplierOrderId, long expected, long received) {
         return PurchaseOrderLine.builder()
                 .purchaseOrderLineId(id)
-                .purchaseOrderId(purchaseOrderId)
+                .purchaseOrderId(4L)
+                .supplierId(3L)
+                .supplierOrderId(supplierOrderId)
                 .skuId(1L)
                 .expectedQuantity(expected)
                 .receivedQuantity(received)
@@ -175,12 +182,12 @@ class InboundInspectServiceTest {
 
     private void givenInbound(InboundStatus status) {
         when(inboundRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(inbound(status)));
-        when(purchaseOrderRepository.findById(4L)).thenReturn(Optional.of(purchaseOrder()));
+        when(supplierOrderRepository.findById(8L)).thenReturn(Optional.of(supplierOrder()));
     }
 
     private void givenPurchaseOrderLine(long expected, long received) {
         when(purchaseOrderRepository.findLineById(11L))
-                .thenReturn(Optional.of(purchaseOrderLine(11L, 4L, expected, received)));
+                .thenReturn(Optional.of(purchaseOrderLine(11L, 8L, expected, received)));
     }
 
     private void givenHappySections() {
@@ -368,13 +375,13 @@ class InboundInspectServiceTest {
     }
 
     @Test
-    @DisplayName("입고의 발주를 찾을 수 없으면 PURCHASE_ORDER_NOT_FOUND를 던진다")
-    void inspect_purchaseOrderNotFound() {
+    @DisplayName("입고의 공급처 발주서를 찾을 수 없으면 SUPPLIER_ORDER_NOT_FOUND를 던진다")
+    void inspect_supplierOrderNotFound() {
         when(inboundRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(inbound(InboundStatus.ARRIVED)));
-        when(purchaseOrderRepository.findById(4L)).thenReturn(Optional.empty());
+        when(supplierOrderRepository.findById(8L)).thenReturn(Optional.empty());
 
         assertError(() -> inboundInspectService.inspectInbound(7L, command(line(60, 58, 2)), HQ),
-                PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND.name());
+                SupplierOrderErrorCode.SUPPLIER_ORDER_NOT_FOUND.name());
     }
 
     @Test
@@ -388,8 +395,8 @@ class InboundInspectServiceTest {
     }
 
     @Test
-    @DisplayName("다른 발주의 발주 항목이면 VALIDATION_ERROR를 던진다")
-    void inspect_purchaseOrderLineOfOtherOrder() {
+    @DisplayName("이 입고의 공급처 발주서가 아닌 다른 발주서(같은 요청의 다른 공급처 포함)의 항목이면 VALIDATION_ERROR를 던진다")
+    void inspect_purchaseOrderLineOfOtherSupplierOrder() {
         givenInbound(InboundStatus.ARRIVED);
         when(purchaseOrderRepository.findLineById(11L))
                 .thenReturn(Optional.of(purchaseOrderLine(11L, 99L, 100, 0)));
