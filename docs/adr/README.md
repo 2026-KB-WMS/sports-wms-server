@@ -40,3 +40,4 @@
 | [026](026-auto-product-sku-code.md) | 상품 코드와 SKU 코드는 서버가 자동 발급하고, 입력을 받지 않는다 | Accepted | 2026-10-13 |
 | [027](027-cross-domain-own-types-with-adapter-translation.md) | 도메인 경계는 자기 타입을 두고 어댑터에서 변환한다 (출고 → 지점 발주부터 적용) | Accepted | 2026-10-14 |
 | [028](028-status-history-entity-type-per-domain.md) | 상태 이력의 엔티티 종류는 소유 도메인이 정의하고, 이력 모듈은 문자열로 받는다 | Accepted | 2026-10-14 |
+| [029](029-purchase-order-line-supplier.md) | 창고 발주의 공급처는 발주 라인 단위로 배정하고, SKU-공급처는 다대다로 매핑한다 | Accepted | 2026-10-15 |

@@ -39,6 +39,11 @@ class PurchaseOrderTest {
                 purchaseOrder.cancel();
                 yield purchaseOrder;
             }
+            case REJECTED -> {
+                PurchaseOrder purchaseOrder = requested();
+                purchaseOrder.reject();
+                yield purchaseOrder;
+            }
         };
     }
 
@@ -75,7 +80,7 @@ class PurchaseOrderTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = PurchaseOrderStatus.class, names = {"CONFIRMED", "COMPLETED", "CANCELED"})
+    @EnumSource(value = PurchaseOrderStatus.class, names = {"CONFIRMED", "COMPLETED", "CANCELED", "REJECTED"})
     @DisplayName("REQUESTED가 아닌 발주를 확정하면 예외가 발생한다")
     void confirm_fromOtherStatus_throws(PurchaseOrderStatus status) {
         PurchaseOrder purchaseOrder = withStatus(status);
@@ -96,8 +101,8 @@ class PurchaseOrderTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = PurchaseOrderStatus.class, names = {"COMPLETED", "CANCELED"})
-    @DisplayName("완료·취소된 발주를 취소하면 예외가 발생한다")
+    @EnumSource(value = PurchaseOrderStatus.class, names = {"COMPLETED", "CANCELED", "REJECTED"})
+    @DisplayName("완료·취소·반려된 발주를 취소하면 예외가 발생한다")
     void cancel_fromFinished_throws(PurchaseOrderStatus status) {
         PurchaseOrder purchaseOrder = withStatus(status);
 
@@ -116,12 +121,33 @@ class PurchaseOrderTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = PurchaseOrderStatus.class, names = {"REQUESTED", "COMPLETED", "CANCELED"})
+    @EnumSource(value = PurchaseOrderStatus.class, names = {"REQUESTED", "COMPLETED", "CANCELED", "REJECTED"})
     @DisplayName("CONFIRMED가 아닌 발주를 완료 처리하면 예외가 발생한다")
     void complete_fromOtherStatus_throws(PurchaseOrderStatus status) {
         PurchaseOrder purchaseOrder = withStatus(status);
 
         assertThatThrownBy(purchaseOrder::complete).isInstanceOf(IllegalStateException.class);
+        assertThat(purchaseOrder.getStatus()).isEqualTo(status);
+    }
+
+    @Test
+    @DisplayName("REQUESTED 발주를 반려하면 REJECTED가 되고 진행 중이 아니다")
+    void reject_fromRequested() {
+        PurchaseOrder purchaseOrder = requested();
+
+        purchaseOrder.reject();
+
+        assertThat(purchaseOrder.getStatus()).isEqualTo(PurchaseOrderStatus.REJECTED);
+        assertThat(purchaseOrder.isInProgress()).isFalse();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PurchaseOrderStatus.class, names = {"CONFIRMED", "COMPLETED", "CANCELED", "REJECTED"})
+    @DisplayName("REQUESTED가 아닌 발주를 반려하면 예외가 발생한다")
+    void reject_fromOtherStatus_throws(PurchaseOrderStatus status) {
+        PurchaseOrder purchaseOrder = withStatus(status);
+
+        assertThatThrownBy(purchaseOrder::reject).isInstanceOf(IllegalStateException.class);
         assertThat(purchaseOrder.getStatus()).isEqualTo(status);
     }
 

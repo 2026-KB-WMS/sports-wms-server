@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 창고가 공급업체에 상품을 주문하는 창고 발주 헤더.
- * 상태 전이: REQUESTED → CONFIRMED → COMPLETED, REQUESTED·CONFIRMED → CANCELED.
+ * 상태 전이: REQUESTED → CONFIRMED → COMPLETED, REQUESTED·CONFIRMED → CANCELED, REQUESTED → REJECTED.
  * 발주 항목(PurchaseOrderLine)은 purchaseOrderId로 참조하며 이 객체가 직접 들고 있지 않는다.
  */
 @Getter
@@ -64,6 +64,14 @@ public class PurchaseOrder {
             throw new IllegalStateException("요청 상태의 발주만 확정할 수 있습니다. 현재 상태: " + this.status);
         }
         this.status = PurchaseOrderStatus.CONFIRMED;
+    }
+
+    /** 본사 관리자 반려. REQUESTED에서만 가능하며, 권한 검사와 사유 기록은 서비스에서 한다. */
+    public void reject() {
+        if (this.status != PurchaseOrderStatus.REQUESTED) {
+            throw new IllegalStateException("요청 상태의 발주만 반려할 수 있습니다. 현재 상태: " + this.status);
+        }
+        this.status = PurchaseOrderStatus.REJECTED;
     }
 
     /** 취소. REQUESTED(작성자)·CONFIRMED(본사 관리자)에서만 가능하며, 권한 검사는 서비스에서 한다. */
