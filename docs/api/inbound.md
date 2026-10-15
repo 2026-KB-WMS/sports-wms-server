@@ -13,7 +13,7 @@
 - Notion 상태 컬럼은 "시작 전"이지만 코드는 구현됨(상태 컬럼이 오래됨, 코드 기준).
 - Notion 명세의 `pageInfo`와 일반 `NOT_FOUND`는 현재 구현 기준과 다름 → conventions.md 기준 따름. 단 Supplier/PurchaseOrder 404는 도메인 코드(`SUPPLIER_NOT_FOUND`, `PURCHASE_ORDER_NOT_FOUND`).
 - 공급처 재활성화는 `PATCH /suppliers/{supplierId}/activate`로 한다([ADR-014](../adr/014-reactivation-and-sku-deactivation-guard.md)).
-- 확정 필요(미결): 같은 공급처 중복 발주 허용 범위, 확정 단계에서 항목 조정 가능 여부, 취소 발주의 항목 상태 처리, `REQUESTED` 발주 반려는 MVP 이후. 발주 번호는 `PO-yyyyMMdd-NNNN`으로 구현했다.
+- 확정 필요(미결): 같은 공급처 중복 발주 허용 범위, 확정 단계에서 항목 조정 가능 여부, 취소 발주의 항목 상태 처리, `REQUESTED` 발주 반려는 이슈 #266에서 추가한다(아래 "공급처 발주서 개편"). 발주 번호는 `PO-yyyyMMdd-NNNN`으로 구현했다.
 - **입고** 구현 대비 차이 (2026-10-02 이전 시점):
   - 입고 목록·구역 후보 조회는 `page`·`size`·`sort`와 `pageInfo`를 지원하지 않고 `data.items` 전체를 돌려준다(페이지네이션 보류). 구역 후보 응답의 가용 용량 필드명은 `availableCapacity`다(Notion의 `requiredQuantity` 설명에 적힌 `availableQuantity`와 다름).
   - 인증·인가는 #170에서 적용했다. 처리 사용자(등록·확정·취소·검수·완료)는 토큰 주체이며 `userId` 쿼리 파라미터는 받지 않는다. 역할은 보안 설정이, 담당 창고 범위와 발주 취소 권한(요청 발주는 작성자 창고 관리자만, 확정 발주는 본사만)은 서비스가 검사한다. 창고 관리자는 비활성 공급처가 목록에서 빠지고 단건 조회는 404 `SUPPLIER_NOT_FOUND`다.
@@ -22,7 +22,89 @@
   - 응답의 `receivedByName`(목록·단건·검수 항목·등록)은 처리자(`receivedBy`)의 이름이다. 사용자 테이블을 ID로 조인해 채우며, 검수 전·취소처럼 처리자가 없으면 `null`이다. 발주의 `createdByName`(목록·단건)도 같은 방식이다. 입고 취소 사유(필수, 500자 이하)는 `StatusHistory`(`entity_type` `INBOUND`)에 저장하고, 입고 단건 응답과 취소 응답의 `cancelReason`은 이 이력에서 읽는다.
   - 입고 번호는 `IB-yyyyMMdd-NNNN`(일자별 일련번호)로 구현했다.
   - 명세에 없이 서비스에 넣은 규칙: 같은 입고 안에서 (발주 항목, 로트) 중복은 400, 입고 완료 시 발주가 `CONFIRMED`가 아니거나 발주 항목별 입고 수량이 남은 수량을 넘으면 409 `CONFLICT`.
-  - 확정 필요(미결): 발주 수량 초과 입고 허용 여부(현재 거절), 하위 구역이 있는 상위 구역에도 적치할 수 있는지, 취소된 입고를 다시 여는 방법(현재는 새 입고 등록), 같은 발주에 진행 중 입고를 여러 건 허용할지(현재 1건만).
+  - 확정 필요(미결): 발주 수량 초과 입고 허용 여부(현재 거절), 하위 구역이 있는 상위 구역에도 적치할 수 있는지, 취소된 입고를 다시 여는 방법(현재는 새 입고 등록), 같은 발주에 진행 중 입고를 여러 건 허용할지(현재 발주당 1건. #266에서 공급처 발주서당 1건으로 바꾸며 다른 발주서의 입고는 병렬, ADR-030).
+
+## 공급처 발주서 개편 (이슈 #266, [ADR-030](../adr/030-supplier-order-split.md)) — 구현 중
+
+> 개편 후의 **목표 명세**다. 이 문서의 나머지 절(공급처·창고 발주·입고)은 해당 변경이 머지되기 전까지 **현재 구현**을 설명하고, 각 변경이 머지될 때 아래 내용으로 대체한다.
+> 진행: #267·#268(SKU-공급처 매핑, 라인·입고 공급처 컬럼) 머지됨 → #275·#276(공급처 발주서 모델·저장소) → #269(서비스) → #270(웹).
+
+### 모델
+
+- **창고 발주 요청**(`purchase_order` + `purchase_order_line`): 창고 관리자가 SKU와 수량만 요청한다. 여러 공급처가 섞일 수 있다. 상태 `REQUESTED → CONFIRMED → COMPLETED`, `REQUESTED·CONFIRMED → CANCELED`, `REQUESTED → REJECTED`.
+- **공급처 발주서**(`supplier_order`): 본사가 확정할 때 공급처당 한 건이 만들어진다. 번호 `SO-yyyyMMdd-NNNN`, 상태 `ISSUED → PARTIALLY_RECEIVED → COMPLETED`, 요청 취소 시 `CANCELED`. 요청 상세 라인이 `supplierOrderId`로 발주서에 연결된다.
+- 입고는 공급처 발주서 한 건에 연결된다. 진행 중 입고는 발주서당 1건이고, 다른 발주서의 입고는 병렬이다.
+
+### 창고 발주 요청 변경
+
+| 엔드포인트 | 변경 |
+|---|---|
+| POST /purchase-orders | Body에서 `supplierId` 제거. 응답의 `supplierId`·`supplierName`은 없다. `lines[]`에 `supplierId`·`supplierName`(확정 전 `null`) 포함 |
+| GET /purchase-orders | `supplierId` 필터는 라인에 배정된 공급처 기준. 응답 항목의 단일 `supplierId`·`supplierName` 대신 `suppliers[]`(`supplierId`, `supplierName`, 확정 전 빈 배열) |
+| GET /purchase-orders/{id} | `rejectReason`(반려 시 사유, 아니면 `null`)과 `supplierOrders[]`(`supplierOrderId`, `supplierOrderNo`, `supplierId`, `supplierName`, `status`) 추가 |
+| GET /purchase-orders/{id}/details | `items[]`에 `supplierId`, `supplierName`, `supplierOrderId` 추가 |
+| PATCH /purchase-orders/{id}/confirm | 아래 참고 |
+| PATCH /purchase-orders/{id}/reject | 신규. 아래 참고 |
+| PATCH /purchase-orders/{id}/cancel | 요청 취소 시 공급처 발주서도 `CANCELED`. 취소되지 않은 입고가 있는 발주서가 있으면 409 `PURCHASE_ORDER_HAS_INBOUND` |
+
+#### PATCH /purchase-orders/{purchaseOrderId}/confirm
+
+- 권한: HQ_ADMIN만.
+- Body(선택): `lines[]`(`purchaseOrderLineId`, `supplierId`). 지정하지 않은 라인은 이미 배정된 공급처를 유지하고, 확정 후에는 모든 라인에 공급처가 있어야 한다.
+- 200. 응답: `purchaseOrderId, purchaseOrderNo, status=CONFIRMED, updatedAt, supplierOrders[]`(`supplierOrderId, supplierOrderNo, supplierId, supplierName, status=ISSUED, lineCount, totalAmount`)
+- 에러: 400 `LINE_SUPPLIER_REQUIRED`(공급처가 없는 라인이 남음), 400(요청의 라인이 이 발주에 없음, 같은 라인 중복), 404 `PURCHASE_ORDER_NOT_FOUND`/`SUPPLIER_NOT_FOUND`, 409 `CONFLICT`(`REQUESTED`가 아님), 409 `SUPPLIER_INACTIVE`, 409 `SKU_SUPPLIER_NOT_MAPPED`(라인의 SKU에 매핑되지 않은 공급처)
+- 규칙: 발주 행을 잠그고 한 트랜잭션에서 라인 공급처 지정, 공급처별 발주서 생성과 라인 연결, 요청 `CONFIRMED` 전이, 상태 이력 기록을 한다. 하나라도 실패하면 아무것도 반영하지 않는다.
+
+#### PATCH /purchase-orders/{purchaseOrderId}/reject
+
+- 권한: HQ_ADMIN만(창고 관리자 403). 소속 창고 검사 후 상태를 확인한다.
+- Body: `reason`(필수, ≤500)
+- 200. 응답: `purchaseOrderId, purchaseOrderNo, status=REJECTED, rejectReason, updatedAt`
+- 에러: 400(`reason` 누락·빈 값·길이 초과), 403, 404 `PURCHASE_ORDER_NOT_FOUND`, 409 `CONFLICT`(`REQUESTED`가 아님)
+- 규칙: 상태 `REQUESTED → REJECTED`만 허용한다. 사유는 `StatusHistory.reason`에 저장하고 응답의 `rejectReason`은 이력에서 읽는다. 반려된 요청은 확정·취소·입고를 할 수 없다.
+
+### 공급처 발주서 API (신규)
+
+| Method | Path | 권한 | 설명 |
+|---|---|---|---|
+| GET | /supplier-orders | HQ_ADMIN, WAREHOUSE_MANAGER(담당) | 공급처 발주서 목록 |
+| GET | /supplier-orders/{supplierOrderId} | HQ_ADMIN, WAREHOUSE_MANAGER(담당) | 공급처 발주서 상세(라인 포함) |
+
+- 목록 Query: `status`(ISSUED/PARTIALLY_RECEIVED/COMPLETED/CANCELED), `warehouseId`, `supplierId`, `purchaseOrderId`, `keyword`(발주서·요청 번호), `createdFrom`, `createdTo`. 정렬은 등록 일시 내림차순(같으면 ID 내림차순). `data.items`만 반환한다.
+- 목록 응답 항목: `supplierOrderId, supplierOrderNo, purchaseOrderId, purchaseOrderNo, supplierId, supplierName, warehouseId, warehouseName, status, lineCount, totalAmount, createdAt`
+- 상세 응답: 목록 항목 + `updatedAt`, `lines[]`(`purchaseOrderLineId, skuId, skuCode, skuName, unit, expectedQuantity, receivedQuantity, remainingQuantity, orderedUnitPrice, lineAmount, status`)
+- 데이터 범위: HQ_ADMIN 전체, WAREHOUSE_MANAGER는 담당 창고의 발주서만(타 창고 403).
+- 에러: 400, 403, 404 `WAREHOUSE_NOT_FOUND`/`SUPPLIER_NOT_FOUND`/`PURCHASE_ORDER_NOT_FOUND`(목록 필터), 404 `SUPPLIER_ORDER_NOT_FOUND`
+
+### SKU-공급처 매핑 API (신규)
+
+| Method | Path | 권한 | 설명 |
+|---|---|---|---|
+| GET | /products/skus/{skuId}/suppliers | HQ_ADMIN, WAREHOUSE_MANAGER | SKU에 매핑된 공급처 목록 |
+| POST | /products/skus/{skuId}/suppliers | HQ_ADMIN | 매핑 등록. Body `supplierId` |
+| DELETE | /products/skus/{skuId}/suppliers/{supplierId} | HQ_ADMIN | 매핑 삭제 |
+
+- 목록 응답 항목: `supplierId, supplierCode, supplierName, isActive, createdAt`(매핑 등록 순)
+- POST 에러: 400, 404 `SKU_NOT_FOUND`/`SUPPLIER_NOT_FOUND`, 409 `SUPPLIER_INACTIVE`(비활성 공급처는 새로 매핑할 수 없다), 409 `SKU_SUPPLIER_ALREADY_MAPPED`
+- DELETE 에러: 404 `SKU_NOT_FOUND`, 404 `SKU_SUPPLIER_NOT_FOUND`. 이미 확정된 발주에는 영향이 없다.
+- 이 경로는 `/products/**`를 읽기 전용으로 모든 인증 사용자에게 열어 둔 기존 규칙보다 먼저 매칭해야 한다(점주에게 공급처 정보를 열지 않는다).
+
+### 입고 변경
+
+| 엔드포인트 | 변경 |
+|---|---|
+| POST /inbounds | Body `purchaseOrderId` 대신 `supplierOrderId`(필수, `ISSUED`·`PARTIALLY_RECEIVED` 발주서). 응답에 `supplierOrderId, supplierOrderNo, supplierId, supplierName` 추가 |
+| GET /inbounds, /inbounds/{id} | 응답 항목에 `supplierOrderId, supplierOrderNo` 추가. 목록 Query에 `supplierOrderId` 추가(`purchaseOrderId` 필터는 유지) |
+| PATCH /inbounds/{id}/inspect | `purchaseOrderLineId`는 이 입고의 발주서에 속한 라인만 허용(아니면 400). 로트의 공급처는 발주서의 공급처 |
+| PATCH /inbounds/{id}/complete | 응답에 `supplierOrder`(`supplierOrderId, status`) 추가. 라인 → 발주서 → 요청 순으로 완료를 전파 |
+
+- POST /inbounds 에러: 404 `SUPPLIER_ORDER_NOT_FOUND`, 409 `CONFLICT`(발주서가 `ISSUED`·`PARTIALLY_RECEIVED`가 아님), 409 `INBOUND_IN_PROGRESS`(같은 발주서에 `ARRIVED`·`INSPECTING` 입고가 있음. 다른 발주서는 영향 없음)
+- 입고 대상 창고는 발주서가 속한 요청의 창고를 따른다.
+
+### 마이그레이션
+
+- 확정·완료·취소된 기존 요청은 라인의 공급처별로 발주서를 만들어 연결하고, 기존 입고는 발주 라인이 속한 발주서에 연결한다.
+- `purchase_order.supplier_id`와 `inbound.supplier_id`는 서비스가 새 컬럼만 쓰게 된 뒤 제거한다.
 
 ## 엔드포인트 목록 (6 + 6 + 9)
 
