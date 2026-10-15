@@ -28,6 +28,38 @@
 PurchaseOrderLine: `REQUESTED` → `PARTIALLY_RECEIVED`(received < expected) → `COMPLETED`(전량).
 Inbound 완료 시점마다 InboundLine의 `accepted_quantity`/`defective_quantity` 합산으로 갱신한다. 한 발주에 부분 입고가 여러 번 걸칠 수 있다.
 
+## 공급처 발주서 개편 (이슈 #266, [ADR-030](../adr/030-supplier-order-split.md)) — 구현 중
+
+> 개편 후의 목표 상태다. 위 표와 설명은 각 변경이 머지되기 전까지 현재 구현이고, 머지될 때 이 절로 대체한다.
+
+창고 관리자의 **발주 요청**(PurchaseOrder)은 여러 공급처를 담을 수 있고, 본사가 공급처에 내는 **공급처 발주서**(SupplierOrder)는 공급처당 한 건이다. 확정 시 발주서가 만들어진다.
+
+### 발주 요청 상태
+
+| 현재 | 행위 | 다음 | 수행자 | 조건 |
+|---|---|---|---|---|
+| REQUESTED | 확정 | CONFIRMED | 본사 관리자 | 라인별 공급처 지정(SKU에 매핑된 활성 공급처), 공급처별 발주서 생성 |
+| REQUESTED | 반려 | REJECTED | 본사 관리자 | 사유 필수, `StatusHistory.reason`에 기록 |
+| REQUESTED | 취소 | CANCELED | 창고 관리자(작성자) | 본사 확정 전 |
+| CONFIRMED | 취소 | CANCELED | 본사 관리자 | 사유 필수, 취소되지 않은 입고가 없어야 함, 발주서도 CANCELED |
+| CONFIRMED | 모든 발주서 완료 | COMPLETED | 시스템(자동) | 모든 SupplierOrder가 COMPLETED |
+
+`REJECTED`·`CANCELED`·`COMPLETED`는 종료 상태다.
+
+### 공급처 발주서 상태
+
+| 현재 | 행위 | 다음 | 수행자 | 조건 |
+|---|---|---|---|---|
+| (생성) | 요청 확정 | ISSUED | 시스템 | 요청의 공급처별 한 건 |
+| ISSUED | 첫 입고 완료 | PARTIALLY_RECEIVED | 시스템(자동) | 소속 라인에 입고 수량이 누적됨 |
+| ISSUED·PARTIALLY_RECEIVED | 전량 입고 완료 | COMPLETED | 시스템(자동) | 소속 라인이 모두 COMPLETED |
+| ISSUED·PARTIALLY_RECEIVED | 요청 취소 | CANCELED | 시스템 | 취소되지 않은 입고가 없어야 함 |
+
+- 발주서에는 수동 완료·취소 API가 없다. 완료는 입고 수량으로, 취소는 요청 취소로 전파된다.
+- 입고(Inbound)는 공급처 발주서 한 건에 연결된다. 같은 발주서에는 진행 중 입고를 한 건만 둘 수 있고, 다른 발주서의 입고는 병렬이다.
+- 완료 전파: 라인(PurchaseOrderLine) → 발주서 → 요청. 입고 완료 한 번의 트랜잭션 안에서 처리한다.
+- 공급처 비활성화 가드(`SUPPLIER_IN_USE`)는 진행 중 발주서(ISSUED·PARTIALLY_RECEIVED) 기준이다.
+
 ## 입고(Inbound) 상태
 
 | 현재 | 행위 | 다음 | 조건 |
