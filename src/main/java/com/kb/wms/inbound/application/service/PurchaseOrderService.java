@@ -5,9 +5,14 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,22 +22,32 @@ import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.PurchaseOrderUseCase;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderCancelCommand;
+import com.kb.wms.inbound.application.port.in.command.PurchaseOrderConfirmCommand;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderRegisterCommand;
+import com.kb.wms.inbound.application.port.in.command.PurchaseOrderRejectCommand;
 import com.kb.wms.inbound.application.port.in.query.PurchaseOrderSearchCondition;
+import com.kb.wms.inbound.application.port.in.result.PurchaseOrderConfirmResult;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderDetails;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderSummary;
+import com.kb.wms.inbound.application.port.in.result.PurchaseOrderSupplierView;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderView;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderQueryRepository;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
 import com.kb.wms.inbound.application.port.out.SkuPurchasePricePort;
+import com.kb.wms.inbound.application.port.out.SkuSupplierRepository;
+import com.kb.wms.inbound.application.port.out.SupplierOrderQueryRepository;
+import com.kb.wms.inbound.application.port.out.SupplierOrderRepository;
 import com.kb.wms.inbound.application.port.out.SupplierRepository;
 import com.kb.wms.inbound.application.port.out.WarehouseAvailabilityPort;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.entity.PurchaseOrderLine;
+import com.kb.wms.inbound.domain.entity.SkuSupplier;
 import com.kb.wms.inbound.domain.entity.Supplier;
+import com.kb.wms.inbound.domain.entity.SupplierOrder;
 import com.kb.wms.inbound.domain.enums.InboundHistoryEntityType;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
+import com.kb.wms.inbound.domain.enums.SupplierOrderStatus;
 import com.kb.wms.inbound.exception.PurchaseOrderErrorCode;
 import com.kb.wms.inbound.exception.SupplierErrorCode;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
@@ -40,7 +55,9 @@ import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 발주 등록·조회·확정·취소.
+ * 발주(요청) 등록·조회·확정·반려·취소.
+ *
+ * <p>확정하면 라인별 공급처로 공급처 발주서를 공급처당 한 건씩 만든다(ADR-030).
  *
  * <p>역할은 SecurityConfig가 검사하고, 담당 창고 범위와 취소의 작성자·상태별 권한(요청 발주는 작성자 창고 관리자,
  * 확정 발주는 본사 관리자)은 이 서비스가 검사한다(ADR-012).
@@ -51,14 +68,19 @@ import lombok.RequiredArgsConstructor;
 public class PurchaseOrderService implements PurchaseOrderUseCase {
 
     private static final String NO_PREFIX = "PO-";
+    private static final String SUPPLIER_ORDER_NO_PREFIX = "SO-";
     private static final DateTimeFormatter NO_DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
     private static final int NOTE_MAX_LENGTH = 1000;
     private static final int CANCEL_REASON_MAX_LENGTH = 500;
+    private static final int REASON_MAX_LENGTH = 500;
 
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final InboundRepository inboundRepository;
     private final PurchaseOrderQueryRepository purchaseOrderQueryRepository;
     private final SupplierRepository supplierRepository;
+    private final SkuSupplierRepository skuSupplierRepository;
+    private final SupplierOrderRepository supplierOrderRepository;
+    private final SupplierOrderQueryRepository supplierOrderQueryRepository;
     private final WarehouseAvailabilityPort warehouseAvailabilityPort;
     private final SkuPurchasePricePort skuPurchasePricePort;
     private final StatusHistoryUseCase statusHistoryUseCase;
@@ -71,19 +93,13 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
 
         warehouseAvailabilityPort.requireActive(command.warehouseId());
 
-        Supplier supplier = supplierRepository.findById(command.supplierId())
-                .orElseThrow(() -> new BusinessException(SupplierErrorCode.SUPPLIER_NOT_FOUND));
-        if (!supplier.isActive()) {
-            throw new BusinessException(ErrorCode.CONFLICT, "비활성 공급처에는 발주를 등록할 수 없습니다.");
-        }
-
         // 발주 단가는 요청에서 받지 않고 등록 시점의 SKU 매입 단가를 스냅샷한다.
         List<BigDecimal> unitPrices = command.lines().stream()
                 .map(line -> skuPurchasePricePort.getPurchasablePrice(line.skuId()))
                 .toList();
 
         PurchaseOrder saved = purchaseOrderRepository.save(PurchaseOrder.register(
-                nextPurchaseOrderNo(LocalDate.now()), command.warehouseId(), command.supplierId(),
+                nextPurchaseOrderNo(LocalDate.now()), command.warehouseId(),
                 command.expectedAt(), command.note(), command.createdBy()));
 
         List<PurchaseOrderLine> lines = new ArrayList<>(command.lines().size());
@@ -115,9 +131,10 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         if (condition.supplierId() != null && !supplierRepository.existsById(condition.supplierId())) {
             throw new BusinessException(SupplierErrorCode.SUPPLIER_NOT_FOUND);
         }
-        return purchaseOrderQueryRepository.search(new PurchaseOrderSearchCondition(
+        List<PurchaseOrderSummary> summaries = purchaseOrderQueryRepository.search(new PurchaseOrderSearchCondition(
                 condition.status(), condition.warehouseId(), condition.supplierId(), condition.keyword(),
                 condition.createdFrom(), condition.createdTo(), scope));
+        return withSuppliers(summaries);
     }
 
     @Override
@@ -125,14 +142,16 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         PurchaseOrderView view = purchaseOrderQueryRepository.findView(purchaseOrderId)
                 .orElseThrow(PurchaseOrderService::notFound);
         actor.requireWarehouseAccess(view.warehouseId());
-        if (view.status() != PurchaseOrderStatus.CANCELED) {
-            return view;
+        PurchaseOrderView result =
+                view.withSupplierOrders(supplierOrderQueryRepository.findSummariesByPurchaseOrderId(purchaseOrderId));
+        // 취소·반려 사유는 해당 상태로 바뀔 때의 상태 이력에서 읽는다. 사유 없이 취소했으면 null.
+        if (view.status() == PurchaseOrderStatus.CANCELED) {
+            return result.withCancelReason(findReason(purchaseOrderId, PurchaseOrderStatus.CANCELED));
         }
-        // 취소 사유는 CANCELED로 바뀔 때의 상태 이력에서 읽는다. 사유 없이 취소했으면 null.
-        return view.withCancelReason(statusHistoryUseCase
-                .findStatusReason(InboundHistoryEntityType.PURCHASE_ORDER.name(), purchaseOrderId,
-                        PurchaseOrderStatus.CANCELED.name())
-                .orElse(null));
+        if (view.status() == PurchaseOrderStatus.REJECTED) {
+            return result.withRejectReason(findReason(purchaseOrderId, PurchaseOrderStatus.REJECTED));
+        }
+        return result;
     }
 
     @Override
@@ -143,23 +162,96 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
                 purchaseOrderQueryRepository.findLineViews(purchaseOrderId));
     }
 
+    /**
+     * 발주 행을 락으로 잡고, 라인별 공급처(요청에서 지정한 값 또는 이미 배정된 값)를 검증한 뒤
+     * 공급처별로 발주서를 한 건씩 만들어 라인을 연결하고 발주를 CONFIRMED로 바꾼다. 한 트랜잭션이라 하나라도 실패하면
+     * 아무것도 반영되지 않는다. 공급처는 해당 SKU에 매핑된 활성 공급처여야 한다.
+     */
     @Override
     @Transactional
-    public PurchaseOrder confirmPurchaseOrder(Long purchaseOrderId, Long userId) {
-        requireUser(userId);
-        PurchaseOrder purchaseOrder = findOrThrow(purchaseOrderId);
+    public PurchaseOrderConfirmResult confirmPurchaseOrder(Long purchaseOrderId,
+                                                           PurchaseOrderConfirmCommand command) {
+        requireUser(command == null ? null : command.userId());
+        PurchaseOrder purchaseOrder = purchaseOrderRepository.findByIdForUpdate(purchaseOrderId)
+                .orElseThrow(PurchaseOrderService::notFound);
         if (!purchaseOrder.isRequested()) {
             throw new BusinessException(ErrorCode.CONFLICT, "확정 대기 상태의 발주만 확정할 수 있습니다.");
         }
-        Supplier supplier = supplierRepository.findById(purchaseOrder.getSupplierId())
-                .orElseThrow(() -> new BusinessException(SupplierErrorCode.SUPPLIER_NOT_FOUND));
-        if (!supplier.isActive()) {
-            throw new BusinessException(PurchaseOrderErrorCode.SUPPLIER_INACTIVE);
+
+        List<PurchaseOrderLine> lines =
+                purchaseOrderRepository.findLinesByPurchaseOrderIdForUpdate(purchaseOrderId);
+        Map<Long, Long> overrides = resolveSupplierOverrides(lines, command.lines());
+        Map<Long, Long> supplierByLine = effectiveSuppliers(lines, overrides);
+
+        requireActiveSuppliers(supplierByLine);
+        requireMappedSuppliers(lines, supplierByLine);
+
+        // 공급처 ID 순으로 발주서를 만들어 번호와 연결 순서를 결정적으로 유지한다.
+        Map<Long, List<PurchaseOrderLine>> bySupplier = new TreeMap<>();
+        for (PurchaseOrderLine line : lines) {
+            Long supplierId = supplierByLine.get(line.getPurchaseOrderLineId());
+            if (overrides.containsKey(line.getPurchaseOrderLineId())) {
+                line.assignSupplier(supplierId);
+            }
+            bySupplier.computeIfAbsent(supplierId, id -> new ArrayList<>()).add(line);
         }
+
+        String prefix = SUPPLIER_ORDER_NO_PREFIX + LocalDate.now().format(NO_DATE_FORMAT) + "-";
+        long sequence = supplierOrderRepository.countBySupplierOrderNoPrefix(prefix);
+        List<PurchaseOrderLine> attached = new ArrayList<>(lines.size());
+        for (Map.Entry<Long, List<PurchaseOrderLine>> entry : bySupplier.entrySet()) {
+            sequence++;
+            SupplierOrder supplierOrder = supplierOrderRepository.save(SupplierOrder.issue(
+                    prefix + String.format("%04d", sequence), purchaseOrderId, entry.getKey()));
+            for (PurchaseOrderLine line : entry.getValue()) {
+                line.attachToSupplierOrder(supplierOrder.getSupplierOrderId());
+                attached.add(line);
+            }
+            statusHistoryUseCase.record(InboundHistoryEntityType.SUPPLIER_ORDER.name(),
+                    supplierOrder.getSupplierOrderId(), null, SupplierOrderStatus.ISSUED.name(), null,
+                    command.userId());
+        }
+        purchaseOrderRepository.saveLines(attached);
+
         purchaseOrder.confirm();
         PurchaseOrder saved = purchaseOrderRepository.save(purchaseOrder);
         statusHistoryUseCase.record(InboundHistoryEntityType.PURCHASE_ORDER.name(), purchaseOrderId,
-                PurchaseOrderStatus.REQUESTED.name(), saved.getStatus().name(), null, userId);
+                PurchaseOrderStatus.REQUESTED.name(), saved.getStatus().name(), null, command.userId());
+        return new PurchaseOrderConfirmResult(saved,
+                supplierOrderQueryRepository.findSummariesByPurchaseOrderId(purchaseOrderId));
+    }
+
+    /**
+     * 본사 관리자만 REQUESTED 발주를 반려한다. 소속 창고를 먼저 확인해 다른 창고 사용자에게 상태(409)가 드러나지 않게 하고,
+     * 사유와 처리자는 REJECTED 전이 이력에 남긴다. 반려된 요청은 발주서가 만들어지지 않는다.
+     */
+    @Override
+    @Transactional
+    public PurchaseOrder rejectPurchaseOrder(Long purchaseOrderId, PurchaseOrderRejectCommand command,
+                                             AuthenticatedUser actor) {
+        requireUser(command == null ? null : command.userId());
+        String reason = command.reason();
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "발주를 반려할 때는 사유를 입력해야 합니다.");
+        }
+        if (reason.length() > REASON_MAX_LENGTH) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "반려 사유는 " + REASON_MAX_LENGTH + "자 이하여야 합니다.");
+        }
+        PurchaseOrder purchaseOrder = purchaseOrderRepository.findByIdForUpdate(purchaseOrderId)
+                .orElseThrow(PurchaseOrderService::notFound);
+        actor.requireWarehouseAccess(purchaseOrder.getWarehouseId());
+        if (!actor.isHqAdmin()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        if (!purchaseOrder.isRequested()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "확정 대기 상태의 발주만 반려할 수 있습니다. 현재 상태: " + purchaseOrder.getStatus());
+        }
+        purchaseOrder.reject();
+        PurchaseOrder saved = purchaseOrderRepository.save(purchaseOrder);
+        statusHistoryUseCase.record(InboundHistoryEntityType.PURCHASE_ORDER.name(), purchaseOrderId,
+                PurchaseOrderStatus.REQUESTED.name(), saved.getStatus().name(), reason, command.userId());
         return saved;
     }
 
@@ -199,6 +291,7 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         PurchaseOrder saved = purchaseOrderRepository.save(purchaseOrder);
         statusHistoryUseCase.record(InboundHistoryEntityType.PURCHASE_ORDER.name(), purchaseOrderId,
                 from.name(), saved.getStatus().name(), hasReason ? reason : null, command.userId());
+        cancelSupplierOrders(purchaseOrderId, hasReason ? reason : null, command.userId());
         return saved;
     }
 
@@ -213,6 +306,108 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         if (!allowed) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
+    }
+
+    /** 요청 취소를 공급처 발주서로 전파한다. 발주서는 확정으로만 생기므로 요청(REQUESTED) 취소에는 대상이 없다. */
+    private void cancelSupplierOrders(Long purchaseOrderId, String reason, Long userId) {
+        for (SupplierOrder supplierOrder : supplierOrderRepository.findByPurchaseOrderIdForUpdate(purchaseOrderId)) {
+            if (!supplierOrder.isInProgress()) {
+                continue;
+            }
+            SupplierOrderStatus from = supplierOrder.getStatus();
+            supplierOrder.cancel();
+            SupplierOrder saved = supplierOrderRepository.save(supplierOrder);
+            statusHistoryUseCase.record(InboundHistoryEntityType.SUPPLIER_ORDER.name(),
+                    saved.getSupplierOrderId(), from.name(), saved.getStatus().name(), reason, userId);
+        }
+    }
+
+    /** 요청의 라인별 공급처 지정을 검증한다. 이 발주의 라인이 아니거나 중복이면 400. */
+    private Map<Long, Long> resolveSupplierOverrides(List<PurchaseOrderLine> lines,
+                                                     List<PurchaseOrderConfirmCommand.Line> requested) {
+        Set<Long> lineIds = lines.stream().map(PurchaseOrderLine::getPurchaseOrderLineId).collect(Collectors.toSet());
+        Map<Long, Long> overrides = new HashMap<>();
+        for (PurchaseOrderConfirmCommand.Line line : requested) {
+            if (line.purchaseOrderLineId() == null || line.supplierId() == null) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "발주 항목 ID와 공급처 ID는 필수입니다.");
+            }
+            if (!lineIds.contains(line.purchaseOrderLineId())) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        "이 발주에 속하지 않은 발주 항목입니다. purchaseOrderLineId=" + line.purchaseOrderLineId());
+            }
+            if (overrides.put(line.purchaseOrderLineId(), line.supplierId()) != null) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        "같은 발주 항목의 공급처를 중복해서 지정할 수 없습니다. purchaseOrderLineId="
+                                + line.purchaseOrderLineId());
+            }
+        }
+        return overrides;
+    }
+
+    /** 지정한 값이 있으면 그 값, 없으면 이미 배정된 값. 공급처가 없는 라인이 남으면 400 LINE_SUPPLIER_REQUIRED. */
+    private static Map<Long, Long> effectiveSuppliers(List<PurchaseOrderLine> lines, Map<Long, Long> overrides) {
+        Map<Long, Long> result = new LinkedHashMap<>();
+        for (PurchaseOrderLine line : lines) {
+            Long supplierId = overrides.getOrDefault(line.getPurchaseOrderLineId(), line.getSupplierId());
+            if (supplierId == null) {
+                throw new BusinessException(PurchaseOrderErrorCode.LINE_SUPPLIER_REQUIRED,
+                        "공급처가 지정되지 않은 발주 항목이 있습니다. purchaseOrderLineId="
+                                + line.getPurchaseOrderLineId());
+            }
+            result.put(line.getPurchaseOrderLineId(), supplierId);
+        }
+        return result;
+    }
+
+    /** 지정한 공급처가 존재하고 활성이어야 한다. */
+    private void requireActiveSuppliers(Map<Long, Long> supplierByLine) {
+        for (Long supplierId : new HashSet<>(supplierByLine.values())) {
+            Supplier supplier = supplierRepository.findById(supplierId)
+                    .orElseThrow(() -> new BusinessException(SupplierErrorCode.SUPPLIER_NOT_FOUND));
+            if (!supplier.isActive()) {
+                throw new BusinessException(PurchaseOrderErrorCode.SUPPLIER_INACTIVE,
+                        "비활성 공급처는 지정할 수 없습니다. supplierId=" + supplierId);
+            }
+        }
+    }
+
+    /** 라인의 공급처는 그 SKU에 매핑된 공급처여야 한다. */
+    private void requireMappedSuppliers(List<PurchaseOrderLine> lines, Map<Long, Long> supplierByLine) {
+        Set<Long> skuIds = lines.stream().map(PurchaseOrderLine::getSkuId).collect(Collectors.toSet());
+        Set<String> mapped = skuSupplierRepository.findBySkuIdIn(skuIds).stream()
+                .map(mapping -> mappingKey(mapping.getSkuId(), mapping.getSupplierId()))
+                .collect(Collectors.toSet());
+        for (PurchaseOrderLine line : lines) {
+            Long supplierId = supplierByLine.get(line.getPurchaseOrderLineId());
+            if (!mapped.contains(mappingKey(line.getSkuId(), supplierId))) {
+                throw new BusinessException(PurchaseOrderErrorCode.SKU_SUPPLIER_NOT_MAPPED,
+                        "SKU에 매핑되지 않은 공급처입니다. skuId=" + line.getSkuId() + ", supplierId=" + supplierId);
+            }
+        }
+    }
+
+    private static String mappingKey(Long skuId, Long supplierId) {
+        return skuId + "/" + supplierId;
+    }
+
+    /** 목록 항목에 라인에 배정된 공급처를 한 번의 조회로 채운다. */
+    private List<PurchaseOrderSummary> withSuppliers(List<PurchaseOrderSummary> summaries) {
+        if (summaries.isEmpty()) {
+            return summaries;
+        }
+        Map<Long, List<PurchaseOrderSupplierView>> byOrder = purchaseOrderQueryRepository
+                .findSuppliers(summaries.stream().map(PurchaseOrderSummary::purchaseOrderId).toList())
+                .stream()
+                .collect(Collectors.groupingBy(PurchaseOrderSupplierView::purchaseOrderId));
+        return summaries.stream()
+                .map(summary -> summary.withSuppliers(byOrder.getOrDefault(summary.purchaseOrderId(), List.of())))
+                .toList();
+    }
+
+    private String findReason(Long purchaseOrderId, PurchaseOrderStatus status) {
+        return statusHistoryUseCase
+                .findStatusReason(InboundHistoryEntityType.PURCHASE_ORDER.name(), purchaseOrderId, status.name())
+                .orElse(null);
     }
 
     private static void requireUser(Long userId) {
@@ -255,10 +450,6 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         String prefix = NO_PREFIX + today.format(NO_DATE_FORMAT) + "-";
         long sequence = purchaseOrderRepository.countByPurchaseOrderNoPrefix(prefix) + 1;
         return prefix + String.format("%04d", sequence);
-    }
-
-    private PurchaseOrder findOrThrow(Long purchaseOrderId) {
-        return purchaseOrderRepository.findById(purchaseOrderId).orElseThrow(PurchaseOrderService::notFound);
     }
 
     private static BusinessException notFound() {

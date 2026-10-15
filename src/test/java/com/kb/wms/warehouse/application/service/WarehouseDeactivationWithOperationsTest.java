@@ -149,7 +149,7 @@ class WarehouseDeactivationWithOperationsTest {
 
     private void purchaseOrder(String no, Long warehouseId, PurchaseOrderStatus status) {
         purchaseOrderRepository.save(PurchaseOrder.builder()
-                .purchaseOrderNo(no).warehouseId(warehouseId).supplierId(1L).status(status)
+                .purchaseOrderNo(no).warehouseId(warehouseId).status(status)
                 .expectedAt(NOW.plusDays(3)).createdBy(1L)
                 .build());
     }

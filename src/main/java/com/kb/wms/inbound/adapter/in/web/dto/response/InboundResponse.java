@@ -14,6 +14,8 @@ public record InboundResponse(
         String inboundNo,
         Long purchaseOrderId,
         String purchaseOrderNo,
+        Long supplierOrderId,
+        String supplierOrderNo,
         Long supplierId,
         String supplierName,
         Long warehouseId,
@@ -33,7 +35,7 @@ public record InboundResponse(
     public static InboundResponse from(InboundView view) {
         return new InboundResponse(
                 view.inboundId(), view.inboundNo(), view.purchaseOrderId(), view.purchaseOrderNo(),
-                view.supplierId(), view.supplierName(), view.warehouseId(), view.warehouseName(),
+                view.supplierOrderId(), view.supplierOrderNo(), view.supplierId(), view.supplierName(), view.warehouseId(), view.warehouseName(),
                 view.status(), view.arrivedAt(), view.receivedAt(), view.receivedBy(), view.receivedByName(), view.note(),
                 view.lineCount(), view.createdAt(), view.updatedAt(), view.cancelReason());
     }

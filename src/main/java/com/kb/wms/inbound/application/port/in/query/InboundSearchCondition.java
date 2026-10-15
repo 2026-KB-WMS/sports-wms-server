@@ -17,6 +17,7 @@ public record InboundSearchCondition(
         InboundStatus status,
         Long warehouseId,
         Long purchaseOrderId,
+        Long supplierOrderId,
         String keyword,
         LocalDateTime arrivedFrom,
         LocalDateTime arrivedTo,
@@ -24,8 +25,9 @@ public record InboundSearchCondition(
 ) {
 
     /** 담당 창고·지점 범위 제한 없이 조회하는 조건. 사용자 요청에서는 서비스가 범위를 채워 넘긴다. */
-    public static InboundSearchCondition unscoped(InboundStatus status, Long warehouseId, Long purchaseOrderId, String keyword,
-            LocalDateTime arrivedFrom, LocalDateTime arrivedTo) {
-        return new InboundSearchCondition(status, warehouseId, purchaseOrderId, keyword, arrivedFrom, arrivedTo, null);
+    public static InboundSearchCondition unscoped(InboundStatus status, Long warehouseId, Long purchaseOrderId,
+            Long supplierOrderId, String keyword, LocalDateTime arrivedFrom, LocalDateTime arrivedTo) {
+        return new InboundSearchCondition(status, warehouseId, purchaseOrderId, supplierOrderId, keyword,
+                arrivedFrom, arrivedTo, null);
     }
 }

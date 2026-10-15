@@ -27,7 +27,7 @@
 ## 공급처 발주서 개편 (이슈 #266, [ADR-030](../adr/030-supplier-order-split.md)) — 구현 중
 
 > 개편 후의 **목표 명세**다. 이 문서의 나머지 절(공급처·창고 발주·입고)은 해당 변경이 머지되기 전까지 **현재 구현**을 설명하고, 각 변경이 머지될 때 아래 내용으로 대체한다.
-> 진행: #267·#268(SKU-공급처 매핑, 라인·입고 공급처 컬럼) 머지됨 → #275·#276(공급처 발주서 모델·저장소) → #269(서비스) → #270(웹).
+> 진행: #267·#268(SKU-공급처 매핑, 라인·입고 공급처 컬럼), #275·#276(공급처 발주서 모델·저장소) 머지됨 → #269(서비스, 확정·입고 등록의 요청·응답 형식 포함) → #270(반려·발주서 조회·SKU-공급처 매핑 엔드포인트와 권한).
 
 ### 모델
 
@@ -54,6 +54,7 @@
 - 200. 응답: `purchaseOrderId, purchaseOrderNo, status=CONFIRMED, updatedAt, supplierOrders[]`(`supplierOrderId, supplierOrderNo, supplierId, supplierName, status=ISSUED, lineCount, totalAmount`)
 - 에러: 400 `LINE_SUPPLIER_REQUIRED`(공급처가 없는 라인이 남음), 400(요청의 라인이 이 발주에 없음, 같은 라인 중복), 404 `PURCHASE_ORDER_NOT_FOUND`/`SUPPLIER_NOT_FOUND`, 409 `CONFLICT`(`REQUESTED`가 아님), 409 `SUPPLIER_INACTIVE`, 409 `SKU_SUPPLIER_NOT_MAPPED`(라인의 SKU에 매핑되지 않은 공급처)
 - 규칙: 발주 행을 잠그고 한 트랜잭션에서 라인 공급처 지정, 공급처별 발주서 생성과 라인 연결, 요청 `CONFIRMED` 전이, 상태 이력 기록을 한다. 하나라도 실패하면 아무것도 반영하지 않는다.
+- 구현: 발주서는 공급처 ID 오름차순으로 만들고 번호를 `SO-yyyyMMdd-NNNN`으로 이어 붙인다. 요청 상세의 `supplierOrders[]`도 확정 응답과 같은 필드(`lineCount`, `totalAmount` 포함)를 담는다. 발주서·요청 상태 이력의 엔티티 종류는 `SUPPLIER_ORDER`, `PURCHASE_ORDER`다.
 
 #### PATCH /purchase-orders/{purchaseOrderId}/reject
 

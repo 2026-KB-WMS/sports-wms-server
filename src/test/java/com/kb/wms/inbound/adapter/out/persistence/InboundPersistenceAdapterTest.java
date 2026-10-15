@@ -30,12 +30,14 @@ import com.kb.wms.inbound.application.port.in.result.SectionCandidate;
 import com.kb.wms.inbound.application.port.out.InboundQueryRepository;
 import com.kb.wms.inbound.application.port.out.InboundRepository;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
+import com.kb.wms.inbound.application.port.out.SupplierOrderRepository;
 import com.kb.wms.inbound.application.port.out.SupplierRepository;
 import com.kb.wms.inbound.domain.entity.Inbound;
 import com.kb.wms.inbound.domain.entity.InboundLine;
 import com.kb.wms.inbound.domain.entity.PurchaseOrder;
 import com.kb.wms.inbound.domain.entity.PurchaseOrderLine;
 import com.kb.wms.inbound.domain.entity.Supplier;
+import com.kb.wms.inbound.domain.entity.SupplierOrder;
 import com.kb.wms.inbound.domain.enums.InboundStatus;
 import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
 import com.kb.wms.inventory.application.port.out.LotRepository;
@@ -55,6 +57,7 @@ import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
  * <p>데이터: 창고 2개(서울/부산), 공급처 1곳, SKU 2개(SKU-A, SKU-B), 로트 2개(LOT-A, LOT-B)
  * <ul>
  *   <li>PO1: 서울 / SKU-A 100 + SKU-B 50, PO2: 부산 / SKU-A 10, PO3: 서울 / SKU-B 5 (모두 CONFIRMED)</li>
+ *   <li>SO1: PO1의 공급처 발주서, SO2: PO2의, SO3: PO3의 (모두 같은 공급처, ISSUED). 입고는 요청의 발주서에 연결된다</li>
  *   <li>IB1: PO1 / 서울 / COMPLETED / 이틀 전 도착 / 검수 항목 2줄(SKU-A, SKU-B)</li>
  *   <li>IB2: PO1 / 서울 / INSPECTING / 하루 전 도착 / 검수 항목 1줄</li>
  *   <li>IB3: PO2 / 부산 / ARRIVED / 현재 도착 / 검수 항목 없음</li>
@@ -76,6 +79,7 @@ class InboundPersistenceAdapterTest {
     @Autowired InboundQueryRepository queryRepository;
     @Autowired PurchaseOrderRepository purchaseOrderRepository;
     @Autowired SupplierRepository supplierRepository;
+    @Autowired SupplierOrderRepository supplierOrderRepository;
     @Autowired LotRepository lotRepository;
     @Autowired WarehouseJpaRepository warehouseJpaRepository;
     @Autowired WarehouseSectionJpaRepository warehouseSectionJpaRepository;
@@ -97,6 +101,9 @@ class InboundPersistenceAdapterTest {
     Long po1;
     Long po2;
     Long po3;
+    Long so1;
+    Long so2;
+    Long so3;
     Long po1LineA;
     Long po1LineB;
     Long ib1;
@@ -128,15 +135,18 @@ class InboundPersistenceAdapterTest {
         po1 = order("PO-IBP-0001", seoul);
         po2 = order("PO-IBP-0002", busan);
         po3 = order("PO-IBP-0003", seoul);
-        po1LineA = orderLine(po1, skuA, 100, "1000");
-        po1LineB = orderLine(po1, skuB, 50, "2000");
-        orderLine(po2, skuA, 10, "1000");
-        orderLine(po3, skuB, 5, "2000");
+        so1 = supplierOrder("SO-IBP-0001", po1);
+        so2 = supplierOrder("SO-IBP-0002", po2);
+        so3 = supplierOrder("SO-IBP-0003", po3);
+        po1LineA = orderLine(po1, so1, skuA, 100, "1000");
+        po1LineB = orderLine(po1, so1, skuB, 50, "2000");
+        orderLine(po2, so2, skuA, 10, "1000");
+        orderLine(po3, so3, skuB, 5, "2000");
 
-        ib1 = inbound("IB-IBP-0001", po1, seoul, InboundStatus.COMPLETED, now.minusDays(2), "완료 입고");
-        ib2 = inbound("IB-IBP-0002", po1, seoul, InboundStatus.INSPECTING, now.minusDays(1), null);
-        ib3 = inbound("IB-IBP-0003", po2, busan, InboundStatus.ARRIVED, now, null);
-        ib4 = inbound("IB-IBP-0004", po3, seoul, InboundStatus.CANCELED, now, null);
+        ib1 = inbound("IB-IBP-0001", po1, so1, seoul, InboundStatus.COMPLETED, now.minusDays(2), "완료 입고");
+        ib2 = inbound("IB-IBP-0002", po1, so1, seoul, InboundStatus.INSPECTING, now.minusDays(1), null);
+        ib3 = inbound("IB-IBP-0003", po2, so2, busan, InboundStatus.ARRIVED, now, null);
+        ib4 = inbound("IB-IBP-0004", po3, so3, seoul, InboundStatus.CANCELED, now, null);
 
         inboundRepository.saveLines(List.of(
                 inboundLine(ib1, po1LineA, lotA, rackOk, defectOk, 10, 8, 2, "1000", "단가 인상"),
@@ -154,6 +164,7 @@ class InboundPersistenceAdapterTest {
 
         assertThat(found.getInboundNo()).isEqualTo("IB-IBP-0001");
         assertThat(found.getPurchaseOrderId()).isEqualTo(po1);
+        assertThat(found.getSupplierOrderId()).isEqualTo(so1);
         assertThat(found.getWarehouseId()).isEqualTo(seoul);
         assertThat(found.getStatus()).isEqualTo(InboundStatus.COMPLETED);
         assertThat(found.getReceivedBy()).isEqualTo(7L);
@@ -231,6 +242,19 @@ class InboundPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("공급처 발주서의 진행 중 입고 여부는 ARRIVED·INSPECTING만 true다")
+    void existsInProgressBySupplierOrderId() {
+        assertThat(inboundRepository.existsInProgressBySupplierOrderId(so1)).isTrue();   // COMPLETED + INSPECTING
+        assertThat(inboundRepository.existsInProgressBySupplierOrderId(so2)).isTrue();   // ARRIVED
+        assertThat(inboundRepository.existsInProgressBySupplierOrderId(so3)).isFalse();  // CANCELED만
+
+        Inbound inbound = inboundRepository.findById(ib2).orElseThrow();
+        inbound.complete(7L, now);
+        inboundRepository.save(inbound);
+        assertThat(inboundRepository.existsInProgressBySupplierOrderId(so1)).isFalse();  // COMPLETED만
+    }
+
+    @Test
     @DisplayName("발주의 취소되지 않은 입고 여부는 CANCELED만 있으면 false다")
     void existsNotCanceledByPurchaseOrderId() {
         assertThat(inboundRepository.existsNotCanceledByPurchaseOrderId(po1)).isTrue();
@@ -254,6 +278,8 @@ class InboundPersistenceAdapterTest {
         assertThat(s1.inboundNo()).isEqualTo("IB-IBP-0001");
         assertThat(s1.purchaseOrderId()).isEqualTo(po1);
         assertThat(s1.purchaseOrderNo()).isEqualTo("PO-IBP-0001");
+        assertThat(s1.supplierOrderId()).isEqualTo(so1);
+        assertThat(s1.supplierOrderNo()).isEqualTo("SO-IBP-0001");
         assertThat(s1.supplierId()).isEqualTo(supplier);
         assertThat(s1.supplierName()).isEqualTo("가나 상사");
         assertThat(s1.warehouseId()).isEqualTo(seoul);
@@ -298,13 +324,13 @@ class InboundPersistenceAdapterTest {
     @DisplayName("창고 범위(담당 창고 목록)로 좁히고, 빈 목록이면 비어 있다")
     void search_byWarehouseScope() {
         assertThat(queryRepository.search(new InboundSearchCondition(
-                null, null, null, null, null, null, List.of(seoul))))
+                null, null, null, null, null, null, null, List.of(seoul))))
                 .extracting(InboundSummary::inboundId).containsExactlyInAnyOrder(ib1, ib2, ib4);
         assertThat(queryRepository.search(new InboundSearchCondition(
-                null, null, null, null, null, null, List.of(seoul, busan)))).hasSize(
+                null, null, null, null, null, null, null, List.of(seoul, busan)))).hasSize(
                 queryRepository.search(condition(null, null, null, null, null, null)).size());
         assertThat(queryRepository.search(new InboundSearchCondition(
-                null, null, null, null, null, null, List.of()))).isEmpty();
+                null, null, null, null, null, null, null, List.of()))).isEmpty();
     }
 
     @Test
@@ -315,6 +341,17 @@ class InboundPersistenceAdapterTest {
         assertThat(queryRepository.search(condition(null, null, po1, null, null, null)))
                 .extracting(InboundSummary::inboundId).containsExactlyInAnyOrder(ib1, ib2);
         assertThat(queryRepository.search(condition(null, busan, po1, null, null, null))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("공급처 발주서로 필터링한다")
+    void search_bySupplierOrder() {
+        assertThat(queryRepository.search(InboundSearchCondition.unscoped(
+                null, null, null, so1, null, null, null)))
+                .extracting(InboundSummary::inboundId).containsExactlyInAnyOrder(ib1, ib2);
+        assertThat(queryRepository.search(InboundSearchCondition.unscoped(
+                null, null, null, so2, null, null, null)))
+                .extracting(InboundSummary::inboundId).containsExactly(ib3);
     }
 
     @Test
@@ -347,6 +384,9 @@ class InboundPersistenceAdapterTest {
         assertThat(view.inboundNo()).isEqualTo("IB-IBP-0001");
         assertThat(view.purchaseOrderNo()).isEqualTo("PO-IBP-0001");
         assertThat(view.purchaseOrderStatus()).isEqualTo(PurchaseOrderStatus.CONFIRMED);
+        assertThat(view.supplierOrderId()).isEqualTo(so1);
+        assertThat(view.supplierOrderNo()).isEqualTo("SO-IBP-0001");
+        assertThat(view.supplierId()).isEqualTo(supplier);
         assertThat(view.supplierName()).isEqualTo("가나 상사");
         assertThat(view.warehouseName()).isEqualTo("서울 물류센터");
         assertThat(view.status()).isEqualTo(InboundStatus.COMPLETED);
@@ -357,17 +397,20 @@ class InboundPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("입고에 공급처가 저장돼 있으면 발주 헤더 공급처보다 입고의 공급처를 목록·상세에 보여 준다")
-    void supplier_prefersInboundSupplier() {
+    @DisplayName("같은 요청의 다른 공급처 발주서에 연결된 입고는 그 발주서의 공급처를 목록·상세에 보여 준다")
+    void supplier_followsSupplierOrder() {
         Long other = supplierRepository.save(
                 Supplier.register("SUP-IBP2", "다라 상사", "담당자", "02-1234-5678", "a@b.com", "주소")).getSupplierId();
+        Long otherOrder = supplierOrderRepository.save(
+                SupplierOrder.issue("SO-IBP-0005", po1, other)).getSupplierOrderId();
         Long id = inboundRepository.save(Inbound.builder()
-                .inboundNo("IB-IBP-0005").purchaseOrderId(po1).supplierId(other).warehouseId(seoul)
+                .inboundNo("IB-IBP-0005").purchaseOrderId(po1).supplierOrderId(otherOrder).warehouseId(seoul)
                 .status(InboundStatus.ARRIVED).arrivedAt(now).build()).getInboundId();
 
-        assertThat(inboundRepository.findById(id).orElseThrow().getSupplierId()).isEqualTo(other);
+        assertThat(inboundRepository.findById(id).orElseThrow().getSupplierOrderId()).isEqualTo(otherOrder);
 
         InboundView view = queryRepository.findView(id).orElseThrow();
+        assertThat(view.supplierOrderId()).isEqualTo(otherOrder);
         assertThat(view.supplierId()).isEqualTo(other);
         assertThat(view.supplierName()).isEqualTo("다라 상사");
 
@@ -540,7 +583,7 @@ class InboundPersistenceAdapterTest {
 
     private InboundSearchCondition condition(InboundStatus status, Long warehouseId, Long purchaseOrderId,
                                              String keyword, LocalDateTime from, LocalDateTime to) {
-        return InboundSearchCondition.unscoped(status, warehouseId, purchaseOrderId, keyword, from, to);
+        return InboundSearchCondition.unscoped(status, warehouseId, purchaseOrderId, null, keyword, from, to);
     }
 
     private InboundSummary byId(List<InboundSummary> list, Long id) {
@@ -572,22 +615,28 @@ class InboundPersistenceAdapterTest {
 
     private Long order(String no, Long warehouseId) {
         return purchaseOrderRepository.save(PurchaseOrder.builder()
-                .purchaseOrderNo(no).warehouseId(warehouseId).supplierId(supplier)
+                .purchaseOrderNo(no).warehouseId(warehouseId)
                 .status(PurchaseOrderStatus.CONFIRMED).createdBy(1L)
                 .build()).getPurchaseOrderId();
     }
 
-    private Long orderLine(Long purchaseOrderId, Long skuId, long quantity, String price) {
-        return purchaseOrderRepository.saveLines(List.of(
-                PurchaseOrderLine.register(purchaseOrderId, skuId, quantity, new BigDecimal(price))))
-                .get(0).getPurchaseOrderLineId();
+    private Long supplierOrder(String no, Long purchaseOrderId) {
+        return supplierOrderRepository.save(SupplierOrder.issue(no, purchaseOrderId, supplier)).getSupplierOrderId();
     }
 
-    private Long inbound(String no, Long purchaseOrderId, Long warehouseId, InboundStatus status,
-                         LocalDateTime arrivedAt, String note) {
+    private Long orderLine(Long purchaseOrderId, Long supplierOrderId, Long skuId, long quantity, String price) {
+        PurchaseOrderLine line = PurchaseOrderLine.register(purchaseOrderId, skuId, quantity, new BigDecimal(price));
+        line.assignSupplier(supplier);
+        line.attachToSupplierOrder(supplierOrderId);
+        return purchaseOrderRepository.saveLines(List.of(line)).get(0).getPurchaseOrderLineId();
+    }
+
+    private Long inbound(String no, Long purchaseOrderId, Long supplierOrderId, Long warehouseId,
+                         InboundStatus status, LocalDateTime arrivedAt, String note) {
         boolean completed = status == InboundStatus.COMPLETED;
         return inboundRepository.save(Inbound.builder()
-                .inboundNo(no).purchaseOrderId(purchaseOrderId).warehouseId(warehouseId)
+                .inboundNo(no).purchaseOrderId(purchaseOrderId).supplierOrderId(supplierOrderId)
+                .warehouseId(warehouseId)
                 .status(status).arrivedAt(arrivedAt).note(note)
                 .receivedAt(completed ? arrivedAt.plusHours(1) : null)
                 .receivedBy(completed ? 7L : null)

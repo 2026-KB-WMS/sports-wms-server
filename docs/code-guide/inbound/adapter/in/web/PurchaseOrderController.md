@@ -16,7 +16,7 @@
 | `getPurchaseOrders` | GET `/` | 200 | `status`, `warehouseId`, `supplierId`, `keyword`, `createdFrom`, `createdTo` | `ItemsResponse<PurchaseOrderSummaryResponse>` | 목록 | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `getPurchaseOrder` | GET `/{id}` | 200 | - | `PurchaseOrderResponse` | 헤더 | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `getPurchaseOrderDetails` | GET `/{id}/details` | 200 | - | `PurchaseOrderDetailsResponse` | SKU별 항목 | HQ_ADMIN, WAREHOUSE_MANAGER |
-| `confirmPurchaseOrder` | PATCH `/{id}/confirm` | 200 | - | `PurchaseOrderStatusResponse` | 확정 | **HQ_ADMIN** |
+| `confirmPurchaseOrder` | PATCH `/{id}/confirm` | 200 | - | `PurchaseOrderConfirmResponse` | 확정(선택 바디 `lines[]`로 라인별 공급처 지정, 공급처 발주서 생성) | **HQ_ADMIN** |
 | `cancelPurchaseOrder` | PATCH `/{id}/cancel` | 200 | `PurchaseOrderCancelRequest`(선택) | `PurchaseOrderStatusResponse` | 취소 | HQ_ADMIN, WAREHOUSE_MANAGER |
 
 ## 응답 조립

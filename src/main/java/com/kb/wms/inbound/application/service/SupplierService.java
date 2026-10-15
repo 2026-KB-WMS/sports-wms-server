@@ -12,7 +12,7 @@ import com.kb.wms.inbound.application.port.in.SupplierUseCase;
 import com.kb.wms.inbound.application.port.in.command.SupplierRegisterCommand;
 import com.kb.wms.inbound.application.port.in.command.SupplierUpdateCommand;
 import com.kb.wms.inbound.application.port.in.query.SupplierSearchCondition;
-import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
+import com.kb.wms.inbound.application.port.out.SupplierOrderRepository;
 import com.kb.wms.inbound.application.port.out.SupplierRepository;
 import com.kb.wms.inbound.domain.entity.Supplier;
 import com.kb.wms.inbound.exception.SupplierErrorCode;
@@ -25,7 +25,7 @@ import lombok.RequiredArgsConstructor;
 public class SupplierService implements SupplierUseCase {
 
     private final SupplierRepository supplierRepository;
-    private final PurchaseOrderRepository purchaseOrderRepository;
+    private final SupplierOrderRepository supplierOrderRepository;
 
     @Override
     @Transactional
@@ -108,7 +108,7 @@ public class SupplierService implements SupplierUseCase {
         if (!supplier.isActive()) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 비활성화된 공급처입니다.");
         }
-        if (purchaseOrderRepository.existsInProgressBySupplierId(supplierId)) {
+        if (supplierOrderRepository.existsInProgressBySupplierId(supplierId)) {
             throw new BusinessException(SupplierErrorCode.SUPPLIER_IN_USE);
         }
         supplier.deactivate();

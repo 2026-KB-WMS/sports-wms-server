@@ -15,7 +15,8 @@
 | `saveLines(lines)`, `findLinesByInboundId(id)` | 검수 항목 (ID 오름차순). `inboundId`는 호출 측이 채운다 |
 | `deleteLinesByInboundId(id)` | 검수 호출마다 기존 항목을 통째로 교체하려고 모두 삭제 |
 | `existsByInboundNo`, `countByInboundNoPrefix(prefix)` | 입고 번호 채번 |
-| `existsInProgressByPurchaseOrderId(id)` | 발주에 ARRIVED·INSPECTING 입고가 있는지 (`INBOUND_IN_PROGRESS` 기준) |
+| `existsInProgressBySupplierOrderId(id)` | 공급처 발주서에 ARRIVED·INSPECTING 입고가 있는지 (`INBOUND_IN_PROGRESS` 기준) |
+| `existsInProgressByPurchaseOrderId(id)` | 발주에 ARRIVED·INSPECTING 입고가 있는지 |
 | `existsNotCanceledByPurchaseOrderId(id)` | 발주에 취소되지 않은 입고가 있는지 (`PURCHASE_ORDER_HAS_INBOUND` 기준) |
 
 ### PurchaseOrderRepository
@@ -28,7 +29,7 @@
 | `findByIdForUpdate(id)` | 발주 상태를 기준으로 판단하는 흐름(입고 등록·발주 취소·입고 완료)이 어긋나지 않게 락 |
 | `findLinesByPurchaseOrderIdForUpdate(id)` | 항목 락 조회(ID 오름차순). 입고 완료에서 수량 누적 시 |
 | `existsByPurchaseOrderNo`, `countByPurchaseOrderNoPrefix(prefix)` | 발주 번호 채번 |
-| `existsInProgressBySupplierId(id)` | 공급처에 REQUESTED·CONFIRMED 발주가 있는지 (공급처 비활성화 가드) |
+| `SupplierOrderRepository.existsInProgressBySupplierId(id)` | 공급처에 ISSUED·PARTIALLY_RECEIVED 발주서가 있는지 (공급처 비활성화 가드) |
 
 ### SupplierRepository
 

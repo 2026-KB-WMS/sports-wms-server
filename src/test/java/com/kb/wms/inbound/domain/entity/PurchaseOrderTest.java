@@ -15,7 +15,7 @@ import com.kb.wms.inbound.domain.enums.PurchaseOrderStatus;
 class PurchaseOrderTest {
 
     private PurchaseOrder requested() {
-        return PurchaseOrder.register("PO-20261002-0001", 1L, 3L,
+        return PurchaseOrder.register("PO-20261002-0001", 1L,
                 LocalDateTime.of(2026, 10, 5, 9, 0), "정기 보충 발주", 5L);
     }
 
@@ -55,7 +55,6 @@ class PurchaseOrderTest {
         assertThat(purchaseOrder.getStatus()).isEqualTo(PurchaseOrderStatus.REQUESTED);
         assertThat(purchaseOrder.getPurchaseOrderNo()).isEqualTo("PO-20261002-0001");
         assertThat(purchaseOrder.getWarehouseId()).isEqualTo(1L);
-        assertThat(purchaseOrder.getSupplierId()).isEqualTo(3L);
         assertThat(purchaseOrder.getCreatedBy()).isEqualTo(5L);
         assertThat(purchaseOrder.isRequested()).isTrue();
     }

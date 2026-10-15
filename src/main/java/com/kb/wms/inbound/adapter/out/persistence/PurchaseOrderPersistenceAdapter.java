@@ -91,9 +91,4 @@ public class PurchaseOrderPersistenceAdapter implements PurchaseOrderRepository 
     public boolean existsByPurchaseOrderNo(String purchaseOrderNo) {
         return purchaseOrderJpaRepository.existsByPurchaseOrderNo(purchaseOrderNo);
     }
-
-    @Override
-    public boolean existsInProgressBySupplierId(Long supplierId) {
-        return purchaseOrderJpaRepository.existsInProgressBySupplierId(supplierId);
-    }
 }

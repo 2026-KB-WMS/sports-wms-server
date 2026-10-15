@@ -13,6 +13,7 @@ import lombok.NoArgsConstructor;
  * 창고가 공급업체에 상품을 주문하는 창고 발주 헤더.
  * 상태 전이: REQUESTED → CONFIRMED → COMPLETED, REQUESTED·CONFIRMED → CANCELED, REQUESTED → REJECTED.
  * 발주 항목(PurchaseOrderLine)은 purchaseOrderId로 참조하며 이 객체가 직접 들고 있지 않는다.
+ * 공급처는 헤더가 아니라 항목에 배정되고, 확정 시 공급처별 공급처 발주서(SupplierOrder)가 만들어진다.
  */
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -21,7 +22,6 @@ public class PurchaseOrder {
     private Long purchaseOrderId;
     private String purchaseOrderNo;
     private Long warehouseId;
-    private Long supplierId;
     private PurchaseOrderStatus status;
     private LocalDateTime expectedAt;
     private String note;
@@ -30,13 +30,12 @@ public class PurchaseOrder {
     private LocalDateTime updatedAt;
 
     @Builder
-    private PurchaseOrder(Long purchaseOrderId, String purchaseOrderNo, Long warehouseId, Long supplierId,
+    private PurchaseOrder(Long purchaseOrderId, String purchaseOrderNo, Long warehouseId,
                           PurchaseOrderStatus status, LocalDateTime expectedAt, String note, Long createdBy,
                           LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.purchaseOrderId = purchaseOrderId;
         this.purchaseOrderNo = purchaseOrderNo;
         this.warehouseId = warehouseId;
-        this.supplierId = supplierId;
         this.status = status == null ? PurchaseOrderStatus.REQUESTED : status;
         this.expectedAt = expectedAt;
         this.note = note;
@@ -45,12 +44,11 @@ public class PurchaseOrder {
         this.updatedAt = updatedAt;
     }
 
-    public static PurchaseOrder register(String purchaseOrderNo, Long warehouseId, Long supplierId,
+    public static PurchaseOrder register(String purchaseOrderNo, Long warehouseId,
                                          LocalDateTime expectedAt, String note, Long createdBy) {
         return PurchaseOrder.builder()
                 .purchaseOrderNo(purchaseOrderNo)
                 .warehouseId(warehouseId)
-                .supplierId(supplierId)
                 .expectedAt(expectedAt)
                 .note(note)
                 .createdBy(createdBy)

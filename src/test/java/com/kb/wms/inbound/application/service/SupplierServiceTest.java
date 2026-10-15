@@ -24,7 +24,7 @@ import com.kb.wms.common.security.UserRole;
 import com.kb.wms.inbound.application.port.in.command.SupplierRegisterCommand;
 import com.kb.wms.inbound.application.port.in.command.SupplierUpdateCommand;
 import com.kb.wms.inbound.application.port.in.query.SupplierSearchCondition;
-import com.kb.wms.inbound.application.port.out.PurchaseOrderRepository;
+import com.kb.wms.inbound.application.port.out.SupplierOrderRepository;
 import com.kb.wms.inbound.application.port.out.SupplierRepository;
 import com.kb.wms.inbound.domain.entity.Supplier;
 import com.kb.wms.inbound.exception.SupplierErrorCode;
@@ -38,7 +38,7 @@ class SupplierServiceTest {
     private SupplierRepository supplierRepository;
 
     @Mock
-    private PurchaseOrderRepository purchaseOrderRepository;
+    private SupplierOrderRepository supplierOrderRepository;
 
     @InjectMocks
     private SupplierService supplierService;
@@ -246,11 +246,11 @@ class SupplierServiceTest {
     }
 
     @Test
-    @DisplayName("진행 중인 발주가 있는 공급처를 비활성화하면 SUPPLIER_IN_USE 예외를 던진다")
-    void deactivateSupplier_inProgressPurchaseOrder_throwsInUse() {
+    @DisplayName("진행 중인 공급처 발주서가 있는 공급처를 비활성화하면 SUPPLIER_IN_USE 예외를 던진다")
+    void deactivateSupplier_inProgressSupplierOrder_throwsInUse() {
         Supplier active = newSupplier();
         when(supplierRepository.findById(1L)).thenReturn(Optional.of(active));
-        when(purchaseOrderRepository.existsInProgressBySupplierId(1L)).thenReturn(true);
+        when(supplierOrderRepository.existsInProgressBySupplierId(1L)).thenReturn(true);
 
         assertThatThrownBy(() -> supplierService.deactivateSupplier(1L))
                 .isInstanceOf(BusinessException.class)

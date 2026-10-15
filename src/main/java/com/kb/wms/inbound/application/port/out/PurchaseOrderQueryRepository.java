@@ -1,11 +1,13 @@
 package com.kb.wms.inbound.application.port.out;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 import com.kb.wms.inbound.application.port.in.query.PurchaseOrderSearchCondition;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderLineView;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderSummary;
+import com.kb.wms.inbound.application.port.in.result.PurchaseOrderSupplierView;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderView;
 
 /**
@@ -24,4 +26,7 @@ public interface PurchaseOrderQueryRepository {
 
     /** SKU 코드 오름차순 */
     List<PurchaseOrderLineView> findLineViews(Long purchaseOrderId);
+
+    /** 발주별로 라인에 배정된 공급처(발주 ID, 공급처 ID 오름차순). 배정 전 라인은 건너뛴다. */
+    List<PurchaseOrderSupplierView> findSuppliers(Collection<Long> purchaseOrderIds);
 }
