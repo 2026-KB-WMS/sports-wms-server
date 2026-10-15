@@ -209,6 +209,17 @@ class InboundPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("저장 결과에는 감사 필드(updatedAt)가 채워져 있다 (취소 응답이 이 값을 쓴다)")
+    void save_returnsUpdatedAt() {
+        Inbound inbound = inboundRepository.findById(ib3).orElseThrow();
+        inbound.cancel();
+
+        Inbound saved = inboundRepository.save(inbound);
+
+        assertThat(saved.getUpdatedAt()).isNotNull();
+    }
+
+    @Test
     @DisplayName("입고의 검수 항목을 모두 지운다")
     void deleteLinesByInboundId() {
         inboundRepository.deleteLinesByInboundId(ib1);

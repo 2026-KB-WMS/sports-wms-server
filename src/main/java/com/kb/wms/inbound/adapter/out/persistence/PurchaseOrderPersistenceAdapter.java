@@ -24,7 +24,8 @@ public class PurchaseOrderPersistenceAdapter implements PurchaseOrderRepository 
 
     @Override
     public PurchaseOrder save(PurchaseOrder purchaseOrder) {
-        return purchaseOrderJpaRepository.save(PurchaseOrderJpaEntity.fromDomain(purchaseOrder)).toDomain();
+        // 응답이 저장 결과의 updatedAt을 쓰므로 flush해서 감사 필드(createdAt·updatedAt)가 채워진 값을 돌려준다.
+        return purchaseOrderJpaRepository.saveAndFlush(PurchaseOrderJpaEntity.fromDomain(purchaseOrder)).toDomain();
     }
 
     @Override

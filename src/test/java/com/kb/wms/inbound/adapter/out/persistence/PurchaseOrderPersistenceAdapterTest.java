@@ -129,6 +129,17 @@ class PurchaseOrderPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("저장 결과에는 감사 필드(updatedAt)가 채워져 있다 (상태 응답이 이 값을 쓴다)")
+    void save_returnsUpdatedAt() {
+        PurchaseOrder po = purchaseOrderRepository.findById(po1).orElseThrow();
+        po.confirm();
+
+        PurchaseOrder saved = purchaseOrderRepository.save(po);
+
+        assertThat(saved.getUpdatedAt()).isNotNull();
+    }
+
+    @Test
     @DisplayName("발주 번호 존재 여부와 접두어 개수를 센다")
     void numberQueries() {
         assertThat(purchaseOrderRepository.existsByPurchaseOrderNo("PO-20261001-0001")).isTrue();
