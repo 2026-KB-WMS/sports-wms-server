@@ -357,6 +357,27 @@ class InboundPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("입고에 공급처가 저장돼 있으면 발주 헤더 공급처보다 입고의 공급처를 목록·상세에 보여 준다")
+    void supplier_prefersInboundSupplier() {
+        Long other = supplierRepository.save(
+                Supplier.register("SUP-IBP2", "다라 상사", "담당자", "02-1234-5678", "a@b.com", "주소")).getSupplierId();
+        Long id = inboundRepository.save(Inbound.builder()
+                .inboundNo("IB-IBP-0005").purchaseOrderId(po1).supplierId(other).warehouseId(seoul)
+                .status(InboundStatus.ARRIVED).arrivedAt(now).build()).getInboundId();
+
+        assertThat(inboundRepository.findById(id).orElseThrow().getSupplierId()).isEqualTo(other);
+
+        InboundView view = queryRepository.findView(id).orElseThrow();
+        assertThat(view.supplierId()).isEqualTo(other);
+        assertThat(view.supplierName()).isEqualTo("다라 상사");
+
+        InboundSummary summary = queryRepository.search(condition(null, null, po1, null, null, null)).stream()
+                .filter(s -> s.inboundId().equals(id)).findFirst().orElseThrow();
+        assertThat(summary.supplierId()).isEqualTo(other);
+        assertThat(summary.supplierName()).isEqualTo("다라 상사");
+    }
+
+    @Test
     @DisplayName("검수 항목이 없는 입고의 상세도 조회된다")
     void findView_withoutLines() {
         InboundView view = queryRepository.findView(ib3).orElseThrow();

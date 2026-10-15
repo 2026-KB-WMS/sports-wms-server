@@ -38,7 +38,7 @@ public class PurchaseOrderJpaEntity extends BaseTimeEntity {
     @Column(name = "warehouse_id", nullable = false)
     private Long warehouseId;
 
-    @Column(name = "supplier_id", nullable = false)
+    @Column(name = "supplier_id")
     private Long supplierId;
 
     @Enumerated(EnumType.STRING)

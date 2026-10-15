@@ -85,7 +85,8 @@ class PurchaseOrderControllerTest {
     private static PurchaseOrderLineView lineView() {
         return new PurchaseOrderLineView(
                 11L, 1L, "SKU-0001-RED-G4", "배드민턴 라켓 A 빨강 G4", "EA", 100L, 60L, 40L,
-                BigDecimal.valueOf(60000), BigDecimal.valueOf(6000000), PurchaseOrderLineStatus.PARTIALLY_RECEIVED);
+                BigDecimal.valueOf(60000), BigDecimal.valueOf(6000000), PurchaseOrderLineStatus.PARTIALLY_RECEIVED,
+                3L, "공급처 A");
     }
 
     private static PurchaseOrder purchaseOrder(PurchaseOrderStatus status) {

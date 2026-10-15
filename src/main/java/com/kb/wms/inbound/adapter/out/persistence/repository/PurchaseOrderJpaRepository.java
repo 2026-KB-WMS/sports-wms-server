@@ -27,12 +27,17 @@ public interface PurchaseOrderJpaRepository extends JpaRepository<PurchaseOrderJ
     @Query("select po from PurchaseOrderJpaEntity po where po.purchaseOrderId = :purchaseOrderId")
     Optional<PurchaseOrderJpaEntity> findByIdForUpdate(@Param("purchaseOrderId") Long purchaseOrderId);
 
-    /** 진행 중 발주 = REQUESTED·CONFIRMED */
+    /**
+     * 진행 중 발주 = REQUESTED·CONFIRMED. 공급처는 발주 라인에 배정되므로 라인의 공급처로 판단한다.
+     * 헤더 공급처 컬럼이 남아 있는 동안은 헤더 값도 함께 본다.
+     */
     @Query("""
             select count(po) > 0 from PurchaseOrderJpaEntity po
-            where po.supplierId = :supplierId
-              and po.status in (com.kb.wms.inbound.domain.enums.PurchaseOrderStatus.REQUESTED,
+            where po.status in (com.kb.wms.inbound.domain.enums.PurchaseOrderStatus.REQUESTED,
                                 com.kb.wms.inbound.domain.enums.PurchaseOrderStatus.CONFIRMED)
+              and (po.supplierId = :supplierId
+                   or exists (select 1 from PurchaseOrderLineJpaEntity sl
+                              where sl.purchaseOrderId = po.purchaseOrderId and sl.supplierId = :supplierId))
             """)
     boolean existsInProgressBySupplierId(@Param("supplierId") Long supplierId);
 
@@ -45,13 +50,15 @@ public interface PurchaseOrderJpaRepository extends JpaRepository<PurchaseOrderJ
                 po.status, po.expectedAt, count(l), sum(l.lineAmount), po.createdBy, cu.name, po.createdAt)
             from PurchaseOrderJpaEntity po
             join WarehouseJpaEntity w on w.warehouseId = po.warehouseId
-            join SupplierJpaEntity s on s.supplierId = po.supplierId
+            left join SupplierJpaEntity s on s.supplierId = po.supplierId
             join PurchaseOrderLineJpaEntity l on l.purchaseOrderId = po.purchaseOrderId
             left join UserJpaEntity cu on cu.userId = po.createdBy
             where (:status is null or po.status = :status)
               and (:warehouseId is null or po.warehouseId = :warehouseId)
               and (:scoped = false or po.warehouseId in :warehouseIds)
-              and (:supplierId is null or po.supplierId = :supplierId)
+              and (:supplierId is null or po.supplierId = :supplierId
+                   or exists (select 1 from PurchaseOrderLineJpaEntity sl
+                              where sl.purchaseOrderId = po.purchaseOrderId and sl.supplierId = :supplierId))
               and (:keyword is null or lower(po.purchaseOrderNo) like lower(concat('%', :keyword, '%')))
               and (:createdFrom is null or po.createdAt >= :createdFrom)
               and (:createdTo is null or po.createdAt <= :createdTo)
@@ -75,7 +82,7 @@ public interface PurchaseOrderJpaRepository extends JpaRepository<PurchaseOrderJ
                 po.createdAt, po.updatedAt)
             from PurchaseOrderJpaEntity po
             join WarehouseJpaEntity w on w.warehouseId = po.warehouseId
-            join SupplierJpaEntity s on s.supplierId = po.supplierId
+            left join SupplierJpaEntity s on s.supplierId = po.supplierId
             join PurchaseOrderLineJpaEntity l on l.purchaseOrderId = po.purchaseOrderId
             left join UserJpaEntity cu on cu.userId = po.createdBy
             where po.purchaseOrderId = :purchaseOrderId
