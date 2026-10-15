@@ -41,6 +41,9 @@ public class InboundJpaEntity extends BaseTimeEntity {
     @Column(name = "supplier_id")
     private Long supplierId;
 
+    @Column(name = "supplier_order_id")
+    private Long supplierOrderId;
+
     @Column(name = "warehouse_id", nullable = false)
     private Long warehouseId;
 
@@ -62,12 +65,13 @@ public class InboundJpaEntity extends BaseTimeEntity {
 
     @Builder
     private InboundJpaEntity(Long inboundId, String inboundNo, Long purchaseOrderId, Long supplierId,
-                             Long warehouseId, InboundStatus status, LocalDateTime arrivedAt,
+                             Long supplierOrderId, Long warehouseId, InboundStatus status, LocalDateTime arrivedAt,
                              LocalDateTime receivedAt, Long receivedBy, String note) {
         this.inboundId = inboundId;
         this.inboundNo = inboundNo;
         this.purchaseOrderId = purchaseOrderId;
         this.supplierId = supplierId;
+        this.supplierOrderId = supplierOrderId;
         this.warehouseId = warehouseId;
         this.status = status;
         this.arrivedAt = arrivedAt;
@@ -82,6 +86,7 @@ public class InboundJpaEntity extends BaseTimeEntity {
                 .inboundNo(inbound.getInboundNo())
                 .purchaseOrderId(inbound.getPurchaseOrderId())
                 .supplierId(inbound.getSupplierId())
+                .supplierOrderId(inbound.getSupplierOrderId())
                 .warehouseId(inbound.getWarehouseId())
                 .status(inbound.getStatus())
                 .arrivedAt(inbound.getArrivedAt())
@@ -97,6 +102,7 @@ public class InboundJpaEntity extends BaseTimeEntity {
                 .inboundNo(inboundNo)
                 .purchaseOrderId(purchaseOrderId)
                 .supplierId(supplierId)
+                .supplierOrderId(supplierOrderId)
                 .warehouseId(warehouseId)
                 .status(status)
                 .arrivedAt(arrivedAt)
