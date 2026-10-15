@@ -8,7 +8,7 @@ import com.kb.wms.common.exception.ConstraintErrorCodeProvider;
 import com.kb.wms.common.exception.DomainErrorCode;
 
 /**
- * 상품 도메인 유니크 제약 조건 → 오류 코드 (V2__create_product_tables.sql 기준).
+ * 상품 도메인 유니크 제약 조건 → 오류 코드 (V1__baseline.sql 기준).
  */
 @Component
 public class ProductConstraintErrorCodes implements ConstraintErrorCodeProvider {

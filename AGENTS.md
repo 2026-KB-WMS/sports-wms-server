@@ -5,7 +5,7 @@
 ## 스택 / 실행
 
 - Java 21, Spring Boot (Gradle), 기본 패키지 `com.kb.wms`
-- MySQL + Flyway (`src/main/resources/db/migration/V{n}__{snake_case}.sql`), 테스트는 H2
+- MySQL + Flyway (`src/main/resources/db/migration/V{n}__{snake_case}.sql`), 테스트는 H2. 최종 스키마와 시드는 `V1__baseline.sql`에 통합돼 있고([ADR-031](docs/adr/031-flyway-baseline-squash.md)) 이후 변경은 V2부터 추가한다. 적용된 파일은 수정하지 않는다.
 - 로컬 실행: `docker-compose up` (앱 + MySQL), 설정은 YAML(`application.yml`)
 - 빌드/테스트: `./gradlew build`, `./gradlew test` (Windows는 `gradlew.bat`)
 

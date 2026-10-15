@@ -22,7 +22,7 @@
 
 | 제약 이름 | 오류 코드 | 기준 |
 |---|---|---|
-| uk_users_login_id | DUPLICATE_LOGIN_ID | `V14__create_users_table.sql` |
+| uk_users_login_id | DUPLICATE_LOGIN_ID | `V1__baseline.sql` |
 | uk_users_email | DUPLICATE_EMAIL | 〃 |
 
 ## 공통 코드를 쓰는 경우

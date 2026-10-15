@@ -36,5 +36,5 @@
 
 ## 주의
 
-- `ProductConstraintErrorCodes`에는 `uk_option_value_group_code`(DUPLICATE_OPTION_CODE)가 있지만, `OptionValueJpaEntity`의 `@UniqueConstraint`에는 해당 제약이 선언돼 있지 않다. 이 제약은 `V20__add_option_value_code.sql`에서 `(option_group_id, option_code)`로 추가된다. 엔티티 애노테이션만 보면 빠져 있으니, 제약 목록은 마이그레이션 기준으로 본다.
+- `ProductConstraintErrorCodes`에는 `uk_option_value_group_code`(DUPLICATE_OPTION_CODE)가 있지만, `OptionValueJpaEntity`의 `@UniqueConstraint`에는 해당 제약이 선언돼 있지 않다. 이 제약은 `V1__baseline.sql`에서 `(option_group_id, option_code)`로 추가된다. 엔티티 애노테이션만 보면 빠져 있으니, 제약 목록은 마이그레이션 기준으로 본다.
 - `product_spec`의 유니크는 (상품, 옵션 값)이다. "그룹당 값 하나" 규칙은 DB가 아니라 서비스(`OptionSelectionResolver`)가 보장한다.

@@ -27,7 +27,7 @@
 
 ## WarehouseConstraintErrorCodes
 
-DB 유니크 제약 이름 → 오류 코드 대응표(`V3__create_warehouse_tables.sql` 기준). 동시 요청이 사전 중복 검사를 통과해도 같은 오류 코드로 응답하게 한다.
+DB 유니크 제약 이름 → 오류 코드 대응표(`V1__baseline.sql` 기준). 동시 요청이 사전 중복 검사를 통과해도 같은 오류 코드로 응답하게 한다.
 
 | 제약 이름 | 오류 코드 |
 |---|---|
