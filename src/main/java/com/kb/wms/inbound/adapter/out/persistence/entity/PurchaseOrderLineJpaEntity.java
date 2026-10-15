@@ -42,6 +42,9 @@ public class PurchaseOrderLineJpaEntity extends BaseTimeEntity {
     @Column(name = "supplier_id")
     private Long supplierId;
 
+    @Column(name = "supplier_order_id")
+    private Long supplierOrderId;
+
     @Column(name = "expected_quantity", nullable = false)
     private Long expectedQuantity;
 
@@ -60,12 +63,13 @@ public class PurchaseOrderLineJpaEntity extends BaseTimeEntity {
 
     @Builder
     private PurchaseOrderLineJpaEntity(Long purchaseOrderLineId, Long purchaseOrderId, Long skuId, Long supplierId,
-                                       Long expectedQuantity, Long receivedQuantity, BigDecimal lineAmount,
+                                       Long supplierOrderId, Long expectedQuantity, Long receivedQuantity, BigDecimal lineAmount,
                                        BigDecimal orderedUnitPrice, PurchaseOrderLineStatus status) {
         this.purchaseOrderLineId = purchaseOrderLineId;
         this.purchaseOrderId = purchaseOrderId;
         this.skuId = skuId;
         this.supplierId = supplierId;
+        this.supplierOrderId = supplierOrderId;
         this.expectedQuantity = expectedQuantity;
         this.receivedQuantity = receivedQuantity;
         this.lineAmount = lineAmount;
@@ -79,6 +83,7 @@ public class PurchaseOrderLineJpaEntity extends BaseTimeEntity {
                 .purchaseOrderId(line.getPurchaseOrderId())
                 .skuId(line.getSkuId())
                 .supplierId(line.getSupplierId())
+                .supplierOrderId(line.getSupplierOrderId())
                 .expectedQuantity(line.getExpectedQuantity())
                 .receivedQuantity(line.getReceivedQuantity())
                 .lineAmount(line.getLineAmount())
@@ -93,6 +98,7 @@ public class PurchaseOrderLineJpaEntity extends BaseTimeEntity {
                 .purchaseOrderId(purchaseOrderId)
                 .skuId(skuId)
                 .supplierId(supplierId)
+                .supplierOrderId(supplierOrderId)
                 .expectedQuantity(expectedQuantity)
                 .receivedQuantity(receivedQuantity)
                 .lineAmount(lineAmount)

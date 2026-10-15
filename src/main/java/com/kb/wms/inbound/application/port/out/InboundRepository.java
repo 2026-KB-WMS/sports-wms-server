@@ -34,6 +34,9 @@ public interface InboundRepository {
     /** 발주에 완료되지 않은(ARRIVED·INSPECTING) 입고가 있는지. 새 입고 등록 가능 여부(INBOUND_IN_PROGRESS) 판단 기준이다. */
     boolean existsInProgressByPurchaseOrderId(Long purchaseOrderId);
 
+    /** 공급처 발주서에 완료되지 않은(ARRIVED·INSPECTING) 입고가 있는지. 발주서 단위 새 입고 등록 가능 여부 판단 기준이다. */
+    boolean existsInProgressBySupplierOrderId(Long supplierOrderId);
+
     /** 발주에 취소되지 않은 입고가 있는지. 발주 취소 가능 여부(PURCHASE_ORDER_HAS_INBOUND) 판단 기준이다. */
     boolean existsNotCanceledByPurchaseOrderId(Long purchaseOrderId);
 }

@@ -40,6 +40,14 @@ public interface InboundJpaRepository extends JpaRepository<InboundJpaEntity, Lo
 
     @Query("""
             select count(i) > 0 from InboundJpaEntity i
+            where i.supplierOrderId = :supplierOrderId
+              and i.status in (com.kb.wms.inbound.domain.enums.InboundStatus.ARRIVED,
+                               com.kb.wms.inbound.domain.enums.InboundStatus.INSPECTING)
+            """)
+    boolean existsInProgressBySupplierOrderId(@Param("supplierOrderId") Long supplierOrderId);
+
+    @Query("""
+            select count(i) > 0 from InboundJpaEntity i
             where i.purchaseOrderId = :purchaseOrderId
               and i.status <> com.kb.wms.inbound.domain.enums.InboundStatus.CANCELED
             """)

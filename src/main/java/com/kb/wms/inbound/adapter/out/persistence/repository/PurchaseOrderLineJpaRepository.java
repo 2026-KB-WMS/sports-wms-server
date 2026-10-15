@@ -16,6 +16,16 @@ public interface PurchaseOrderLineJpaRepository extends JpaRepository<PurchaseOr
 
     List<PurchaseOrderLineJpaEntity> findByPurchaseOrderIdOrderByPurchaseOrderLineIdAsc(Long purchaseOrderId);
 
+    List<PurchaseOrderLineJpaEntity> findBySupplierOrderIdOrderByPurchaseOrderLineIdAsc(Long supplierOrderId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select l from PurchaseOrderLineJpaEntity l
+            where l.supplierOrderId = :supplierOrderId
+            order by l.purchaseOrderLineId
+            """)
+    List<PurchaseOrderLineJpaEntity> findBySupplierOrderIdForUpdate(@Param("supplierOrderId") Long supplierOrderId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select l from PurchaseOrderLineJpaEntity l

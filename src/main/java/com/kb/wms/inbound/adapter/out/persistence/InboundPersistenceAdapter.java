@@ -75,6 +75,11 @@ public class InboundPersistenceAdapter implements InboundRepository {
     }
 
     @Override
+    public boolean existsInProgressBySupplierOrderId(Long supplierOrderId) {
+        return inboundJpaRepository.existsInProgressBySupplierOrderId(supplierOrderId);
+    }
+
+    @Override
     public boolean existsNotCanceledByPurchaseOrderId(Long purchaseOrderId) {
         return inboundJpaRepository.existsNotCanceledByPurchaseOrderId(purchaseOrderId);
     }
