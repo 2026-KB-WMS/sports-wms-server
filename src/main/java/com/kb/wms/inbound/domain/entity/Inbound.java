@@ -23,6 +23,7 @@ public class Inbound {
     private String inboundNo;
     private Long purchaseOrderId;
     private Long supplierId;
+    private Long supplierOrderId;
     private Long warehouseId;
     private InboundStatus status;
     private LocalDateTime arrivedAt;
@@ -33,13 +34,14 @@ public class Inbound {
     private LocalDateTime updatedAt;
 
     @Builder
-    private Inbound(Long inboundId, String inboundNo, Long purchaseOrderId, Long supplierId, Long warehouseId,
-                    InboundStatus status, LocalDateTime arrivedAt, LocalDateTime receivedAt, Long receivedBy,
+    private Inbound(Long inboundId, String inboundNo, Long purchaseOrderId, Long supplierId,
+                    Long supplierOrderId, Long warehouseId, InboundStatus status, LocalDateTime arrivedAt, LocalDateTime receivedAt, Long receivedBy,
                     String note, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.inboundId = inboundId;
         this.inboundNo = inboundNo;
         this.purchaseOrderId = purchaseOrderId;
         this.supplierId = supplierId;
+        this.supplierOrderId = supplierOrderId;
         this.warehouseId = warehouseId;
         this.status = status == null ? InboundStatus.ARRIVED : status;
         this.arrivedAt = arrivedAt;

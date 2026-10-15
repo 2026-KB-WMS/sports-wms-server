@@ -24,6 +24,7 @@ public class PurchaseOrderLine {
     private Long purchaseOrderId;
     private Long skuId;
     private Long supplierId;
+    private Long supplierOrderId;
     private Long expectedQuantity;
     private Long receivedQuantity;
     private BigDecimal lineAmount;
@@ -34,13 +35,14 @@ public class PurchaseOrderLine {
 
     @Builder
     private PurchaseOrderLine(Long purchaseOrderLineId, Long purchaseOrderId, Long skuId, Long supplierId,
-                              Long expectedQuantity, Long receivedQuantity, BigDecimal lineAmount,
+                              Long supplierOrderId, Long expectedQuantity, Long receivedQuantity, BigDecimal lineAmount,
                               BigDecimal orderedUnitPrice, PurchaseOrderLineStatus status,
                               LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.purchaseOrderLineId = purchaseOrderLineId;
         this.purchaseOrderId = purchaseOrderId;
         this.skuId = skuId;
         this.supplierId = supplierId;
+        this.supplierOrderId = supplierOrderId;
         this.expectedQuantity = expectedQuantity;
         this.receivedQuantity = receivedQuantity == null ? 0L : receivedQuantity;
         this.lineAmount = lineAmount;
@@ -98,6 +100,23 @@ public class PurchaseOrderLine {
             throw new IllegalStateException("입고가 시작된 발주 항목의 공급처는 바꿀 수 없습니다. 현재 상태: " + this.status);
         }
         this.supplierId = supplierId;
+    }
+
+    /**
+     * 확정 시 공급처 발주서가 만들어지면 라인을 발주서에 연결한다. 공급처가 배정된 라인만 연결할 수 있고 한 번만 연결한다.
+     * 발주서의 공급처와 라인의 공급처가 같은지는 서비스에서 확인한다.
+     */
+    public void attachToSupplierOrder(Long supplierOrderId) {
+        if (supplierOrderId == null) {
+            throw new IllegalArgumentException("공급처 발주서 ID는 필수입니다.");
+        }
+        if (this.supplierId == null) {
+            throw new IllegalStateException("공급처가 배정되지 않은 발주 항목은 공급처 발주서에 연결할 수 없습니다.");
+        }
+        if (this.supplierOrderId != null) {
+            throw new IllegalStateException("이미 공급처 발주서에 연결된 발주 항목입니다.");
+        }
+        this.supplierOrderId = supplierOrderId;
     }
 
     public boolean isCompleted() {

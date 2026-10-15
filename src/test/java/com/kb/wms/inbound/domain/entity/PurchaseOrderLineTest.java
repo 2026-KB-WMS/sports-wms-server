@@ -138,6 +138,34 @@ class PurchaseOrderLineTest {
     }
 
     @Test
+    @DisplayName("공급처가 배정된 항목은 공급처 발주서에 연결할 수 있다")
+    void attachToSupplierOrder_afterAssigningSupplier() {
+        PurchaseOrderLine line = newLine(100);
+        line.assignSupplier(3L);
+
+        line.attachToSupplierOrder(9L);
+
+        assertThat(line.getSupplierOrderId()).isEqualTo(9L);
+    }
+
+    @Test
+    @DisplayName("공급처가 없거나 이미 연결된 항목, 빈 발주서 ID는 연결할 수 없다")
+    void attachToSupplierOrder_guards() {
+        PurchaseOrderLine noSupplier = newLine(100);
+        assertThatThrownBy(() -> noSupplier.attachToSupplierOrder(9L)).isInstanceOf(IllegalStateException.class);
+
+        PurchaseOrderLine attached = newLine(100);
+        attached.assignSupplier(3L);
+        attached.attachToSupplierOrder(9L);
+        assertThatThrownBy(() -> attached.attachToSupplierOrder(10L)).isInstanceOf(IllegalStateException.class);
+        assertThat(attached.getSupplierOrderId()).isEqualTo(9L);
+
+        PurchaseOrderLine nullId = newLine(100);
+        nullId.assignSupplier(3L);
+        assertThatThrownBy(() -> nullId.attachToSupplierOrder(null)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     @DisplayName("이미 전량 입고된 항목에 입고하면 예외가 발생한다")
     void receive_afterCompleted_throws() {
         PurchaseOrderLine line = newLine(100);
