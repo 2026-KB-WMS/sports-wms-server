@@ -71,10 +71,10 @@
 | POST /purchase-orders | WAREHOUSE_MANAGER(담당) |
 | GET /purchase-orders 계열 | HQ_ADMIN, WAREHOUSE_MANAGER(담당) |
 | PATCH /purchase-orders/{id}/confirm | HQ_ADMIN (라인별 공급처 지정, 공급처 발주서 생성) |
-| PATCH /purchase-orders/{id}/reject | HQ_ADMIN만. 창고 관리자 403 (이슈 #266 구현 중) |
-| GET /supplier-orders 계열 | HQ_ADMIN, WAREHOUSE_MANAGER(담당) (이슈 #266 구현 중) |
-| GET /products/skus/{skuId}/suppliers | HQ_ADMIN, WAREHOUSE_MANAGER. 점주 불가 (이슈 #266 구현 중) |
-| POST /products/skus/{skuId}/suppliers, DELETE .../{supplierId} | HQ_ADMIN (이슈 #266 구현 중) |
+| PATCH /purchase-orders/{id}/reject | HQ_ADMIN만. 창고 관리자 403 |
+| GET /supplier-orders 계열 | HQ_ADMIN, WAREHOUSE_MANAGER(담당) |
+| GET /products/skus/{skuId}/suppliers | HQ_ADMIN, WAREHOUSE_MANAGER. 점주 불가(`/products/**` 읽기 허용 규칙보다 먼저 매칭) |
+| POST /products/skus/{skuId}/suppliers, DELETE .../{supplierId} | HQ_ADMIN |
 | PATCH /purchase-orders/{id}/cancel | REQUESTED: 작성자 WAREHOUSE_MANAGER만 (본사 포함 타인 403) / CONFIRMED: HQ_ADMIN만 |
 | POST /inbounds, PATCH /inbounds/{id}/inspect, /complete, /cancel | WAREHOUSE_MANAGER(담당). HQ_ADMIN 불가 |
 | GET /inbounds 계열 | HQ_ADMIN, WAREHOUSE_MANAGER(담당) |

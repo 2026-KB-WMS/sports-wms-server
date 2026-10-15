@@ -28,9 +28,9 @@
 PurchaseOrderLine: `REQUESTED` → `PARTIALLY_RECEIVED`(received < expected) → `COMPLETED`(전량).
 Inbound 완료 시점마다 InboundLine의 `accepted_quantity`/`defective_quantity` 합산으로 갱신한다. 한 발주에 부분 입고가 여러 번 걸칠 수 있다.
 
-## 공급처 발주서 개편 (이슈 #266, [ADR-030](../adr/030-supplier-order-split.md)) — 구현 중
+## 공급처 발주서 개편 (이슈 #266, [ADR-030](../adr/030-supplier-order-split.md)) — 구현 완료
 
-> 개편 후의 목표 상태다. 위 표와 설명은 각 변경이 머지되기 전까지 현재 구현이고, 머지될 때 이 절로 대체한다.
+> 이 절이 현재 기준이다. 위 표의 발주 상태 설명 중 헤더 공급처·단일 발주 단위 입고에 관한 부분은 이 절이 대체한다.
 
 창고 관리자의 **발주 요청**(PurchaseOrder)은 여러 공급처를 담을 수 있고, 본사가 공급처에 내는 **공급처 발주서**(SupplierOrder)는 공급처당 한 건이다. 확정 시 발주서가 만들어진다.
 

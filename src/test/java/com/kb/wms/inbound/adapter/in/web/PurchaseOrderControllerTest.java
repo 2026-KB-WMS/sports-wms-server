@@ -35,6 +35,7 @@ import com.kb.wms.inbound.application.port.in.PurchaseOrderUseCase;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderCancelCommand;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderConfirmCommand;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderRegisterCommand;
+import com.kb.wms.inbound.application.port.in.command.PurchaseOrderRejectCommand;
 import com.kb.wms.inbound.application.port.in.query.PurchaseOrderSearchCondition;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderDetails;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderLineView;
@@ -654,6 +655,64 @@ class PurchaseOrderControllerTest {
 
         mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/cancel", 999L)
                         )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("PURCHASE_ORDER_NOT_FOUND"));
+    }
+
+    // ---------- 반려 ----------
+
+    @Test
+    @DisplayName("사유와 함께 반려하면 200과 REJECTED 상태·rejectReason을 반환하고 사유를 커맨드로 전달한다")
+    void reject_success() throws Exception {
+        when(purchaseOrderUseCase.rejectPurchaseOrder(eq(4L), any(PurchaseOrderRejectCommand.class), any()))
+                .thenReturn(purchaseOrder(PurchaseOrderStatus.REJECTED));
+
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/reject", 4L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "reason": "수량이 과다함" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.purchaseOrderId").value(4))
+                .andExpect(jsonPath("$.data.purchaseOrderNo").value("PO-20261002-0001"))
+                .andExpect(jsonPath("$.data.status").value("REJECTED"))
+                .andExpect(jsonPath("$.data.rejectReason").value("수량이 과다함"))
+                .andExpect(jsonPath("$.data.updatedAt").exists());
+
+        ArgumentCaptor<PurchaseOrderRejectCommand> captor = ArgumentCaptor.forClass(PurchaseOrderRejectCommand.class);
+        verify(purchaseOrderUseCase).rejectPurchaseOrder(eq(4L), captor.capture(), any());
+        assertThat(captor.getValue().reason()).isEqualTo("수량이 과다함");
+        assertThat(captor.getValue().userId()).isEqualTo(5L);
+    }
+
+    @Test
+    @DisplayName("반려 사유가 없거나 공백이거나 500자를 넘으면 400 VALIDATION_ERROR이고 서비스를 호출하지 않는다")
+    void reject_validation() throws Exception {
+        for (String body : List.of("{}", "{ \"reason\": \"  \" }",
+                "{ \"reason\": \"" + "가".repeat(501) + "\" }")) {
+            mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/reject", 4L)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        }
+        verifyNoInteractions(purchaseOrderUseCase);
+    }
+
+    @Test
+    @DisplayName("요청 상태가 아닌 발주를 반려하면 409 CONFLICT, 없는 발주는 404를 반환한다")
+    void reject_conflictAndNotFound() throws Exception {
+        when(purchaseOrderUseCase.rejectPurchaseOrder(eq(4L), any(PurchaseOrderRejectCommand.class), any()))
+                .thenThrow(new BusinessException(ErrorCode.CONFLICT, "확정 대기 상태의 발주만 반려할 수 있습니다."));
+        when(purchaseOrderUseCase.rejectPurchaseOrder(eq(999L), any(PurchaseOrderRejectCommand.class), any()))
+                .thenThrow(new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND));
+
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/reject", 4L)
+                        .contentType(MediaType.APPLICATION_JSON).content("{ \"reason\": \"사유\" }"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("CONFLICT"));
+        mockMvc.perform(patch("/api/v1/purchase-orders/{purchaseOrderId}/reject", 999L)
+                        .contentType(MediaType.APPLICATION_JSON).content("{ \"reason\": \"사유\" }"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("PURCHASE_ORDER_NOT_FOUND"));
     }
