@@ -27,10 +27,11 @@ class InboundTest {
     void register_startsArrived() {
         LocalDateTime arrivedAt = LocalDateTime.of(2026, 10, 2, 9, 0);
 
-        Inbound inbound = Inbound.register("IB-20261002-0001", 4L, 1L, arrivedAt, "비고");
+        Inbound inbound = Inbound.register("IB-20261002-0001", 4L, 9L, 1L, arrivedAt, "비고");
 
         assertThat(inbound.getStatus()).isEqualTo(InboundStatus.ARRIVED);
         assertThat(inbound.getPurchaseOrderId()).isEqualTo(4L);
+        assertThat(inbound.getSupplierOrderId()).isEqualTo(9L);
         assertThat(inbound.getWarehouseId()).isEqualTo(1L);
         assertThat(inbound.getArrivedAt()).isEqualTo(arrivedAt);
         assertThat(inbound.getReceivedAt()).isNull();

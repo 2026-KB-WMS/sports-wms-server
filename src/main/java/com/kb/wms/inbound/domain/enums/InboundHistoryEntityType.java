@@ -6,5 +6,6 @@ package com.kb.wms.inbound.domain.enums;
  */
 public enum InboundHistoryEntityType {
     PURCHASE_ORDER,
+    SUPPLIER_ORDER,
     INBOUND
 }

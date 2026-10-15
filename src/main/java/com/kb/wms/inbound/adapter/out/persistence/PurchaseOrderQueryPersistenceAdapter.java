@@ -1,5 +1,6 @@
 package com.kb.wms.inbound.adapter.out.persistence;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -11,6 +12,7 @@ import com.kb.wms.inbound.adapter.out.persistence.repository.PurchaseOrderLineJp
 import com.kb.wms.inbound.application.port.in.query.PurchaseOrderSearchCondition;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderLineView;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderSummary;
+import com.kb.wms.inbound.application.port.in.result.PurchaseOrderSupplierView;
 import com.kb.wms.inbound.application.port.in.result.PurchaseOrderView;
 import com.kb.wms.inbound.application.port.out.PurchaseOrderQueryRepository;
 
@@ -47,5 +49,12 @@ public class PurchaseOrderQueryPersistenceAdapter implements PurchaseOrderQueryR
     @Override
     public List<PurchaseOrderLineView> findLineViews(Long purchaseOrderId) {
         return purchaseOrderLineJpaRepository.findLineViews(purchaseOrderId);
+    }
+
+    @Override
+    public List<PurchaseOrderSupplierView> findSuppliers(Collection<Long> purchaseOrderIds) {
+        return purchaseOrderIds.isEmpty()
+                ? List.of()
+                : purchaseOrderLineJpaRepository.findSuppliers(purchaseOrderIds);
     }
 }

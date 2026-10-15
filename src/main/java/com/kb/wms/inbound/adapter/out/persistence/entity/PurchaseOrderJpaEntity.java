@@ -38,9 +38,6 @@ public class PurchaseOrderJpaEntity extends BaseTimeEntity {
     @Column(name = "warehouse_id", nullable = false)
     private Long warehouseId;
 
-    @Column(name = "supplier_id")
-    private Long supplierId;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private PurchaseOrderStatus status;
@@ -55,13 +52,12 @@ public class PurchaseOrderJpaEntity extends BaseTimeEntity {
     private Long createdBy;
 
     @Builder
-    private PurchaseOrderJpaEntity(Long purchaseOrderId, String purchaseOrderNo, Long warehouseId, Long supplierId,
+    private PurchaseOrderJpaEntity(Long purchaseOrderId, String purchaseOrderNo, Long warehouseId,
                                    PurchaseOrderStatus status, LocalDateTime expectedAt, String note,
                                    Long createdBy) {
         this.purchaseOrderId = purchaseOrderId;
         this.purchaseOrderNo = purchaseOrderNo;
         this.warehouseId = warehouseId;
-        this.supplierId = supplierId;
         this.status = status;
         this.expectedAt = expectedAt;
         this.note = note;
@@ -73,7 +69,6 @@ public class PurchaseOrderJpaEntity extends BaseTimeEntity {
                 .purchaseOrderId(purchaseOrder.getPurchaseOrderId())
                 .purchaseOrderNo(purchaseOrder.getPurchaseOrderNo())
                 .warehouseId(purchaseOrder.getWarehouseId())
-                .supplierId(purchaseOrder.getSupplierId())
                 .status(purchaseOrder.getStatus())
                 .expectedAt(purchaseOrder.getExpectedAt())
                 .note(purchaseOrder.getNote())
@@ -86,7 +81,6 @@ public class PurchaseOrderJpaEntity extends BaseTimeEntity {
                 .purchaseOrderId(purchaseOrderId)
                 .purchaseOrderNo(purchaseOrderNo)
                 .warehouseId(warehouseId)
-                .supplierId(supplierId)
                 .status(status)
                 .expectedAt(expectedAt)
                 .note(note)

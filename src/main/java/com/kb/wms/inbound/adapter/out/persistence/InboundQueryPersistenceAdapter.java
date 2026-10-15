@@ -35,7 +35,7 @@ public class InboundQueryPersistenceAdapter implements InboundQueryRepository {
     @Override
     public List<InboundSummary> search(InboundSearchCondition condition) {
         return inboundJpaRepository.search(
-                condition.status(), condition.warehouseId(), condition.purchaseOrderId(),
+                condition.status(), condition.warehouseId(), condition.purchaseOrderId(), condition.supplierOrderId(),
                 SearchKeyword.normalize(condition.keyword()),
                 condition.arrivedFrom(), condition.arrivedTo(),
                 condition.warehouseIds() != null, scopeIds(condition.warehouseIds()));

@@ -10,9 +10,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 발주에 대한 실제 입고(도착) 처리를 기록하는 입고 헤더.
+ * 공급처 발주서에 대한 실제 입고(도착) 처리를 기록하는 입고 헤더.
  * 상태 전이: ARRIVED → INSPECTING → COMPLETED, ARRIVED·INSPECTING → CANCELED.
- * 하나의 발주에 부분 입고가 여러 번 걸칠 수 있어 같은 발주에 입고를 여러 건 둘 수 있다.
+ * 하나의 발주서에 부분 입고가 여러 번 걸칠 수 있어 같은 발주서에 입고를 여러 건 둘 수 있다(진행 중 입고는 한 건).
  * 검수 항목(InboundLine)은 inboundId로 참조하며 이 객체가 직접 들고 있지 않는다.
  */
 @Getter
@@ -22,7 +22,6 @@ public class Inbound {
     private Long inboundId;
     private String inboundNo;
     private Long purchaseOrderId;
-    private Long supplierId;
     private Long supplierOrderId;
     private Long warehouseId;
     private InboundStatus status;
@@ -34,13 +33,12 @@ public class Inbound {
     private LocalDateTime updatedAt;
 
     @Builder
-    private Inbound(Long inboundId, String inboundNo, Long purchaseOrderId, Long supplierId,
+    private Inbound(Long inboundId, String inboundNo, Long purchaseOrderId,
                     Long supplierOrderId, Long warehouseId, InboundStatus status, LocalDateTime arrivedAt, LocalDateTime receivedAt, Long receivedBy,
                     String note, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.inboundId = inboundId;
         this.inboundNo = inboundNo;
         this.purchaseOrderId = purchaseOrderId;
-        this.supplierId = supplierId;
         this.supplierOrderId = supplierOrderId;
         this.warehouseId = warehouseId;
         this.status = status == null ? InboundStatus.ARRIVED : status;
@@ -52,12 +50,19 @@ public class Inbound {
         this.updatedAt = updatedAt;
     }
 
-    /** 도착 등록. 입고 대상 창고는 발주의 창고를 따르며, 도착 일시가 없으면 호출 측이 현재 시각을 채워 넘긴다. */
-    public static Inbound register(String inboundNo, Long purchaseOrderId, Long warehouseId,
+    /**
+     * 도착 등록. 입고는 공급처 발주서 한 건에 연결되고, 입고 대상 창고는 발주서가 속한 요청의 창고를 따른다.
+     * 도착 일시가 없으면 호출 측이 현재 시각을 채워 넘긴다.
+     */
+    public static Inbound register(String inboundNo, Long purchaseOrderId, Long supplierOrderId, Long warehouseId,
                                    LocalDateTime arrivedAt, String note) {
+        if (supplierOrderId == null) {
+            throw new IllegalArgumentException("공급처 발주서 ID는 필수입니다.");
+        }
         return Inbound.builder()
                 .inboundNo(inboundNo)
                 .purchaseOrderId(purchaseOrderId)
+                .supplierOrderId(supplierOrderId)
                 .warehouseId(warehouseId)
                 .arrivedAt(arrivedAt)
                 .note(note)
