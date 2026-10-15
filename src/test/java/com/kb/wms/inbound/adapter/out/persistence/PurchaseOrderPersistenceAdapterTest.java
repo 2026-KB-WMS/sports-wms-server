@@ -329,6 +329,65 @@ class PurchaseOrderPersistenceAdapterTest {
         assertThat(viewB.status()).isEqualTo(PurchaseOrderLineStatus.COMPLETED);
     }
 
+    // ---------- line supplier ----------
+
+    @Test
+    @DisplayName("라인에 배정한 공급처를 저장하고, 항목 뷰에 공급처명을 담는다. 배정 전 라인은 null이다")
+    void lineSupplier_roundTrip() {
+        List<PurchaseOrderLine> lines = purchaseOrderRepository.findLinesByPurchaseOrderId(po1);
+        assertThat(lines).allSatisfy(l -> assertThat(l.getSupplierId()).isNull());
+        PurchaseOrderLine a = lines.stream().filter(l -> l.getSkuId().equals(skuA)).findFirst().orElseThrow();
+        a.assignSupplier(supplier2);
+        purchaseOrderRepository.saveLines(List.of(a));
+        entityManager.flush();
+        entityManager.clear();
+
+        List<PurchaseOrderLineView> views = queryRepository.findLineViews(po1);
+
+        PurchaseOrderLineView viewA = views.get(0);
+        assertThat(viewA.skuCode()).isEqualTo("SKU-A");
+        assertThat(viewA.supplierId()).isEqualTo(supplier2);
+        assertThat(viewA.supplierName()).isEqualTo("다라 상사");
+        PurchaseOrderLineView viewB = views.get(1);
+        assertThat(viewB.supplierId()).isNull();
+        assertThat(viewB.supplierName()).isNull();
+    }
+
+    @Test
+    @DisplayName("헤더 공급처가 없는 발주도 목록·상세에 나오고, 라인 공급처로 필터링·사용 여부 확인이 된다")
+    void headerWithoutSupplier_usesLineSupplier() {
+        Long supplier5 = supplier("SUP-005", "차카 상사");
+        Long id = purchaseOrderRepository.save(PurchaseOrder.builder()
+                .purchaseOrderNo("PO-20261003-0001").warehouseId(seoul)
+                .status(PurchaseOrderStatus.REQUESTED).createdBy(1L).build()).getPurchaseOrderId();
+        PurchaseOrderLine line = line(id, skuA, 10, "1000");
+        line.assignSupplier(supplier5);
+        purchaseOrderRepository.saveLines(List.of(line));
+
+        PurchaseOrderSummary summary = byId(queryRepository.search(condition(null, null, null, null, null, null)), id);
+        assertThat(summary.supplierId()).isNull();
+        assertThat(summary.supplierName()).isNull();
+        assertThat(queryRepository.findView(id)).isPresent();
+
+        assertThat(queryRepository.search(condition(null, null, supplier5, null, null, null)))
+                .extracting(PurchaseOrderSummary::purchaseOrderId).containsExactly(id);
+        assertThat(purchaseOrderRepository.existsInProgressBySupplierId(supplier5)).isTrue();
+    }
+
+    @Test
+    @DisplayName("라인 공급처가 있어도 종료된 발주면 진행 중이 아니다")
+    void lineSupplier_finishedOrderIsNotInProgress() {
+        Long supplier5 = supplier("SUP-005", "차카 상사");
+        Long id = purchaseOrderRepository.save(PurchaseOrder.builder()
+                .purchaseOrderNo("PO-20261003-0002").warehouseId(seoul)
+                .status(PurchaseOrderStatus.REJECTED).createdBy(1L).build()).getPurchaseOrderId();
+        PurchaseOrderLine line = line(id, skuA, 10, "1000");
+        line.assignSupplier(supplier5);
+        purchaseOrderRepository.saveLines(List.of(line));
+
+        assertThat(purchaseOrderRepository.existsInProgressBySupplierId(supplier5)).isFalse();
+    }
+
     // ---------- fixtures ----------
 
     private PurchaseOrderSearchCondition condition(PurchaseOrderStatus status, Long warehouseId, Long supplierId,

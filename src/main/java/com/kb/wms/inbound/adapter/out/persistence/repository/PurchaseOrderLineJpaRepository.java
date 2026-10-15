@@ -30,9 +30,10 @@ public interface PurchaseOrderLineJpaRepository extends JpaRepository<PurchaseOr
                 l.expectedQuantity, l.receivedQuantity,
                 case when l.expectedQuantity > l.receivedQuantity
                      then l.expectedQuantity - l.receivedQuantity else 0L end,
-                l.orderedUnitPrice, l.lineAmount, l.status)
+                l.orderedUnitPrice, l.lineAmount, l.status, l.supplierId, sup.name)
             from PurchaseOrderLineJpaEntity l
             join ProductSkuJpaEntity s on s.skuId = l.skuId
+            left join SupplierJpaEntity sup on sup.supplierId = l.supplierId
             where l.purchaseOrderId = :purchaseOrderId
             order by s.skuCode, l.purchaseOrderLineId
             """)

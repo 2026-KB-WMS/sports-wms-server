@@ -580,7 +580,8 @@ class PurchaseOrderServiceTest {
                 null, null, 1L, BigDecimal.valueOf(6000000), 5L, null, null, null);
         PurchaseOrderLineView lineView = new PurchaseOrderLineView(
                 11L, 1L, "SKU-0001", "배드민턴 라켓", "EA", 100L, 60L, 40L,
-                BigDecimal.valueOf(60000), BigDecimal.valueOf(6000000), PurchaseOrderLineStatus.PARTIALLY_RECEIVED);
+                BigDecimal.valueOf(60000), BigDecimal.valueOf(6000000), PurchaseOrderLineStatus.PARTIALLY_RECEIVED,
+                3L, "공급처 A");
         when(purchaseOrderQueryRepository.findView(4L)).thenReturn(Optional.of(view));
         when(purchaseOrderQueryRepository.findLineViews(4L)).thenReturn(List.of(lineView));
 
