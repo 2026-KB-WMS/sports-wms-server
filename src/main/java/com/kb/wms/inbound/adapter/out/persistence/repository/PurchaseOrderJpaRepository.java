@@ -5,6 +5,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -31,7 +33,7 @@ public interface PurchaseOrderJpaRepository extends JpaRepository<PurchaseOrderJ
      * 발주는 항목이 1개 이상이므로 항목과 inner join해 항목 수·금액 합계를 집계한다.
      * 공급처는 항목에 배정되므로 공급처 필터는 항목의 공급처로 판단한다.
      */
-    @Query("""
+    @Query(value = """
             select new com.kb.wms.inbound.application.port.in.result.PurchaseOrderSummary(
                 po.purchaseOrderId, po.purchaseOrderNo, po.warehouseId, w.name,
                 po.status, po.expectedAt, count(l), sum(l.lineAmount), po.createdBy, cu.name, po.createdAt)
@@ -50,16 +52,31 @@ public interface PurchaseOrderJpaRepository extends JpaRepository<PurchaseOrderJ
               and (:createdTo is null or po.createdAt <= :createdTo)
             group by po.purchaseOrderId, po.purchaseOrderNo, po.warehouseId, w.name,
                      po.status, po.expectedAt, po.createdBy, cu.name, po.createdAt
-            order by po.createdAt desc, po.purchaseOrderId desc
+            """,
+            countQuery = """
+            select count(distinct po.purchaseOrderId)
+            from PurchaseOrderJpaEntity po
+            join WarehouseJpaEntity w on w.warehouseId = po.warehouseId
+            join PurchaseOrderLineJpaEntity l on l.purchaseOrderId = po.purchaseOrderId
+            where (:status is null or po.status = :status)
+              and (:warehouseId is null or po.warehouseId = :warehouseId)
+              and (:scoped = false or po.warehouseId in :warehouseIds)
+              and (:supplierId is null
+                   or exists (select 1 from PurchaseOrderLineJpaEntity sl
+                              where sl.purchaseOrderId = po.purchaseOrderId and sl.supplierId = :supplierId))
+              and (:keyword is null or lower(po.purchaseOrderNo) like lower(concat('%', :keyword, '%')))
+              and (:createdFrom is null or po.createdAt >= :createdFrom)
+              and (:createdTo is null or po.createdAt <= :createdTo)
             """)
-    List<PurchaseOrderSummary> search(@Param("status") PurchaseOrderStatus status,
+    Page<PurchaseOrderSummary> search(@Param("status") PurchaseOrderStatus status,
                                       @Param("warehouseId") Long warehouseId,
                                       @Param("supplierId") Long supplierId,
                                       @Param("keyword") String keyword,
                                       @Param("createdFrom") LocalDateTime createdFrom,
                                       @Param("createdTo") LocalDateTime createdTo,
                                       @Param("scoped") boolean scoped,
-                                      @Param("warehouseIds") Collection<Long> warehouseIds);
+                                      @Param("warehouseIds") Collection<Long> warehouseIds,
+                                      Pageable pageable);
 
     @Query("""
             select new com.kb.wms.inbound.application.port.in.result.PurchaseOrderView(

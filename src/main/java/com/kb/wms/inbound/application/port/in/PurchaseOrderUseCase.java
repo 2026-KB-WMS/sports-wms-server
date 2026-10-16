@@ -2,6 +2,8 @@ package com.kb.wms.inbound.application.port.in;
 
 import java.util.List;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderCancelCommand;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderConfirmCommand;
@@ -24,7 +26,8 @@ public interface PurchaseOrderUseCase {
     /** 발주와 발주 항목을 한 트랜잭션으로 등록하고 발주 ID를 반환한다. 응답 조립은 조회 유스케이스로 한다. */
     Long registerPurchaseOrder(PurchaseOrderRegisterCommand command, AuthenticatedUser actor);
 
-    List<PurchaseOrderSummary> getPurchaseOrders(PurchaseOrderSearchCondition condition, AuthenticatedUser actor);
+    PageResult<PurchaseOrderSummary> getPurchaseOrders(PurchaseOrderSearchCondition condition, PageCondition page,
+                                                       AuthenticatedUser actor);
 
     PurchaseOrderView getPurchaseOrder(Long purchaseOrderId, AuthenticatedUser actor);
 
