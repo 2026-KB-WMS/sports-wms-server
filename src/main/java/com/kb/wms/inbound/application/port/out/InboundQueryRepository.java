@@ -3,6 +3,8 @@ package com.kb.wms.inbound.application.port.out;
 import java.util.List;
 import java.util.Optional;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.inbound.application.port.in.query.InboundSearchCondition;
 import com.kb.wms.inbound.application.port.in.query.SectionCandidateCondition;
 import com.kb.wms.inbound.application.port.in.result.InboundLineView;
@@ -15,8 +17,8 @@ import com.kb.wms.inbound.application.port.in.result.SectionCandidate;
  */
 public interface InboundQueryRepository {
 
-    /** 도착 일시 최신순(같으면 입고 ID 내림차순)으로 정렬한다. 검수 항목이 없는 입고도 포함한다. */
-    List<InboundSummary> search(InboundSearchCondition condition);
+    /** 페이지 조건의 정렬로 한 페이지를 돌려준다. 검수 항목이 없는 입고도 포함한다. */
+    PageResult<InboundSummary> search(InboundSearchCondition condition, PageCondition page);
 
     Optional<InboundView> findView(Long inboundId);
 

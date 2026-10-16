@@ -1,5 +1,9 @@
 package com.kb.wms.inbound.adapter.out.persistence;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
 import com.kb.wms.common.security.UserRole;
@@ -69,6 +73,64 @@ import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 @Transactional
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class InboundPersistenceAdapterTest {
+
+    private static final PageCondition PAGE = TestPages.firstPage(
+            TestPages.order("i.arrivedAt", SortDirection.DESC),
+            TestPages.order("i.inboundId", SortDirection.DESC));
+
+    @Test
+    @DisplayName("페이지 크기만큼 자르고 전체 건수는 입고 건수로 센다 (검수 항목이 여러 개여도 1건)")
+    void search_paging() {
+        InboundSearchCondition all = condition(null, null, null, null, null, null);
+
+        PageResult<InboundSummary> first = queryRepository.search(all, new PageCondition(1, 3, PAGE.orders()));
+        PageResult<InboundSummary> second = queryRepository.search(all, new PageCondition(2, 3, PAGE.orders()));
+
+        assertThat(first.items()).extracting(InboundSummary::inboundId).containsExactly(ib4, ib3, ib2);
+        assertThat(second.items()).extracting(InboundSummary::inboundId).containsExactly(ib1);
+        assertThat(first.totalElements()).isEqualTo(4);
+        assertThat(first.totalPages()).isEqualTo(2);
+        assertThat(first.sort()).isEqualTo("i.arrivedAt,desc");
+    }
+
+    @Test
+    @DisplayName("전체 건수는 필터가 적용된 입고 건수다")
+    void search_pagingCountFollowsFilter() {
+        PageResult<InboundSummary> result = queryRepository.search(
+                condition(null, seoul, null, null, null, null), new PageCondition(1, 2, PAGE.orders()));
+
+        // 서울 입고는 IB1·IB2·IB4 세 건
+        assertThat(result.items()).hasSize(2);
+        assertThat(result.totalElements()).isEqualTo(3);
+        assertThat(result.totalPages()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("조인한 창고명이나 입고 번호로 정렬하고, 같은 값은 입고 ID로 순서를 고정한다")
+    void search_sorted() {
+        InboundSearchCondition all = condition(null, null, null, null, null, null);
+
+        PageCondition byWarehouse = TestPages.firstPage(
+                TestPages.order("w.name", SortDirection.ASC), TestPages.order("i.inboundId", SortDirection.ASC));
+        PageCondition byNo = TestPages.firstPage(
+                TestPages.order("i.inboundNo", SortDirection.DESC), TestPages.order("i.inboundId", SortDirection.DESC));
+
+        // 부산 → 서울(ID 오름차순)
+        assertThat(queryRepository.search(all, byWarehouse).items())
+                .extracting(InboundSummary::inboundId).containsExactly(ib3, ib1, ib2, ib4);
+        assertThat(queryRepository.search(all, byNo).items())
+                .extracting(InboundSummary::inboundId).containsExactly(ib4, ib3, ib2, ib1);
+    }
+
+    @Test
+    @DisplayName("범위를 넘어선 페이지는 빈 목록이고 전체 건수는 그대로다")
+    void search_pageBeyondEnd() {
+        PageResult<InboundSummary> result = queryRepository.search(
+                condition(null, null, null, null, null, null), new PageCondition(5, 3, PAGE.orders()));
+
+        assertThat(result.items()).isEmpty();
+        assertThat(result.totalElements()).isEqualTo(4);
+    }
 
     private static final LocalDate MANUFACTURED = LocalDate.of(2026, 1, 1);
     private static final LocalDate EXPIRY = LocalDate.of(2027, 1, 1);
@@ -281,7 +343,7 @@ class InboundPersistenceAdapterTest {
     @Test
     @DisplayName("조건이 없으면 전체 입고를 발주·공급처·창고 정보와 검수 항목 수 집계와 함께 조회한다")
     void search_all() {
-        List<InboundSummary> result = queryRepository.search(condition(null, null, null, null, null, null));
+        List<InboundSummary> result = queryRepository.search(condition(null, null, null, null, null, null), PAGE).items();
 
         assertThat(result).extracting(InboundSummary::inboundId).containsExactlyInAnyOrder(ib1, ib2, ib3, ib4);
 
@@ -305,7 +367,7 @@ class InboundPersistenceAdapterTest {
     @Test
     @DisplayName("검수 항목이 없는 입고도 항목 수 0으로 목록에 나온다")
     void search_includesInboundWithoutLines() {
-        List<InboundSummary> result = queryRepository.search(condition(null, null, null, null, null, null));
+        List<InboundSummary> result = queryRepository.search(condition(null, null, null, null, null, null), PAGE).items();
 
         assertThat(byId(result, ib3).lineCount()).isZero();
         assertThat(byId(result, ib4).lineCount()).isZero();
@@ -314,7 +376,7 @@ class InboundPersistenceAdapterTest {
     @Test
     @DisplayName("도착 일시 최신순(같으면 입고 ID 내림차순)으로 정렬된다")
     void search_orderedByLatestArrival() {
-        List<InboundSummary> result = queryRepository.search(condition(null, null, null, null, null, null));
+        List<InboundSummary> result = queryRepository.search(condition(null, null, null, null, null, null), PAGE).items();
 
         // IB3·IB4는 도착 일시가 같으므로 ID 내림차순(IB4 → IB3), 그 뒤로 IB2(하루 전), IB1(이틀 전)
         assertThat(result).extracting(InboundSummary::inboundId).containsExactly(ib4, ib3, ib2, ib1);
@@ -325,9 +387,9 @@ class InboundPersistenceAdapterTest {
     @Test
     @DisplayName("상태로 필터링한다")
     void search_byStatus() {
-        assertThat(queryRepository.search(condition(InboundStatus.INSPECTING, null, null, null, null, null)))
+        assertThat(queryRepository.search(condition(InboundStatus.INSPECTING, null, null, null, null, null), PAGE).items())
                 .extracting(InboundSummary::inboundId).containsExactly(ib2);
-        assertThat(queryRepository.search(condition(InboundStatus.CANCELED, null, null, null, null, null)))
+        assertThat(queryRepository.search(condition(InboundStatus.CANCELED, null, null, null, null, null), PAGE).items())
                 .extracting(InboundSummary::inboundId).containsExactly(ib4);
     }
 
@@ -335,54 +397,54 @@ class InboundPersistenceAdapterTest {
     @DisplayName("창고 범위(담당 창고 목록)로 좁히고, 빈 목록이면 비어 있다")
     void search_byWarehouseScope() {
         assertThat(queryRepository.search(new InboundSearchCondition(
-                null, null, null, null, null, null, null, List.of(seoul))))
+                null, null, null, null, null, null, null, List.of(seoul)), PAGE).items())
                 .extracting(InboundSummary::inboundId).containsExactlyInAnyOrder(ib1, ib2, ib4);
         assertThat(queryRepository.search(new InboundSearchCondition(
-                null, null, null, null, null, null, null, List.of(seoul, busan)))).hasSize(
-                queryRepository.search(condition(null, null, null, null, null, null)).size());
+                null, null, null, null, null, null, null, List.of(seoul, busan)), PAGE).items()).hasSize(
+                queryRepository.search(condition(null, null, null, null, null, null), PAGE).items().size());
         assertThat(queryRepository.search(new InboundSearchCondition(
-                null, null, null, null, null, null, null, List.of()))).isEmpty();
+                null, null, null, null, null, null, null, List.of()), PAGE).items()).isEmpty();
     }
 
     @Test
     @DisplayName("창고·발주로 필터링한다")
     void search_byWarehouseAndPurchaseOrder() {
-        assertThat(queryRepository.search(condition(null, seoul, null, null, null, null)))
+        assertThat(queryRepository.search(condition(null, seoul, null, null, null, null), PAGE).items())
                 .extracting(InboundSummary::inboundId).containsExactlyInAnyOrder(ib1, ib2, ib4);
-        assertThat(queryRepository.search(condition(null, null, po1, null, null, null)))
+        assertThat(queryRepository.search(condition(null, null, po1, null, null, null), PAGE).items())
                 .extracting(InboundSummary::inboundId).containsExactlyInAnyOrder(ib1, ib2);
-        assertThat(queryRepository.search(condition(null, busan, po1, null, null, null))).isEmpty();
+        assertThat(queryRepository.search(condition(null, busan, po1, null, null, null), PAGE).items()).isEmpty();
     }
 
     @Test
     @DisplayName("공급처 발주서로 필터링한다")
     void search_bySupplierOrder() {
         assertThat(queryRepository.search(InboundSearchCondition.unscoped(
-                null, null, null, so1, null, null, null)))
+                null, null, null, so1, null, null, null), PAGE).items())
                 .extracting(InboundSummary::inboundId).containsExactlyInAnyOrder(ib1, ib2);
         assertThat(queryRepository.search(InboundSearchCondition.unscoped(
-                null, null, null, so2, null, null, null)))
+                null, null, null, so2, null, null, null), PAGE).items())
                 .extracting(InboundSummary::inboundId).containsExactly(ib3);
     }
 
     @Test
     @DisplayName("키워드는 입고 번호와 발주 번호를 대소문자 구분 없이 부분 일치로 찾는다")
     void search_byKeyword() {
-        assertThat(queryRepository.search(condition(null, null, null, "ib-ibp-0003", null, null)))
+        assertThat(queryRepository.search(condition(null, null, null, "ib-ibp-0003", null, null), PAGE).items())
                 .extracting(InboundSummary::inboundId).containsExactly(ib3);
-        assertThat(queryRepository.search(condition(null, null, null, "po-ibp-0001", null, null)))
+        assertThat(queryRepository.search(condition(null, null, null, "po-ibp-0001", null, null), PAGE).items())
                 .extracting(InboundSummary::inboundId).containsExactlyInAnyOrder(ib1, ib2);
-        assertThat(queryRepository.search(condition(null, null, null, "NOPE", null, null))).isEmpty();
+        assertThat(queryRepository.search(condition(null, null, null, "NOPE", null, null), PAGE).items()).isEmpty();
     }
 
     @Test
     @DisplayName("도착 일시 범위로 필터링한다")
     void search_byArrivedRange() {
-        assertThat(queryRepository.search(condition(null, null, null, null, now.minusDays(1).minusHours(1), null)))
+        assertThat(queryRepository.search(condition(null, null, null, null, now.minusDays(1).minusHours(1), null), PAGE).items())
                 .extracting(InboundSummary::inboundId).containsExactlyInAnyOrder(ib2, ib3, ib4);
-        assertThat(queryRepository.search(condition(null, null, null, null, null, now.minusDays(1).plusHours(1))))
+        assertThat(queryRepository.search(condition(null, null, null, null, null, now.minusDays(1).plusHours(1)), PAGE).items())
                 .extracting(InboundSummary::inboundId).containsExactlyInAnyOrder(ib1, ib2);
-        assertThat(queryRepository.search(condition(null, null, null, null, now.plusDays(1), null))).isEmpty();
+        assertThat(queryRepository.search(condition(null, null, null, null, now.plusDays(1), null), PAGE).items()).isEmpty();
     }
 
     // ---------- view ----------
@@ -425,7 +487,7 @@ class InboundPersistenceAdapterTest {
         assertThat(view.supplierId()).isEqualTo(other);
         assertThat(view.supplierName()).isEqualTo("다라 상사");
 
-        InboundSummary summary = queryRepository.search(condition(null, null, po1, null, null, null)).stream()
+        InboundSummary summary = queryRepository.search(condition(null, null, po1, null, null, null), PAGE).items().stream()
                 .filter(s -> s.inboundId().equals(id)).findFirst().orElseThrow();
         assertThat(summary.supplierId()).isEqualTo(other);
         assertThat(summary.supplierName()).isEqualTo("다라 상사");
@@ -684,7 +746,7 @@ class InboundPersistenceAdapterTest {
                 .setParameter("userId", receiver.getUserId()).setParameter("id", ib1).executeUpdate();
         entityManager.clear();
 
-        List<InboundSummary> result = queryRepository.search(condition(null, null, null, null, null, null));
+        List<InboundSummary> result = queryRepository.search(condition(null, null, null, null, null, null), PAGE).items();
 
         assertThat(result.stream().filter(s -> s.inboundId().equals(ib1)).findFirst().orElseThrow().receivedByName())
                 .isEqualTo("최검수");

@@ -2,7 +2,6 @@ package com.kb.wms.inbound.adapter.in.web;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -18,8 +17,11 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.security.AuthenticatedUser;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.SortSpec;
 import com.kb.wms.common.response.ApiResponse;
-import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.common.response.PageResponse;
 import com.kb.wms.inbound.adapter.in.web.dto.request.InboundCancelRequest;
 import com.kb.wms.inbound.adapter.in.web.dto.request.InboundInspectRequest;
 import com.kb.wms.inbound.adapter.in.web.dto.request.InboundRegisterRequest;
@@ -50,13 +52,24 @@ import lombok.RequiredArgsConstructor;
  * PATCH .../{id}/cancel, GET .../{id}/assignable-sections, GET .../{id}/defect-sections
  *
  * <p>처리 사용자는 토큰 주체이고, 역할은 SecurityConfig가, 담당 창고 범위는 서비스가 검사한다.
- * 목록은 페이지네이션 없이 전체를 반환한다(공통 페이징 도입 시 추가).
+ * 목록은 페이지네이션·정렬(page, size, sort)을 지원한다.
  */
 @Tag(name = "입고")
 @RestController
 @RequestMapping("/api/v1/inbounds")
 @RequiredArgsConstructor
 public class InboundController {
+
+    /** 목록 정렬 규칙. 기본은 도착 일시 최신순. */
+    private static final SortSpec LIST_SORT = SortSpec.builder()
+            .field("arrivedAt", "i.arrivedAt")
+            .field("receivedAt", "i.receivedAt")
+            .field("status", "i.status")
+            .field("inboundNo", "i.inboundNo")
+            .field("warehouseName", "w.name")
+            .defaultOrder("arrivedAt", SortDirection.DESC)
+            .tieBreaker("i.inboundId")
+            .build();
 
     private final InboundUseCase inboundUseCase;
     private final InboundInspectUseCase inboundInspectUseCase;
@@ -72,7 +85,7 @@ public class InboundController {
     }
 
     @GetMapping
-    public ApiResponse<ItemsResponse<InboundSummaryResponse>> getInbounds(
+    public ApiResponse<PageResponse<InboundSummaryResponse>> getInbounds(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) InboundStatus status,
             @RequestParam(required = false) Long warehouseId,
@@ -80,14 +93,16 @@ public class InboundController {
             @RequestParam(required = false) Long supplierOrderId,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime arrivedFrom,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime arrivedTo) {
-        List<InboundSummaryResponse> items = inboundUseCase
-                .getInbounds(InboundSearchCondition.unscoped(
-                        status, warehouseId, purchaseOrderId, supplierOrderId, keyword, arrivedFrom, arrivedTo), principal)
-                .stream()
-                .map(InboundSummaryResponse::from)
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime arrivedTo,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
+        return ApiResponse.ok(PageResponse.of(
+                inboundUseCase.getInbounds(InboundSearchCondition.unscoped(
+                        status, warehouseId, purchaseOrderId, supplierOrderId, keyword, arrivedFrom, arrivedTo),
+                        pageCondition, principal),
+                InboundSummaryResponse::from));
     }
 
     @GetMapping("/{inboundId}")

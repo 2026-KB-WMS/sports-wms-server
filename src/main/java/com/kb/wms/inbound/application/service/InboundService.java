@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.InboundUseCase;
 import com.kb.wms.inbound.application.port.in.command.InboundCancelCommand;
@@ -109,7 +111,8 @@ public class InboundService implements InboundUseCase {
     }
 
     @Override
-    public List<InboundSummary> getInbounds(InboundSearchCondition condition, AuthenticatedUser actor) {
+    public PageResult<InboundSummary> getInbounds(InboundSearchCondition condition, PageCondition page,
+                                                  AuthenticatedUser actor) {
         List<Long> scope = actor.warehouseScope(condition.warehouseId());
         if (condition.arrivedFrom() != null && condition.arrivedTo() != null
                 && condition.arrivedFrom().isAfter(condition.arrivedTo())) {
@@ -130,7 +133,7 @@ public class InboundService implements InboundUseCase {
         return inboundQueryRepository.search(new InboundSearchCondition(
                 condition.status(), condition.warehouseId(), condition.purchaseOrderId(),
                 condition.supplierOrderId(), condition.keyword(),
-                condition.arrivedFrom(), condition.arrivedTo(), scope));
+                condition.arrivedFrom(), condition.arrivedTo(), scope), page);
     }
 
     @Override

@@ -5,6 +5,9 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.persistence.PageAdapter;
 import com.kb.wms.common.persistence.SearchKeyword;
 import com.kb.wms.inbound.adapter.out.persistence.repository.InboundJpaRepository;
 import com.kb.wms.inbound.adapter.out.persistence.repository.InboundLineJpaRepository;
@@ -33,12 +36,13 @@ public class InboundQueryPersistenceAdapter implements InboundQueryRepository {
     }
 
     @Override
-    public List<InboundSummary> search(InboundSearchCondition condition) {
-        return inboundJpaRepository.search(
+    public PageResult<InboundSummary> search(InboundSearchCondition condition, PageCondition page) {
+        return PageAdapter.toPageResult(inboundJpaRepository.search(
                 condition.status(), condition.warehouseId(), condition.purchaseOrderId(), condition.supplierOrderId(),
                 SearchKeyword.normalize(condition.keyword()),
                 condition.arrivedFrom(), condition.arrivedTo(),
-                condition.warehouseIds() != null, scopeIds(condition.warehouseIds()));
+                condition.warehouseIds() != null, scopeIds(condition.warehouseIds()),
+                PageAdapter.toPageable(page)), page);
     }
 
     @Override

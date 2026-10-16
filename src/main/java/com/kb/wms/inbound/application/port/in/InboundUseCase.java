@@ -2,6 +2,8 @@ package com.kb.wms.inbound.application.port.in;
 
 import java.util.List;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.command.InboundCancelCommand;
 import com.kb.wms.inbound.application.port.in.command.InboundRegisterCommand;
@@ -24,7 +26,8 @@ public interface InboundUseCase {
     /** 진행 중인 공급처 발주서에 대한 도착(ARRIVED) 입고를 등록하고 입고 ID를 반환한다. 응답 조립은 조회 유스케이스로 한다. */
     Long registerInbound(InboundRegisterCommand command, AuthenticatedUser actor);
 
-    List<InboundSummary> getInbounds(InboundSearchCondition condition, AuthenticatedUser actor);
+    PageResult<InboundSummary> getInbounds(InboundSearchCondition condition, PageCondition page,
+                                           AuthenticatedUser actor);
 
     InboundView getInbound(Long inboundId, AuthenticatedUser actor);
 
