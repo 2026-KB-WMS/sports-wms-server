@@ -1,7 +1,7 @@
 # Inbound 도메인 API 명세 (공급처 · 창고 발주 · 입고)
 
 > 기준은 레포. 2026-10-02 Notion(최종 수정 2026-09-24 ~ 10-02)에서 이전. 공통 규칙은 [conventions.md](conventions.md) 참고.
-> Base path: `/api/v1/suppliers`, `/api/v1/purchase-orders`, `/api/v1/inbounds`. 목록 API는 `data.items`만 반환(페이지네이션 보류). 404는 도메인별 코드 사용.
+> Base path: `/api/v1/suppliers`, `/api/v1/purchase-orders`, `/api/v1/inbounds`. 창고 발주·공급처 발주서·입고 목록은 `page`·`size`·`sort`와 `data.pageInfo`를 지원하고([ADR-032](../adr/032-pagination-and-sorting.md), 공통 규칙은 [conventions.md](conventions.md)), 나머지 목록(공급처, SKU별 공급처, 구역 후보)은 `data.items`만 반환한다(페이징 없음). 404는 도메인별 코드 사용.
 > 상태 전이는 [docs/domain/inbound.md](../domain/inbound.md) 참고.
 
 ## 범위
@@ -15,7 +15,7 @@
 - 공급처 재활성화는 `PATCH /suppliers/{supplierId}/activate`로 한다([ADR-014](../adr/014-reactivation-and-sku-deactivation-guard.md)).
 - 확정 필요(미결): 같은 공급처 중복 발주 허용 범위, 확정 단계에서 항목 조정 가능 여부, 취소 발주의 항목 상태 처리, `REQUESTED` 발주 반려는 이슈 #266에서 추가한다(아래 "공급처 발주서 개편"). 발주 번호는 `PO-yyyyMMdd-NNNN`으로 구현했다.
 - **입고** 구현 대비 차이 (2026-10-02 이전 시점):
-  - 입고 목록·구역 후보 조회는 `page`·`size`·`sort`와 `pageInfo`를 지원하지 않고 `data.items` 전체를 돌려준다(페이지네이션 보류). 구역 후보 응답의 가용 용량 필드명은 `availableCapacity`다(Notion의 `requiredQuantity` 설명에 적힌 `availableQuantity`와 다름).
+  - 입고 목록은 `page`·`size`·`sort`와 `pageInfo`를 지원한다(#289). 구역 후보 조회는 선택 화면용이라 `data.items` 전체를 돌려준다(페이징 없음). 구역 후보 응답의 가용 용량 필드명은 `availableCapacity`다(Notion의 `requiredQuantity` 설명에 적힌 `availableQuantity`와 다름).
   - 인증·인가는 #170에서 적용했다. 처리 사용자(등록·확정·취소·검수·완료)는 토큰 주체이며 `userId` 쿼리 파라미터는 받지 않는다. 역할은 보안 설정이, 담당 창고 범위와 발주 취소 권한(요청 발주는 작성자 창고 관리자만, 확정 발주는 본사만)은 서비스가 검사한다. 창고 관리자는 비활성 공급처가 목록에서 빠지고 단건 조회는 404 `SUPPLIER_NOT_FOUND`다.
   - 404는 도메인 코드를 쓴다: `INBOUND_NOT_FOUND`(입고), `PURCHASE_ORDER_NOT_FOUND`(발주), `SECTION_NOT_FOUND`(구역). 발주 항목이 없을 때만 일반 `NOT_FOUND`다.
   - 목록 필터의 존재하지 않는 값(발주 목록의 `warehouseId`·`supplierId`, 입고 목록의 `warehouseId`·`purchaseOrderId`)은 도메인 전용 404(`WAREHOUSE_NOT_FOUND`·`SUPPLIER_NOT_FOUND`·`PURCHASE_ORDER_NOT_FOUND`)다(#213). 담당 창고 범위 검사(403)가 먼저다. 공급처 목록에는 대상 ID 필터가 없다.
@@ -71,7 +71,8 @@
 | GET | /supplier-orders | HQ_ADMIN, WAREHOUSE_MANAGER(담당) | 공급처 발주서 목록 |
 | GET | /supplier-orders/{supplierOrderId} | HQ_ADMIN, WAREHOUSE_MANAGER(담당) | 공급처 발주서 상세(라인 포함) |
 
-- 목록 Query: `status`(ISSUED/PARTIALLY_RECEIVED/COMPLETED/CANCELED), `warehouseId`, `supplierId`, `purchaseOrderId`, `keyword`(발주서·요청 번호), `createdFrom`, `createdTo`. 정렬은 등록 일시 내림차순(같으면 ID 내림차순). `data.items`만 반환한다.
+- 목록 Query: `status`(ISSUED/PARTIALLY_RECEIVED/COMPLETED/CANCELED), `warehouseId`, `supplierId`, `purchaseOrderId`, `keyword`(발주서·요청 번호), `createdFrom`, `createdTo`, `page`, `size`, `sort`.
+- 정렬: 기본은 `createdAt` 내림차순(같으면 `supplierOrderId` 내림차순). `sort` 가능 필드: `createdAt`, `status`, `supplierOrderNo`, `supplierName`, `warehouseName`. 응답은 `data.items`와 `data.pageInfo`.
 - 목록 응답 항목: `supplierOrderId, supplierOrderNo, purchaseOrderId, purchaseOrderNo, supplierId, supplierName, warehouseId, warehouseName, status, lineCount, totalAmount, createdAt`
 - 상세 응답: 목록 항목 + `updatedAt`, `lines[]`(`purchaseOrderLineId, skuId, skuCode, skuName, unit, expectedQuantity, receivedQuantity, remainingQuantity, orderedUnitPrice, lineAmount, status`)
 - 데이터 범위: HQ_ADMIN 전체, WAREHOUSE_MANAGER는 담당 창고의 발주서만(타 창고 403).
@@ -147,7 +148,7 @@
 
 ### GET /suppliers (P0)
 
-- Query: `keyword`(공급처명·코드·담당자명), `isActive`. `sort`는 받지 않는다.
+- Query: `keyword`(공급처명·코드·담당자명), `isActive`. `page`·`size`·`sort`는 받지 않는다(페이징 없음: 발주 등록 화면의 선택 목록으로 전체가 필요하다).
 - 정렬은 고정(`supplierName` 오름차순, 같으면 `supplierId` 오름차순).
 - WAREHOUSE_MANAGER는 `isActive`와 무관하게 항상 활성 공급처만 조회(발주 등록 시 선택용). HQ_ADMIN은 `isActive`로 비활성도 조회. 소속 범위 없음(전체 조회).
 - 응답 항목: `supplierId, supplierCode, supplierName, managerName, contactNumber, email, address, latitude, longitude, isActive`
@@ -194,10 +195,10 @@
 
 ### GET /purchase-orders (P1)
 
-- Query: `status`(REQUESTED/CONFIRMED/COMPLETED/CANCELED), `warehouseId`, `supplierId`, `keyword`(발주 번호), `createdFrom`, `createdTo`(ISO-8601, 양 끝 포함: `>= createdFrom`, `<= createdTo`). `sort`는 받지 않는다.
-- 정렬은 고정(등록 일시 `createdAt` 내림차순, 같으면 `purchaseOrderId` 내림차순).
+- Query: `status`(REQUESTED/CONFIRMED/COMPLETED/CANCELED), `warehouseId`, `supplierId`, `keyword`(발주 번호), `createdFrom`, `createdTo`(ISO-8601, 양 끝 포함: `>= createdFrom`, `<= createdTo`), `page`, `size`, `sort`.
+- 정렬: 기본은 `createdAt` 내림차순(같으면 `purchaseOrderId` 내림차순). `sort` 가능 필드: `createdAt`, `expectedAt`, `status`, `purchaseOrderNo`, `warehouseName`. 응답은 `data.items`와 `data.pageInfo`.
 - 응답 항목: `purchaseOrderId, purchaseOrderNo, warehouseId, warehouseName, supplierId, supplierName, status, expectedAt, lineCount, totalAmount, createdBy, createdByName, createdAt` (항목별 수량·단가는 `/details`)
-- 에러: 400(status 값/일시 형식/from>to), 403(비담당 창고), 404 `WAREHOUSE_NOT_FOUND`/`SUPPLIER_NOT_FOUND`(존재하지 않는 `warehouseId`·`supplierId` 필터).
+- 에러: 400(status 값/일시 형식/from>to, `page`·`size` 범위, 허용되지 않은 `sort`), 403(비담당 창고), 404 `WAREHOUSE_NOT_FOUND`/`SUPPLIER_NOT_FOUND`(존재하지 않는 `warehouseId`·`supplierId` 필터).
 
 ### GET /purchase-orders/{purchaseOrderId} (P1)
 
@@ -244,10 +245,10 @@
 
 ### GET /inbounds (P1)
 
-- Query: `status`(ARRIVED/INSPECTING/COMPLETED/CANCELED), `warehouseId`, `purchaseOrderId`, `keyword`(입고 번호·발주 번호, 대소문자 무시 부분 일치), `arrivedFrom`, `arrivedTo`(ISO-8601, 이상·이하)
-- 정렬: 도착 일시 내림차순(같으면 입고 ID 내림차순). 검수 항목이 없는 입고도 포함한다.
+- Query: `status`(ARRIVED/INSPECTING/COMPLETED/CANCELED), `warehouseId`, `purchaseOrderId`, `keyword`(입고 번호·발주 번호, 대소문자 무시 부분 일치), `arrivedFrom`, `arrivedTo`(ISO-8601, 이상·이하), `page`, `size`, `sort`
+- 정렬: 기본은 `arrivedAt` 내림차순(같으면 `inboundId` 내림차순). `sort` 가능 필드: `arrivedAt`, `receivedAt`, `status`, `inboundNo`, `warehouseName`. 응답은 `data.items`와 `data.pageInfo`. 검수 항목이 없는 입고도 포함한다.
 - 응답 항목: `inboundId, inboundNo, purchaseOrderId, purchaseOrderNo, supplierId, supplierName, warehouseId, warehouseName, status, arrivedAt, receivedAt, receivedBy, receivedByName, lineCount`(검수 항목 수, `ARRIVED`면 0)
-- 에러: 400(status 값·일시 형식 오류. `arrivedFrom`이 `arrivedTo`보다 늦음), 403(비담당 창고), 404 `WAREHOUSE_NOT_FOUND`/`PURCHASE_ORDER_NOT_FOUND`(존재하지 않는 `warehouseId`·`purchaseOrderId` 필터)
+- 에러: 400(status 값·일시 형식 오류. `arrivedFrom`이 `arrivedTo`보다 늦음. `page`·`size` 범위, 허용되지 않은 `sort`), 403(비담당 창고), 404 `WAREHOUSE_NOT_FOUND`/`PURCHASE_ORDER_NOT_FOUND`(존재하지 않는 `warehouseId`·`purchaseOrderId` 필터)
 
 ### GET /inbounds/{inboundId} (P1)
 

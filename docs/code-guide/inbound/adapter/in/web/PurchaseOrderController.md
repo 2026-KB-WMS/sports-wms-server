@@ -13,7 +13,7 @@
 | 메서드 | 경로 | 상태 | 쿼리·바디 | 응답 | 설명 | 허용 역할 |
 |---|---|---|---|---|---|---|
 | `registerPurchaseOrder` | POST `/` | 201 | `PurchaseOrderRegisterRequest` | `PurchaseOrderRegisterResponse` | 발주 등록 | WAREHOUSE_MANAGER |
-| `getPurchaseOrders` | GET `/` | 200 | `status`, `warehouseId`, `supplierId`, `keyword`, `createdFrom`, `createdTo` | `ItemsResponse<PurchaseOrderSummaryResponse>` | 목록 | HQ_ADMIN, WAREHOUSE_MANAGER |
+| `getPurchaseOrders` | GET `/` | 200 | `status`, `warehouseId`, `supplierId`, `keyword`, `createdFrom`, `createdTo`, `page`, `size`, `sort` | `PageResponse<PurchaseOrderSummaryResponse>` | 목록(정렬 필드: `createdAt`, `expectedAt`, `status`, `purchaseOrderNo`, `warehouseName`) | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `getPurchaseOrder` | GET `/{id}` | 200 | - | `PurchaseOrderResponse` | 헤더 | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `getPurchaseOrderDetails` | GET `/{id}/details` | 200 | - | `PurchaseOrderDetailsResponse` | SKU별 항목 | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `rejectPurchaseOrder` | PATCH `/{id}/reject` | 200 | `PurchaseOrderRejectRequest`(`reason` 필수) | `PurchaseOrderRejectResponse` | 반려 | **HQ_ADMIN** |

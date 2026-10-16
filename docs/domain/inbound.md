@@ -100,7 +100,7 @@ Inbound 완료 시점마다 InboundLine의 `accepted_quantity`/`defective_quanti
 
 - 인증·인가 적용됨(#170): 처리 사용자는 토큰 주체이고, 역할은 보안 설정이, 담당 창고와 발주 취소 권한은 서비스가 검사한다([`api/authorization.md`](../api/authorization.md), ADR-012).
 - `StatusHistory` 연결됨: 취소 사유를 `StatusHistory.reason`에 저장하고 응답(발주 단건·취소, 입고 단건·취소)의 `cancelReason`은 이력에서 읽는다. 처리자 이름(`receivedByName`)은 입고 단건 조회 쿼리가 사용자 테이블을 ID로 조인해 채운다.
-- 목록 페이지네이션 없음, 목록 필터의 존재하지 않는 ID 404 미적용.
+- 입고·창고 발주·공급처 발주서 목록은 페이지네이션·정렬을 지원한다(#289, [ADR-032](../adr/032-pagination-and-sorting.md)). 공급처 목록 등 나머지 목록은 페이징 없음. 목록 필터의 존재하지 않는 ID 404 미적용.
 - 완료 후 취소·정정 API 없음(재고 조정으로 처리). 초과 입고는 거절, 상위 구역 적치 허용 여부는 미확정.
 - 재고 로트 목록·상세 응답의 `supplierName`과 로트 상세의 `inbounds`는 채워서 내려준다(공급처 도메인 구현 이후).
 - 창고 비활성화 가드 `WAREHOUSE_IN_USE`는 재고 잔량만 검사하고 진행 중 입고·발주 배정은 검사하지 않는다.

@@ -46,7 +46,7 @@
 
 | 메서드 | 설명 |
 |---|---|
-| `search(condition)` | 도착 일시 최신순. **검수 항목이 없는 입고도 포함** |
+| `search(condition, page)` | `PageResult` 반환. 정렬은 페이지 조건을 따른다(기본 도착 일시 최신순). **검수 항목이 없는 입고도 포함** |
 | `findView(inboundId)` | 입고 헤더 뷰 |
 | `findLineViews(inboundId)` | 검수 항목 뷰 (SKU 코드·로트 번호 순) |
 | `findAssignableSections(warehouseId, condition)` | 활성, **DEFECT가 아님**, 가용 용량 > 0 (구역 코드순) |
@@ -56,7 +56,7 @@
 
 | 메서드 | 설명 |
 |---|---|
-| `search(condition)` | 등록 일시 내림차순. 항목 수·금액 합계를 DB에서 집계 |
+| `search(condition, page)` | `PageResult` 반환. 정렬은 페이지 조건을 따른다(기본 등록 일시 내림차순). 항목 수·금액 합계를 DB에서 집계 |
 | `findView(id)` | 헤더 뷰 |
 | `findLineViews(id)` | 항목 뷰 (SKU 코드 오름차순) |
 
