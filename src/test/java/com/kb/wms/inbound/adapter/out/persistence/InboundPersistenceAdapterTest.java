@@ -106,6 +106,24 @@ class InboundPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("검수 항목 수(집계)로 정렬하고, 항목이 없는 입고는 0건으로 센다")
+    void search_sortedByLineCount() {
+        InboundSearchCondition all = condition(null, null, null, null, null, null);
+
+        PageCondition desc = TestPages.firstPage(
+                TestPages.order("count(l)", SortDirection.DESC), TestPages.order("i.inboundId", SortDirection.DESC));
+        PageCondition asc = TestPages.firstPage(
+                TestPages.order("count(l)", SortDirection.ASC), TestPages.order("i.inboundId", SortDirection.ASC));
+
+        // IB1 2줄, IB2 1줄, IB3·IB4 0줄(같은 값은 ID 순)
+        assertThat(queryRepository.search(all, desc).items())
+                .extracting(InboundSummary::inboundId).containsExactly(ib1, ib2, ib4, ib3);
+        assertThat(queryRepository.search(all, asc).items())
+                .extracting(InboundSummary::inboundId).containsExactly(ib3, ib4, ib2, ib1);
+        assertThat(queryRepository.search(all, desc).totalElements()).isEqualTo(4);
+    }
+
+    @Test
     @DisplayName("조인한 창고명이나 입고 번호로 정렬하고, 같은 값은 입고 ID로 순서를 고정한다")
     void search_sorted() {
         InboundSearchCondition all = condition(null, null, null, null, null, null);

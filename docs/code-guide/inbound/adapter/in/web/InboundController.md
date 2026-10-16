@@ -13,7 +13,7 @@
 | 메서드 | 경로 | 상태 | 쿼리·바디 | 응답 | 설명 | 허용 역할 |
 |---|---|---|---|---|---|---|
 | `registerInbound` | POST `/` | 201 | `InboundRegisterRequest` | `InboundRegisterResponse` | 입고(도착) 등록 | WAREHOUSE_MANAGER |
-| `getInbounds` | GET `/` | 200 | `status`, `warehouseId`, `purchaseOrderId`, `keyword`, `arrivedFrom`, `arrivedTo`, `page`, `size`, `sort` | `PageResponse<InboundSummaryResponse>` | 목록(정렬 필드: `arrivedAt`, `receivedAt`, `status`, `inboundNo`, `warehouseName`) | HQ_ADMIN, WAREHOUSE_MANAGER |
+| `getInbounds` | GET `/` | 200 | `status`, `warehouseId`, `purchaseOrderId`, `keyword`, `arrivedFrom`, `arrivedTo`, `page`, `size`, `sort` | `PageResponse<InboundSummaryResponse>` | 목록(정렬 필드: `arrivedAt`, `receivedAt`, `status`, `inboundNo`, `warehouseName`, `lineCount`) | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `getInbound` | GET `/{inboundId}` | 200 | - | `InboundResponse` | 헤더 단건 | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `getInboundDetails` | GET `/{inboundId}/details` | 200 | - | `InboundDetailsResponse` | 검수 항목 포함 상세 | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `inspectInbound` | PATCH `/{inboundId}/inspect` | 200 | `InboundInspectRequest` | `InboundInspectResponse` | 검수 (항목 전체 교체) | WAREHOUSE_MANAGER |

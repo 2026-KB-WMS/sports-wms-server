@@ -65,6 +65,8 @@ public class PurchaseOrderController {
             .field("status", "po.status")
             .field("purchaseOrderNo", "po.purchaseOrderNo")
             .field("warehouseName", "w.name")
+            .field("lineCount", "count(l)")
+            .field("totalAmount", "sum(l.lineAmount)")
             .defaultOrder("createdAt", SortDirection.DESC)
             .tieBreaker("po.purchaseOrderId")
             .build();

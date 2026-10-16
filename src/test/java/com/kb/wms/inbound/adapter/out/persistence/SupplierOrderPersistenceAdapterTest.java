@@ -91,6 +91,23 @@ class SupplierOrderPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("총액(집계)으로 정렬하고, 같은 값은 발주서 ID로 순서를 고정한다")
+    void search_sortedByTotalAmount() {
+        PageCondition byAmount = TestPages.firstPage(
+                TestPages.order("sum(l.lineAmount)", SortDirection.DESC), TestPages.order("so.supplierOrderId", SortDirection.DESC));
+        PageCondition byLineCount = TestPages.firstPage(
+                TestPages.order("count(l)", SortDirection.ASC), TestPages.order("so.supplierOrderId", SortDirection.ASC));
+        SupplierOrderSearchCondition all = SupplierOrderSearchCondition.unscoped(null, null, null, null, null, null, null);
+
+        // 총액: SO1 100,000, SO2 100,000, SO3 10,000
+        assertThat(queryRepository.search(all, byAmount).items())
+                .extracting(SupplierOrderSummary::supplierOrderId).containsExactly(so2, so1, so3);
+        // 항목 수는 모두 1줄이라 ID 순
+        assertThat(queryRepository.search(all, byLineCount).items())
+                .extracting(SupplierOrderSummary::supplierOrderId).containsExactly(so1, so2, so3);
+    }
+
+    @Test
     @DisplayName("조인한 공급처명으로 정렬하고, 같은 값은 발주서 ID로 순서를 고정한다")
     void search_sortedBySupplierName() {
         PageCondition bySupplier = TestPages.firstPage(

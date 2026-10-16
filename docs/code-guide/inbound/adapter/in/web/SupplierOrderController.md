@@ -10,7 +10,7 @@
 
 | 메서드 | 경로 | 상태 | 쿼리 | 응답 | 허용 역할 |
 |---|---|---|---|---|---|
-| `getSupplierOrders` | GET `/` | 200 | `status`, `warehouseId`, `supplierId`, `purchaseOrderId`, `keyword`, `createdFrom`, `createdTo`, `page`, `size`, `sort` | `PageResponse<SupplierOrderSummaryResponse>`(정렬 필드: `createdAt`, `status`, `supplierOrderNo`, `supplierName`, `warehouseName`) | HQ_ADMIN, WAREHOUSE_MANAGER(담당) |
+| `getSupplierOrders` | GET `/` | 200 | `status`, `warehouseId`, `supplierId`, `purchaseOrderId`, `keyword`, `createdFrom`, `createdTo`, `page`, `size`, `sort` | `PageResponse<SupplierOrderSummaryResponse>`(정렬 필드: `createdAt`, `status`, `supplierOrderNo`, `supplierName`, `warehouseName`, `lineCount`, `totalAmount`) | HQ_ADMIN, WAREHOUSE_MANAGER(담당) |
 | `getSupplierOrder` | GET `/{supplierOrderId}` | 200 | - | `SupplierOrderResponse`(헤더 + `lines[]`) | HQ_ADMIN, WAREHOUSE_MANAGER(담당) |
 
 쓰기 API는 없다. 담당 창고 범위는 서비스가 검사한다.

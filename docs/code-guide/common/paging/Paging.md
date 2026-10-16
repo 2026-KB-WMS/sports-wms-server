@@ -36,5 +36,5 @@ Page<InboundSummary> result = jpaRepository.search(..., PageAdapter.toPageable(p
 return PageAdapter.toPageResult(result, page);
 ```
 
-- 쿼리 경로는 JPQL 별칭 경로여야 하고, 생성자 프로젝션이 `group by`·집계를 쓰면 `countQuery`를 직접 적는다.
+- 쿼리 경로는 JPQL 별칭 경로이거나 집계식(`count(l)`, `sum(...)`)이어야 하고, 생성자 프로젝션이 `group by`·집계를 쓰면 `countQuery`를 직접 적는다.
 - 페이지네이션을 적용하는 목록과 정렬 필드는 도메인 서브이슈에서 정한다. 적용하지 않는 목록은 `ItemsResponse`를 그대로 쓴다.

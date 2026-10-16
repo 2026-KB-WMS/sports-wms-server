@@ -42,6 +42,8 @@ public class SupplierOrderController {
             .field("supplierOrderNo", "so.supplierOrderNo")
             .field("supplierName", "s.name")
             .field("warehouseName", "w.name")
+            .field("lineCount", "count(l)")
+            .field("totalAmount", "sum(l.lineAmount)")
             .defaultOrder("createdAt", SortDirection.DESC)
             .tieBreaker("so.supplierOrderId")
             .build();

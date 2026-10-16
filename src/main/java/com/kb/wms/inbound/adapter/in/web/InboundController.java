@@ -67,6 +67,7 @@ public class InboundController {
             .field("status", "i.status")
             .field("inboundNo", "i.inboundNo")
             .field("warehouseName", "w.name")
+            .field("lineCount", "count(l)")
             .defaultOrder("arrivedAt", SortDirection.DESC)
             .tieBreaker("i.inboundId")
             .build();
