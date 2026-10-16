@@ -13,7 +13,7 @@
 | 메서드 | 트랜잭션 | 설명 |
 |---|---|---|
 | `registerStore(command)` | 쓰기 | 주소의 시·도 판별(실패 시 400) → 지점 코드 발급 → 생성 → 좌표 반영 → 저장. 점주 배정은 포함하지 않는다 |
-| `getStores(condition)` | 읽기 | 검색 |
+| `getStores(condition, page)` | 읽기 | 검색 |
 | `getStore(id)` | 읽기 | 단건. 없으면 `STORE_NOT_FOUND`. 내부 조회용 |
 | `getStore(id, actor)` | 읽기 | `actor.requireStoreAccess(id)` 후 조회. 담당 지점이 아니면 403 |
 | `updateStore(id, command)` | 쓰기 | 아래 규칙 |

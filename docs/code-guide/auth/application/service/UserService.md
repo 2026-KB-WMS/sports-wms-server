@@ -21,7 +21,7 @@
 |---|---|---|
 | `signUp(command)` | 쓰기 | 모두(공개) |
 | `getUser(userId)` | 읽기 | 내부 조회, `/auth/me` |
-| `getUsers(condition)` | 읽기 | HQ_ADMIN |
+| `getUsers(condition, page)` | 읽기 | HQ_ADMIN |
 | `updateUser(command)` | 쓰기 | HQ_ADMIN |
 | `changePassword(command)` | 쓰기 | 인증된 본인 |
 | `ensureInitialHqAdmin(command)` | 쓰기 | 시작 시 |

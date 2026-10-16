@@ -11,7 +11,7 @@
 | 메서드 | 경로 | 상태 | 요청 | 응답 | 설명 |
 |---|---|---|---|---|---|
 | `assignManager` | POST `/assign` | 201 | `StoreMemberAssignRequest` | `StoreMemberResponse` | 지점 관리자(점주) 배정 |
-| `getManagers` | GET `/managers` | 200 | 쿼리 `storeId`, `userId`, `keyword` (모두 선택) | `ItemsResponse<StoreMemberResponse>` | 배정 목록 |
+| `getManagers` | GET `/managers` | 200 | 쿼리 `storeId`, `userId`, `keyword`, `page`, `size`, `sort` (모두 선택) | `PageResponse<StoreMemberResponse>` | 배정 목록(정렬 필드: `assignedAt`, `userName`, `loginId`, `memberRole`) |
 | `releaseManager` | DELETE `/managers/{storeMemberId}` | 200 | - | `StoreMemberReleaseResponse` | 배정 해제 |
 
 세 엔드포인트 모두 HQ_ADMIN 전용이다.

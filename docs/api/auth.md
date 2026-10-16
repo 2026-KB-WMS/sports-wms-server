@@ -1,7 +1,7 @@
 # 인증·계정 도메인 API 명세 (가입 · 로그인 · 내 정보 · 계정 관리)
 
 > 기준은 레포. 2026-10-08 Notion(최종 수정 2026-09-24 ~ 10-05)에서 이전. 공통 규칙은 [conventions.md](conventions.md), 역할별 호출 가능 여부는 [authorization.md](authorization.md) 참고.
-> Base path: `/api/v1/auth`, `/api/v1/users`. 목록 API는 `data.items`만 반환(페이지네이션 보류). 404는 도메인 코드 `USER_NOT_FOUND`를 쓴다.
+> Base path: `/api/v1/auth`, `/api/v1/users`. 사용자 목록(`GET /users`)은 `page`·`size`·`sort`와 `data.pageInfo`를 지원한다. 404는 도메인 코드 `USER_NOT_FOUND`를 쓴다.
 > 계정 상태 전이·토큰 정책은 [docs/domain/auth.md](../domain/auth.md), 결정 배경은 [ADR-011](../adr/011-jwt-access-token-only.md) 참고.
 
 ## 범위
@@ -121,7 +121,8 @@
 | status | `PENDING` / `ACTIVE` / `INACTIVE`. 허용 값이 아니면 400 |
 | keyword | 이름·로그인 아이디·이메일 부분 일치(대소문자 무시) |
 
-- 필터를 주지 않으면 모든 역할·상태를 반환한다. `page`·`size`·`sort`는 받지 않고(보내도 무시) 정렬은 고정이다(페이지네이션 보류).
+- 필터를 주지 않으면 모든 역할·상태를 반환한다. `page`(기본 1)·`size`(기본 20, 1~100)·`sort`를 받고 응답은 `data.items`와 `data.pageInfo`다([ADR-032](../adr/032-pagination-and-sorting.md), 공통 규칙은 [conventions.md](conventions.md)).
+- 정렬: 기본은 가입 일시 `createdAt` 내림차순(같으면 `userId` 내림차순). `sort` 가능 필드: `createdAt`, `name`, `loginId`, `role`, `status`.
 - 200. `data.items[]`: `userId, loginId, name, email, phone, role, status, lastLoginAt, createdAt`. 창고·지점 소속은 포함하지 않는다(`GET /warehouses/managers`, `GET /stores/managers`).
 - 오류: 400 `VALIDATION_ERROR`, 401 `UNAUTHORIZED`, 403 `FORBIDDEN`(HQ_ADMIN이 아님).
 

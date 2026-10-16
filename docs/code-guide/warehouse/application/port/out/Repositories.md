@@ -28,7 +28,7 @@
 | 메서드 | 설명 |
 |---|---|
 | `save`, `findById`, `deleteById` | 기본 |
-| `search(warehouseId, userId, keyword)` | 사용자 이름·로그인 아이디를 붙인 `WarehouseMemberView` 목록. keyword는 이름·로그인 아이디 부분 일치(대소문자 무시) |
+| `search(warehouseId, userId, keyword, page)` | 사용자 이름·로그인 아이디를 붙인 `WarehouseMemberView`의 `PageResult`. keyword는 이름·로그인 아이디 부분 일치(대소문자 무시). 정렬은 페이지 조건을 따른다(기본 배정 일시 내림차순) |
 | `findByUserId(userId)` | 사용자의 배정 전체 |
 | `existsByWarehouseIdAndUserId` | 중복 배정 확인 |
 
