@@ -12,6 +12,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.product.application.port.in.query.BrandSearchCondition;
 import com.kb.wms.product.application.port.in.query.CategorySearchCondition;
 import com.kb.wms.product.application.port.in.query.ProductSearchCondition;
@@ -43,6 +47,10 @@ import com.kb.wms.warehouse.domain.entity.WarehouseSection;
         "spring.datasource.url=jdbc:h2:mem:list_search;MODE=MySQL;DB_CLOSE_DELAY=-1"
 })
 class ListSearchQueryIntegrationTest {
+
+    private static final PageCondition PRODUCT_PAGE = TestPages.firstPage(TestPages.order("p.createdAt", SortDirection.DESC), TestPages.order("p.productId", SortDirection.DESC));
+
+    private static final PageCondition SKU_PAGE = TestPages.firstPage(TestPages.order("s.createdAt", SortDirection.DESC), TestPages.order("s.skuId", SortDirection.DESC));
 
     @Autowired private BrandRepository brandRepository;
     @Autowired private CategoryRepository categoryRepository;
@@ -110,28 +118,75 @@ class ListSearchQueryIntegrationTest {
     @Test
     @DisplayName("상품: 브랜드·카테고리·keyword(이름 또는 코드)·isActive를 조합해 필터링한다")
     void products() {
-        assertThat(productRepository.search(new ProductSearchCondition(brandA.getBrandId(), null, null, null)))
+        assertThat(productRepository.search(new ProductSearchCondition(brandA.getBrandId(), null, null, null), PRODUCT_PAGE).items())
                 .extracting(Product::getProductCode).containsExactly("P-0001");
-        assertThat(productRepository.search(new ProductSearchCondition(null, shoes.getCategoryId(), null, null)))
+        assertThat(productRepository.search(new ProductSearchCondition(null, shoes.getCategoryId(), null, null), PRODUCT_PAGE).items())
                 .extracting(Product::getProductCode).containsExactly("P-0002");
-        assertThat(productRepository.search(new ProductSearchCondition(null, null, "p-0002", null)))
+        assertThat(productRepository.search(new ProductSearchCondition(null, null, "p-0002", null), PRODUCT_PAGE).items())
                 .extracting(Product::getProductCode).containsExactly("P-0002");
-        assertThat(productRepository.search(new ProductSearchCondition(null, null, null, true)))
+        assertThat(productRepository.search(new ProductSearchCondition(null, null, null, true), PRODUCT_PAGE).items())
                 .extracting(Product::getProductCode).containsExactly("P-0001");
+    }
+
+    @Test
+    @DisplayName("상품: 페이지 크기만큼 자르고 전체 건수는 필터를 적용한 건수며, 이름·코드로 정렬한다")
+    void products_pagingAndSort() {
+        PageCondition byNameDesc = TestPages.firstPage(
+                TestPages.order("p.name", SortDirection.DESC), TestPages.order("p.productId", SortDirection.DESC));
+        ProductSearchCondition all = new ProductSearchCondition(null, null, null, null);
+
+        var first = productRepository.search(all, new PageCondition(1, 1, byNameDesc.orders()));
+        var second = productRepository.search(all, new PageCondition(2, 1, byNameDesc.orders()));
+
+        // 가나다 순으로 "배드민턴 신발" < "아스트록스 라켓"이라 내림차순이면 라켓이 먼저다
+        assertThat(first.items()).extracting(Product::getProductCode).containsExactly("P-0001");
+        assertThat(second.items()).extracting(Product::getProductCode).containsExactly("P-0002");
+        assertThat(first.totalElements()).isEqualTo(2);
+        assertThat(first.totalPages()).isEqualTo(2);
+        // 필터가 건수에 반영된다
+        var active = productRepository.search(new ProductSearchCondition(null, null, null, true),
+                new PageCondition(1, 1, byNameDesc.orders()));
+        assertThat(active.totalElements()).isEqualTo(1);
+        assertThat(active.totalPages()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("SKU: 페이지로 자르고 전체 건수를 세며, 조인한 상품명과 SKU 코드로 정렬한다")
+    void skus_pagingAndSort() {
+        PageCondition byProductName = TestPages.firstPage(
+                TestPages.order("p.name", SortDirection.ASC), TestPages.order("s.skuId", SortDirection.ASC));
+        PageCondition bySkuCodeDesc = TestPages.firstPage(
+                TestPages.order("s.skuCode", SortDirection.DESC), TestPages.order("s.skuId", SortDirection.DESC));
+        ProductSkuSearchCondition all = new ProductSkuSearchCondition(null, null, null, null, null);
+
+        var first = productSkuRepository.search(all, new PageCondition(1, 1, byProductName.orders()));
+        var second = productSkuRepository.search(all, new PageCondition(2, 1, byProductName.orders()));
+
+        // 가나다 순으로 "배드민턴 신발" < "아스트록스 라켓"이라 오름차순이면 신발 SKU가 먼저다
+        assertThat(first.items()).extracting(ProductSku::getSkuCode).containsExactly("SKU-SHOE-270");
+        assertThat(second.items()).extracting(ProductSku::getSkuCode).containsExactly("SKU-RED");
+        assertThat(first.totalElements()).isEqualTo(2);
+        assertThat(first.totalPages()).isEqualTo(2);
+        assertThat(productSkuRepository.search(all, bySkuCodeDesc).items())
+                .extracting(ProductSku::getSkuCode).containsExactly("SKU-SHOE-270", "SKU-RED");
+        // 필터(브랜드)가 건수에 반영된다
+        assertThat(productSkuRepository.search(
+                new ProductSkuSearchCondition(null, brandA.getBrandId(), null, null, null),
+                new PageCondition(1, 1, byProductName.orders())).totalElements()).isEqualTo(1);
     }
 
     @Test
     @DisplayName("SKU: 소속 상품의 브랜드·카테고리와 keyword(코드·바코드·이름)·isActive로 필터링한다")
     void skus() {
-        assertThat(productSkuRepository.search(new ProductSkuSearchCondition(null, brandA.getBrandId(), null, null, null)))
+        assertThat(productSkuRepository.search(new ProductSkuSearchCondition(null, brandA.getBrandId(), null, null, null), SKU_PAGE).items())
                 .extracting(ProductSku::getSkuCode).containsExactly("SKU-RED");
-        assertThat(productSkuRepository.search(new ProductSkuSearchCondition(null, null, shoes.getCategoryId(), null, null)))
+        assertThat(productSkuRepository.search(new ProductSkuSearchCondition(null, null, shoes.getCategoryId(), null, null), SKU_PAGE).items())
                 .extracting(ProductSku::getSkuCode).containsExactly("SKU-SHOE-270");
-        assertThat(productSkuRepository.search(new ProductSkuSearchCondition(null, null, null, "8800000000001", null)))
+        assertThat(productSkuRepository.search(new ProductSkuSearchCondition(null, null, null, "8800000000001", null), SKU_PAGE).items())
                 .extracting(ProductSku::getSkuCode).containsExactly("SKU-RED");
-        assertThat(productSkuRepository.search(new ProductSkuSearchCondition(productB.getProductId(), null, null, null, false)))
+        assertThat(productSkuRepository.search(new ProductSkuSearchCondition(productB.getProductId(), null, null, null, false), SKU_PAGE).items())
                 .extracting(ProductSku::getSkuCode).containsExactly("SKU-SHOE-270");
-        assertThat(productSkuRepository.search(new ProductSkuSearchCondition(null, null, null, null, true)))
+        assertThat(productSkuRepository.search(new ProductSkuSearchCondition(null, null, null, null, true), SKU_PAGE).items())
                 .extracting(ProductSku::getSkuCode).containsExactly("SKU-RED");
     }
 

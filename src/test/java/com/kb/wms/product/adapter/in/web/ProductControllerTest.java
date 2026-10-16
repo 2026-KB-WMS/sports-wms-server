@@ -1,5 +1,7 @@
 package com.kb.wms.product.adapter.in.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static com.kb.wms.common.security.TestAuth.signInAsHqAdmin;
 import static com.kb.wms.common.security.TestAuth.storeOwner;
 import static org.mockito.ArgumentMatchers.any;
@@ -16,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +30,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kb.wms.common.paging.SortOrder;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.TestPages;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.product.application.port.in.BrandQueryUseCase;
 import com.kb.wms.product.application.port.in.CategoryUseCase;
@@ -129,7 +137,7 @@ class ProductControllerTest {
     @DisplayName("상품 목록을 조회하면 200과 브랜드·카테고리·keyword·isActive 필터가 그대로 전달된다")
     void getProducts_success() throws Exception {
         Product product = Product.register(1L, 2L, "P-0001", "라켓 A", "설명");
-        when(productUseCase.getProducts(eq(new ProductSearchCondition(1L, 2L, "라켓", true)), any())).thenReturn(List.of(product));
+        when(productUseCase.getProducts(eq(new ProductSearchCondition(1L, 2L, "라켓", true)), any(), any())).thenReturn(TestPages.resultOf(List.of(product)));
         when(brandQueryUseCase.getBrand(1L)).thenReturn(Brand.register("브랜드 A", null));
         when(categoryUseCase.getCategory(2L)).thenReturn(Category.register(null, "CAT-002", "가방", 1, 0));
 
@@ -206,5 +214,63 @@ class ProductControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
 
         verify(productUseCase, never()).updateProduct(any(ProductUpdateCommand.class));
+    }
+
+    @Test
+    @DisplayName("상품 목록은 page·size·sort를 페이지 조건으로 넘기고 pageInfo를 담아 반환한다")
+    void products_paging() throws Exception {
+        when(productUseCase.getProducts(any(ProductSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 2, 5, 11, "productName,asc"));
+
+        mockMvc.perform(get("/api/v1/products").param("page", "2").param("size", "5").param("sort", "productName,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty())
+                .andExpect(jsonPath("$.data.pageInfo.page").value(2))
+                .andExpect(jsonPath("$.data.pageInfo.size").value(5))
+                .andExpect(jsonPath("$.data.pageInfo.totalElements").value(11))
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(3))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("productName,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(productUseCase).getProducts(any(ProductSearchCondition.class), captor.capture(), any());
+        PageCondition page = captor.getValue();
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.orders()).extracting(SortOrder::property).containsExactly("p.name", "p.productId");
+        assertThat(page.orders()).extracting(SortOrder::direction).containsOnly(SortDirection.ASC);
+    }
+
+    @Test
+    @DisplayName("상품 목록은 page·size·sort를 생략하면 1페이지, 20건, 기본 정렬(createdAt,desc)이다")
+    void products_defaultPaging() throws Exception {
+        when(productUseCase.getProducts(any(ProductSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 1, 20, 0, "createdAt,desc"));
+
+        mockMvc.perform(get("/api/v1/products"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("createdAt,desc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(productUseCase).getProducts(any(ProductSearchCondition.class), captor.capture(), any());
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(20);
+        assertThat(captor.getValue().sortLabel()).isEqualTo("createdAt,desc");
+    }
+
+    @Test
+    @DisplayName("상품 목록의 허용되지 않은 sort 필드와 범위를 벗어난 page·size는 400을 반환한다")
+    void products_invalidPaging() throws Exception {
+        mockMvc.perform(get("/api/v1/products").param("sort", "unknown,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/products").param("sort", "productName,up"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/products").param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/products").param("page", "0"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(productUseCase);
     }
 }

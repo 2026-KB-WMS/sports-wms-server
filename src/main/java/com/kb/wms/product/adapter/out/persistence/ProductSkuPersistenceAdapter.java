@@ -5,6 +5,9 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.persistence.PageAdapter;
 import com.kb.wms.product.application.port.out.ProductSkuRepository;
 import com.kb.wms.product.adapter.out.persistence.entity.ProductSkuJpaEntity;
 import com.kb.wms.product.adapter.out.persistence.repository.ProductSkuJpaRepository;
@@ -40,16 +43,15 @@ public class ProductSkuPersistenceAdapter implements ProductSkuRepository {
     }
 
     @Override
-    public List<ProductSku> search(ProductSkuSearchCondition condition) {
-        return productSkuJpaRepository.search(
+    public PageResult<ProductSku> search(ProductSkuSearchCondition condition, PageCondition page) {
+        return PageAdapter.toPageResult(productSkuJpaRepository.search(
                         condition.productId(),
                         condition.brandId(),
                         condition.categoryId(),
                         SearchKeyword.normalize(condition.keyword()),
-                        ProductStatus.fromActiveFlag(condition.isActive()))
-                .stream()
-                .map(ProductSkuJpaEntity::toDomain)
-                .toList();
+                        ProductStatus.fromActiveFlag(condition.isActive()),
+                        PageAdapter.toPageable(page)),
+                page, ProductSkuJpaEntity::toDomain);
     }
 
     @Override

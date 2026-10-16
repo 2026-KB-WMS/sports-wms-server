@@ -20,6 +20,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.AuthenticatedUser;
@@ -52,6 +56,8 @@ import com.kb.wms.product.exception.ProductErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class ProductSkuServiceTest {
+
+    private static final PageCondition SKU_PAGE = TestPages.firstPage(TestPages.order("s.createdAt", SortDirection.DESC), TestPages.order("s.skuId", SortDirection.DESC));
 
     @Mock
     private ProductSkuRepository productSkuRepository;
@@ -333,9 +339,9 @@ class ProductSkuServiceTest {
         when(productRepository.findById(1L)).thenReturn(Optional.of(mockActiveProduct()));
         when(brandRepository.findById(2L)).thenReturn(Optional.of(Brand.register("브랜드 A", null)));
         when(categoryRepository.findById(3L)).thenReturn(Optional.of(Category.register(null, "RACKET", "라켓", 1, 0)));
-        when(productSkuRepository.search(condition)).thenReturn(skus);
+        when(productSkuRepository.search(condition, SKU_PAGE)).thenReturn(TestPages.resultOf(skus));
 
-        assertThat(productSkuService.getSkus(condition)).isEqualTo(skus);
+        assertThat(productSkuService.getSkus(condition, SKU_PAGE).items()).isEqualTo(skus);
     }
 
     @Test
@@ -343,11 +349,11 @@ class ProductSkuServiceTest {
     void getSkus_productNotFound() {
         when(productRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> productSkuService.getSkus(new ProductSkuSearchCondition(999L, null, null, null, null)))
+        assertThatThrownBy(() -> productSkuService.getSkus(new ProductSkuSearchCondition(999L, null, null, null, null), SKU_PAGE))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND.name());
-        verify(productSkuRepository, never()).search(any());
+        verify(productSkuRepository, never()).search(any(), any());
     }
 
     @Test
@@ -356,10 +362,10 @@ class ProductSkuServiceTest {
         when(brandRepository.findById(999L)).thenReturn(Optional.empty());
         when(categoryRepository.findById(998L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> productSkuService.getSkus(new ProductSkuSearchCondition(null, 999L, null, null, null)))
+        assertThatThrownBy(() -> productSkuService.getSkus(new ProductSkuSearchCondition(null, 999L, null, null, null), SKU_PAGE))
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.BRAND_NOT_FOUND.name());
-        assertThatThrownBy(() -> productSkuService.getSkus(new ProductSkuSearchCondition(null, null, 998L, null, null)))
+        assertThatThrownBy(() -> productSkuService.getSkus(new ProductSkuSearchCondition(null, null, 998L, null, null), SKU_PAGE))
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.CATEGORY_NOT_FOUND.name());
     }
@@ -697,16 +703,16 @@ class ProductSkuServiceTest {
     @Test
     @DisplayName("점주의 SKU 목록은 isActive 필터와 상관없이 활성 SKU만 조회하고, 본사는 필터를 그대로 쓴다")
     void getSkus_storeOwnerOnlyActive() {
-        when(productSkuRepository.search(new ProductSkuSearchCondition(null, null, null, "SKU", true)))
-                .thenReturn(List.of());
-        when(productSkuRepository.search(new ProductSkuSearchCondition(null, null, null, "SKU", false)))
-                .thenReturn(List.of());
+        when(productSkuRepository.search(new ProductSkuSearchCondition(null, null, null, "SKU", true), SKU_PAGE))
+                .thenReturn(TestPages.resultOf(List.of()));
+        when(productSkuRepository.search(new ProductSkuSearchCondition(null, null, null, "SKU", false), SKU_PAGE))
+                .thenReturn(TestPages.resultOf(List.of()));
 
-        productSkuService.getSkus(new ProductSkuSearchCondition(null, null, null, "SKU", false), storeOwner);
-        productSkuService.getSkus(new ProductSkuSearchCondition(null, null, null, "SKU", false), hqAdmin);
+        productSkuService.getSkus(new ProductSkuSearchCondition(null, null, null, "SKU", false), SKU_PAGE, storeOwner);
+        productSkuService.getSkus(new ProductSkuSearchCondition(null, null, null, "SKU", false), SKU_PAGE, hqAdmin);
 
-        verify(productSkuRepository).search(new ProductSkuSearchCondition(null, null, null, "SKU", true));
-        verify(productSkuRepository).search(new ProductSkuSearchCondition(null, null, null, "SKU", false));
+        verify(productSkuRepository).search(new ProductSkuSearchCondition(null, null, null, "SKU", true), SKU_PAGE);
+        verify(productSkuRepository).search(new ProductSkuSearchCondition(null, null, null, "SKU", false), SKU_PAGE);
     }
 
     @Test

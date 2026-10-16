@@ -5,6 +5,9 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.persistence.PageAdapter;
 import com.kb.wms.product.application.port.out.ProductRepository;
 import com.kb.wms.product.adapter.out.persistence.entity.ProductJpaEntity;
 import com.kb.wms.product.adapter.out.persistence.repository.ProductJpaRepository;
@@ -33,15 +36,14 @@ public class ProductPersistenceAdapter implements ProductRepository {
     }
 
     @Override
-    public List<Product> search(ProductSearchCondition condition) {
-        return productJpaRepository.search(
+    public PageResult<Product> search(ProductSearchCondition condition, PageCondition page) {
+        return PageAdapter.toPageResult(productJpaRepository.search(
                         condition.brandId(),
                         condition.categoryId(),
                         SearchKeyword.normalize(condition.keyword()),
-                        ProductStatus.fromActiveFlag(condition.isActive()))
-                .stream()
-                .map(ProductJpaEntity::toDomain)
-                .toList();
+                        ProductStatus.fromActiveFlag(condition.isActive()),
+                        PageAdapter.toPageable(page)),
+                page, ProductJpaEntity::toDomain);
     }
 
     @Override

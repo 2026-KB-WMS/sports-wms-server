@@ -2,6 +2,8 @@ package com.kb.wms.product.adapter.out.persistence.repository;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -21,7 +23,8 @@ public interface ProductSkuJpaRepository extends JpaRepository<ProductSkuJpaEnti
             """)
     List<ProductSkuJpaEntity> findAllByFilter(@Param("productId") Long productId);
 
-    @Query("""
+    /** 정렬·페이징은 {@code Pageable}이 정한다. 상품명 정렬을 위해 상품 별칭 {@code p}를 쓸 수 있다. */
+    @Query(value = """
             select s from ProductSkuJpaEntity s
             join ProductJpaEntity p on p.productId = s.productId
             where (:productId is null or s.productId = :productId)
@@ -32,11 +35,23 @@ public interface ProductSkuJpaRepository extends JpaRepository<ProductSkuJpaEnti
                    or lower(s.skuCode) like lower(concat('%', :keyword, '%'))
                    or lower(s.barcode) like lower(concat('%', :keyword, '%'))
                    or lower(s.name) like lower(concat('%', :keyword, '%')))
-            order by s.createdAt desc, s.skuId desc
+            """,
+            countQuery = """
+            select count(s) from ProductSkuJpaEntity s
+            join ProductJpaEntity p on p.productId = s.productId
+            where (:productId is null or s.productId = :productId)
+              and (:brandId is null or p.brandId = :brandId)
+              and (:categoryId is null or p.categoryId = :categoryId)
+              and (:status is null or s.status = :status)
+              and (:keyword is null
+                   or lower(s.skuCode) like lower(concat('%', :keyword, '%'))
+                   or lower(s.barcode) like lower(concat('%', :keyword, '%'))
+                   or lower(s.name) like lower(concat('%', :keyword, '%')))
             """)
-    List<ProductSkuJpaEntity> search(@Param("productId") Long productId,
+    Page<ProductSkuJpaEntity> search(@Param("productId") Long productId,
                                      @Param("brandId") Long brandId,
                                      @Param("categoryId") Long categoryId,
                                      @Param("keyword") String keyword,
-                                     @Param("status") ProductStatus status);
+                                     @Param("status") ProductStatus status,
+                                     Pageable pageable);
 }

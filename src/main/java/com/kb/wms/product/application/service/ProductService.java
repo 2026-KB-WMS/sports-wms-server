@@ -7,6 +7,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.application.port.in.ProductUseCase;
 import com.kb.wms.product.application.port.in.query.ProductSearchCondition;
@@ -73,14 +75,14 @@ public class ProductService implements ProductUseCase {
     }
 
     @Override
-    public List<Product> getProducts(ProductSearchCondition condition) {
+    public PageResult<Product> getProducts(ProductSearchCondition condition, PageCondition page) {
         if (condition.brandId() != null && brandRepository.findById(condition.brandId()).isEmpty()) {
             throw new BusinessException(ProductErrorCode.BRAND_NOT_FOUND);
         }
         if (condition.categoryId() != null && categoryRepository.findById(condition.categoryId()).isEmpty()) {
             throw new BusinessException(ProductErrorCode.CATEGORY_NOT_FOUND);
         }
-        return productRepository.search(condition);
+        return productRepository.search(condition, page);
     }
 
     @Override
@@ -180,12 +182,13 @@ public class ProductService implements ProductUseCase {
 
     /** 점주에게는 판매 가능한(활성) 상품만 보이므로, isActive 필터가 무엇이든 활성 상품으로 고정한다. */
     @Override
-    public List<Product> getProducts(ProductSearchCondition condition, AuthenticatedUser actor) {
+    public PageResult<Product> getProducts(ProductSearchCondition condition, PageCondition page,
+                                           AuthenticatedUser actor) {
         if (actor.isStoreOwner()) {
             return getProducts(new ProductSearchCondition(
-                    condition.brandId(), condition.categoryId(), condition.keyword(), true));
+                    condition.brandId(), condition.categoryId(), condition.keyword(), true), page);
         }
-        return getProducts(condition);
+        return getProducts(condition, page);
     }
 
     /** 점주에게 비활성 상품은 없는 것으로 보인다(404). */
