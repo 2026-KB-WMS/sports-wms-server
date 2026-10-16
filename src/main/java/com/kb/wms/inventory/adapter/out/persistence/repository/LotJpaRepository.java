@@ -7,6 +7,8 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -27,7 +29,7 @@ public interface LotJpaRepository extends JpaRepository<LotJpaEntity, Long> {
     /**
      * 로트 + SKU + 공급처명 조회 (lotId가 있으면 단건 조회에도 사용).
      */
-    @Query("""
+    @Query(value = """
             select new com.kb.wms.inventory.application.port.in.result.LotSummary(
                 l.lotId, l.lotNumber, s.skuId, s.skuCode, s.name, l.supplierId, su.name,
                 l.manufacturedDate, l.expiryDate, l.status, l.unitCost, l.createdAt, l.updatedAt)
@@ -47,15 +49,33 @@ public interface LotJpaRepository extends JpaRepository<LotJpaEntity, Long> {
                               join InboundJpaEntity ib on ib.inboundId = ibl.inboundId
                               where ibl.lotId = l.lotId and ib.warehouseId in :warehouseIds
                                 and ib.status = com.kb.wms.inbound.domain.enums.InboundStatus.COMPLETED))
-            order by case when l.expiryDate is null then 1 else 0 end, l.expiryDate, l.lotId
+            """,
+            countQuery = """
+            select count(l)
+            from LotJpaEntity l
+            join ProductSkuJpaEntity s on s.skuId = l.skuId
+            where (:lotId is null or l.lotId = :lotId)
+              and (:skuId is null or l.skuId = :skuId)
+              and (:supplierId is null or l.supplierId = :supplierId)
+              and (:expiringBefore is null or l.expiryDate <= :expiringBefore)
+              and (:keyword is null or lower(l.lotNumber) like lower(concat('%', :keyword, '%')))
+              and (:scoped = false
+                   or exists (select 1 from InventoryLotJpaEntity il
+                              join WarehouseSectionJpaEntity ws on ws.sectionId = il.sectionId
+                              where il.lotId = l.lotId and ws.warehouseId in :warehouseIds)
+                   or exists (select 1 from InboundLineJpaEntity ibl
+                              join InboundJpaEntity ib on ib.inboundId = ibl.inboundId
+                              where ibl.lotId = l.lotId and ib.warehouseId in :warehouseIds
+                                and ib.status = com.kb.wms.inbound.domain.enums.InboundStatus.COMPLETED))
             """)
-    List<LotSummary> findSummaries(@Param("lotId") Long lotId,
+    Page<LotSummary> findSummaries(@Param("lotId") Long lotId,
                                    @Param("skuId") Long skuId,
                                    @Param("supplierId") Long supplierId,
                                    @Param("expiringBefore") LocalDate expiringBefore,
                                    @Param("keyword") String keyword,
                                    @Param("scoped") boolean scoped,
-                                   @Param("warehouseIds") Collection<Long> warehouseIds);
+                                   @Param("warehouseIds") Collection<Long> warehouseIds,
+            Pageable pageable);
 
     /**
      * 로트가 입고된 이력. InboundLine.lot_id가 이 로트인 항목을 입고 헤더와 조인한다(조회 전용, ADR-007).

@@ -18,6 +18,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.AuthenticatedUser;
@@ -38,6 +42,12 @@ import com.kb.wms.inventory.exception.InventoryErrorCode;
 @ExtendWith(MockitoExtension.class)
 class InventoryQueryServiceTest {
 
+    private static final PageCondition SECTION_PAGE = TestPages.firstPage(TestPages.order("ws.sectionCode", SortDirection.ASC), TestPages.order("ws.sectionId", SortDirection.ASC), TestPages.order("s.skuId", SortDirection.ASC));
+
+    private static final PageCondition SKU_PAGE = TestPages.firstPage(TestPages.order("s.skuCode", SortDirection.ASC), TestPages.order("s.skuId", SortDirection.ASC));
+
+    private static final PageCondition TX_PAGE = TestPages.firstPage(TestPages.order("t.createdAt", SortDirection.DESC), TestPages.order("t.transactionId", SortDirection.DESC));
+
     private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
 
     @Mock
@@ -57,9 +67,9 @@ class InventoryQueryServiceTest {
         when(inventoryQueryRepository.existsSku(1L)).thenReturn(true);
         when(inventoryQueryRepository.existsWarehouse(2L)).thenReturn(true);
         List<InventorySkuSummary> expected = List.of();
-        when(inventoryQueryRepository.findSkuSummaries(condition)).thenReturn(expected);
+        when(inventoryQueryRepository.findSkuSummaries(condition, SKU_PAGE)).thenReturn(TestPages.resultOf(expected));
 
-        List<InventorySkuSummary> result = inventoryQueryService.getInventories(condition, HQ);
+        List<InventorySkuSummary> result = inventoryQueryService.getInventories(condition, SKU_PAGE, HQ).items();
 
         assertThat(result).isSameAs(expected);
     }
@@ -70,11 +80,11 @@ class InventoryQueryServiceTest {
         InventorySearchCondition condition = InventorySearchCondition.unscoped(999L, null, null);
         when(inventoryQueryRepository.existsSku(999L)).thenReturn(false);
 
-        assertThatThrownBy(() -> inventoryQueryService.getInventories(condition, HQ))
+        assertThatThrownBy(() -> inventoryQueryService.getInventories(condition, SKU_PAGE, HQ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(InventoryErrorCode.SKU_NOT_FOUND.name());
-        verify(inventoryQueryRepository, never()).findSkuSummaries(condition);
+        verify(inventoryQueryRepository, never()).findSkuSummaries(condition, SKU_PAGE);
     }
 
     @Test
@@ -83,7 +93,7 @@ class InventoryQueryServiceTest {
         InventorySearchCondition condition = InventorySearchCondition.unscoped(null, 999L, null);
         when(inventoryQueryRepository.existsWarehouse(999L)).thenReturn(false);
 
-        assertThatThrownBy(() -> inventoryQueryService.getInventories(condition, HQ))
+        assertThatThrownBy(() -> inventoryQueryService.getInventories(condition, SKU_PAGE, HQ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(InventoryErrorCode.WAREHOUSE_NOT_FOUND.name());
@@ -93,9 +103,9 @@ class InventoryQueryServiceTest {
     @DisplayName("필터 없이 조회하면 존재 검증 없이 목록을 조회한다")
     void getInventories_noFilter_skipsValidation() {
         InventorySearchCondition condition = InventorySearchCondition.unscoped(null, null, null);
-        when(inventoryQueryRepository.findSkuSummaries(condition)).thenReturn(List.of());
+        when(inventoryQueryRepository.findSkuSummaries(condition, SKU_PAGE)).thenReturn(TestPages.resultOf(List.of()));
 
-        inventoryQueryService.getInventories(condition, HQ);
+        inventoryQueryService.getInventories(condition, SKU_PAGE, HQ);
 
         verify(inventoryQueryRepository, never()).existsSku(anyLong());
     }
@@ -155,7 +165,7 @@ class InventoryQueryServiceTest {
                 null, null, null, null, null, null, null, null,
                 LocalDateTime.of(2026, 1, 10, 0, 0), LocalDateTime.of(2026, 1, 1, 0, 0));
 
-        assertThatThrownBy(() -> inventoryQueryService.getTransactions(condition, HQ))
+        assertThatThrownBy(() -> inventoryQueryService.getTransactions(condition, TX_PAGE, HQ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
@@ -167,7 +177,7 @@ class InventoryQueryServiceTest {
         InventoryTransactionSearchCondition condition = InventoryTransactionSearchCondition.unscoped(
                 null, null, null, null, null, null, null, 5L, null, null);
 
-        assertThatThrownBy(() -> inventoryQueryService.getTransactions(condition, HQ))
+        assertThatThrownBy(() -> inventoryQueryService.getTransactions(condition, TX_PAGE, HQ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ErrorCode.VALIDATION_ERROR.name());
@@ -180,7 +190,7 @@ class InventoryQueryServiceTest {
                 null, null, null, null, 999L, null, null, null, null, null);
         when(lotRepository.existsById(999L)).thenReturn(false);
 
-        assertThatThrownBy(() -> inventoryQueryService.getTransactions(condition, HQ))
+        assertThatThrownBy(() -> inventoryQueryService.getTransactions(condition, TX_PAGE, HQ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(InventoryErrorCode.LOT_NOT_FOUND.name());
@@ -213,23 +223,23 @@ class InventoryQueryServiceTest {
     @DisplayName("창고 관리자가 창고를 생략하면 담당 창고 목록으로 좁혀 조회한다 (재고·로트별·안전재고·이력)")
     void list_warehouseManagerWithoutWarehouse_scopedToAssigned() {
         List<Long> scope = List.of(1L, 2L);
-        when(inventoryQueryRepository.findSkuSummaries(new InventorySearchCondition(null, null, null, scope)))
-                .thenReturn(List.of());
+        when(inventoryQueryRepository.findSkuSummaries(new InventorySearchCondition(null, null, null, scope), SKU_PAGE))
+                .thenReturn(TestPages.resultOf(List.of()));
         when(inventoryQueryRepository.findLowStock(new LowStockSearchCondition(null, null, scope)))
                 .thenReturn(List.of());
         when(inventoryQueryRepository.findLotViews(new InventoryLotSearchCondition(
                 null, null, null, null, null, null, null, scope))).thenReturn(List.of());
         when(inventoryQueryRepository.findTransactions(new InventoryTransactionSearchCondition(
-                null, null, null, null, null, null, null, null, null, null, scope))).thenReturn(List.of());
+                null, null, null, null, null, null, null, null, null, null, scope), TX_PAGE)).thenReturn(TestPages.resultOf(List.of()));
 
-        inventoryQueryService.getInventories(InventorySearchCondition.unscoped(null, null, null), manager);
+        inventoryQueryService.getInventories(InventorySearchCondition.unscoped(null, null, null), SKU_PAGE, manager);
         inventoryQueryService.getLowStock(LowStockSearchCondition.unscoped(null, null), manager);
         inventoryQueryService.getInventoriesByLot(
                 InventoryLotSearchCondition.unscoped(null, null, null, null, null, null, null), manager);
         inventoryQueryService.getTransactions(InventoryTransactionSearchCondition.unscoped(
-                null, null, null, null, null, null, null, null, null, null), manager);
+                null, null, null, null, null, null, null, null, null, null), TX_PAGE, manager);
 
-        verify(inventoryQueryRepository).findSkuSummaries(new InventorySearchCondition(null, null, null, scope));
+        verify(inventoryQueryRepository).findSkuSummaries(new InventorySearchCondition(null, null, null, scope), SKU_PAGE);
     }
 
     @Test
@@ -237,15 +247,15 @@ class InventoryQueryServiceTest {
     void getInventoriesBySection_scope() {
         List<Long> scope = List.of(1L, 2L);
         when(inventoryQueryRepository.findSectionSummaries(
-                new InventorySectionSearchCondition(null, null, null, null, null, scope))).thenReturn(List.of());
+                new InventorySectionSearchCondition(null, null, null, null, null, scope), SECTION_PAGE)).thenReturn(TestPages.resultOf(List.of()));
 
         inventoryQueryService.getInventoriesBySection(
-                InventorySectionSearchCondition.unscoped(null, null, null, null, null), manager);
+                InventorySectionSearchCondition.unscoped(null, null, null, null, null), SECTION_PAGE, manager);
 
         verify(inventoryQueryRepository).findSectionSummaries(
-                new InventorySectionSearchCondition(null, null, null, null, null, scope));
+                new InventorySectionSearchCondition(null, null, null, null, null, scope), SECTION_PAGE);
         assertThatThrownBy(() -> inventoryQueryService.getInventoriesBySection(
-                InventorySectionSearchCondition.unscoped(9L, null, null, null, null), manager))
+                InventorySectionSearchCondition.unscoped(9L, null, null, null, null), SECTION_PAGE, manager))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ErrorCode.FORBIDDEN.name());
@@ -257,7 +267,7 @@ class InventoryQueryServiceTest {
         when(inventoryQueryRepository.existsCategory(99L)).thenReturn(false);
 
         assertThatThrownBy(() -> inventoryQueryService.getInventoriesBySection(
-                InventorySectionSearchCondition.unscoped(null, null, 99L, null, null), HQ))
+                InventorySectionSearchCondition.unscoped(null, null, 99L, null, null), SECTION_PAGE, HQ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(InventoryErrorCode.CATEGORY_NOT_FOUND.name());
@@ -267,12 +277,12 @@ class InventoryQueryServiceTest {
     @DisplayName("지정한 담당 창고는 추가 범위 없이 그 창고로만 조회하고, 비담당 창고면 존재 확인 전에 403이다")
     void list_specifiedWarehouse() {
         when(inventoryQueryRepository.existsWarehouse(2L)).thenReturn(true);
-        when(inventoryQueryRepository.findSkuSummaries(new InventorySearchCondition(null, 2L, null, null)))
-                .thenReturn(List.of());
+        when(inventoryQueryRepository.findSkuSummaries(new InventorySearchCondition(null, 2L, null, null), SKU_PAGE))
+                .thenReturn(TestPages.resultOf(List.of()));
 
-        inventoryQueryService.getInventories(InventorySearchCondition.unscoped(null, 2L, null), manager);
+        inventoryQueryService.getInventories(InventorySearchCondition.unscoped(null, 2L, null), SKU_PAGE, manager);
 
-        assertThatThrownBy(() -> inventoryQueryService.getInventories(InventorySearchCondition.unscoped(null, 3L, null), manager))
+        assertThatThrownBy(() -> inventoryQueryService.getInventories(InventorySearchCondition.unscoped(null, 3L, null), SKU_PAGE, manager))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
         assertThatThrownBy(() -> inventoryQueryService.getLowStock(LowStockSearchCondition.unscoped(3L, null), manager))
@@ -289,7 +299,7 @@ class InventoryQueryServiceTest {
         assertThatThrownBy(() -> inventoryQueryService.getInventoriesByLot(InventoryLotSearchCondition.unscoped(null, null, 7L, null, null, null, null), manager))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
-        assertThatThrownBy(() -> inventoryQueryService.getTransactions(InventoryTransactionSearchCondition.unscoped(null, null, 7L, null, null, null, null, null, null, null), manager))
+        assertThatThrownBy(() -> inventoryQueryService.getTransactions(InventoryTransactionSearchCondition.unscoped(null, null, 7L, null, null, null, null, null, null, null), TX_PAGE, manager))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
         verify(inventoryQueryRepository, never()).findLotViews(org.mockito.ArgumentMatchers.any());

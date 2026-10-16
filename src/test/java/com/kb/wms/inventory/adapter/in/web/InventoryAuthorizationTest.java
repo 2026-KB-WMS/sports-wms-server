@@ -1,5 +1,7 @@
 package com.kb.wms.inventory.adapter.in.web;
 
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 import static com.kb.wms.common.security.TestAuth.hqAdmin;
 import static com.kb.wms.common.security.TestAuth.storeOwner;
 import static com.kb.wms.common.security.TestAuth.warehouseManager;
@@ -21,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.kb.wms.common.paging.TestPages;
 import com.kb.wms.common.config.SecurityConfig;
 import com.kb.wms.common.security.AuthenticatedUserResolver;
 import com.kb.wms.common.security.JwtProvider;
@@ -89,6 +92,7 @@ class InventoryAuthorizationTest {
                     .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
         }
         // 창고 관리자는 지정하지 않은 목록을 담당 창고로 좁혀 조회한다
+        when(inventoryQueryUseCase.getInventories(any(), any(), any())).thenReturn(TestPages.resultOf(List.of()));
         mockMvc.perform(get("/api/v1/inventory").with(warehouseManager(2L, 1L))).andExpect(status().isOk());
     }
 

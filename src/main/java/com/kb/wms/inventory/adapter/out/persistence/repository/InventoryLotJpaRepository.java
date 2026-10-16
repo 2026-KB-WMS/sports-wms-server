@@ -7,6 +7,8 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -90,7 +92,7 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
             """)
     boolean existsStockInWarehouse(@Param("warehouseId") Long warehouseId);
 
-    @Query("""
+    @Query(value = """
             select new com.kb.wms.inventory.application.port.in.result.InventorySkuSummary(
                 s.skuId, s.skuCode, s.name, s.unit,
                 sum(il.onHandQuantity),
@@ -111,15 +113,28 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
                    or lower(s.skuCode) like lower(concat('%', :keyword, '%'))
                    or lower(s.name) like lower(concat('%', :keyword, '%')))
             group by s.skuId, s.skuCode, s.name, s.unit
-            order by s.skuCode
+            """,
+            countQuery = """
+            select count(distinct s.skuId)
+            from InventoryLotJpaEntity il
+            join LotJpaEntity l on l.lotId = il.lotId
+            join ProductSkuJpaEntity s on s.skuId = l.skuId
+            join WarehouseSectionJpaEntity ws on ws.sectionId = il.sectionId
+            where (:skuId is null or s.skuId = :skuId)
+              and (:warehouseId is null or ws.warehouseId = :warehouseId)
+              and (:scoped = false or ws.warehouseId in :warehouseIds)
+              and (:keyword is null
+                   or lower(s.skuCode) like lower(concat('%', :keyword, '%'))
+                   or lower(s.name) like lower(concat('%', :keyword, '%')))
             """)
-    List<InventorySkuSummary> findSkuSummaries(@Param("skuId") Long skuId,
+    Page<InventorySkuSummary> findSkuSummaries(@Param("skuId") Long skuId,
                                                @Param("warehouseId") Long warehouseId,
                                                @Param("scoped") boolean scoped,
                                                @Param("warehouseIds") Collection<Long> warehouseIds,
-                                               @Param("keyword") String keyword);
+                                               @Param("keyword") String keyword,
+            Pageable pageable);
 
-    @Query("""
+    @Query(value = """
             select new com.kb.wms.inventory.application.port.in.result.InventorySectionSummary(
                 w.warehouseId, w.name, ws.sectionId, ws.sectionCode, ws.name,
                 s.skuId, s.skuCode, s.name, s.unit, c.categoryId, c.name,
@@ -148,17 +163,36 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
                    or lower(s.name) like lower(concat('%', :keyword, '%')))
             group by w.warehouseId, w.name, ws.sectionId, ws.sectionCode, ws.name,
                      s.skuId, s.skuCode, s.name, s.unit, c.categoryId, c.name
-            order by w.warehouseId, ws.sectionCode, s.skuCode
+            """,
+            countQuery = """
+            select count(distinct concat(cast(ws.sectionId as string), '-', cast(s.skuId as string)))
+            from InventoryLotJpaEntity il
+            join LotJpaEntity l on l.lotId = il.lotId
+            join ProductSkuJpaEntity s on s.skuId = l.skuId
+            join ProductJpaEntity p on p.productId = s.productId
+            join CategoryJpaEntity c on c.categoryId = p.categoryId
+            join WarehouseSectionJpaEntity ws on ws.sectionId = il.sectionId
+            join WarehouseJpaEntity w on w.warehouseId = ws.warehouseId
+            where il.onHandQuantity > 0
+              and (:warehouseId is null or w.warehouseId = :warehouseId)
+              and (:scoped = false or w.warehouseId in :warehouseIds)
+              and (:sectionId is null or ws.sectionId = :sectionId)
+              and (:categoryId is null or c.categoryId = :categoryId)
+              and (:skuId is null or s.skuId = :skuId)
+              and (:keyword is null
+                   or lower(s.skuCode) like lower(concat('%', :keyword, '%'))
+                   or lower(s.name) like lower(concat('%', :keyword, '%')))
             """)
-    List<InventorySectionSummary> findSectionSummaries(@Param("warehouseId") Long warehouseId,
+    Page<InventorySectionSummary> findSectionSummaries(@Param("warehouseId") Long warehouseId,
                                                        @Param("sectionId") Long sectionId,
                                                        @Param("categoryId") Long categoryId,
                                                        @Param("skuId") Long skuId,
                                                        @Param("scoped") boolean scoped,
                                                        @Param("warehouseIds") Collection<Long> warehouseIds,
-                                                       @Param("keyword") String keyword);
+                                                       @Param("keyword") String keyword,
+            Pageable pageable);
 
-    @Query("""
+    @Query(value = """
             select new com.kb.wms.inventory.application.port.in.result.InventoryLotView(
                 il.inventoryLotId, l.lotId, l.lotNumber, s.skuId, s.skuCode, s.name,
                 ws.warehouseId, ws.sectionId, ws.sectionCode, ws.name,
@@ -179,9 +213,23 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
               and (:expiringBefore is null or l.expiryDate <= :expiringBefore)
               and (:qualityStatus is null or il.qualityStatus = :qualityStatus)
               and (:includeEmpty = true or il.onHandQuantity > 0)
-            order by case when l.expiryDate is null then 1 else 0 end, l.expiryDate, il.inventoryLotId
+            """,
+            countQuery = """
+            select count(il)
+            from InventoryLotJpaEntity il
+            join LotJpaEntity l on l.lotId = il.lotId
+            join ProductSkuJpaEntity s on s.skuId = l.skuId
+            join WarehouseSectionJpaEntity ws on ws.sectionId = il.sectionId
+            where (:skuId is null or s.skuId = :skuId)
+              and (:warehouseId is null or ws.warehouseId = :warehouseId)
+              and (:scoped = false or ws.warehouseId in :warehouseIds)
+              and (:sectionId is null or il.sectionId = :sectionId)
+              and (:lotId is null or il.lotId = :lotId)
+              and (:expiringBefore is null or l.expiryDate <= :expiringBefore)
+              and (:qualityStatus is null or il.qualityStatus = :qualityStatus)
+              and (:includeEmpty = true or il.onHandQuantity > 0)
             """)
-    List<InventoryLotView> findLotViews(@Param("skuId") Long skuId,
+    Page<InventoryLotView> findLotViews(@Param("skuId") Long skuId,
                                         @Param("warehouseId") Long warehouseId,
                                         @Param("sectionId") Long sectionId,
                                         @Param("lotId") Long lotId,
@@ -189,7 +237,8 @@ public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpa
                                         @Param("qualityStatus") QualityStatus qualityStatus,
                                         @Param("includeEmpty") boolean includeEmpty,
                                         @Param("scoped") boolean scoped,
-                                        @Param("warehouseIds") Collection<Long> warehouseIds);
+                                        @Param("warehouseIds") Collection<Long> warehouseIds,
+            Pageable pageable);
 
     @Query("""
             select new com.kb.wms.inventory.application.port.in.result.InventoryDetail(

@@ -2,6 +2,8 @@ package com.kb.wms.inventory.application.port.in;
 
 import java.util.List;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inventory.application.port.in.command.LotRegisterCommand;
 import com.kb.wms.inventory.application.port.in.command.LotStatusChangeCommand;
@@ -20,7 +22,7 @@ public interface LotUseCase {
      * 로트 목록. skuId·supplierId 필터 대상이 없으면 404(SKU_NOT_FOUND·SUPPLIER_NOT_FOUND).
      * 창고 관리자에게는 담당 창고에 재고 또는 입고 완료 이력이 있는 로트만 보인다.
      */
-    List<LotSummary> getLots(LotSearchCondition condition, AuthenticatedUser actor);
+    PageResult<LotSummary> getLots(LotSearchCondition condition, PageCondition page, AuthenticatedUser actor);
 
     /** 로트 한 건. 없으면 404 LOT_NOT_FOUND, 창고 관리자에게 보이지 않는 로트면 403 FORBIDDEN. */
     LotSummary getLot(Long lotId, AuthenticatedUser actor);

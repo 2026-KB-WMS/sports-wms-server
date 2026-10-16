@@ -1,5 +1,7 @@
 package com.kb.wms.inventory.adapter.in.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static com.kb.wms.common.security.TestAuth.signInAsHqAdmin;
 import static com.kb.wms.common.security.TestAuth.warehouseManager;
 import static org.mockito.ArgumentMatchers.any;
@@ -15,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +29,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kb.wms.common.paging.SortOrder;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.TestPages;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.inventory.application.port.in.InventoryAdjustmentUseCase;
@@ -89,8 +97,8 @@ class InventoryControllerTest {
     @DisplayName("GET /api/v1/inventory: SKU 기준 재고 요약 목록을 반환한다")
     void getInventories_success() throws Exception {
         InventorySkuSummary summary = new InventorySkuSummary(1L, "SKU-001", "상품A", "EA", 100L, 80L, 20L, 0L);
-        when(inventoryQueryUseCase.getInventories(eq(InventorySearchCondition.unscoped(1L, 2L, "상품")), any()))
-                .thenReturn(List.of(summary));
+        when(inventoryQueryUseCase.getInventories(eq(InventorySearchCondition.unscoped(1L, 2L, "상품")), any(), any()))
+                .thenReturn(TestPages.resultOf(List.of(summary)));
 
         mockMvc.perform(get("/api/v1/inventory")
                         .param("skuId", "1").param("warehouseId", "2").param("keyword", "상품"))
@@ -105,8 +113,8 @@ class InventoryControllerTest {
     void getInventoriesByLot_success() throws Exception {
         InventoryLotView view = new InventoryLotView(1L, 2L, "LOT-001", 3L, "SKU-001", "상품A",
                 4L, 5L, "A-01", "1구역", 100L, 20L, 80L, QualityStatus.AVAILABLE, null, null);
-        when(inventoryQueryUseCase.getInventoriesByLot(any(InventoryLotSearchCondition.class), any()))
-                .thenReturn(List.of(view));
+        when(inventoryQueryUseCase.searchInventoriesByLot(any(InventoryLotSearchCondition.class), any(), any()))
+                .thenReturn(TestPages.resultOf(List.of(view)));
 
         mockMvc.perform(get("/api/v1/inventory/by-lot").param("sectionId", "5"))
                 .andExpect(status().isOk())
@@ -120,8 +128,8 @@ class InventoryControllerTest {
     void getInventoriesBySection_success() throws Exception {
         InventorySectionSummary summary = new InventorySectionSummary(4L, "서울센터", 5L, "A-01", "1구역",
                 3L, "SKU-001", "상품A", "EA", 7L, "라켓", 100L, 80L, 20L, 0L);
-        when(inventoryQueryUseCase.getInventoriesBySection(any(InventorySectionSearchCondition.class), any()))
-                .thenReturn(List.of(summary));
+        when(inventoryQueryUseCase.getInventoriesBySection(any(InventorySectionSearchCondition.class), any(), any()))
+                .thenReturn(TestPages.resultOf(List.of(summary)));
 
         mockMvc.perform(get("/api/v1/inventory/by-section").param("categoryId", "7"))
                 .andExpect(status().isOk())
@@ -177,8 +185,8 @@ class InventoryControllerTest {
         InventoryTransactionView view = new InventoryTransactionView(1L, 2L, 3L, 4L, "A-01", 5L, "SKU-001",
                 6L, "LOT-001", TransactionType.ADJUSTMENT, -3L, 100L, 97L, ReferenceType.ADJUSTMENT, null,
                 "실사 조정", 9L, "김작성", LocalDateTime.of(2026, 1, 1, 0, 0));
-        when(inventoryQueryUseCase.getTransactions(any(InventoryTransactionSearchCondition.class), any()))
-                .thenReturn(List.of(view));
+        when(inventoryQueryUseCase.getTransactions(any(InventoryTransactionSearchCondition.class), any(), any()))
+                .thenReturn(TestPages.resultOf(List.of(view)));
 
         mockMvc.perform(get("/api/v1/inventory/transactions").param("skuId", "5"))
                 .andExpect(status().isOk())
@@ -258,7 +266,7 @@ class InventoryControllerTest {
                 1L, TransactionType.ADJUSTMENT, 100L, 120L, ReferenceType.ADJUSTMENT, null, "실사 반영", 9L);
         when(inventoryAdjustmentUseCase.adjust(any(InventoryAdjustCommand.class), any()))
                 .thenReturn(new InventoryAdjustmentResult(transaction, inventoryLot));
-        when(inventoryQueryUseCase.getInventories(any(InventorySearchCondition.class), any())).thenReturn(List.of());
+        when(inventoryQueryUseCase.getInventories(any(InventorySearchCondition.class), any(), any())).thenReturn(TestPages.resultOf(List.of()));
 
         mockMvc.perform(post("/api/v1/inventory/adjustments").with(warehouseManager(9L, 1L))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -270,7 +278,7 @@ class InventoryControllerTest {
                 eq(new InventoryAdjustCommand(1L, 100L, 120L, "실사 반영", 9L)),
                 argThat(user -> user.userId().equals(9L) && user.warehouseIds().equals(List.of(1L))));
         verify(inventoryQueryUseCase).getInventories(
-                eq(InventorySearchCondition.unscoped(null, null, null)),
+                eq(InventorySearchCondition.unscoped(null, null, null)), any(),
                 argThat(user -> user.userId().equals(9L)));
     }
 
@@ -301,5 +309,237 @@ class InventoryControllerTest {
         mockMvc.perform(get("/api/v1/inventory/by-lot").param("qualityStatus", "BROKEN"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    @DisplayName("SKU별 재고 목록은 page·size·sort를 페이지 조건으로 넘기고 pageInfo를 담아 반환한다")
+    void inventories_paging() throws Exception {
+        when(inventoryQueryUseCase.getInventories(any(InventorySearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 2, 5, 11, "skuName,asc"));
+
+        mockMvc.perform(get("/api/v1/inventory").param("page", "2").param("size", "5").param("sort", "skuName,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty())
+                .andExpect(jsonPath("$.data.pageInfo.page").value(2))
+                .andExpect(jsonPath("$.data.pageInfo.size").value(5))
+                .andExpect(jsonPath("$.data.pageInfo.totalElements").value(11))
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(3))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("skuName,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(inventoryQueryUseCase).getInventories(any(InventorySearchCondition.class), captor.capture(), any());
+        PageCondition page = captor.getValue();
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.orders()).extracting(SortOrder::property).containsExactly("s.name", "s.skuId");
+        assertThat(page.orders()).extracting(SortOrder::direction).containsOnly(SortDirection.ASC);
+    }
+
+    @Test
+    @DisplayName("SKU별 재고 목록은 page·size·sort를 생략하면 1페이지, 20건, 기본 정렬(skuCode,asc)이다")
+    void inventories_defaultPaging() throws Exception {
+        when(inventoryQueryUseCase.getInventories(any(InventorySearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 1, 20, 0, "skuCode,asc"));
+
+        mockMvc.perform(get("/api/v1/inventory"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("skuCode,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(inventoryQueryUseCase).getInventories(any(InventorySearchCondition.class), captor.capture(), any());
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(20);
+        assertThat(captor.getValue().sortLabel()).isEqualTo("skuCode,asc");
+    }
+
+    @Test
+    @DisplayName("SKU별 재고 목록의 허용되지 않은 sort 필드와 범위를 벗어난 page·size는 400을 반환한다")
+    void inventories_invalidPaging() throws Exception {
+        mockMvc.perform(get("/api/v1/inventory").param("sort", "unknown,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/inventory").param("sort", "skuName,up"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/inventory").param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/inventory").param("page", "0"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(inventoryQueryUseCase);
+    }
+
+    @Test
+    @DisplayName("구역별 재고 목록은 page·size·sort를 페이지 조건으로 넘기고 pageInfo를 담아 반환한다")
+    void inventoriesBySection_paging() throws Exception {
+        when(inventoryQueryUseCase.getInventoriesBySection(any(InventorySectionSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 2, 5, 11, "skuName,asc"));
+
+        mockMvc.perform(get("/api/v1/inventory/by-section").param("page", "2").param("size", "5").param("sort", "skuName,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty())
+                .andExpect(jsonPath("$.data.pageInfo.page").value(2))
+                .andExpect(jsonPath("$.data.pageInfo.size").value(5))
+                .andExpect(jsonPath("$.data.pageInfo.totalElements").value(11))
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(3))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("skuName,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(inventoryQueryUseCase).getInventoriesBySection(any(InventorySectionSearchCondition.class), captor.capture(), any());
+        PageCondition page = captor.getValue();
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.orders()).extracting(SortOrder::property).containsExactly("s.name", "ws.sectionId", "s.skuId");
+        assertThat(page.orders()).extracting(SortOrder::direction).containsOnly(SortDirection.ASC);
+    }
+
+    @Test
+    @DisplayName("구역별 재고 목록은 page·size·sort를 생략하면 1페이지, 20건, 기본 정렬(warehouseId,asc)이다")
+    void inventoriesBySection_defaultPaging() throws Exception {
+        when(inventoryQueryUseCase.getInventoriesBySection(any(InventorySectionSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 1, 20, 0, "warehouseId,asc"));
+
+        mockMvc.perform(get("/api/v1/inventory/by-section"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("warehouseId,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(inventoryQueryUseCase).getInventoriesBySection(any(InventorySectionSearchCondition.class), captor.capture(), any());
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(20);
+        assertThat(captor.getValue().sortLabel()).isEqualTo("warehouseId,asc");
+    }
+
+    @Test
+    @DisplayName("구역별 재고 목록의 허용되지 않은 sort 필드와 범위를 벗어난 page·size는 400을 반환한다")
+    void inventoriesBySection_invalidPaging() throws Exception {
+        mockMvc.perform(get("/api/v1/inventory/by-section").param("sort", "unknown,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/inventory/by-section").param("sort", "skuName,up"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/inventory/by-section").param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/inventory/by-section").param("page", "0"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(inventoryQueryUseCase);
+    }
+
+    @Test
+    @DisplayName("로트별 재고 목록은 page·size·sort를 페이지 조건으로 넘기고 pageInfo를 담아 반환한다")
+    void inventoriesByLot_paging() throws Exception {
+        when(inventoryQueryUseCase.searchInventoriesByLot(any(InventoryLotSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 2, 5, 11, "lotNumber,asc"));
+
+        mockMvc.perform(get("/api/v1/inventory/by-lot").param("page", "2").param("size", "5").param("sort", "lotNumber,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty())
+                .andExpect(jsonPath("$.data.pageInfo.page").value(2))
+                .andExpect(jsonPath("$.data.pageInfo.size").value(5))
+                .andExpect(jsonPath("$.data.pageInfo.totalElements").value(11))
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(3))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("lotNumber,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(inventoryQueryUseCase).searchInventoriesByLot(any(InventoryLotSearchCondition.class), captor.capture(), any());
+        PageCondition page = captor.getValue();
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.orders()).extracting(SortOrder::property).containsExactly("l.lotNumber", "il.inventoryLotId");
+        assertThat(page.orders()).extracting(SortOrder::direction).containsOnly(SortDirection.ASC);
+    }
+
+    @Test
+    @DisplayName("로트별 재고 목록은 page·size·sort를 생략하면 1페이지, 20건, 기본 정렬(expiryDate,asc)이다")
+    void inventoriesByLot_defaultPaging() throws Exception {
+        when(inventoryQueryUseCase.searchInventoriesByLot(any(InventoryLotSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 1, 20, 0, "expiryDate,asc"));
+
+        mockMvc.perform(get("/api/v1/inventory/by-lot"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("expiryDate,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(inventoryQueryUseCase).searchInventoriesByLot(any(InventoryLotSearchCondition.class), captor.capture(), any());
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(20);
+        assertThat(captor.getValue().sortLabel()).isEqualTo("expiryDate,asc");
+    }
+
+    @Test
+    @DisplayName("로트별 재고 목록의 허용되지 않은 sort 필드와 범위를 벗어난 page·size는 400을 반환한다")
+    void inventoriesByLot_invalidPaging() throws Exception {
+        mockMvc.perform(get("/api/v1/inventory/by-lot").param("sort", "unknown,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/inventory/by-lot").param("sort", "lotNumber,up"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/inventory/by-lot").param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/inventory/by-lot").param("page", "0"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(inventoryQueryUseCase);
+    }
+
+    @Test
+    @DisplayName("재고 이력 목록은 page·size·sort를 페이지 조건으로 넘기고 pageInfo를 담아 반환한다")
+    void transactions_paging() throws Exception {
+        when(inventoryQueryUseCase.getTransactions(any(InventoryTransactionSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 2, 5, 11, "transactionType,asc"));
+
+        mockMvc.perform(get("/api/v1/inventory/transactions").param("page", "2").param("size", "5").param("sort", "transactionType,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty())
+                .andExpect(jsonPath("$.data.pageInfo.page").value(2))
+                .andExpect(jsonPath("$.data.pageInfo.size").value(5))
+                .andExpect(jsonPath("$.data.pageInfo.totalElements").value(11))
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(3))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("transactionType,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(inventoryQueryUseCase).getTransactions(any(InventoryTransactionSearchCondition.class), captor.capture(), any());
+        PageCondition page = captor.getValue();
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.orders()).extracting(SortOrder::property).containsExactly("t.transactionType", "t.transactionId");
+        assertThat(page.orders()).extracting(SortOrder::direction).containsOnly(SortDirection.ASC);
+    }
+
+    @Test
+    @DisplayName("재고 이력 목록은 page·size·sort를 생략하면 1페이지, 20건, 기본 정렬(createdAt,desc)이다")
+    void transactions_defaultPaging() throws Exception {
+        when(inventoryQueryUseCase.getTransactions(any(InventoryTransactionSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 1, 20, 0, "createdAt,desc"));
+
+        mockMvc.perform(get("/api/v1/inventory/transactions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("createdAt,desc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(inventoryQueryUseCase).getTransactions(any(InventoryTransactionSearchCondition.class), captor.capture(), any());
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(20);
+        assertThat(captor.getValue().sortLabel()).isEqualTo("createdAt,desc");
+    }
+
+    @Test
+    @DisplayName("재고 이력 목록의 허용되지 않은 sort 필드와 범위를 벗어난 page·size는 400을 반환한다")
+    void transactions_invalidPaging() throws Exception {
+        mockMvc.perform(get("/api/v1/inventory/transactions").param("sort", "unknown,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/inventory/transactions").param("sort", "transactionType,up"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/inventory/transactions").param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/inventory/transactions").param("page", "0"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(inventoryQueryUseCase);
     }
 }

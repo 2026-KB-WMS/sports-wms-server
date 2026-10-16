@@ -9,6 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inventory.application.port.in.LotUseCase;
 import com.kb.wms.inventory.application.port.in.command.LotRegisterCommand;
@@ -46,7 +48,7 @@ public class LotService implements LotUseCase {
      * 존재 확인은 조회 전용 포트(InventoryQueryRepository)의 읽기 쿼리로 하며 다른 도메인 서비스를 거치지 않는다.
      */
     @Override
-    public List<LotSummary> getLots(LotSearchCondition condition, AuthenticatedUser actor) {
+    public PageResult<LotSummary> getLots(LotSearchCondition condition, PageCondition page, AuthenticatedUser actor) {
         if (condition.skuId() != null && !inventoryQueryRepository.existsSku(condition.skuId())) {
             throw new BusinessException(InventoryErrorCode.SKU_NOT_FOUND);
         }
@@ -54,7 +56,7 @@ public class LotService implements LotUseCase {
             throw new BusinessException(InventoryErrorCode.SUPPLIER_NOT_FOUND);
         }
         return inventoryQueryRepository.findLots(new LotSearchCondition(condition.skuId(), condition.supplierId(),
-                condition.expiringBefore(), condition.keyword(), actor.warehouseScope(null)));
+                condition.expiringBefore(), condition.keyword(), actor.warehouseScope(null)), page);
     }
 
     @Override

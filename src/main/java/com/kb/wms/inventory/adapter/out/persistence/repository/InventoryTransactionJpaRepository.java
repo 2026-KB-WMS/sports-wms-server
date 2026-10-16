@@ -5,6 +5,8 @@ import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -15,7 +17,7 @@ import com.kb.wms.inventory.domain.enums.TransactionType;
 
 public interface InventoryTransactionJpaRepository extends JpaRepository<InventoryTransactionJpaEntity, Long> {
 
-    @Query("""
+    @Query(value = """
             select new com.kb.wms.inventory.application.port.in.result.InventoryTransactionView(
                 t.transactionId, t.inventoryLotId, ws.warehouseId, ws.sectionId, ws.sectionCode,
                 s.skuId, s.skuCode, l.lotId, l.lotNumber,
@@ -38,9 +40,27 @@ public interface InventoryTransactionJpaRepository extends JpaRepository<Invento
               and (:referenceId is null or t.referenceId = :referenceId)
               and (:createdFrom is null or t.createdAt >= :createdFrom)
               and (:createdTo is null or t.createdAt <= :createdTo)
-            order by t.createdAt desc, t.transactionId desc
+            """,
+            countQuery = """
+            select count(t)
+            from InventoryTransactionJpaEntity t
+            join InventoryLotJpaEntity il on il.inventoryLotId = t.inventoryLotId
+            join LotJpaEntity l on l.lotId = il.lotId
+            join ProductSkuJpaEntity s on s.skuId = l.skuId
+            join WarehouseSectionJpaEntity ws on ws.sectionId = il.sectionId
+            where (:inventoryLotId is null or t.inventoryLotId = :inventoryLotId)
+              and (:warehouseId is null or ws.warehouseId = :warehouseId)
+              and (:scoped = false or ws.warehouseId in :warehouseIds)
+              and (:sectionId is null or il.sectionId = :sectionId)
+              and (:skuId is null or s.skuId = :skuId)
+              and (:lotId is null or il.lotId = :lotId)
+              and (:transactionType is null or t.transactionType = :transactionType)
+              and (:referenceType is null or t.referenceType = :referenceType)
+              and (:referenceId is null or t.referenceId = :referenceId)
+              and (:createdFrom is null or t.createdAt >= :createdFrom)
+              and (:createdTo is null or t.createdAt <= :createdTo)
             """)
-    List<InventoryTransactionView> findViews(@Param("inventoryLotId") Long inventoryLotId,
+    Page<InventoryTransactionView> findViews(@Param("inventoryLotId") Long inventoryLotId,
                                              @Param("warehouseId") Long warehouseId,
                                              @Param("scoped") boolean scoped,
                                              @Param("warehouseIds") Collection<Long> warehouseIds,
@@ -51,5 +71,6 @@ public interface InventoryTransactionJpaRepository extends JpaRepository<Invento
                                              @Param("referenceType") ReferenceType referenceType,
                                              @Param("referenceId") Long referenceId,
                                              @Param("createdFrom") LocalDateTime createdFrom,
-                                             @Param("createdTo") LocalDateTime createdTo);
+                                             @Param("createdTo") LocalDateTime createdTo,
+            Pageable pageable);
 }

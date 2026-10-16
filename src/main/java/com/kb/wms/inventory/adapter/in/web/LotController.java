@@ -14,8 +14,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.SortSpec;
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.common.response.PageResponse;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inventory.adapter.in.web.dto.request.LotStatusChangeRequest;
 import com.kb.wms.inventory.adapter.in.web.dto.response.LotDetailResponse;
@@ -45,18 +49,34 @@ public class LotController {
     private final InventoryQueryUseCase inventoryQueryUseCase;
     private final WarehouseUseCase warehouseUseCase;
 
+    /** 목록 정렬 규칙. 기본은 유통기한 임박순(없으면 뒤로). */
+    static final SortSpec LIST_SORT = SortSpec.builder()
+            .field("expiryDate", "coalesce(l.expiryDate, {d '9999-12-31'})")
+            .field("lotNumber", "l.lotNumber")
+            .field("skuCode", "s.skuCode")
+            .field("supplierName", "su.name")
+            .field("status", "l.status")
+            .field("createdAt", "l.createdAt")
+            .field("unitCost", "l.unitCost")
+            .defaultOrder("expiryDate", SortDirection.ASC)
+            .tieBreaker("l.lotId")
+            .build();
+
     @GetMapping("/api/v1/lots")
-    public ApiResponse<ItemsResponse<LotSummaryResponse>> getLots(
+    public ApiResponse<PageResponse<LotSummaryResponse>> getLots(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) Long skuId,
             @RequestParam(required = false) Long supplierId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate expiringBefore,
-            @RequestParam(required = false) String keyword) {
-        List<LotSummaryResponse> items = lotUseCase
-                .getLots(LotSearchCondition.unscoped(skuId, supplierId, expiringBefore, keyword), principal).stream()
-                .map(LotSummaryResponse::from)
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
+        return ApiResponse.ok(PageResponse.of(
+                lotUseCase.getLots(LotSearchCondition.unscoped(skuId, supplierId, expiringBefore, keyword),
+                        pageCondition, principal),
+                LotSummaryResponse::from));
     }
 
     @GetMapping("/api/v1/lots/{lotId}")
