@@ -6,8 +6,9 @@
 |---|---|---|
 | `config` | `config/Configs.md`, `config/SecurityConfig.md` | JPA Auditing, Swagger, 보안 필터 체인과 역할별 경로 규칙 |
 | `exception` | `exception/Exceptions.md`, `exception/GlobalExceptionHandler.md` | 오류 코드 체계, `BusinessException`, 전역 예외 처리 |
-| `response` | `response/Responses.md` | `ApiResponse`, `ErrorResponse`, `ItemsResponse` |
-| `persistence` | `persistence/Persistence.md` | `BaseTimeEntity`, `SearchKeyword` |
+| `response` | `response/Responses.md` | `ApiResponse`, `ErrorResponse`, `ItemsResponse`, `PageResponse` |
+| `paging` | `paging/Paging.md` | 목록 `page`·`size`·`sort` 검증, 정렬 화이트리스트, 페이지 결과 |
+| `persistence` | `persistence/Persistence.md` | `BaseTimeEntity`, `SearchKeyword`, `PageAdapter` |
 | `security` | `security/AuthenticatedUser.md`, `security/Jwt.md` | 현재 사용자 컨텍스트, JWT 인증 흐름 |
 | `validation` | `validation/Validation.md` | `PhoneNumber`, `GeoCoordinates` |
 | `locationcode` | `locationcode/LocationCode.md` | 창고·지점 코드 자동 발급 |
