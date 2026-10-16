@@ -28,6 +28,11 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.kb.wms.common.paging.SortOrder;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.TestPages;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.UserRole;
@@ -249,13 +254,13 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("목록 조회는 200과 data.items 형식으로 발주 헤더 요약을 반환한다")
     void getPurchaseOrders_success() throws Exception {
-        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class), any()))
-                .thenReturn(List.of(new PurchaseOrderSummary(
+        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class), any(), any()))
+                .thenReturn(TestPages.resultOf(List.of(new PurchaseOrderSummary(
                         4L, "PO-20261002-0001", 1L, "서울 물류센터", PurchaseOrderStatus.CONFIRMED,
                         null, 2L, BigDecimal.valueOf(6050000), 5L, "김작성",
                         LocalDateTime.of(2026, 10, 2, 12, 0))
                         .withSuppliers(List.of(new PurchaseOrderSupplierView(4L, 3L, "공급처 A"),
-                                new PurchaseOrderSupplierView(4L, 7L, "공급처 B")))));
+                                new PurchaseOrderSupplierView(4L, 7L, "공급처 B"))))));
 
         mockMvc.perform(get("/api/v1/purchase-orders"))
                 .andExpect(status().isOk())
@@ -277,7 +282,7 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("목록 조회의 쿼리 파라미터를 검색 조건으로 변환해 전달한다")
     void getPurchaseOrders_passesCondition() throws Exception {
-        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class), any())).thenReturn(List.of());
+        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class), any(), any())).thenReturn(TestPages.resultOf(List.of()));
 
         mockMvc.perform(get("/api/v1/purchase-orders")
                         .param("status", "CONFIRMED")
@@ -291,7 +296,7 @@ class PurchaseOrderControllerTest {
 
         ArgumentCaptor<PurchaseOrderSearchCondition> captor =
                 ArgumentCaptor.forClass(PurchaseOrderSearchCondition.class);
-        verify(purchaseOrderUseCase).getPurchaseOrders(captor.capture(), any());
+        verify(purchaseOrderUseCase).getPurchaseOrders(captor.capture(), any(), any());
         PurchaseOrderSearchCondition condition = captor.getValue();
         assertThat(condition.status()).isEqualTo(PurchaseOrderStatus.CONFIRMED);
         assertThat(condition.warehouseId()).isEqualTo(1L);
@@ -304,11 +309,11 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("파라미터를 주지 않으면 모든 조건을 null로 전달한다")
     void getPurchaseOrders_noParams() throws Exception {
-        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class), any())).thenReturn(List.of());
+        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class), any(), any())).thenReturn(TestPages.resultOf(List.of()));
 
         mockMvc.perform(get("/api/v1/purchase-orders")).andExpect(status().isOk());
 
-        verify(purchaseOrderUseCase).getPurchaseOrders(eq(PurchaseOrderSearchCondition.unscoped(null, null, null, null, null, null)), any());
+        verify(purchaseOrderUseCase).getPurchaseOrders(eq(PurchaseOrderSearchCondition.unscoped(null, null, null, null, null, null)), any(), any());
     }
 
     @Test
@@ -332,7 +337,7 @@ class PurchaseOrderControllerTest {
     @Test
     @DisplayName("등록 시작 일시가 종료 일시보다 늦으면 400 VALIDATION_ERROR를 반환한다")
     void getPurchaseOrders_invalidRange() throws Exception {
-        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class), any()))
+        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class), any(), any()))
                 .thenThrow(new BusinessException(ErrorCode.VALIDATION_ERROR, "등록 시작 일시는 종료 일시보다 늦을 수 없습니다."));
 
         mockMvc.perform(get("/api/v1/purchase-orders")
@@ -715,5 +720,63 @@ class PurchaseOrderControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{ \"reason\": \"사유\" }"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("PURCHASE_ORDER_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("창고 발주 목록은 page·size·sort를 페이지 조건으로 넘기고 pageInfo를 담아 반환한다")
+    void list_paging() throws Exception {
+        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 2, 5, 11, "purchaseOrderNo,asc"));
+
+        mockMvc.perform(get("/api/v1/purchase-orders").param("page", "2").param("size", "5").param("sort", "purchaseOrderNo,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty())
+                .andExpect(jsonPath("$.data.pageInfo.page").value(2))
+                .andExpect(jsonPath("$.data.pageInfo.size").value(5))
+                .andExpect(jsonPath("$.data.pageInfo.totalElements").value(11))
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(3))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("purchaseOrderNo,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(purchaseOrderUseCase).getPurchaseOrders(any(PurchaseOrderSearchCondition.class), captor.capture(), any());
+        PageCondition page = captor.getValue();
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.orders()).extracting(SortOrder::property).containsExactly("po.purchaseOrderNo", "po.purchaseOrderId");
+        assertThat(page.orders()).extracting(SortOrder::direction).containsOnly(SortDirection.ASC);
+    }
+
+    @Test
+    @DisplayName("창고 발주 목록은 page·size·sort를 생략하면 1페이지, 20건, 기본 정렬(createdAt,desc)이다")
+    void list_defaultPaging() throws Exception {
+        when(purchaseOrderUseCase.getPurchaseOrders(any(PurchaseOrderSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 1, 20, 0, "createdAt,desc"));
+
+        mockMvc.perform(get("/api/v1/purchase-orders"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("createdAt,desc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(purchaseOrderUseCase).getPurchaseOrders(any(PurchaseOrderSearchCondition.class), captor.capture(), any());
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(20);
+        assertThat(captor.getValue().sortLabel()).isEqualTo("createdAt,desc");
+    }
+
+    @Test
+    @DisplayName("창고 발주 목록의 허용되지 않은 sort 필드와 범위를 벗어난 page·size는 400을 반환한다")
+    void list_invalidPaging() throws Exception {
+        mockMvc.perform(get("/api/v1/purchase-orders").param("sort", "password,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/purchase-orders").param("sort", "purchaseOrderNo,up"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/purchase-orders").param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/purchase-orders").param("page", "0"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(purchaseOrderUseCase);
     }
 }

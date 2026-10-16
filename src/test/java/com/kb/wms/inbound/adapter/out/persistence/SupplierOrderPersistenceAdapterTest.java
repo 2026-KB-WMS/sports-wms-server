@@ -16,6 +16,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.inbound.application.port.in.query.SupplierOrderSearchCondition;
 import com.kb.wms.inbound.application.port.in.result.SupplierOrderLineView;
 import com.kb.wms.inbound.application.port.in.result.SupplierOrderSummary;
@@ -56,6 +60,47 @@ import jakarta.persistence.EntityManager;
 @Transactional
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class SupplierOrderPersistenceAdapterTest {
+
+    private static final PageCondition PAGE = TestPages.firstPage(
+            TestPages.order("so.createdAt", SortDirection.DESC),
+            TestPages.order("so.supplierOrderId", SortDirection.DESC));
+
+    @Test
+    @DisplayName("페이지 크기만큼 자르고 전체 건수는 발주서 건수로 센다")
+    void search_paging() {
+        SupplierOrderSearchCondition all = SupplierOrderSearchCondition.unscoped(null, null, null, null, null, null, null);
+
+        PageResult<SupplierOrderSummary> first = queryRepository.search(all, new PageCondition(1, 2, PAGE.orders()));
+        PageResult<SupplierOrderSummary> second = queryRepository.search(all, new PageCondition(2, 2, PAGE.orders()));
+
+        assertThat(first.items()).extracting(SupplierOrderSummary::supplierOrderId).containsExactly(so3, so2);
+        assertThat(second.items()).extracting(SupplierOrderSummary::supplierOrderId).containsExactly(so1);
+        assertThat(first.totalElements()).isEqualTo(3);
+        assertThat(first.totalPages()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("전체 건수는 필터를 적용한 발주서 건수다")
+    void search_pagingCountFollowsFilter() {
+        PageResult<SupplierOrderSummary> result = queryRepository.search(
+                SupplierOrderSearchCondition.unscoped(null, null, supplier1, null, null, null, null),
+                new PageCondition(1, 1, PAGE.orders()));
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.totalElements()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("조인한 공급처명으로 정렬하고, 같은 값은 발주서 ID로 순서를 고정한다")
+    void search_sortedBySupplierName() {
+        PageCondition bySupplier = TestPages.firstPage(
+                TestPages.order("s.name", SortDirection.DESC), TestPages.order("so.supplierOrderId", SortDirection.DESC));
+
+        // 다라 상사(SO2) → 가나 상사(ID 내림차순: SO3, SO1)
+        assertThat(queryRepository.search(
+                SupplierOrderSearchCondition.unscoped(null, null, null, null, null, null, null), bySupplier).items())
+                .extracting(SupplierOrderSummary::supplierOrderId).containsExactly(so2, so3, so1);
+    }
 
     @Autowired EntityManager entityManager;
     @Autowired SupplierOrderRepository supplierOrderRepository;
@@ -211,7 +256,7 @@ class SupplierOrderPersistenceAdapterTest {
     @DisplayName("목록은 등록 일시·ID 내림차순이며 공급처명·창고명·항목 수·금액 합계를 담는다")
     void search_all() {
         List<SupplierOrderSummary> all = queryRepository.search(
-                SupplierOrderSearchCondition.unscoped(null, null, null, null, null, null, null));
+                SupplierOrderSearchCondition.unscoped(null, null, null, null, null, null, null), PAGE).items();
 
         assertThat(all).extracting(SupplierOrderSummary::supplierOrderId).containsExactly(so3, so2, so1);
 
@@ -249,11 +294,11 @@ class SupplierOrderPersistenceAdapterTest {
     @DisplayName("담당 창고 범위를 주면 그 창고의 발주서만, 빈 범위면 아무것도 보이지 않는다")
     void search_scoped() {
         List<SupplierOrderSummary> seoulOnly = queryRepository.search(new SupplierOrderSearchCondition(
-                null, null, null, null, null, null, null, List.of(seoul)));
+                null, null, null, null, null, null, null, List.of(seoul)), PAGE).items();
         assertThat(seoulOnly).extracting(SupplierOrderSummary::supplierOrderId).containsExactly(so2, so1);
 
         List<SupplierOrderSummary> none = queryRepository.search(new SupplierOrderSearchCondition(
-                null, null, null, null, null, null, null, List.of()));
+                null, null, null, null, null, null, null, List.of()), PAGE).items();
         assertThat(none).isEmpty();
     }
 
@@ -293,7 +338,7 @@ class SupplierOrderPersistenceAdapterTest {
     private List<SupplierOrderSummary> search(SupplierOrderStatus status, Long warehouseId, Long supplierId,
                                               Long purchaseOrderId, String keyword) {
         return queryRepository.search(SupplierOrderSearchCondition.unscoped(
-                status, warehouseId, supplierId, purchaseOrderId, keyword, null, null));
+                status, warehouseId, supplierId, purchaseOrderId, keyword, null, null), PAGE).items();
     }
 
     private SupplierOrderSummary byId(List<SupplierOrderSummary> list, Long id) {

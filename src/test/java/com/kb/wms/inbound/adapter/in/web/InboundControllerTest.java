@@ -29,6 +29,11 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.kb.wms.common.paging.SortOrder;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.TestPages;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.UserRole;
@@ -216,7 +221,7 @@ class InboundControllerTest {
     @Test
     @DisplayName("입고 목록은 data.items로 반환하고 필터를 조회 조건으로 넘긴다")
     void list_success() throws Exception {
-        when(inboundUseCase.getInbounds(any(InboundSearchCondition.class), any())).thenReturn(List.of(summary()));
+        when(inboundUseCase.getInbounds(any(InboundSearchCondition.class), any(), any())).thenReturn(TestPages.resultOf(List.of(summary())));
 
         mockMvc.perform(get("/api/v1/inbounds")
                         .param("status", "INSPECTING")
@@ -235,7 +240,7 @@ class InboundControllerTest {
                 .andExpect(jsonPath("$.data.items[0].lineCount").value(1));
 
         ArgumentCaptor<InboundSearchCondition> captor = ArgumentCaptor.forClass(InboundSearchCondition.class);
-        verify(inboundUseCase).getInbounds(captor.capture(), any());
+        verify(inboundUseCase).getInbounds(captor.capture(), any(), any());
         InboundSearchCondition condition = captor.getValue();
         assertThat(condition.status()).isEqualTo(InboundStatus.INSPECTING);
         assertThat(condition.warehouseId()).isEqualTo(1L);
@@ -575,5 +580,63 @@ class InboundControllerTest {
         mockMvc.perform(get("/api/v1/inbounds/999/defect-sections"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("INBOUND_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("입고 목록은 page·size·sort를 페이지 조건으로 넘기고 pageInfo를 담아 반환한다")
+    void list_paging() throws Exception {
+        when(inboundUseCase.getInbounds(any(InboundSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 2, 5, 11, "inboundNo,asc"));
+
+        mockMvc.perform(get("/api/v1/inbounds").param("page", "2").param("size", "5").param("sort", "inboundNo,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty())
+                .andExpect(jsonPath("$.data.pageInfo.page").value(2))
+                .andExpect(jsonPath("$.data.pageInfo.size").value(5))
+                .andExpect(jsonPath("$.data.pageInfo.totalElements").value(11))
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(3))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("inboundNo,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(inboundUseCase).getInbounds(any(InboundSearchCondition.class), captor.capture(), any());
+        PageCondition page = captor.getValue();
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.orders()).extracting(SortOrder::property).containsExactly("i.inboundNo", "i.inboundId");
+        assertThat(page.orders()).extracting(SortOrder::direction).containsOnly(SortDirection.ASC);
+    }
+
+    @Test
+    @DisplayName("입고 목록은 page·size·sort를 생략하면 1페이지, 20건, 기본 정렬(arrivedAt,desc)이다")
+    void list_defaultPaging() throws Exception {
+        when(inboundUseCase.getInbounds(any(InboundSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 1, 20, 0, "arrivedAt,desc"));
+
+        mockMvc.perform(get("/api/v1/inbounds"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("arrivedAt,desc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(inboundUseCase).getInbounds(any(InboundSearchCondition.class), captor.capture(), any());
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(20);
+        assertThat(captor.getValue().sortLabel()).isEqualTo("arrivedAt,desc");
+    }
+
+    @Test
+    @DisplayName("입고 목록의 허용되지 않은 sort 필드와 범위를 벗어난 page·size는 400을 반환한다")
+    void list_invalidPaging() throws Exception {
+        mockMvc.perform(get("/api/v1/inbounds").param("sort", "password,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/inbounds").param("sort", "inboundNo,up"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/inbounds").param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/inbounds").param("page", "0"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(inboundUseCase);
     }
 }

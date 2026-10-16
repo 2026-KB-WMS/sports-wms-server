@@ -19,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.PurchaseOrderUseCase;
 import com.kb.wms.inbound.application.port.in.command.PurchaseOrderCancelCommand;
@@ -117,8 +119,8 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
     }
 
     @Override
-    public List<PurchaseOrderSummary> getPurchaseOrders(PurchaseOrderSearchCondition condition,
-                                                        AuthenticatedUser actor) {
+    public PageResult<PurchaseOrderSummary> getPurchaseOrders(PurchaseOrderSearchCondition condition,
+                                                              PageCondition page, AuthenticatedUser actor) {
         List<Long> scope = actor.warehouseScope(condition.warehouseId());
         if (condition.createdFrom() != null && condition.createdTo() != null
                 && condition.createdFrom().isAfter(condition.createdTo())) {
@@ -131,10 +133,10 @@ public class PurchaseOrderService implements PurchaseOrderUseCase {
         if (condition.supplierId() != null && !supplierRepository.existsById(condition.supplierId())) {
             throw new BusinessException(SupplierErrorCode.SUPPLIER_NOT_FOUND);
         }
-        List<PurchaseOrderSummary> summaries = purchaseOrderQueryRepository.search(new PurchaseOrderSearchCondition(
+        PageResult<PurchaseOrderSummary> result = purchaseOrderQueryRepository.search(new PurchaseOrderSearchCondition(
                 condition.status(), condition.warehouseId(), condition.supplierId(), condition.keyword(),
-                condition.createdFrom(), condition.createdTo(), scope));
-        return withSuppliers(summaries);
+                condition.createdFrom(), condition.createdTo(), scope), page);
+        return PageResult.of(withSuppliers(result.items()), page, result.totalElements());
     }
 
     @Override

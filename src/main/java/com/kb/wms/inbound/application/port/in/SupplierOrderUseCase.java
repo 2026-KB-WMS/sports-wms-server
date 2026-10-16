@@ -1,7 +1,7 @@
 package com.kb.wms.inbound.application.port.in;
 
-import java.util.List;
-
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.query.SupplierOrderSearchCondition;
 import com.kb.wms.inbound.application.port.in.result.SupplierOrderDetails;
@@ -13,7 +13,8 @@ import com.kb.wms.inbound.application.port.in.result.SupplierOrderSummary;
  */
 public interface SupplierOrderUseCase {
 
-    List<SupplierOrderSummary> getSupplierOrders(SupplierOrderSearchCondition condition, AuthenticatedUser actor);
+    PageResult<SupplierOrderSummary> getSupplierOrders(SupplierOrderSearchCondition condition, PageCondition page,
+                                                       AuthenticatedUser actor);
 
     SupplierOrderDetails getSupplierOrder(Long supplierOrderId, AuthenticatedUser actor);
 }

@@ -1,5 +1,9 @@
 package com.kb.wms.inbound.adapter.out.persistence;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
 import com.kb.wms.common.security.UserRole;
@@ -54,6 +58,49 @@ import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 @Transactional
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class PurchaseOrderPersistenceAdapterTest {
+
+    private static final PageCondition PAGE = TestPages.firstPage(
+            TestPages.order("po.createdAt", SortDirection.DESC),
+            TestPages.order("po.purchaseOrderId", SortDirection.DESC));
+
+    @Test
+    @DisplayName("페이지 크기만큼 자르고 전체 건수는 발주 건수로 센다 (항목이 여러 개여도 1건)")
+    void search_paging() {
+        PageCondition byNo = TestPages.firstPage(
+                TestPages.order("po.purchaseOrderNo", SortDirection.ASC),
+                TestPages.order("po.purchaseOrderId", SortDirection.ASC));
+        PurchaseOrderSearchCondition all = condition(null, null, null, null, null, null);
+
+        PageResult<PurchaseOrderSummary> first = queryRepository.search(all, new PageCondition(1, 2, byNo.orders()));
+        PageResult<PurchaseOrderSummary> second = queryRepository.search(all, new PageCondition(2, 2, byNo.orders()));
+
+        assertThat(first.items()).extracting(PurchaseOrderSummary::purchaseOrderId).containsExactly(po1, po2);
+        assertThat(second.items()).extracting(PurchaseOrderSummary::purchaseOrderId).containsExactly(po3);
+        // 항목 합계는 4행이지만 발주는 3건
+        assertThat(first.totalElements()).isEqualTo(3);
+        assertThat(first.totalPages()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("전체 건수는 공급처 필터를 적용한 발주 건수다")
+    void search_pagingCountFollowsSupplierFilter() {
+        PageResult<PurchaseOrderSummary> result = queryRepository.search(
+                condition(null, null, supplier1, null, null, null), new PageCondition(1, 1, PAGE.orders()));
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.totalElements()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("조인한 창고명으로 정렬하고, 같은 값은 발주 ID로 순서를 고정한다")
+    void search_sortedByWarehouseName() {
+        PageCondition byWarehouse = TestPages.firstPage(
+                TestPages.order("w.name", SortDirection.DESC), TestPages.order("po.purchaseOrderId", SortDirection.DESC));
+
+        // 서울(ID 내림차순) → 부산
+        assertThat(queryRepository.search(condition(null, null, null, null, null, null), byWarehouse).items())
+                .extracting(PurchaseOrderSummary::purchaseOrderId).containsExactly(po3, po1, po2);
+    }
 
     @Autowired UserRepository userRepository;
     @Autowired EntityManager entityManager;
@@ -170,7 +217,7 @@ class PurchaseOrderPersistenceAdapterTest {
     @Test
     @DisplayName("조건이 없으면 전체 발주를 항목 수·금액 집계와 함께 조회한다")
     void search_all() {
-        List<PurchaseOrderSummary> result = queryRepository.search(condition(null, null, null, null, null, null));
+        List<PurchaseOrderSummary> result = queryRepository.search(condition(null, null, null, null, null, null), PAGE).items();
 
         assertThat(result).extracting(PurchaseOrderSummary::purchaseOrderId)
                 .containsExactlyInAnyOrder(po1, po2, po3);
@@ -193,7 +240,7 @@ class PurchaseOrderPersistenceAdapterTest {
     @Test
     @DisplayName("최신 등록 순(번호 내림차순)으로 정렬된다")
     void search_orderedByLatest() {
-        List<PurchaseOrderSummary> result = queryRepository.search(condition(null, null, null, null, null, null));
+        List<PurchaseOrderSummary> result = queryRepository.search(condition(null, null, null, null, null, null), PAGE).items();
 
         assertThat(result).extracting(PurchaseOrderSummary::purchaseOrderId)
                 .isSortedAccordingTo(java.util.Comparator.reverseOrder());
@@ -202,9 +249,9 @@ class PurchaseOrderPersistenceAdapterTest {
     @Test
     @DisplayName("상태로 필터링한다")
     void search_byStatus() {
-        assertThat(queryRepository.search(condition(PurchaseOrderStatus.CONFIRMED, null, null, null, null, null)))
+        assertThat(queryRepository.search(condition(PurchaseOrderStatus.CONFIRMED, null, null, null, null, null), PAGE).items())
                 .extracting(PurchaseOrderSummary::purchaseOrderId).containsExactly(po2);
-        assertThat(queryRepository.search(condition(PurchaseOrderStatus.COMPLETED, null, null, null, null, null)))
+        assertThat(queryRepository.search(condition(PurchaseOrderStatus.COMPLETED, null, null, null, null, null), PAGE).items())
                 .isEmpty();
     }
 
@@ -212,34 +259,34 @@ class PurchaseOrderPersistenceAdapterTest {
     @DisplayName("창고 범위(담당 창고 목록)로 좁히고, 빈 목록이면 비어 있다")
     void search_byWarehouseScope() {
         assertThat(queryRepository.search(new PurchaseOrderSearchCondition(
-                null, null, null, null, null, null, List.of(seoul))))
+                null, null, null, null, null, null, List.of(seoul)), PAGE).items())
                 .extracting(PurchaseOrderSummary::purchaseOrderId).containsExactlyInAnyOrder(po1, po3);
         assertThat(queryRepository.search(new PurchaseOrderSearchCondition(
-                null, null, null, null, null, null, List.of(seoul, busan)))).hasSize(
-                queryRepository.search(condition(null, null, null, null, null, null)).size());
+                null, null, null, null, null, null, List.of(seoul, busan)), PAGE).items()).hasSize(
+                queryRepository.search(condition(null, null, null, null, null, null), PAGE).items().size());
         assertThat(queryRepository.search(new PurchaseOrderSearchCondition(
-                null, null, null, null, null, null, List.of()))).isEmpty();
+                null, null, null, null, null, null, List.of()), PAGE).items()).isEmpty();
     }
 
     @Test
     @DisplayName("창고·공급처로 필터링한다")
     void search_byWarehouseAndSupplier() {
-        assertThat(queryRepository.search(condition(null, seoul, null, null, null, null)))
+        assertThat(queryRepository.search(condition(null, seoul, null, null, null, null), PAGE).items())
                 .extracting(PurchaseOrderSummary::purchaseOrderId).containsExactlyInAnyOrder(po1, po3);
-        assertThat(queryRepository.search(condition(null, null, supplier1, null, null, null)))
+        assertThat(queryRepository.search(condition(null, null, supplier1, null, null, null), PAGE).items())
                 .extracting(PurchaseOrderSummary::purchaseOrderId).containsExactlyInAnyOrder(po1, po2);
-        assertThat(queryRepository.search(condition(null, seoul, supplier1, null, null, null)))
+        assertThat(queryRepository.search(condition(null, seoul, supplier1, null, null, null), PAGE).items())
                 .extracting(PurchaseOrderSummary::purchaseOrderId).containsExactly(po1);
     }
 
     @Test
     @DisplayName("키워드는 발주 번호를 대소문자 구분 없이 부분 일치로 찾는다")
     void search_byKeyword() {
-        assertThat(queryRepository.search(condition(null, null, null, "20261002", null, null)))
+        assertThat(queryRepository.search(condition(null, null, null, "20261002", null, null), PAGE).items())
                 .extracting(PurchaseOrderSummary::purchaseOrderId).containsExactly(po3);
-        assertThat(queryRepository.search(condition(null, null, null, "po-20261001", null, null)))
+        assertThat(queryRepository.search(condition(null, null, null, "po-20261001", null, null), PAGE).items())
                 .extracting(PurchaseOrderSummary::purchaseOrderId).containsExactlyInAnyOrder(po1, po2);
-        assertThat(queryRepository.search(condition(null, null, null, "NOPE", null, null))).isEmpty();
+        assertThat(queryRepository.search(condition(null, null, null, "NOPE", null, null), PAGE).items()).isEmpty();
     }
 
     @Test
@@ -248,11 +295,11 @@ class PurchaseOrderPersistenceAdapterTest {
         LocalDateTime now = LocalDateTime.now();
 
         assertThat(queryRepository.search(
-                condition(null, null, null, null, now.minusDays(1), now.plusDays(1)))).hasSize(3);
+                condition(null, null, null, null, now.minusDays(1), now.plusDays(1)), PAGE).items()).hasSize(3);
         assertThat(queryRepository.search(
-                condition(null, null, null, null, now.plusDays(1), null))).isEmpty();
+                condition(null, null, null, null, now.plusDays(1), null), PAGE).items()).isEmpty();
         assertThat(queryRepository.search(
-                condition(null, null, null, null, null, now.minusDays(1)))).isEmpty();
+                condition(null, null, null, null, null, now.minusDays(1)), PAGE).items()).isEmpty();
     }
 
     @Test
@@ -261,7 +308,7 @@ class PurchaseOrderPersistenceAdapterTest {
         Long empty = purchaseOrderRepository.save(
                 PurchaseOrder.register("PO-20261002-0099", seoul, null, null, 1L)).getPurchaseOrderId();
 
-        assertThat(queryRepository.search(condition(null, null, null, null, null, null)))
+        assertThat(queryRepository.search(condition(null, null, null, null, null, null), PAGE).items())
                 .extracting(PurchaseOrderSummary::purchaseOrderId).doesNotContain(empty);
     }
 
@@ -359,7 +406,7 @@ class PurchaseOrderPersistenceAdapterTest {
         assertThat(view.supplierId()).isNull();
         assertThat(view.supplierName()).isNull();
         assertThat(queryRepository.findView(id)).isPresent();
-        assertThat(queryRepository.search(condition(null, null, supplier1, null, null, null)))
+        assertThat(queryRepository.search(condition(null, null, supplier1, null, null, null), PAGE).items())
                 .extracting(PurchaseOrderSummary::purchaseOrderId).doesNotContain(id);
         assertThat(queryRepository.findSuppliers(List.of(id))).isEmpty();
     }
@@ -460,7 +507,7 @@ class PurchaseOrderPersistenceAdapterTest {
         entityManager.clear();
 
         assertThat(queryRepository.findView(po1).orElseThrow().createdByName()).isEqualTo("김작성");
-        List<PurchaseOrderSummary> result = queryRepository.search(condition(null, null, null, null, null, null));
+        List<PurchaseOrderSummary> result = queryRepository.search(condition(null, null, null, null, null, null), PAGE).items();
         assertThat(byId(result, po1).createdByName()).isEqualTo("김작성");
         assertThat(byId(result, po2).createdBy()).isEqualTo(nobody);
         assertThat(byId(result, po2).createdByName()).isNull();

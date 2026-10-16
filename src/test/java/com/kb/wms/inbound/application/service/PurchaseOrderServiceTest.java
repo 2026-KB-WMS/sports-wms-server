@@ -27,6 +27,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.AuthenticatedUser;
@@ -68,6 +71,9 @@ import com.kb.wms.warehouse.exception.WarehouseErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class PurchaseOrderServiceTest {
+
+    private static final PageCondition PAGE = TestPages.firstPage(
+            TestPages.order("id", SortDirection.DESC));
 
     // 발주 5번 사용자가 만든 요청 발주의 작성자(창고 관리자)
     private static final AuthenticatedUser AUTHOR =
@@ -154,7 +160,7 @@ class PurchaseOrderServiceTest {
                 .when(warehouseAvailabilityPort).requireExists(999L);
 
         assertError(() -> purchaseOrderService.getPurchaseOrders(
-                PurchaseOrderSearchCondition.unscoped(null, 999L, null, null, null, null), HQ),
+                PurchaseOrderSearchCondition.unscoped(null, 999L, null, null, null, null), PAGE, HQ),
                 WarehouseErrorCode.WAREHOUSE_NOT_FOUND.name());
         verifyNoInteractions(purchaseOrderQueryRepository);
     }
@@ -165,7 +171,7 @@ class PurchaseOrderServiceTest {
         when(supplierRepository.existsById(999L)).thenReturn(false);
 
         assertError(() -> purchaseOrderService.getPurchaseOrders(
-                PurchaseOrderSearchCondition.unscoped(null, null, 999L, null, null, null), HQ),
+                PurchaseOrderSearchCondition.unscoped(null, null, 999L, null, null, null), PAGE, HQ),
                 SupplierErrorCode.SUPPLIER_NOT_FOUND.name());
         verifyNoInteractions(purchaseOrderQueryRepository);
     }
@@ -176,7 +182,7 @@ class PurchaseOrderServiceTest {
         AuthenticatedUser manager = new AuthenticatedUser(5L, UserRole.WAREHOUSE_MANAGER, List.of(1L), List.of());
 
         assertError(() -> purchaseOrderService.getPurchaseOrders(
-                PurchaseOrderSearchCondition.unscoped(null, 3L, null, null, null, null), manager),
+                PurchaseOrderSearchCondition.unscoped(null, 3L, null, null, null, null), PAGE, manager),
                 ErrorCode.FORBIDDEN.name());
         verifyNoInteractions(warehouseAvailabilityPort, purchaseOrderQueryRepository);
     }
@@ -741,9 +747,9 @@ class PurchaseOrderServiceTest {
         PurchaseOrderSearchCondition condition = PurchaseOrderSearchCondition.unscoped(
                 PurchaseOrderStatus.REQUESTED, 1L, 3L, "PO", null, null);
         when(supplierRepository.existsById(3L)).thenReturn(true);
-        when(purchaseOrderQueryRepository.search(condition)).thenReturn(List.of());
+        when(purchaseOrderQueryRepository.search(condition, PAGE)).thenReturn(TestPages.resultOf(List.of()));
 
-        assertThat(purchaseOrderService.getPurchaseOrders(condition, HQ)).isEmpty();
+        assertThat(purchaseOrderService.getPurchaseOrders(condition, PAGE, HQ).items()).isEmpty();
         verify(warehouseAvailabilityPort).requireExists(1L);
     }
 
@@ -752,15 +758,15 @@ class PurchaseOrderServiceTest {
     void getPurchaseOrders_fillsSuppliers() {
         PurchaseOrderSearchCondition condition =
                 PurchaseOrderSearchCondition.unscoped(null, null, null, null, null, null);
-        when(purchaseOrderQueryRepository.search(condition)).thenReturn(List.of(
+        when(purchaseOrderQueryRepository.search(condition, PAGE)).thenReturn(TestPages.resultOf(List.of(
                 new PurchaseOrderSummary(4L, "PO-1", 1L, "서울 물류센터", PurchaseOrderStatus.CONFIRMED, null, 2L,
                         BigDecimal.TEN, 5L, null, null),
                 new PurchaseOrderSummary(5L, "PO-2", 1L, "서울 물류센터", PurchaseOrderStatus.REQUESTED, null, 1L,
-                        BigDecimal.ONE, 5L, null, null)));
+                        BigDecimal.ONE, 5L, null, null))));
         when(purchaseOrderQueryRepository.findSuppliers(List.of(4L, 5L))).thenReturn(List.of(
                 new PurchaseOrderSupplierView(4L, 3L, "공급처 A"), new PurchaseOrderSupplierView(4L, 7L, "공급처 B")));
 
-        List<PurchaseOrderSummary> result = purchaseOrderService.getPurchaseOrders(condition, HQ);
+        List<PurchaseOrderSummary> result = purchaseOrderService.getPurchaseOrders(condition, PAGE, HQ).items();
 
         assertThat(result.get(0).suppliers()).extracting(PurchaseOrderSupplierView::supplierId)
                 .containsExactly(3L, 7L);
@@ -774,7 +780,7 @@ class PurchaseOrderServiceTest {
                 null, null, null, null,
                 LocalDateTime.of(2026, 10, 2, 0, 0), LocalDateTime.of(2026, 10, 1, 0, 0));
 
-        assertError(() -> purchaseOrderService.getPurchaseOrders(condition, HQ), ErrorCode.VALIDATION_ERROR.name());
+        assertError(() -> purchaseOrderService.getPurchaseOrders(condition, PAGE, HQ), ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(purchaseOrderQueryRepository);
     }
 
@@ -914,12 +920,12 @@ class PurchaseOrderServiceTest {
         AuthenticatedUser manager = new AuthenticatedUser(5L, UserRole.WAREHOUSE_MANAGER, List.of(1L, 2L), List.of());
         PurchaseOrderSearchCondition all = PurchaseOrderSearchCondition.unscoped(null, null, null, null, null, null);
         when(purchaseOrderQueryRepository.search(
-                new PurchaseOrderSearchCondition(null, null, null, null, null, null, List.of(1L, 2L))))
-                .thenReturn(List.of());
+                new PurchaseOrderSearchCondition(null, null, null, null, null, null, List.of(1L, 2L)), PAGE))
+                .thenReturn(TestPages.resultOf(List.of()));
 
-        assertThat(purchaseOrderService.getPurchaseOrders(all, manager)).isEmpty();
+        assertThat(purchaseOrderService.getPurchaseOrders(all, PAGE, manager).items()).isEmpty();
         assertError(() -> purchaseOrderService.getPurchaseOrders(
-                PurchaseOrderSearchCondition.unscoped(null, 3L, null, null, null, null), manager), ErrorCode.FORBIDDEN.name());
+                PurchaseOrderSearchCondition.unscoped(null, 3L, null, null, null, null), PAGE, manager), ErrorCode.FORBIDDEN.name());
     }
 
 

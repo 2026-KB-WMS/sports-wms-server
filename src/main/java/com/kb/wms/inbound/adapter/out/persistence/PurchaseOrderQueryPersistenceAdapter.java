@@ -6,6 +6,9 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.persistence.PageAdapter;
 import com.kb.wms.common.persistence.SearchKeyword;
 import com.kb.wms.inbound.adapter.out.persistence.repository.PurchaseOrderJpaRepository;
 import com.kb.wms.inbound.adapter.out.persistence.repository.PurchaseOrderLineJpaRepository;
@@ -33,12 +36,13 @@ public class PurchaseOrderQueryPersistenceAdapter implements PurchaseOrderQueryR
     }
 
     @Override
-    public List<PurchaseOrderSummary> search(PurchaseOrderSearchCondition condition) {
-        return purchaseOrderJpaRepository.search(
+    public PageResult<PurchaseOrderSummary> search(PurchaseOrderSearchCondition condition, PageCondition page) {
+        return PageAdapter.toPageResult(purchaseOrderJpaRepository.search(
                 condition.status(), condition.warehouseId(), condition.supplierId(),
                 SearchKeyword.normalize(condition.keyword()),
                 condition.createdFrom(), condition.createdTo(),
-                condition.warehouseIds() != null, scopeIds(condition.warehouseIds()));
+                condition.warehouseIds() != null, scopeIds(condition.warehouseIds()),
+                PageAdapter.toPageable(page)), page);
     }
 
     @Override

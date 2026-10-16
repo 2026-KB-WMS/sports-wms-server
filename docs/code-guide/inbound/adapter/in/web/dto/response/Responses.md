@@ -1,6 +1,6 @@
 # 응답 DTO (Response)
 
-`inbound/adapter/in/web/dto/response/` · 응답 `record`. 목록은 `ItemsResponse`(`data.items`).
+`inbound/adapter/in/web/dto/response/` · 응답 `record`. 목록은 `ItemsResponse`(`data.items`)이고, 페이지네이션을 적용한 목록(입고, 창고 발주, 공급처 발주서)은 `PageResponse`(`data.items` + `data.pageInfo`)다.
 
 ## 입고
 

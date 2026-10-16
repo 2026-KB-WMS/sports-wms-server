@@ -26,6 +26,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.AuthenticatedUser;
@@ -58,6 +61,9 @@ import com.kb.wms.warehouse.exception.WarehouseErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class InboundServiceTest {
+
+    private static final PageCondition PAGE = TestPages.firstPage(
+            TestPages.order("id", SortDirection.DESC));
 
     private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
 
@@ -376,11 +382,11 @@ class InboundServiceTest {
                 InboundStatus.ARRIVED, 1L, 4L, 8L, "IB-", null, null);
         when(purchaseOrderRepository.findById(4L)).thenReturn(java.util.Optional.of(purchaseOrder(PurchaseOrderStatus.CONFIRMED)));
         when(supplierOrderRepository.findById(8L)).thenReturn(Optional.of(supplierOrder(SupplierOrderStatus.ISSUED)));
-        when(inboundQueryRepository.search(condition)).thenReturn(List.of());
+        when(inboundQueryRepository.search(condition, PAGE)).thenReturn(TestPages.resultOf(List.of()));
 
-        assertThat(inboundService.getInbounds(condition, HQ)).isEmpty();
+        assertThat(inboundService.getInbounds(condition, PAGE, HQ).items()).isEmpty();
         verify(warehouseAvailabilityPort).requireExists(1L);
-        verify(inboundQueryRepository).search(condition);
+        verify(inboundQueryRepository).search(condition, PAGE);
     }
 
     @Test
@@ -390,7 +396,7 @@ class InboundServiceTest {
                 .when(warehouseAvailabilityPort).requireExists(999L);
 
         assertError(() -> inboundService.getInbounds(
-                InboundSearchCondition.unscoped(null, 999L, null, null, null, null, null), HQ),
+                InboundSearchCondition.unscoped(null, 999L, null, null, null, null, null), PAGE, HQ),
                 WarehouseErrorCode.WAREHOUSE_NOT_FOUND.name());
         verifyNoInteractions(inboundQueryRepository);
     }
@@ -401,7 +407,7 @@ class InboundServiceTest {
         when(purchaseOrderRepository.findById(999L)).thenReturn(java.util.Optional.empty());
 
         assertError(() -> inboundService.getInbounds(
-                InboundSearchCondition.unscoped(null, null, 999L, null, null, null, null), HQ),
+                InboundSearchCondition.unscoped(null, null, 999L, null, null, null, null), PAGE, HQ),
                 PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND.name());
         verifyNoInteractions(inboundQueryRepository);
     }
@@ -412,7 +418,7 @@ class InboundServiceTest {
         when(supplierOrderRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertError(() -> inboundService.getInbounds(
-                InboundSearchCondition.unscoped(null, null, null, 999L, null, null, null), HQ),
+                InboundSearchCondition.unscoped(null, null, null, 999L, null, null, null), PAGE, HQ),
                 SupplierOrderErrorCode.SUPPLIER_ORDER_NOT_FOUND.name());
         verifyNoInteractions(inboundQueryRepository);
     }
@@ -424,7 +430,7 @@ class InboundServiceTest {
                 null, null, null, null, null,
                 LocalDateTime.of(2026, 10, 2, 0, 0), LocalDateTime.of(2026, 10, 1, 0, 0));
 
-        assertError(() -> inboundService.getInbounds(condition, HQ), ErrorCode.VALIDATION_ERROR.name());
+        assertError(() -> inboundService.getInbounds(condition, PAGE, HQ), ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(inboundQueryRepository);
     }
 
@@ -539,13 +545,13 @@ class InboundServiceTest {
     @DisplayName("입고 목록은 창고를 생략하면 담당 창고로 좁히고, 비담당 창고를 지정하면 403이다")
     void getInbounds_scope() {
         when(inboundQueryRepository.search(
-                new InboundSearchCondition(null, null, null, null, null, null, null, List.of(1L, 2L))))
-                .thenReturn(List.of());
+                new InboundSearchCondition(null, null, null, null, null, null, null, List.of(1L, 2L)), PAGE))
+                .thenReturn(TestPages.resultOf(List.of()));
 
         assertThat(inboundService.getInbounds(
-                InboundSearchCondition.unscoped(null, null, null, null, null, null, null), MANAGER)).isEmpty();
+                InboundSearchCondition.unscoped(null, null, null, null, null, null, null), PAGE, MANAGER).items()).isEmpty();
         assertError(() -> inboundService.getInbounds(
-                InboundSearchCondition.unscoped(null, 3L, null, null, null, null, null), MANAGER), ErrorCode.FORBIDDEN.name());
+                InboundSearchCondition.unscoped(null, 3L, null, null, null, null, null), PAGE, MANAGER), ErrorCode.FORBIDDEN.name());
         verifyNoInteractions(warehouseAvailabilityPort);
     }
 

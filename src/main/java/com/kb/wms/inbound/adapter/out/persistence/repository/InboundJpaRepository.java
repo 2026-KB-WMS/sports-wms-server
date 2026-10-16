@@ -6,6 +6,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -57,7 +59,7 @@ public interface InboundJpaRepository extends JpaRepository<InboundJpaEntity, Lo
      * 입고에 발주(번호·공급처)·창고를 붙이고 검수 항목 수를 센다. 검수 전(ARRIVED)에는 항목이 없으므로
      * 항목은 left join 한다.
      */
-    @Query("""
+    @Query(value = """
             select new com.kb.wms.inbound.application.port.in.result.InboundSummary(
                 i.inboundId, i.inboundNo, i.purchaseOrderId, po.purchaseOrderNo, i.supplierOrderId, so.supplierOrderNo,
                 so.supplierId, s.name, i.warehouseId, w.name, i.status, i.arrivedAt, i.receivedAt, i.receivedBy,
@@ -82,9 +84,24 @@ public interface InboundJpaRepository extends JpaRepository<InboundJpaEntity, Lo
             group by i.inboundId, i.inboundNo, i.purchaseOrderId, po.purchaseOrderNo, i.supplierOrderId,
                      so.supplierOrderNo, so.supplierId, s.name, i.warehouseId, w.name, i.status, i.arrivedAt,
                      i.receivedAt, i.receivedBy, ru.name
-            order by i.arrivedAt desc, i.inboundId desc
+            """,
+            countQuery = """
+            select count(i)
+            from InboundJpaEntity i
+            join PurchaseOrderJpaEntity po on po.purchaseOrderId = i.purchaseOrderId
+            join WarehouseJpaEntity w on w.warehouseId = i.warehouseId
+            where (:status is null or i.status = :status)
+              and (:warehouseId is null or i.warehouseId = :warehouseId)
+              and (:scoped = false or i.warehouseId in :warehouseIds)
+              and (:purchaseOrderId is null or i.purchaseOrderId = :purchaseOrderId)
+              and (:supplierOrderId is null or i.supplierOrderId = :supplierOrderId)
+              and (:keyword is null
+                   or lower(i.inboundNo) like lower(concat('%', :keyword, '%'))
+                   or lower(po.purchaseOrderNo) like lower(concat('%', :keyword, '%')))
+              and (:arrivedFrom is null or i.arrivedAt >= :arrivedFrom)
+              and (:arrivedTo is null or i.arrivedAt <= :arrivedTo)
             """)
-    List<InboundSummary> search(@Param("status") InboundStatus status,
+    Page<InboundSummary> search(@Param("status") InboundStatus status,
                                 @Param("warehouseId") Long warehouseId,
                                 @Param("purchaseOrderId") Long purchaseOrderId,
                                 @Param("supplierOrderId") Long supplierOrderId,
@@ -92,7 +109,8 @@ public interface InboundJpaRepository extends JpaRepository<InboundJpaEntity, Lo
                                 @Param("arrivedFrom") LocalDateTime arrivedFrom,
                                 @Param("arrivedTo") LocalDateTime arrivedTo,
                                 @Param("scoped") boolean scoped,
-                                @Param("warehouseIds") Collection<Long> warehouseIds);
+                                @Param("warehouseIds") Collection<Long> warehouseIds,
+                                Pageable pageable);
 
     @Query("""
             select new com.kb.wms.inbound.application.port.in.result.InboundView(
