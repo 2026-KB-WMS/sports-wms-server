@@ -31,6 +31,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import com.kb.wms.common.paging.SortOrder;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.TestPages;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.UserRole;
@@ -227,9 +232,9 @@ class StoreOrderControllerTest {
     void list_success() throws Exception {
         StoreOrderSummary summary = new StoreOrderSummary(7L, "SO-20261002-0001", 2L, "Store A", 1L,
                 "Warehouse 1", StoreOrderStatus.ASSIGNED, T0, null, 2L, BigDecimal.valueOf(15000), 1L);
-        when(storeOrderUseCase.getStoreOrders(any(StoreOrderSearchCondition.class)))
-                .thenReturn(List.of(new StoreOrderListItem(summary, StoreOrderOutboundStatus.PICKING,
-                        StoreOrderProgressStage.PREPARING)));
+        when(storeOrderUseCase.getStoreOrders(any(StoreOrderSearchCondition.class), any()))
+                .thenReturn(TestPages.resultOf(List.of(new StoreOrderListItem(summary, StoreOrderOutboundStatus.PICKING,
+                        StoreOrderProgressStage.PREPARING))));
 
         mockMvc.perform(get("/api/v1/orders")
                         .param("status", "ASSIGNED")
@@ -247,7 +252,7 @@ class StoreOrderControllerTest {
                 .andExpect(jsonPath("$.data.items[0].latestOutboundStatus").value("PICKING"));
 
         ArgumentCaptor<StoreOrderSearchCondition> captor = ArgumentCaptor.forClass(StoreOrderSearchCondition.class);
-        verify(storeOrderUseCase).getStoreOrders(captor.capture());
+        verify(storeOrderUseCase).getStoreOrders(captor.capture(), any());
         StoreOrderSearchCondition condition = captor.getValue();
         assertThat(condition.status()).isEqualTo(StoreOrderStatus.ASSIGNED);
         assertThat(condition.storeId()).isEqualTo(2L);
@@ -262,8 +267,8 @@ class StoreOrderControllerTest {
     void myList_passesFilterAndPrincipal() throws Exception {
         StoreOrderSummary summary = new StoreOrderSummary(7L, "SO-20261002-0001", 2L, "Store A", 1L,
                 "Warehouse 1", StoreOrderStatus.ASSIGNED, T0, null, 2L, BigDecimal.valueOf(15000), 0L);
-        when(storeOrderUseCase.getMyStoreOrders(any(StoreOrderSearchCondition.class), any()))
-                .thenReturn(List.of(new StoreOrderListItem(summary, null, StoreOrderProgressStage.PREPARING)));
+        when(storeOrderUseCase.getMyStoreOrders(any(StoreOrderSearchCondition.class), any(), any()))
+                .thenReturn(TestPages.resultOf(List.of(new StoreOrderListItem(summary, null, StoreOrderProgressStage.PREPARING))));
 
         mockMvc.perform(get("/api/v1/orders/my").with(user(9L))
                         .param("status", "ASSIGNED").param("storeId", "2").param("keyword", "SO-2026"))
@@ -273,12 +278,12 @@ class StoreOrderControllerTest {
                 .andExpect(jsonPath("$.data.items[0].progressStage").value("PREPARING"));
 
         ArgumentCaptor<StoreOrderSearchCondition> captor = ArgumentCaptor.forClass(StoreOrderSearchCondition.class);
-        verify(storeOrderUseCase).getMyStoreOrders(captor.capture(), argThat(actor -> actor.userId().equals(9L)));
+        verify(storeOrderUseCase).getMyStoreOrders(captor.capture(), any(), argThat(actor -> actor.userId().equals(9L)));
         assertThat(captor.getValue().status()).isEqualTo(StoreOrderStatus.ASSIGNED);
         assertThat(captor.getValue().storeId()).isEqualTo(2L);
         assertThat(captor.getValue().keyword()).isEqualTo("SO-2026");
 
-        when(storeOrderUseCase.getMyStoreOrders(any(StoreOrderSearchCondition.class), any()))
+        when(storeOrderUseCase.getMyStoreOrders(any(StoreOrderSearchCondition.class), any(), any()))
                 .thenThrow(new BusinessException(com.kb.wms.common.exception.ErrorCode.FORBIDDEN));
         mockMvc.perform(get("/api/v1/orders/my").param("storeId", "99"))
                 .andExpect(status().isForbidden())
@@ -288,7 +293,7 @@ class StoreOrderControllerTest {
     @Test
     @DisplayName("결과가 없으면 빈 items를 반환한다")
     void list_empty() throws Exception {
-        when(storeOrderUseCase.getStoreOrders(any(StoreOrderSearchCondition.class))).thenReturn(List.of());
+        when(storeOrderUseCase.getStoreOrders(any(StoreOrderSearchCondition.class), any())).thenReturn(TestPages.resultOf(List.of()));
 
         mockMvc.perform(get("/api/v1/orders"))
                 .andExpect(status().isOk())
@@ -656,5 +661,121 @@ class StoreOrderControllerTest {
                         .content("{\"reason\":\"no more stock\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("NO_SHORTAGE"));
+    }
+
+    @Test
+    @DisplayName("지점 발주 목록은 page·size·sort를 페이지 조건으로 넘기고 pageInfo를 담아 반환한다")
+    void list_paging() throws Exception {
+        when(storeOrderUseCase.getStoreOrders(any(StoreOrderSearchCondition.class), any()))
+                .thenReturn(new PageResult<>(List.of(), 2, 5, 11, "orderNo,asc"));
+
+        mockMvc.perform(get("/api/v1/orders").param("page", "2").param("size", "5").param("sort", "orderNo,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty())
+                .andExpect(jsonPath("$.data.pageInfo.page").value(2))
+                .andExpect(jsonPath("$.data.pageInfo.size").value(5))
+                .andExpect(jsonPath("$.data.pageInfo.totalElements").value(11))
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(3))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("orderNo,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(storeOrderUseCase).getStoreOrders(any(StoreOrderSearchCondition.class), captor.capture());
+        PageCondition page = captor.getValue();
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.orders()).extracting(SortOrder::property).containsExactly("o.orderNo", "o.storeOrderId");
+        assertThat(page.orders()).extracting(SortOrder::direction).containsOnly(SortDirection.ASC);
+    }
+
+    @Test
+    @DisplayName("지점 발주 목록은 page·size·sort를 생략하면 1페이지, 20건, 기본 정렬(requestedAt,desc)이다")
+    void list_defaultPaging() throws Exception {
+        when(storeOrderUseCase.getStoreOrders(any(StoreOrderSearchCondition.class), any()))
+                .thenReturn(new PageResult<>(List.of(), 1, 20, 0, "requestedAt,desc"));
+
+        mockMvc.perform(get("/api/v1/orders"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("requestedAt,desc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(storeOrderUseCase).getStoreOrders(any(StoreOrderSearchCondition.class), captor.capture());
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(20);
+        assertThat(captor.getValue().sortLabel()).isEqualTo("requestedAt,desc");
+    }
+
+    @Test
+    @DisplayName("지점 발주 목록의 허용되지 않은 sort 필드와 범위를 벗어난 page·size는 400을 반환한다")
+    void list_invalidPaging() throws Exception {
+        mockMvc.perform(get("/api/v1/orders").param("sort", "progressStage,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/orders").param("sort", "orderNo,up"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/orders").param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/orders").param("page", "0"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(storeOrderUseCase);
+    }
+
+    @Test
+    @DisplayName("내 발주 목록은 page·size·sort를 페이지 조건으로 넘기고 pageInfo를 담아 반환한다")
+    void listMy_paging() throws Exception {
+        when(storeOrderUseCase.getMyStoreOrders(any(StoreOrderSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 2, 5, 11, "orderNo,asc"));
+
+        mockMvc.perform(get("/api/v1/orders/my").param("page", "2").param("size", "5").param("sort", "orderNo,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty())
+                .andExpect(jsonPath("$.data.pageInfo.page").value(2))
+                .andExpect(jsonPath("$.data.pageInfo.size").value(5))
+                .andExpect(jsonPath("$.data.pageInfo.totalElements").value(11))
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(3))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("orderNo,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(storeOrderUseCase).getMyStoreOrders(any(StoreOrderSearchCondition.class), captor.capture(), any());
+        PageCondition page = captor.getValue();
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.orders()).extracting(SortOrder::property).containsExactly("o.orderNo", "o.storeOrderId");
+        assertThat(page.orders()).extracting(SortOrder::direction).containsOnly(SortDirection.ASC);
+    }
+
+    @Test
+    @DisplayName("내 발주 목록은 page·size·sort를 생략하면 1페이지, 20건, 기본 정렬(requestedAt,desc)이다")
+    void listMy_defaultPaging() throws Exception {
+        when(storeOrderUseCase.getMyStoreOrders(any(StoreOrderSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 1, 20, 0, "requestedAt,desc"));
+
+        mockMvc.perform(get("/api/v1/orders/my"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("requestedAt,desc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(storeOrderUseCase).getMyStoreOrders(any(StoreOrderSearchCondition.class), captor.capture(), any());
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(20);
+        assertThat(captor.getValue().sortLabel()).isEqualTo("requestedAt,desc");
+    }
+
+    @Test
+    @DisplayName("내 발주 목록의 허용되지 않은 sort 필드와 범위를 벗어난 page·size는 400을 반환한다")
+    void listMy_invalidPaging() throws Exception {
+        mockMvc.perform(get("/api/v1/orders/my").param("sort", "progressStage,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/orders/my").param("sort", "orderNo,up"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/orders/my").param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/orders/my").param("page", "0"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(storeOrderUseCase);
     }
 }

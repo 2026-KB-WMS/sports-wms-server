@@ -1,5 +1,9 @@
 package com.kb.wms.storeorder.adapter.out.persistence;
 
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
 import com.kb.wms.common.security.UserRole;
@@ -58,6 +62,65 @@ import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 @Transactional
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class StoreOrderPersistenceAdapterTest {
+
+    private static final PageCondition PAGE = TestPages.firstPage(
+            TestPages.order("o.requestedAt", SortDirection.DESC),
+            TestPages.order("o.storeOrderId", SortDirection.DESC));
+
+    @Test
+    @DisplayName("페이지 크기만큼 자르고 전체 건수는 발주 건수로 센다 (항목이 여러 개여도 1건)")
+    void search_paging() {
+        PageResult<StoreOrderSummary> first = queryRepository.search(noCondition(), new PageCondition(1, 2, PAGE.orders()));
+        PageResult<StoreOrderSummary> second = queryRepository.search(noCondition(), new PageCondition(2, 2, PAGE.orders()));
+
+        assertThat(first.items()).extracting(StoreOrderSummary::storeOrderId).containsExactly(so3, so2);
+        assertThat(second.items()).extracting(StoreOrderSummary::storeOrderId).containsExactly(so1);
+        // 항목 행은 4개지만 발주는 3건
+        assertThat(first.totalElements()).isEqualTo(3);
+        assertThat(first.totalPages()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("전체 건수는 담당 범위와 필터를 적용한 발주 건수다")
+    void search_pagingCountFollowsScope() {
+        PageResult<StoreOrderSummary> result = queryRepository.search(new StoreOrderSearchCondition(
+                null, null, null, null, null, null, List.of(gangnam), null), new PageCondition(1, 1, PAGE.orders()));
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.totalElements()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("조인한 지점명으로 정렬하고, 같은 값은 발주 ID로 순서를 고정한다")
+    void search_sortedByStoreName() {
+        PageCondition byStore = TestPages.firstPage(
+                TestPages.order("s.name", SortDirection.ASC), TestPages.order("o.storeOrderId", SortDirection.ASC));
+
+        // 강남점(SO1, SO2: ID 오름차순) → 부산점(SO3)
+        assertThat(queryRepository.search(noCondition(), byStore).items())
+                .extracting(StoreOrderSummary::storeOrderId).containsExactly(so1, so2, so3);
+    }
+
+    @Test
+    @DisplayName("조인한 창고명으로 정렬한다 (창고 범위로 배정된 발주만)")
+    void search_sortedByWarehouseName() {
+        PageCondition byWarehouse = TestPages.firstPage(
+                TestPages.order("w.name", SortDirection.DESC), TestPages.order("o.storeOrderId", SortDirection.DESC));
+
+        // 서울(SO2) → 부산(SO3)
+        assertThat(queryRepository.search(new StoreOrderSearchCondition(
+                null, null, null, null, null, null, null, List.of(seoul, busan)), byWarehouse).items())
+                .extracting(StoreOrderSummary::storeOrderId).containsExactly(so2, so3);
+    }
+
+    @Test
+    @DisplayName("범위를 넘어선 페이지는 빈 목록이고 전체 건수는 그대로다")
+    void search_pageBeyondEnd() {
+        PageResult<StoreOrderSummary> result = queryRepository.search(noCondition(), new PageCondition(5, 2, PAGE.orders()));
+
+        assertThat(result.items()).isEmpty();
+        assertThat(result.totalElements()).isEqualTo(3);
+    }
 
     @Autowired UserRepository userRepository;
     @Autowired StoreOrderRepository storeOrderRepository;
@@ -237,7 +300,7 @@ class StoreOrderPersistenceAdapterTest {
     @Test
     @DisplayName("조건이 없으면 전체를 요청 일시 내림차순으로 돌려준다")
     void search_all_orderedByRequestedAtDesc() {
-        List<StoreOrderSummary> result = queryRepository.search(noCondition());
+        List<StoreOrderSummary> result = queryRepository.search(noCondition(), PAGE).items();
 
         assertThat(result).extracting(StoreOrderSummary::storeOrderId).containsExactly(so3, so2, so1);
     }
@@ -246,31 +309,31 @@ class StoreOrderPersistenceAdapterTest {
     @DisplayName("지점 범위(점주의 담당 지점)로 좁히고, 빈 범위면 아무것도 보이지 않는다")
     void search_byStoreScope() {
         assertThat(queryRepository.search(new StoreOrderSearchCondition(
-                null, null, null, null, null, null, List.of(gangnam), null)))
+                null, null, null, null, null, null, List.of(gangnam), null), PAGE).items())
                 .extracting(StoreOrderSummary::storeOrderId).containsExactly(so2, so1);
         assertThat(queryRepository.search(new StoreOrderSearchCondition(
-                null, null, null, null, null, null, List.of(gangnam, busanStore), null))).hasSize(3);
+                null, null, null, null, null, null, List.of(gangnam, busanStore), null), PAGE).items()).hasSize(3);
         assertThat(queryRepository.search(new StoreOrderSearchCondition(
-                null, null, null, null, null, null, List.of(), null))).isEmpty();
+                null, null, null, null, null, null, List.of(), null), PAGE).items()).isEmpty();
     }
 
     @Test
     @DisplayName("창고 범위(창고 관리자의 담당 창고)로 좁히면 창고 배정 전 발주는 제외된다")
     void search_byWarehouseScope_excludesUnassigned() {
         assertThat(queryRepository.search(new StoreOrderSearchCondition(
-                null, null, null, null, null, null, null, List.of(seoul))))
+                null, null, null, null, null, null, null, List.of(seoul)), PAGE).items())
                 .extracting(StoreOrderSummary::storeOrderId).containsExactly(so2);
         assertThat(queryRepository.search(new StoreOrderSearchCondition(
-                null, null, null, null, null, null, null, List.of(seoul, busan))))
+                null, null, null, null, null, null, null, List.of(seoul, busan)), PAGE).items())
                 .extracting(StoreOrderSummary::storeOrderId).containsExactly(so3, so2);
         assertThat(queryRepository.search(new StoreOrderSearchCondition(
-                null, null, null, null, null, null, null, List.of()))).isEmpty();
+                null, null, null, null, null, null, null, List.of()), PAGE).items()).isEmpty();
     }
 
     @Test
     @DisplayName("미배정 발주는 창고 이름이 null이고 배정된 발주는 창고 이름이 채워진다 (left join)")
     void search_warehouseNullForUnassigned() {
-        List<StoreOrderSummary> result = queryRepository.search(noCondition());
+        List<StoreOrderSummary> result = queryRepository.search(noCondition(), PAGE).items();
 
         StoreOrderSummary unassigned = byId(result, so1);
         assertThat(unassigned.warehouseId()).isNull();
@@ -283,7 +346,7 @@ class StoreOrderPersistenceAdapterTest {
     @Test
     @DisplayName("목록 행에 지점명, 항목 수, 금액 합계, 부족 항목 수가 집계된다")
     void search_aggregates() {
-        List<StoreOrderSummary> result = queryRepository.search(noCondition());
+        List<StoreOrderSummary> result = queryRepository.search(noCondition(), PAGE).items();
 
         StoreOrderSummary s1 = byId(result, so1);
         assertThat(s1.storeName()).isEqualTo("강남점");
@@ -306,51 +369,51 @@ class StoreOrderPersistenceAdapterTest {
     @Test
     @DisplayName("상태·지점·창고 조건으로 거른다")
     void search_filters() {
-        assertThat(queryRepository.search(condition(StoreOrderStatus.ASSIGNED, null, null, null, null, null)))
+        assertThat(queryRepository.search(condition(StoreOrderStatus.ASSIGNED, null, null, null, null, null), PAGE).items())
                 .extracting(StoreOrderSummary::storeOrderId).containsExactly(so2);
-        assertThat(queryRepository.search(condition(null, gangnam, null, null, null, null)))
+        assertThat(queryRepository.search(condition(null, gangnam, null, null, null, null), PAGE).items())
                 .extracting(StoreOrderSummary::storeOrderId).containsExactly(so2, so1);
-        assertThat(queryRepository.search(condition(null, null, busan, null, null, null)))
+        assertThat(queryRepository.search(condition(null, null, busan, null, null, null), PAGE).items())
                 .extracting(StoreOrderSummary::storeOrderId).containsExactly(so3);
     }
 
     @Test
     @DisplayName("keyword는 주문 번호와 지점명을 대소문자 구분 없이 부분 일치로 찾는다")
     void search_keyword() {
-        assertThat(queryRepository.search(condition(null, null, null, "20261002", null, null)))
+        assertThat(queryRepository.search(condition(null, null, null, "20261002", null, null), PAGE).items())
                 .extracting(StoreOrderSummary::storeOrderId).containsExactly(so2);
-        assertThat(queryRepository.search(condition(null, null, null, "so-2026", null, null)))
+        assertThat(queryRepository.search(condition(null, null, null, "so-2026", null, null), PAGE).items())
                 .extracting(StoreOrderSummary::storeOrderId).containsExactly(so3, so2, so1);
-        assertThat(queryRepository.search(condition(null, null, null, "부산", null, null)))
+        assertThat(queryRepository.search(condition(null, null, null, "부산", null, null), PAGE).items())
                 .extracting(StoreOrderSummary::storeOrderId).containsExactly(so3);
-        assertThat(queryRepository.search(condition(null, null, null, "  강남  ", null, null)))
+        assertThat(queryRepository.search(condition(null, null, null, "  강남  ", null, null), PAGE).items())
                 .extracting(StoreOrderSummary::storeOrderId).containsExactly(so2, so1);
-        assertThat(queryRepository.search(condition(null, null, null, "없는검색어", null, null))).isEmpty();
+        assertThat(queryRepository.search(condition(null, null, null, "없는검색어", null, null), PAGE).items()).isEmpty();
     }
 
     @Test
     @DisplayName("빈 keyword는 조건 없음으로 본다")
     void search_blankKeyword() {
-        assertThat(queryRepository.search(condition(null, null, null, "   ", null, null))).hasSize(3);
+        assertThat(queryRepository.search(condition(null, null, null, "   ", null, null), PAGE).items()).hasSize(3);
     }
 
     @Test
     @DisplayName("요청 일시 범위로 거른다 (경계 포함)")
     void search_requestedRange() {
-        assertThat(queryRepository.search(condition(null, null, null, null, at(2), null)))
+        assertThat(queryRepository.search(condition(null, null, null, null, at(2), null), PAGE).items())
                 .extracting(StoreOrderSummary::storeOrderId).containsExactly(so3, so2);
-        assertThat(queryRepository.search(condition(null, null, null, null, null, at(2))))
+        assertThat(queryRepository.search(condition(null, null, null, null, null, at(2)), PAGE).items())
                 .extracting(StoreOrderSummary::storeOrderId).containsExactly(so2, so1);
-        assertThat(queryRepository.search(condition(null, null, null, null, at(2), at(2))))
+        assertThat(queryRepository.search(condition(null, null, null, null, at(2), at(2)), PAGE).items())
                 .extracting(StoreOrderSummary::storeOrderId).containsExactly(so2);
     }
 
     @Test
     @DisplayName("여러 조건은 AND로 결합한다")
     void search_combined() {
-        assertThat(queryRepository.search(condition(StoreOrderStatus.REQUESTED, gangnam, null, "강남", at(1), at(3))))
+        assertThat(queryRepository.search(condition(StoreOrderStatus.REQUESTED, gangnam, null, "강남", at(1), at(3)), PAGE).items())
                 .extracting(StoreOrderSummary::storeOrderId).containsExactly(so1);
-        assertThat(queryRepository.search(condition(StoreOrderStatus.COMPLETED, gangnam, null, null, null, null)))
+        assertThat(queryRepository.search(condition(StoreOrderStatus.COMPLETED, gangnam, null, null, null, null), PAGE).items())
                 .isEmpty();
     }
 

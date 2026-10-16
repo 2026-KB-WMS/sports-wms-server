@@ -25,6 +25,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.security.UserRole;
@@ -64,6 +68,9 @@ import com.kb.wms.storeorder.exception.StoreOrderErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class StoreOrderServiceTest {
+
+    private static final PageCondition PAGE = TestPages.firstPage(
+            TestPages.order("id", SortDirection.DESC));
 
     // 발주 5번 사용자가 지점 1에서 만든 요청 발주의 작성자(점주)
     private static final AuthenticatedUser AUTHOR =
@@ -249,7 +256,7 @@ class StoreOrderServiceTest {
     @DisplayName("요청 시작 일시가 종료 일시보다 늦으면 400 VALIDATION_ERROR")
     void getStoreOrders_invalidRange() {
         LocalDateTime now = LocalDateTime.now();
-        assertError(() -> storeOrderService.getStoreOrders(condition(null, null, now, now.minusDays(1))),
+        assertError(() -> storeOrderService.getStoreOrders(condition(null, null, now, now.minusDays(1)), PAGE),
                 "VALIDATION_ERROR");
         verifyNoInteractions(storeOrderQueryRepository);
     }
@@ -259,25 +266,25 @@ class StoreOrderServiceTest {
     void getStoreOrders_unknownFilters() {
         doThrow(new BusinessException(com.kb.wms.store.exception.StoreErrorCode.STORE_NOT_FOUND))
                 .when(storeAvailabilityPort).requireExists(99L);
-        assertError(() -> storeOrderService.getStoreOrders(condition(99L, null, null, null)), "STORE_NOT_FOUND");
+        assertError(() -> storeOrderService.getStoreOrders(condition(99L, null, null, null), PAGE), "STORE_NOT_FOUND");
 
         doThrow(new BusinessException(com.kb.wms.common.exception.ErrorCode.NOT_FOUND, "창고 없음"))
                 .when(warehouseAvailabilityPort).requireExists(88L);
-        assertError(() -> storeOrderService.getStoreOrders(condition(null, 88L, null, null)), "NOT_FOUND");
+        assertError(() -> storeOrderService.getStoreOrders(condition(null, 88L, null, null), PAGE), "NOT_FOUND");
     }
 
     @Test
     @DisplayName("목록은 최근 출고 상태와 진행 단계를 함께 채운다")
     void getStoreOrders_fillsProgressStage() {
         StoreOrderSearchCondition condition = condition(null, null, null, null);
-        when(storeOrderQueryRepository.search(condition)).thenReturn(List.of(
+        when(storeOrderQueryRepository.search(condition, PAGE)).thenReturn(TestPages.resultOf(List.of(
                 summary(1L, StoreOrderStatus.REQUESTED, 0),
                 summary(2L, StoreOrderStatus.ASSIGNED, 1),
-                summary(3L, StoreOrderStatus.COMPLETED, 1)));
+                summary(3L, StoreOrderStatus.COMPLETED, 1))));
         when(storeOrderOutboundPort.findLatestOutboundStatuses(List.of(1L, 2L, 3L)))
                 .thenReturn(Map.of(2L, StoreOrderOutboundStatus.SHIPPED));
 
-        List<StoreOrderListItem> items = storeOrderService.getStoreOrders(condition);
+        List<StoreOrderListItem> items = storeOrderService.getStoreOrders(condition, PAGE).items();
 
         assertThat(items).extracting(StoreOrderListItem::progressStage).containsExactly(
                 StoreOrderProgressStage.PENDING_APPROVAL,
@@ -285,6 +292,24 @@ class StoreOrderServiceTest {
                 StoreOrderProgressStage.COMPLETED_PARTIAL);
         assertThat(items.get(0).latestOutboundStatus()).isNull();
         assertThat(items.get(1).latestOutboundStatus()).isEqualTo(StoreOrderOutboundStatus.SHIPPED);
+    }
+
+
+    @Test
+    @DisplayName("목록은 저장소의 페이지 정보(전체 건수·정렬)를 그대로 유지한다")
+    void getStoreOrders_keepsPageInfo() {
+        StoreOrderSearchCondition condition = condition(null, null, null, null);
+        PageCondition second = new PageCondition(2, 1, PAGE.orders());
+        when(storeOrderQueryRepository.search(condition, second))
+                .thenReturn(PageResult.of(List.of(summary(2L, StoreOrderStatus.ASSIGNED, 0)), second, 3));
+
+        PageResult<StoreOrderListItem> result = storeOrderService.getStoreOrders(condition, second);
+
+        assertThat(result.items()).extracting(item -> item.summary().storeOrderId()).containsExactly(2L);
+        assertThat(result.page()).isEqualTo(2);
+        assertThat(result.size()).isEqualTo(1);
+        assertThat(result.totalElements()).isEqualTo(3);
+        assertThat(result.totalPages()).isEqualTo(3);
     }
 
     // ---------- getMyStoreOrders ----------
@@ -297,32 +322,32 @@ class StoreOrderServiceTest {
                 null, null, null, null, null, null, List.of(1L, 2L), null);
         StoreOrderSearchCondition managerScope = new StoreOrderSearchCondition(
                 null, null, null, null, null, null, null, List.of(3L));
-        when(storeOrderQueryRepository.search(ownerScope)).thenReturn(List.of(summary(1L, StoreOrderStatus.REQUESTED, 0)));
-        when(storeOrderQueryRepository.search(managerScope)).thenReturn(List.of(summary(2L, StoreOrderStatus.ASSIGNED, 0)));
+        when(storeOrderQueryRepository.search(ownerScope, PAGE)).thenReturn(TestPages.resultOf(List.of(summary(1L, StoreOrderStatus.REQUESTED, 0))));
+        when(storeOrderQueryRepository.search(managerScope, PAGE)).thenReturn(TestPages.resultOf(List.of(summary(2L, StoreOrderStatus.ASSIGNED, 0))));
 
         AuthenticatedUser storeOwner = new AuthenticatedUser(5L, UserRole.STORE_OWNER, List.of(), List.of(1L, 2L));
-        assertThat(storeOrderService.getMyStoreOrders(none, storeOwner))
+        assertThat(storeOrderService.getMyStoreOrders(none, PAGE, storeOwner).items())
                 .extracting(item -> item.summary().storeOrderId()).containsExactly(1L);
-        assertThat(storeOrderService.getMyStoreOrders(none, manager(7L, 3L)))
+        assertThat(storeOrderService.getMyStoreOrders(none, PAGE, manager(7L, 3L)).items())
                 .extracting(item -> item.summary().storeOrderId()).containsExactly(2L);
     }
 
     @Test
     @DisplayName("내 발주 목록: 담당 지점·창고를 필터로 지정하면 추가 범위 없이 그 조건으로만 조회한다")
     void getMyStoreOrders_specifiedFilterWithinScope() {
-        when(storeOrderQueryRepository.search(condition(1L, null, null, null))).thenReturn(List.of());
-        when(storeOrderQueryRepository.search(condition(null, 3L, null, null))).thenReturn(List.of());
+        when(storeOrderQueryRepository.search(condition(1L, null, null, null), PAGE)).thenReturn(TestPages.resultOf(List.of()));
+        when(storeOrderQueryRepository.search(condition(null, 3L, null, null), PAGE)).thenReturn(TestPages.resultOf(List.of()));
 
-        assertThat(storeOrderService.getMyStoreOrders(condition(1L, null, null, null), owner(5L, 1L))).isEmpty();
-        assertThat(storeOrderService.getMyStoreOrders(condition(null, 3L, null, null), manager(7L, 3L))).isEmpty();
+        assertThat(storeOrderService.getMyStoreOrders(condition(1L, null, null, null), PAGE, owner(5L, 1L)).items()).isEmpty();
+        assertThat(storeOrderService.getMyStoreOrders(condition(null, 3L, null, null), PAGE, manager(7L, 3L)).items()).isEmpty();
     }
 
     @Test
     @DisplayName("내 발주 목록: 담당이 아닌 지점·창고 필터와 본사 호출은 403이고, 존재 확인·조회보다 먼저 거절한다")
     void getMyStoreOrders_forbidden() {
-        assertError(() -> storeOrderService.getMyStoreOrders(condition(2L, null, null, null), owner(5L, 1L)), "FORBIDDEN");
-        assertError(() -> storeOrderService.getMyStoreOrders(condition(null, 9L, null, null), manager(7L, 3L)), "FORBIDDEN");
-        assertError(() -> storeOrderService.getMyStoreOrders(condition(null, null, null, null), HQ), "FORBIDDEN");
+        assertError(() -> storeOrderService.getMyStoreOrders(condition(2L, null, null, null), PAGE, owner(5L, 1L)), "FORBIDDEN");
+        assertError(() -> storeOrderService.getMyStoreOrders(condition(null, 9L, null, null), PAGE, manager(7L, 3L)), "FORBIDDEN");
+        assertError(() -> storeOrderService.getMyStoreOrders(condition(null, null, null, null), PAGE, HQ), "FORBIDDEN");
         verifyNoInteractions(storeOrderQueryRepository, storeAvailabilityPort, warehouseAvailabilityPort);
     }
 
