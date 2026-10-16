@@ -20,8 +20,8 @@ SKU 등록·수정·조회·상태 변경과 옵션 연결.
 |---|---|---|
 | `registerSku(command)` | 쓰기 | 상품 존재·활성 확인(`PRODUCT_NOT_FOUND`, `PRODUCT_INACTIVE`) → 단위가 있으면 `SkuUnit` 허용 검사 → SKU 옵션 검증 → 옵션 조합 중복 검사 → SKU 코드·이름 자동 생성 → 코드·바코드 중복 검사 → 저장 → 옵션 연결 저장 |
 | `updateSku(command, actor)` | 쓰기 | 변경 필드 없음 → `VALIDATION_ERROR`. 없음 → `SKU_NOT_FOUND`. 다른 SKU와 겹치는 바코드 → `DUPLICATE_BARCODE`(자기 바코드 재전송은 허용). 단가(매입·공급)가 하나라도 바뀌면 `SkuPriceHistory`를 `actor.userId()`로 기록 |
-| `getSkus(condition)` | 읽기 | `productId`·`brandId`·`categoryId` 조건이 있으면 각각 존재 확인 후 검색 |
-| `getSkus(condition, actor)` | 읽기 | 점주면 `isActive=true`로 고정 |
+| `getSkus(condition, page)` | 읽기 | `productId`·`brandId`·`categoryId` 조건이 있으면 각각 존재 확인 후 검색 |
+| `getSkus(condition, page, actor)` | 읽기 | 점주면 `isActive=true`로 고정 |
 | `getSku(skuId)` | 읽기 | 단건 조회. 없으면 `SKU_NOT_FOUND` |
 | `getSku(skuId, actor)` | 읽기 | 점주에게 비활성 SKU는 `SKU_NOT_FOUND` |
 | `changeSkuStatus(skuId, active)` | 쓰기 | 활성화: 상품이 비활성이면 `PRODUCT_INACTIVE`. 비활성화: 활성 SKU면 `isSkuInUse` 검사 → `SKU_IN_USE`. 이미 비활성인 SKU는 검사 없이 통과 |

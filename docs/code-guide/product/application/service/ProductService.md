@@ -13,8 +13,8 @@
 | 메서드 | 트랜잭션 | 설명 |
 |---|---|---|
 | `registerProduct(command)` | 쓰기 | 브랜드·카테고리 존재와 활성 확인 → SPEC 옵션 값 검증(`resolve`, type=SPEC) → 상품 코드 발급 → 저장 → 스펙이 있으면 `replaceAll` |
-| `getProducts(condition)` | 읽기 | `brandId`·`categoryId` 조건이 있으면 존재 확인 후 검색 |
-| `getProducts(condition, actor)` | 읽기 | 점주(STORE_OWNER)면 `isActive=true`로 고정해 조회 |
+| `getProducts(condition, page)` | 읽기 | `brandId`·`categoryId` 조건이 있으면 존재 확인 후 검색 |
+| `getProducts(condition, page, actor)` | 읽기 | 점주(STORE_OWNER)면 `isActive=true`로 고정해 조회 |
 | `getProduct(productId)` | 읽기 | 단건 조회. 없으면 `PRODUCT_NOT_FOUND` |
 | `getProduct(productId, actor)` | 읽기 | 점주에게 비활성 상품은 `PRODUCT_NOT_FOUND`(404)로 숨긴다 |
 | `getProductSpecs(productId)` | 읽기 | 상품에 지정된 스펙을 그룹명 포함 `ProductSpecSummary`로 반환. 없으면 빈 목록 |

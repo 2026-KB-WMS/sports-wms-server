@@ -53,7 +53,7 @@
 | 용도 | 상품 목록을 필터링한다 |
 | 엔드포인트 | GET `/api/v1/products` |
 | 만드는 곳 | `ProductController.getProducts` |
-| 쓰는 곳 | `ProductService.getProducts(condition)` 또는 `(condition, actor)` → `ProductRepository.search` |
+| 쓰는 곳 | `ProductService.getProducts(condition, page)` 또는 `(condition, page, actor)` → `ProductRepository.search` |
 | 정렬 | 생성 일시 내림차순, 같으면 `productId` 내림차순 |
 | 검증 | `brandId`·`categoryId`가 있으면 존재하지 않을 때 `BRAND_NOT_FOUND`·`CATEGORY_NOT_FOUND` |
 
@@ -71,7 +71,7 @@
 | 용도 | SKU 목록을 필터링한다 |
 | 엔드포인트 | GET `/api/v1/products/skus` |
 | 만드는 곳 | `ProductSkuController.getSkus` |
-| 쓰는 곳 | `ProductSkuService.getSkus(condition)` 또는 `(condition, actor)` → `ProductSkuRepository.search` |
+| 쓰는 곳 | `ProductSkuService.getSkus(condition, page)` 또는 `(condition, page, actor)` → `ProductSkuRepository.search` |
 | 정렬 | 생성 일시 내림차순, 같으면 `skuId` 내림차순 |
 | 검증 | `productId`·`brandId`·`categoryId`가 있으면 존재하지 않을 때 각각 `PRODUCT_NOT_FOUND`·`BRAND_NOT_FOUND`·`CATEGORY_NOT_FOUND` |
 
