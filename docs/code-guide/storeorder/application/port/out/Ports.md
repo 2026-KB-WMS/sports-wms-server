@@ -25,7 +25,7 @@
 
 | 메서드 | 설명 |
 |---|---|
-| `search(condition)` | 요청 일시 내림차순 |
+| `search(condition, page)` | `PageResult` 반환. 정렬은 페이지 조건을 따른다(기본 요청 일시 내림차순) |
 | `findView(id)` | 헤더 뷰 |
 | `findLineViews(id)` | 항목 뷰 (SKU 코드순) |
 

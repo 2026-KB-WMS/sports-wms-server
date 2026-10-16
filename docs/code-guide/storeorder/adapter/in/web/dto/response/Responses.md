@@ -1,6 +1,6 @@
 # 응답 DTO (Response)
 
-`storeorder/adapter/in/web/dto/response/` · 응답 `record`. 목록은 `ItemsResponse`(`data.items`).
+`storeorder/adapter/in/web/dto/response/` · 응답 `record`. 목록은 `PageResponse`(`data.items` + `data.pageInfo`, 페이지네이션 적용).
 
 ## 조회
 
