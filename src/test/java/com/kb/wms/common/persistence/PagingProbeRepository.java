@@ -27,4 +27,18 @@ public interface PagingProbeRepository extends JpaRepository<ProductJpaEntity, L
             where (:keyword is null or p.name like concat('%', :keyword, '%'))
             """)
     Page<PagingProbeRow> search(@Param("keyword") String keyword, Pageable pageable);
+
+    /** 집계(group by) 목록 모양: 집계식으로 정렬할 수 있는지, 건수 쿼리가 따로 맞는지 확인한다. */
+    @Query(value = """
+            select new com.kb.wms.common.persistence.PagingProbeBrandRow(b.brandId, b.name, count(p), sum(p.productId))
+            from BrandJpaEntity b
+            join ProductJpaEntity p on p.brandId = b.brandId
+            group by b.brandId, b.name
+            """,
+            countQuery = """
+            select count(distinct b.brandId)
+            from BrandJpaEntity b
+            join ProductJpaEntity p on p.brandId = b.brandId
+            """)
+    Page<PagingProbeBrandRow> searchBrands(Pageable pageable);
 }

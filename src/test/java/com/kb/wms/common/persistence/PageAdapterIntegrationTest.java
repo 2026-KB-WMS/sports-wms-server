@@ -104,6 +104,34 @@ class PageAdapterIntegrationTest {
         assertThat(result.totalElements()).isEqualTo(5);
     }
 
+    @Test
+    @DisplayName("집계식(count, sum)으로 정렬하고 같은 값은 ID로 고정하며, 전체 건수는 그룹 수다")
+    void sortByAggregate() {
+        SortSpec spec = SortSpec.builder()
+                .field("productCount", "count(p)")
+                .field("idSum", "sum(p.productId)")
+                .field("brandName", "b.name")
+                .defaultOrder("productCount", SortDirection.DESC)
+                .tieBreaker("b.brandId")
+                .build();
+
+        // 요넥스 3건, 빅터 2건
+        PageResult<PagingProbeBrandRow> desc = searchBrands(PageCondition.of(1, 20, null, spec));
+        assertThat(desc.items()).extracting(PagingProbeBrandRow::brandName).containsExactly("요넥스", "빅터");
+        assertThat(desc.totalElements()).isEqualTo(2);
+
+        PageResult<PagingProbeBrandRow> asc = searchBrands(PageCondition.of(1, 1, "productCount,asc", spec));
+        assertThat(asc.items()).extracting(PagingProbeBrandRow::brandName).containsExactly("빅터");
+        assertThat(asc.totalPages()).isEqualTo(2);
+
+        PageResult<PagingProbeBrandRow> bySum = searchBrands(PageCondition.of(1, 20, "idSum,desc", spec));
+        assertThat(bySum.items()).extracting(PagingProbeBrandRow::idSum).isSortedAccordingTo(java.util.Comparator.reverseOrder());
+    }
+
+    private PageResult<PagingProbeBrandRow> searchBrands(PageCondition condition) {
+        return PageAdapter.toPageResult(probe.searchBrands(PageAdapter.toPageable(condition)), condition);
+    }
+
     private PageResult<PagingProbeRow> search(String keyword, PageCondition condition) {
         Page<PagingProbeRow> page = probe.search(keyword, PageAdapter.toPageable(condition));
         return PageAdapter.toPageResult(page, condition);
