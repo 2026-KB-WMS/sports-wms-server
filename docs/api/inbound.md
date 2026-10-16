@@ -72,7 +72,7 @@
 | GET | /supplier-orders/{supplierOrderId} | HQ_ADMIN, WAREHOUSE_MANAGER(담당) | 공급처 발주서 상세(라인 포함) |
 
 - 목록 Query: `status`(ISSUED/PARTIALLY_RECEIVED/COMPLETED/CANCELED), `warehouseId`, `supplierId`, `purchaseOrderId`, `keyword`(발주서·요청 번호), `createdFrom`, `createdTo`, `page`, `size`, `sort`.
-- 정렬: 기본은 `createdAt` 내림차순(같으면 `supplierOrderId` 내림차순). `sort` 가능 필드: `createdAt`, `status`, `supplierOrderNo`, `supplierName`, `warehouseName`. 응답은 `data.items`와 `data.pageInfo`.
+- 정렬: 기본은 `createdAt` 내림차순(같으면 `supplierOrderId` 내림차순). `sort` 가능 필드: `createdAt`, `status`, `supplierOrderNo`, `supplierName`, `warehouseName`, `lineCount`, `totalAmount`. 응답은 `data.items`와 `data.pageInfo`.
 - 목록 응답 항목: `supplierOrderId, supplierOrderNo, purchaseOrderId, purchaseOrderNo, supplierId, supplierName, warehouseId, warehouseName, status, lineCount, totalAmount, createdAt`
 - 상세 응답: 목록 항목 + `updatedAt`, `lines[]`(`purchaseOrderLineId, skuId, skuCode, skuName, unit, expectedQuantity, receivedQuantity, remainingQuantity, orderedUnitPrice, lineAmount, status`)
 - 데이터 범위: HQ_ADMIN 전체, WAREHOUSE_MANAGER는 담당 창고의 발주서만(타 창고 403).
@@ -196,7 +196,7 @@
 ### GET /purchase-orders (P1)
 
 - Query: `status`(REQUESTED/CONFIRMED/COMPLETED/CANCELED), `warehouseId`, `supplierId`, `keyword`(발주 번호), `createdFrom`, `createdTo`(ISO-8601, 양 끝 포함: `>= createdFrom`, `<= createdTo`), `page`, `size`, `sort`.
-- 정렬: 기본은 `createdAt` 내림차순(같으면 `purchaseOrderId` 내림차순). `sort` 가능 필드: `createdAt`, `expectedAt`, `status`, `purchaseOrderNo`, `warehouseName`. 응답은 `data.items`와 `data.pageInfo`.
+- 정렬: 기본은 `createdAt` 내림차순(같으면 `purchaseOrderId` 내림차순). `sort` 가능 필드: `createdAt`, `expectedAt`, `status`, `purchaseOrderNo`, `warehouseName`, `lineCount`, `totalAmount`. 응답은 `data.items`와 `data.pageInfo`.
 - 응답 항목: `purchaseOrderId, purchaseOrderNo, warehouseId, warehouseName, supplierId, supplierName, status, expectedAt, lineCount, totalAmount, createdBy, createdByName, createdAt` (항목별 수량·단가는 `/details`)
 - 에러: 400(status 값/일시 형식/from>to, `page`·`size` 범위, 허용되지 않은 `sort`), 403(비담당 창고), 404 `WAREHOUSE_NOT_FOUND`/`SUPPLIER_NOT_FOUND`(존재하지 않는 `warehouseId`·`supplierId` 필터).
 
@@ -246,7 +246,7 @@
 ### GET /inbounds (P1)
 
 - Query: `status`(ARRIVED/INSPECTING/COMPLETED/CANCELED), `warehouseId`, `purchaseOrderId`, `keyword`(입고 번호·발주 번호, 대소문자 무시 부분 일치), `arrivedFrom`, `arrivedTo`(ISO-8601, 이상·이하), `page`, `size`, `sort`
-- 정렬: 기본은 `arrivedAt` 내림차순(같으면 `inboundId` 내림차순). `sort` 가능 필드: `arrivedAt`, `receivedAt`, `status`, `inboundNo`, `warehouseName`. 응답은 `data.items`와 `data.pageInfo`. 검수 항목이 없는 입고도 포함한다.
+- 정렬: 기본은 `arrivedAt` 내림차순(같으면 `inboundId` 내림차순). `sort` 가능 필드: `arrivedAt`, `receivedAt`, `status`, `inboundNo`, `warehouseName`, `lineCount`. 응답은 `data.items`와 `data.pageInfo`. 검수 항목이 없는 입고도 포함한다.
 - 응답 항목: `inboundId, inboundNo, purchaseOrderId, purchaseOrderNo, supplierId, supplierName, warehouseId, warehouseName, status, arrivedAt, receivedAt, receivedBy, receivedByName, lineCount`(검수 항목 수, `ARRIVED`면 0)
 - 에러: 400(status 값·일시 형식 오류. `arrivedFrom`이 `arrivedTo`보다 늦음. `page`·`size` 범위, 허용되지 않은 `sort`), 403(비담당 창고), 404 `WAREHOUSE_NOT_FOUND`/`PURCHASE_ORDER_NOT_FOUND`(존재하지 않는 `warehouseId`·`purchaseOrderId` 필터)
 
