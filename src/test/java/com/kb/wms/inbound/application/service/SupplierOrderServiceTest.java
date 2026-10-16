@@ -21,6 +21,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.AuthenticatedUser;
@@ -42,6 +45,9 @@ import com.kb.wms.warehouse.exception.WarehouseErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class SupplierOrderServiceTest {
+
+    private static final PageCondition PAGE = TestPages.firstPage(
+            TestPages.order("id", SortDirection.DESC));
 
     private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
     private static final AuthenticatedUser MANAGER =
@@ -83,9 +89,9 @@ class SupplierOrderServiceTest {
         when(supplierRepository.existsById(3L)).thenReturn(true);
         when(purchaseOrderRepository.findById(4L)).thenReturn(Optional.of(
                 com.kb.wms.inbound.domain.entity.PurchaseOrder.builder().purchaseOrderId(4L).build()));
-        when(supplierOrderQueryRepository.search(condition)).thenReturn(List.of());
+        when(supplierOrderQueryRepository.search(condition, PAGE)).thenReturn(TestPages.resultOf(List.of()));
 
-        assertThat(supplierOrderService.getSupplierOrders(condition, HQ)).isEmpty();
+        assertThat(supplierOrderService.getSupplierOrders(condition, PAGE, HQ).items()).isEmpty();
         verify(warehouseAvailabilityPort).requireExists(1L);
     }
 
@@ -93,13 +99,13 @@ class SupplierOrderServiceTest {
     @DisplayName("창고 관리자는 창고를 생략하면 담당 창고로 좁히고, 비담당 창고를 지정하면 403이다")
     void getSupplierOrders_scope() {
         when(supplierOrderQueryRepository.search(
-                new SupplierOrderSearchCondition(null, null, null, null, null, null, null, List.of(1L, 2L))))
-                .thenReturn(List.of());
+                new SupplierOrderSearchCondition(null, null, null, null, null, null, null, List.of(1L, 2L)), PAGE))
+                .thenReturn(TestPages.resultOf(List.of()));
 
         assertThat(supplierOrderService.getSupplierOrders(
-                SupplierOrderSearchCondition.unscoped(null, null, null, null, null, null, null), MANAGER)).isEmpty();
+                SupplierOrderSearchCondition.unscoped(null, null, null, null, null, null, null), PAGE, MANAGER).items()).isEmpty();
         assertError(() -> supplierOrderService.getSupplierOrders(
-                        SupplierOrderSearchCondition.unscoped(null, 3L, null, null, null, null, null), MANAGER),
+                        SupplierOrderSearchCondition.unscoped(null, 3L, null, null, null, null, null), PAGE, MANAGER),
                 ErrorCode.FORBIDDEN.name());
         verifyNoInteractions(warehouseAvailabilityPort);
     }
@@ -113,13 +119,13 @@ class SupplierOrderServiceTest {
         when(purchaseOrderRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertError(() -> supplierOrderService.getSupplierOrders(
-                        SupplierOrderSearchCondition.unscoped(null, 999L, null, null, null, null, null), HQ),
+                        SupplierOrderSearchCondition.unscoped(null, 999L, null, null, null, null, null), PAGE, HQ),
                 WarehouseErrorCode.WAREHOUSE_NOT_FOUND.name());
         assertError(() -> supplierOrderService.getSupplierOrders(
-                        SupplierOrderSearchCondition.unscoped(null, null, 999L, null, null, null, null), HQ),
+                        SupplierOrderSearchCondition.unscoped(null, null, 999L, null, null, null, null), PAGE, HQ),
                 SupplierErrorCode.SUPPLIER_NOT_FOUND.name());
         assertError(() -> supplierOrderService.getSupplierOrders(
-                        SupplierOrderSearchCondition.unscoped(null, null, null, 999L, null, null, null), HQ),
+                        SupplierOrderSearchCondition.unscoped(null, null, null, 999L, null, null, null), PAGE, HQ),
                 PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND.name());
         verifyNoInteractions(supplierOrderQueryRepository);
     }
@@ -131,7 +137,7 @@ class SupplierOrderServiceTest {
                 null, null, null, null, null,
                 LocalDateTime.of(2026, 10, 2, 0, 0), LocalDateTime.of(2026, 10, 1, 0, 0));
 
-        assertError(() -> supplierOrderService.getSupplierOrders(condition, HQ), ErrorCode.VALIDATION_ERROR.name());
+        assertError(() -> supplierOrderService.getSupplierOrders(condition, PAGE, HQ), ErrorCode.VALIDATION_ERROR.name());
         verifyNoInteractions(supplierOrderQueryRepository);
     }
 

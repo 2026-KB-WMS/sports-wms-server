@@ -25,6 +25,11 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.kb.wms.common.paging.SortOrder;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.TestPages;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.security.UserRole;
 import com.kb.wms.inbound.application.port.in.SupplierOrderUseCase;
@@ -55,11 +60,11 @@ class SupplierOrderControllerTest {
     @Test
     @DisplayName("목록은 200과 data.items 형식으로 공급처 발주서 요약을 반환한다")
     void getSupplierOrders_success() throws Exception {
-        when(supplierOrderUseCase.getSupplierOrders(any(SupplierOrderSearchCondition.class), any()))
-                .thenReturn(List.of(new SupplierOrderSummary(
+        when(supplierOrderUseCase.getSupplierOrders(any(SupplierOrderSearchCondition.class), any(), any()))
+                .thenReturn(TestPages.resultOf(List.of(new SupplierOrderSummary(
                         21L, "SO-20261015-0001", 4L, "PO-20261015-0001", 3L, "공급처 A", 1L, "서울 물류센터",
                         SupplierOrderStatus.ISSUED, 2L, BigDecimal.valueOf(6050000),
-                        LocalDateTime.of(2026, 10, 15, 9, 0))));
+                        LocalDateTime.of(2026, 10, 15, 9, 0)))));
 
         mockMvc.perform(get("/api/v1/supplier-orders"))
                 .andExpect(status().isOk())
@@ -76,8 +81,8 @@ class SupplierOrderControllerTest {
     @Test
     @DisplayName("쿼리 파라미터를 검색 조건으로 변환해 전달한다")
     void getSupplierOrders_passesCondition() throws Exception {
-        when(supplierOrderUseCase.getSupplierOrders(any(SupplierOrderSearchCondition.class), any()))
-                .thenReturn(List.of());
+        when(supplierOrderUseCase.getSupplierOrders(any(SupplierOrderSearchCondition.class), any(), any()))
+                .thenReturn(TestPages.resultOf(List.of()));
 
         mockMvc.perform(get("/api/v1/supplier-orders")
                         .param("status", "PARTIALLY_RECEIVED")
@@ -92,7 +97,7 @@ class SupplierOrderControllerTest {
 
         ArgumentCaptor<SupplierOrderSearchCondition> captor =
                 ArgumentCaptor.forClass(SupplierOrderSearchCondition.class);
-        verify(supplierOrderUseCase).getSupplierOrders(captor.capture(), any());
+        verify(supplierOrderUseCase).getSupplierOrders(captor.capture(), any(), any());
         SupplierOrderSearchCondition condition = captor.getValue();
         assertThat(condition.status()).isEqualTo(SupplierOrderStatus.PARTIALLY_RECEIVED);
         assertThat(condition.warehouseId()).isEqualTo(1L);
@@ -144,5 +149,63 @@ class SupplierOrderControllerTest {
         mockMvc.perform(get("/api/v1/supplier-orders/{supplierOrderId}", 999L))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("SUPPLIER_ORDER_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("공급처 발주서 목록은 page·size·sort를 페이지 조건으로 넘기고 pageInfo를 담아 반환한다")
+    void list_paging() throws Exception {
+        when(supplierOrderUseCase.getSupplierOrders(any(SupplierOrderSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 2, 5, 11, "supplierName,asc"));
+
+        mockMvc.perform(get("/api/v1/supplier-orders").param("page", "2").param("size", "5").param("sort", "supplierName,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty())
+                .andExpect(jsonPath("$.data.pageInfo.page").value(2))
+                .andExpect(jsonPath("$.data.pageInfo.size").value(5))
+                .andExpect(jsonPath("$.data.pageInfo.totalElements").value(11))
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(3))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("supplierName,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(supplierOrderUseCase).getSupplierOrders(any(SupplierOrderSearchCondition.class), captor.capture(), any());
+        PageCondition page = captor.getValue();
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.orders()).extracting(SortOrder::property).containsExactly("s.name", "so.supplierOrderId");
+        assertThat(page.orders()).extracting(SortOrder::direction).containsOnly(SortDirection.ASC);
+    }
+
+    @Test
+    @DisplayName("공급처 발주서 목록은 page·size·sort를 생략하면 1페이지, 20건, 기본 정렬(createdAt,desc)이다")
+    void list_defaultPaging() throws Exception {
+        when(supplierOrderUseCase.getSupplierOrders(any(SupplierOrderSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 1, 20, 0, "createdAt,desc"));
+
+        mockMvc.perform(get("/api/v1/supplier-orders"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("createdAt,desc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(supplierOrderUseCase).getSupplierOrders(any(SupplierOrderSearchCondition.class), captor.capture(), any());
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(20);
+        assertThat(captor.getValue().sortLabel()).isEqualTo("createdAt,desc");
+    }
+
+    @Test
+    @DisplayName("공급처 발주서 목록의 허용되지 않은 sort 필드와 범위를 벗어난 page·size는 400을 반환한다")
+    void list_invalidPaging() throws Exception {
+        mockMvc.perform(get("/api/v1/supplier-orders").param("sort", "password,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/supplier-orders").param("sort", "supplierName,up"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/supplier-orders").param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/supplier-orders").param("page", "0"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(supplierOrderUseCase);
     }
 }

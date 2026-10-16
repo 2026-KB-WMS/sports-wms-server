@@ -5,6 +5,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -50,7 +52,7 @@ public interface SupplierOrderJpaRepository extends JpaRepository<SupplierOrderJ
     /**
      * 발주서는 항목이 1개 이상이므로 항목과 inner join해 항목 수·금액 합계를 집계한다.
      */
-    @Query("""
+    @Query(value = """
             select new com.kb.wms.inbound.application.port.in.result.SupplierOrderSummary(
                 so.supplierOrderId, so.supplierOrderNo, so.purchaseOrderId, po.purchaseOrderNo,
                 so.supplierId, s.name, po.warehouseId, w.name, so.status, count(l), sum(l.lineAmount), so.createdAt)
@@ -71,9 +73,26 @@ public interface SupplierOrderJpaRepository extends JpaRepository<SupplierOrderJ
               and (:createdTo is null or so.createdAt <= :createdTo)
             group by so.supplierOrderId, so.supplierOrderNo, so.purchaseOrderId, po.purchaseOrderNo,
                      so.supplierId, s.name, po.warehouseId, w.name, so.status, so.createdAt
-            order by so.createdAt desc, so.supplierOrderId desc
+            """,
+            countQuery = """
+            select count(distinct so.supplierOrderId)
+            from SupplierOrderJpaEntity so
+            join PurchaseOrderJpaEntity po on po.purchaseOrderId = so.purchaseOrderId
+            join WarehouseJpaEntity w on w.warehouseId = po.warehouseId
+            join SupplierJpaEntity s on s.supplierId = so.supplierId
+            join PurchaseOrderLineJpaEntity l on l.supplierOrderId = so.supplierOrderId
+            where (:status is null or so.status = :status)
+              and (:warehouseId is null or po.warehouseId = :warehouseId)
+              and (:scoped = false or po.warehouseId in :warehouseIds)
+              and (:supplierId is null or so.supplierId = :supplierId)
+              and (:purchaseOrderId is null or so.purchaseOrderId = :purchaseOrderId)
+              and (:keyword is null
+                   or lower(so.supplierOrderNo) like lower(concat('%', :keyword, '%'))
+                   or lower(po.purchaseOrderNo) like lower(concat('%', :keyword, '%')))
+              and (:createdFrom is null or so.createdAt >= :createdFrom)
+              and (:createdTo is null or so.createdAt <= :createdTo)
             """)
-    List<SupplierOrderSummary> search(@Param("status") SupplierOrderStatus status,
+    Page<SupplierOrderSummary> search(@Param("status") SupplierOrderStatus status,
                                       @Param("warehouseId") Long warehouseId,
                                       @Param("supplierId") Long supplierId,
                                       @Param("purchaseOrderId") Long purchaseOrderId,
@@ -81,7 +100,8 @@ public interface SupplierOrderJpaRepository extends JpaRepository<SupplierOrderJ
                                       @Param("createdFrom") LocalDateTime createdFrom,
                                       @Param("createdTo") LocalDateTime createdTo,
                                       @Param("scoped") boolean scoped,
-                                      @Param("warehouseIds") Collection<Long> warehouseIds);
+                                      @Param("warehouseIds") Collection<Long> warehouseIds,
+                                      Pageable pageable);
 
     /** 요청 상세·확정 응답용. 발주서 ID 오름차순. */
     @Query("""

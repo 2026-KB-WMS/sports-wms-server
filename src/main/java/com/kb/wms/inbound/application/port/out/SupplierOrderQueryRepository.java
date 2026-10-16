@@ -3,6 +3,8 @@ package com.kb.wms.inbound.application.port.out;
 import java.util.List;
 import java.util.Optional;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.inbound.application.port.in.query.SupplierOrderSearchCondition;
 import com.kb.wms.inbound.application.port.in.result.SupplierOrderLineView;
 import com.kb.wms.inbound.application.port.in.result.SupplierOrderSummary;
@@ -16,8 +18,8 @@ import com.kb.wms.inbound.application.port.in.result.SupplierOrderView;
  */
 public interface SupplierOrderQueryRepository {
 
-    /** 등록 일시 내림차순, 발주서 ID 내림차순. 조건이 null이면 해당 조건은 무시한다. */
-    List<SupplierOrderSummary> search(SupplierOrderSearchCondition condition);
+    /** 페이지 조건의 정렬로 한 페이지를 돌려준다. 조건이 null이면 해당 조건은 무시한다. */
+    PageResult<SupplierOrderSummary> search(SupplierOrderSearchCondition condition, PageCondition page);
 
     /** 요청 상세·확정 응답용. 요청에 속한 발주서 목록(발주서 ID 오름차순). */
     List<SupplierOrderSummary> findSummariesByPurchaseOrderId(Long purchaseOrderId);

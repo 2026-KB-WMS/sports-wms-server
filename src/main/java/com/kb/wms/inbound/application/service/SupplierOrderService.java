@@ -7,6 +7,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inbound.application.port.in.SupplierOrderUseCase;
 import com.kb.wms.inbound.application.port.in.query.SupplierOrderSearchCondition;
@@ -37,8 +39,8 @@ public class SupplierOrderService implements SupplierOrderUseCase {
     private final WarehouseAvailabilityPort warehouseAvailabilityPort;
 
     @Override
-    public List<SupplierOrderSummary> getSupplierOrders(SupplierOrderSearchCondition condition,
-                                                        AuthenticatedUser actor) {
+    public PageResult<SupplierOrderSummary> getSupplierOrders(SupplierOrderSearchCondition condition,
+                                                              PageCondition page, AuthenticatedUser actor) {
         List<Long> scope = actor.warehouseScope(condition.warehouseId());
         if (condition.createdFrom() != null && condition.createdTo() != null
                 && condition.createdFrom().isAfter(condition.createdTo())) {
@@ -57,7 +59,7 @@ public class SupplierOrderService implements SupplierOrderUseCase {
         }
         return supplierOrderQueryRepository.search(new SupplierOrderSearchCondition(
                 condition.status(), condition.warehouseId(), condition.supplierId(), condition.purchaseOrderId(),
-                condition.keyword(), condition.createdFrom(), condition.createdTo(), scope));
+                condition.keyword(), condition.createdFrom(), condition.createdTo(), scope), page);
     }
 
     @Override
