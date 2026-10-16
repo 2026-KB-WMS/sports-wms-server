@@ -16,7 +16,7 @@
 
 | 메서드 | 트랜잭션 | 설명 |
 |---|---|---|
-| `getLots(condition, actor)` | 읽기 | `skuId`·`supplierId` 필터 대상이 없으면 404(`SKU_NOT_FOUND`, `SUPPLIER_NOT_FOUND`). 범위는 `actor.warehouseScope(null)` |
+| `getLots(condition, page, actor)` | 읽기 | `skuId`·`supplierId` 필터 대상이 없으면 404(`SKU_NOT_FOUND`, `SUPPLIER_NOT_FOUND`). 범위는 `actor.warehouseScope(null)` |
 | `getLot(lotId, actor)` | 읽기 | 없으면 `LOT_NOT_FOUND`. 담당 창고 범위에 보이지 않는 로트면 **403** (404가 아님) |
 | `getLotInbounds(lotId, actor)` | 읽기 | 로트가 입고된 이력. 로트 없으면 `LOT_NOT_FOUND`. 창고 관리자에게는 담당 창고의 입고만 |
 | `changeLotStatus(lotId, command)` | 쓰기 | 아래 규칙 |

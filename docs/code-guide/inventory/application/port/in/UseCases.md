@@ -4,7 +4,7 @@
 
 | UseCase | 구현 | 메서드 | 호출자 |
 |---|---|---|---|
-| `InventoryQueryUseCase` | `InventoryQueryService` | `getInventories`, `getInventoriesByLot`, `getInventory`, `getLowStock`, `getTransactions`, `getTransactionsOf`, `getAllocatableStocks`, `hasStockInSection`, `hasStockInWarehouse` | `InventoryController`, `LotController`, 창고(`StockPresenceAdapter`). `getAllocatableStocks`는 현재 호출하는 곳이 없다 |
+| `InventoryQueryUseCase` | `InventoryQueryService` | `getInventories`, `getInventoriesBySection`, `searchInventoriesByLot`, `getInventoriesByLot`, `getInventory`, `getLowStock`, `getTransactions`, `getTransactionsOf`, `getAllocatableStocks`, `hasStockInSection`, `hasStockInWarehouse` | `InventoryController`, `LotController`, 창고(`StockPresenceAdapter`). `getAllocatableStocks`는 현재 호출하는 곳이 없다 |
 | `InventoryAdjustmentUseCase` | `InventoryAdjustmentService` | `adjust` | `InventoryController` |
 | `InventoryStockUseCase` | `InventoryStockService` | `receive`, `allocate`, `release`, `ship` | 입고(`InboundStockAdapter`), 출고(`OutboundStockAdapter`) |
 | `LotUseCase` | `LotService` | `getLots`, `getLot`, `getLotInbounds`, `changeLotStatus`, `findOrRegister` | `LotController`, 입고(`LotAdapter`) |

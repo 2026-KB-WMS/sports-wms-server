@@ -1,12 +1,12 @@
 # Inventory API 명세
 
 > 기준은 레포. 2026-10-02 Notion(최종 수정 2026-09-24)에서 이전. 공통 규칙은 [conventions.md](conventions.md) 참고.
-> Base path: `/api/v1/inventory`, `/api/v1/lots`. 목록 API는 `data.items`만 반환(페이지네이션 보류). 404는 도메인별 코드 사용.
+> Base path: `/api/v1/inventory`, `/api/v1/lots`. 목록 API 중 `GET /inventory`, `/inventory/by-section`, `/inventory/by-lot`, `/inventory/transactions`, `/lots`는 `page`·`size`·`sort`와 `data.pageInfo`를 지원한다. `/inventory/low-stock`, `/inventory/{inventoryId}/transactions`는 페이징 없음(`data.items`/`items[]`만). 404는 도메인별 코드 사용.
 
 ## 구현 대비 메모
 
-- Notion 명세의 `pageInfo`와 일반 `NOT_FOUND`는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
-- 목록 API는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고).
+- Notion 명세의 일반 `NOT_FOUND`는 현재 구현 기준(도메인별 404)과 다름 → conventions.md 기준 따름.
+- 페이징·정렬은 5개 목록에만 적용했다(#292, 각 절의 "정렬" 참고). 안전 재고 미달 목록과 특정 재고 이력은 페이징 없이 고정 정렬을 쓴다(후자는 응답이 `inventoryLotId`와 `items[]`를 함께 담는 구조).
 - 확정 필요(미결): 안전 재고를 창고별로 둘지 여부, `InventoryTransaction.reference_id`가 문서 헤더(Inbound/Outbound)인지 항목(Line)인지.
 - 로트 상태 변경 `PATCH /lots/{lotId}/status`는 #215에서 추가했다(격리·해제·폐기). `EXPIRED`로 바꾸는 API와 만료를 자동 전환하는 작업은 없다(미결).
 - 인가(#170): 재고 조정 처리자는 토큰 주체이며 `userId` 쿼리 파라미터는 받지 않는다. 담당 창고 검사는 서비스에서 한다: 목록은 `warehouseId`를 생략하면 담당 창고로 좁히고(본사는 전체), 지정한 `warehouseId`·`sectionId`(구역의 창고)가 담당이 아니면 403이다. 재고 상세·재고별 이력·조정은 재고 행의 창고가 담당이 아니면 403이다. 로트 목록은 담당 창고에 재고가 있거나 입고 완료 이력이 있는 로트만 보이며, 입고 중(검수 중)인 로트는 완료 전까지 창고 관리자 목록에 나타나지 않는다. 로트 상세는 응답을 담당 창고 항목으로 좁히고, 보이는 항목이 없으면 403이다.
@@ -40,8 +40,8 @@
 
 ## GET /inventory — SKU 집계 재고 (P1)
 
-- Query: `skuId`, `warehouseId`, `keyword`(SKU 코드·명). `page`·`size`·`sort`는 받지 않는다(페이지네이션 보류).
-- 정렬은 고정(`skuCode` 오름차순).
+- Query: `skuId`, `warehouseId`, `keyword`(SKU 코드·명), `page`, `size`, `sort`. 응답은 `data.items`와 `data.pageInfo`([ADR-032](../adr/032-pagination-and-sorting.md), 공통 규칙은 [conventions.md](conventions.md)).
+- 정렬: 기본은 `skuCode` 오름차순. `sort` 가능 필드: `skuCode`, `skuName`, `totalQuantity`, `availableQuantity`, `allocatedQuantity`, `defectiveQuantity`. 전체 건수는 SKU 수다.
 - 응답 항목: `skuId, skuCode, skuName, unit, totalQuantity, availableQuantity, allocatedQuantity, defectiveQuantity`
 - 집계: `totalQuantity`=보유 합, `allocatedQuantity`=할당 합, `defectiveQuantity`=DEFECTIVE 보유 합, `availableQuantity`=AVAILABLE 재고의 (보유−할당) 합. 재고가 없는 SKU는 목록 제외.
 - 에러: 404(존재하지 않는 skuId/warehouseId 필터)
@@ -60,8 +60,8 @@
 
 ## GET /inventory/by-section — 구역 × SKU 단위 재고
 
-- Query: `warehouseId`, `sectionId`, `categoryId`, `skuId`, `keyword`(SKU 코드·명). `page`·`size`·`sort`는 받지 않는다(페이지네이션 보류).
-- 정렬은 고정(`warehouseId` 오름차순 → `sectionCode` 오름차순 → `skuCode` 오름차순).
+- Query: `warehouseId`, `sectionId`, `categoryId`, `skuId`, `keyword`(SKU 코드·명), `page`, `size`, `sort`. 응답은 `data.items`와 `data.pageInfo`([ADR-032](../adr/032-pagination-and-sorting.md), 공통 규칙은 [conventions.md](conventions.md)).
+- 정렬: 기본은 `warehouseId` → `sectionCode` → `skuCode` 오름차순(`sort`를 주면 그 필드 하나와 구역+SKU 순서를 보조 정렬로 쓴다). `sort` 가능 필드: `warehouseId`, `warehouseName`, `sectionCode`, `skuCode`, `skuName`, `categoryName`, `totalQuantity`, `availableQuantity`, `allocatedQuantity`, `defectiveQuantity`. 전체 건수는 구역+SKU 행 수다.
 - 응답 항목: `warehouseId, warehouseName, sectionId, sectionCode, sectionName, skuId, skuCode, skuName, unit, categoryId, categoryName, totalQuantity, availableQuantity, allocatedQuantity, defectiveQuantity`
 - 집계: 구역과 SKU 조합마다 한 행. 수량 기준은 `GET /inventory`와 같다(`totalQuantity`=보유 합, `allocatedQuantity`=할당 합, `defectiveQuantity`=DEFECTIVE 보유 합, `availableQuantity`=AVAILABLE 재고의 (보유−할당) 합). 보유 0 행은 제외한다.
 - `categoryId`는 SKU 상품의 카테고리와 정확히 일치하는 행만 걸러낸다(하위 카테고리 미포함).
@@ -70,23 +70,23 @@
 
 ## GET /inventory/by-lot — 로트 단위 재고
 
-- Query: `skuId`, `warehouseId`, `sectionId`, `expiringBefore`(YYYY-MM-DD, 당일 포함), `qualityStatus`, `includeEmpty`(기본 false). `sort`는 받지 않는다.
-- 정렬은 고정(`expiryDate` 오름차순, 유통기한 없는 로트는 뒤, 같으면 `inventoryLotId` 오름차순).
+- Query: `skuId`, `warehouseId`, `sectionId`, `expiringBefore`(YYYY-MM-DD, 당일 포함), `qualityStatus`, `includeEmpty`(기본 false), `page`, `size`, `sort`. 응답은 `data.items`와 `data.pageInfo`([ADR-032](../adr/032-pagination-and-sorting.md), 공통 규칙은 [conventions.md](conventions.md)).
+- 정렬: 기본은 `expiryDate` 오름차순(유통기한 없는 로트는 뒤, 같으면 `inventoryLotId` 오름차순). `sort` 가능 필드: `expiryDate`, `lotNumber`, `skuCode`, `sectionCode`, `onHandQuantity`, `allocatedQuantity`, `availableQuantity`, `qualityStatus`, `lastCountedAt`. `expiryDate`는 유통기한 없는 행을 먼 미래로 보고 정렬하므로 내림차순이면 없는 행이 앞에 온다.
 - 응답 항목: `inventoryLotId, lotId, lotNumber, skuId, skuCode, skuName, warehouseId, sectionId, sectionCode, sectionName, onHandQuantity, allocatedQuantity, availableQuantity, qualityStatus, expiryDate, lastCountedAt`
 - Lot(마스터)과 InventoryLot(원장)을 조인. SKU 합산 없음. FEFO 피킹 기준 정렬. 기본적으로 보유 0 행 제외.
 - 에러: 400(expiringBefore 형식 등), 404(필터 대상 없음)
 
 ## GET /inventory/low-stock — 안전 재고 미만 (P2)
 
-- Query: `warehouseId`, `keyword`. `sort`는 받지 않는다.
+- Query: `warehouseId`, `keyword`. 페이징 없음(`page`·`size`·`sort`는 받지 않는다).
 - 정렬은 고정(`shortageQuantity` 내림차순, 같으면 `skuCode` 오름차순).
 - 응답 항목: `skuId, skuCode, skuName, unit, safetyStockQuantity, availableQuantity, shortageQuantity`
 - 조건: `availableQuantity < safetyStockQuantity`("미만", 2026-09-24 확정). `shortage = safety - available`. 안전 재고 0(미설정) SKU와 비활성 SKU 제외. 재고가 전혀 없어도 안전 재고가 설정된 SKU는 available 0으로 포함. 데이터 범위 내 창고 합산 가용 재고와 비교. 알림 생성은 범위 밖.
 
 ## GET /inventory/transactions — 전체 재고 이력 (P2)
 
-- Query: `warehouseId`, `sectionId`, `skuId`, `lotId`, `transactionType`, `referenceType`, `referenceId`(referenceType과 함께), `createdFrom`, `createdTo`(ISO-8601, 양 끝 포함: `>= createdFrom`, `<= createdTo`). `sort`는 받지 않는다.
-- 정렬은 고정(`createdAt` 내림차순, 같으면 `transactionId` 내림차순).
+- Query: `warehouseId`, `sectionId`, `skuId`, `lotId`, `transactionType`, `referenceType`, `referenceId`(referenceType과 함께), `createdFrom`, `createdTo`(ISO-8601, 양 끝 포함: `>= createdFrom`, `<= createdTo`), `page`, `size`, `sort`. 응답은 `data.items`와 `data.pageInfo`([ADR-032](../adr/032-pagination-and-sorting.md), 공통 규칙은 [conventions.md](conventions.md)).
+- 정렬: 기본은 `createdAt` 내림차순(같으면 `transactionId` 내림차순). `sort` 가능 필드: `createdAt`, `transactionType`, `quantityDelta`, `skuCode`, `sectionCode`, `lotNumber`, `referenceType`.
 - 응답 항목: `transactionId, inventoryLotId, warehouseId, sectionId, sectionCode, skuId, skuCode, lotId, lotNumber, transactionType, quantityDelta, beforeQuantity, afterQuantity, referenceType, referenceId, reason, createdBy, createdByName, createdAt`
 - 에러: 400(일시 형식, from>to, referenceId만 지정), 404(필터 대상 없음)
 - 이력은 삭제·수정 불가. 보유 수량이 바뀐 경우(입고·출고·조정)만 기록하며 할당/해제는 기록하지 않음(2026-09-24 확정, 출고 감사 요구 시 재검토). 원천 문서 없으면 `referenceId`=null.
@@ -99,18 +99,18 @@
 
 ## GET /inventory/{inventoryId}/transactions — 특정 재고 이력 (P2)
 
-- Query: `transactionType`, `createdFrom`, `createdTo`(양 끝 포함). `sort`는 받지 않는다.
+- Query: `transactionType`, `createdFrom`, `createdTo`(양 끝 포함). 페이징 없음(`page`·`size`·`sort`는 받지 않는다).
 - 정렬은 고정(`createdAt` 내림차순, 같으면 `transactionId` 내림차순).
 - 응답: `inventoryLotId`, `items[]`(`transactionId, transactionType, quantityDelta, beforeQuantity, afterQuantity, referenceType, referenceId, reason, createdBy, createdByName, createdAt`). 항상 `before + delta == after`. 이력이 없으면 빈 배열.
 - 에러: 400(inventoryId 형식/일시 형식/from>to), 404(재고 없음), 403(비담당 창고)
 
 ## GET /lots — 로트 마스터 목록 (P2)
 
-- Query: `skuId`, `supplierId`, `expiringBefore`(YYYY-MM-DD, 당일 포함), `keyword`(로트 번호). `sort`는 받지 않는다.
-- 정렬은 고정(`expiryDate` 오름차순, 유통기한 없는 로트는 뒤, 같으면 `lotId` 오름차순).
+- Query: `skuId`, `supplierId`, `expiringBefore`(YYYY-MM-DD, 당일 포함), `keyword`(로트 번호), `page`, `size`, `sort`. 응답은 `data.items`와 `data.pageInfo`([ADR-032](../adr/032-pagination-and-sorting.md), 공통 규칙은 [conventions.md](conventions.md)).
+- 정렬: 기본은 `expiryDate` 오름차순(유통기한 없는 로트는 뒤, 같으면 `lotId` 오름차순). `sort` 가능 필드: `expiryDate`, `lotNumber`, `skuCode`, `supplierName`, `status`, `createdAt`, `unitCost`. `expiryDate`는 유통기한 없는 로트를 먼 미래로 보고 정렬한다.
 - 응답 항목: `lotId, lotNumber, skuId, skuCode, skuName, supplierId, supplierName, manufacturedDate, expiryDate, status, unitCost` (수량 미포함)
 - 범위: HQ_ADMIN 전체. WAREHOUSE_MANAGER는 담당 창고에 재고(InventoryLot) 또는 입고 완료 이력이 있는 로트만.
-- 에러: 400, 403(점주), 404(필터 대상 없음). 생성·수정 API 없음.
+- 에러: 400(`page`·`size` 범위, 허용되지 않은 `sort` 포함), 403(점주), 404(필터 대상 없음). 생성·수정 API 없음.
 
 ## GET /lots/{lotId} — 로트 상세 (P2)
 

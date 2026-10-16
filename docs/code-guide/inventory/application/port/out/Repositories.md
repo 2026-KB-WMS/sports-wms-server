@@ -16,16 +16,19 @@
 
 ## InventoryQueryRepository
 
-재고 조회 전용. 재고 테이블에 SKU·구역·창고를 ID로 조인해 **필터·집계·정렬을 DB에서 한 번에** 처리한다. 다른 도메인 테이블은 읽기에만 쓴다. 페이지네이션은 아직 없다.
+재고 조회 전용. 재고 테이블에 SKU·구역·창고를 ID로 조인해 **필터·집계·정렬을 DB에서 한 번에** 처리한다. 다른 도메인 테이블은 읽기에만 쓴다. 목록 조회(SKU 집계·구역 집계·로트별 재고·이력·로트)는 `PageCondition`을 받아 `PageResult`를 돌려주고, 정렬은 페이지 조건을 따른다. 페이지 조건 없는 `findLotViews`·`findTransactions`는 전체를 읽는 용도(로트 상세, 재고별 이력)다.
 
 | 메서드 | 반환 | 정렬·설명 |
 |---|---|---|
-| `findSkuSummaries(condition)` | `InventorySkuSummary` 목록 | SKU 코드 오름차순 |
-| `findLotViews(condition)` | `InventoryLotView` 목록 | 유통기한 오름차순(없으면 뒤로), 재고 ID |
+| `findSkuSummaries(condition, page)` | `PageResult<InventorySkuSummary>` | 기본 SKU 코드 오름차순 |
+| `findSectionSummaries(condition, page)` | `PageResult<InventorySectionSummary>` | 기본 창고, 구역 코드, SKU 코드 오름차순. 보유 0 행 제외 |
+| `findLotViews(condition, page)` | `PageResult<InventoryLotView>` | 기본 유통기한 오름차순(없으면 뒤로), 재고 ID |
+| `findLotViews(condition)` | `InventoryLotView` 목록 | 페이지 없이 전체. 유통기한 오름차순(없으면 뒤로), 재고 ID |
 | `findDetail(inventoryLotId)` | `Optional<InventoryDetail>` | |
 | `findLowStock(condition)` | `LowStockItem` 목록 | 부족 수량 내림차순. 안전 재고 0·비활성 SKU 제외, 재고 없는 SKU는 가용 0으로 포함 |
-| `findTransactions(condition)` | `InventoryTransactionView` 목록 | 생성 일시 내림차순 |
-| `findLots(condition)` | `LotSummary` 목록 | 유통기한 오름차순, 로트 ID |
+| `findTransactions(condition, page)` | `PageResult<InventoryTransactionView>` | 기본 생성 일시 내림차순 |
+| `findTransactions(condition)` | `InventoryTransactionView` 목록 | 페이지 없이 전체. 생성 일시 내림차순, 이력 ID 내림차순 |
+| `findLots(condition, page)` | `PageResult<LotSummary>` | 기본 유통기한 오름차순(없으면 뒤로), 로트 ID |
 | `findLot(lotId)` | `Optional<LotSummary>` | 범위 없음 |
 | `findLot(lotId, warehouseIds)` | `Optional<LotSummary>` | 로트가 `warehouseIds` 중 하나에 재고 또는 입고 완료 이력이 있을 때만 반환 |
 | `findLotInbounds(lotId)` | `LotInboundView` 목록 | 입고 완료 건만. 완료 일시 내림차순 |

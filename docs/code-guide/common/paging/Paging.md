@@ -6,7 +6,7 @@
 
 | 클래스 | 역할 |
 |---|---|
-| `SortSpec` | API 하나의 정렬 규칙. 정렬 가능한 필드(API 이름 → 쿼리 경로), 기본 정렬, ID 보조 정렬. 컨트롤러 상수로 정의 |
+| `SortSpec` | API 하나의 정렬 규칙. 정렬 가능한 필드(API 이름 → 쿼리 경로), 기본 정렬, ID 보조 정렬(한 컬럼으로 행을 구분할 수 없는 집계 목록은 여러 개). 컨트롤러 상수로 정의 |
 | `PageCondition` | `page`(1부터), `size`, 적용할 정렬 목록. `of(page, size, sort, spec)`이 검증하고 만든다 |
 | `PageResult<T>` | 한 페이지 결과: `items`, `page`, `size`, `totalElements`, `sort`. `totalPages()`, `map()` |
 | `SortOrder`, `SortDirection` | 정렬 기준 하나(API 필드명, 쿼리 경로, asc/desc) |

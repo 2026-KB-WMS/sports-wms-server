@@ -12,7 +12,7 @@
 
 | 메서드 | 경로 | 상태 | 쿼리·바디 | 응답 | 설명 | 허용 역할 |
 |---|---|---|---|---|---|---|
-| `getLots` | GET `/api/v1/lots` | 200 | `skuId`, `supplierId`, `expiringBefore`(날짜), `keyword` | `ItemsResponse<LotSummaryResponse>` | 로트 목록 | HQ_ADMIN, WAREHOUSE_MANAGER |
+| `getLots` | GET `/api/v1/lots` | 200 | `skuId`, `supplierId`, `expiringBefore`(날짜), `keyword`, `page`, `size`, `sort` | `PageResponse<LotSummaryResponse>` | 로트 목록(정렬 필드: `expiryDate`, `lotNumber`, `skuCode`, `supplierName`, `status`, `createdAt`, `unitCost`) | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `getLot` | GET `/api/v1/lots/{lotId}` | 200 | - | `LotDetailResponse` | 로트 상세 + 구역별 재고 + 입고 이력 | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `changeLotStatus` | PATCH `/api/v1/lots/{lotId}/status` | 200 | `LotStatusChangeRequest` | `LotSummaryResponse` | 상태 변경 | **HQ_ADMIN** |
 
