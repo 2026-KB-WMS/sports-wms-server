@@ -102,4 +102,23 @@ class PageConditionTest {
                     assertThat(e.getMessage()).contains(messagePart);
                 });
     }
+
+    @Test
+    @DisplayName("ID 보조 정렬을 여러 개 주면 정렬 뒤에 순서대로 붙고, 이미 정렬에 쓴 경로는 건너뛴다")
+    void multipleTieBreakers() {
+        SortSpec spec = SortSpec.builder()
+                .field("total", "sum(il.onHandQuantity)")
+                .field("sku", "s.skuId")
+                .defaultOrder("total", SortDirection.DESC)
+                .tieBreaker("ws.sectionId", "s.skuId")
+                .build();
+
+        assertThat(PageCondition.of(null, null, null, spec).orders())
+                .extracting(SortOrder::property)
+                .containsExactly("sum(il.onHandQuantity)", "ws.sectionId", "s.skuId");
+        assertThat(PageCondition.of(null, null, "sku,asc", spec).orders())
+                .extracting(SortOrder::property).containsExactly("s.skuId", "ws.sectionId");
+        assertThat(PageCondition.of(null, null, null, spec).orders())
+                .extracting(SortOrder::direction).containsOnly(SortDirection.DESC);
+    }
 }

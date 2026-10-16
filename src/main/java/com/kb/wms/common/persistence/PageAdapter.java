@@ -25,7 +25,7 @@ public final class PageAdapter {
 
     /**
      * 정렬 경로({@link SortOrder#property()})를 그대로 JPQL 정렬에 넘긴다. 별칭 경로(예: {@code i.createdAt})를 쓴다.
-     * 집계식 경로(예: {@code count(l)})는 Spring Data가 기본으로 거부하므로 {@code unsafe}로 넘긴다.
+     * 집계식·함수식·{@code case} 같은 식 경로(공백이나 {@code (}가 들어간 경로)는 Spring Data가 기본으로 거부하므로 {@code unsafe}로 넘긴다.
      * 경로는 컨트롤러의 {@link com.kb.wms.common.paging.SortSpec} 화이트리스트에서만 오므로 사용자 입력이 쿼리에 들어가지 않는다.
      */
     public static Pageable toPageable(PageCondition condition) {
@@ -36,9 +36,18 @@ public final class PageAdapter {
         return PageRequest.of(condition.page() - 1, condition.size(), sort);
     }
 
+    /** 페이지를 자르지 않고 정렬만 적용해 전체를 읽을 때 쓴다(상세 화면의 부속 목록 등). */
+    public static Pageable unpaged(SortOrder... orders) {
+        Sort sort = Sort.unsorted();
+        for (SortOrder o : orders) {
+            sort = sort.and(toSort(o));
+        }
+        return Pageable.unpaged(sort);
+    }
+
     private static Sort toSort(SortOrder o) {
         Sort.Direction direction = o.direction() == SortDirection.ASC ? Sort.Direction.ASC : Sort.Direction.DESC;
-        if (o.property().contains("(")) {
+        if (o.property().contains("(") || o.property().contains(" ")) {
             return JpaSort.unsafe(direction, o.property());
         }
         return Sort.by(direction, o.property());

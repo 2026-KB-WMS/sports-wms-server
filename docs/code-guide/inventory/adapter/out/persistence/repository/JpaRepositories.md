@@ -30,8 +30,8 @@
 | `existsSkuId`, `existsWarehouseId`, `existsSectionId`, `existsSupplierId` | 필터 ID 존재 확인 |
 | `findWarehouseIdBySectionId` | 구역의 창고 |
 | `existsStockInSection`, `existsStockInWarehouse` | 보유 또는 할당 수량 > 0인 행이 있는지 |
-| `findSkuSummaries` | SKU 단위 `group by` 집계 (`select new InventorySkuSummary`). 로트·SKU·구역 조인, 창고·키워드 조건 |
-| `findLotViews` | 로트·구역 행. `includeEmpty=false`면 `onHandQuantity > 0`만 |
+| `findSkuSummaries` | SKU 단위 `group by` 집계 (`select new InventorySkuSummary`). 로트·SKU·구역 조인, 창고·키워드 조건. `Pageable`로 정렬·페이징하고 `group by` 쿼리라 `countQuery`(SKU 수)를 따로 둔다 |
+| `findLotViews` | 로트·구역 행. `includeEmpty=false`면 `onHandQuantity > 0`만. `Pageable`로 정렬·페이징한다(유통기한 정렬은 `coalesce(l.expiryDate, 먼 미래)` 식) |
 | `findDetail` | 창고·SKU·로트·구역·공급처(`left join`) 조인 상세 |
 | `findLowStock` | **SKU 기준 left join**. 창고·범위 필터를 가용 합계 `CASE` 안에 넣어, 다른 창고에만 재고가 있어도 가용 0으로 남긴다. 활성 SKU 중 안전 재고 > 0, 가용 < 안전 재고인 것만(`having`) |
 | `findAllocatableStocks` | 출고 할당 후보. 품질·로트 AVAILABLE, **구역이 ACTIVE**, `on_hand > allocated`. FEFO 정렬 |

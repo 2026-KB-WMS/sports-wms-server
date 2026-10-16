@@ -14,16 +14,21 @@ public final class SortSpec {
 
     private final Map<String, String> fields;
     private final List<SortOrder> defaultOrders;
-    private final String tieBreakerProperty;
+    private final List<String> tieBreakerProperties;
 
-    private SortSpec(Map<String, String> fields, List<SortOrder> defaultOrders, String tieBreakerProperty) {
+    private SortSpec(Map<String, String> fields, List<SortOrder> defaultOrders, List<String> tieBreakerProperties) {
         this.fields = fields;
         this.defaultOrders = defaultOrders;
-        this.tieBreakerProperty = tieBreakerProperty;
+        this.tieBreakerProperties = tieBreakerProperties;
     }
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    /** 정렬을 허용하는 API 필드 이름. 허용 필드마다 쿼리가 실제로 도는지 확인하는 테스트에서 쓴다. */
+    public java.util.Set<String> fieldNames() {
+        return fields.keySet();
     }
 
     /** API 필드 이름 → 쿼리 정렬 경로 */
@@ -38,9 +43,11 @@ public final class SortSpec {
     /** 정렬 목록 뒤에 ID 보조 정렬을 붙인다. 이미 같은 경로가 있으면 붙이지 않는다. 방향은 첫 정렬을 따른다. */
     List<SortOrder> withTieBreaker(List<SortOrder> orders) {
         List<SortOrder> result = new ArrayList<>(orders);
-        boolean present = orders.stream().anyMatch(o -> o.property().equals(tieBreakerProperty));
-        if (!present) {
-            result.add(new SortOrder(tieBreakerProperty, tieBreakerProperty, orders.get(0).direction()));
+        for (String tieBreaker : tieBreakerProperties) {
+            boolean present = orders.stream().anyMatch(o -> o.property().equals(tieBreaker));
+            if (!present) {
+                result.add(new SortOrder(tieBreaker, tieBreaker, orders.get(0).direction()));
+            }
         }
         return List.copyOf(result);
     }
@@ -52,7 +59,7 @@ public final class SortSpec {
 
         private final Map<String, String> fields = new LinkedHashMap<>();
         private final List<DefaultOrder> defaults = new ArrayList<>();
-        private String tieBreakerProperty;
+        private List<String> tieBreakerProperties = List.of();
 
         /** 정렬을 허용하는 필드. {@code field}는 API 이름, {@code property}는 쿼리의 정렬 경로다. */
         public Builder field(String field, String property) {
@@ -66,14 +73,20 @@ public final class SortSpec {
             return this;
         }
 
-        /** 같은 값이 많아도 페이지 사이 순서가 고정되도록 마지막에 붙일 ID 경로. */
-        public Builder tieBreaker(String property) {
-            this.tieBreakerProperty = property;
+        /**
+         * 같은 값이 많아도 페이지 사이 순서가 고정되도록 마지막에 붙일 ID 경로.
+         * 한 컬럼으로 행을 구분할 수 없는 집계 목록(예: 구역+SKU)은 여러 경로를 준다.
+         */
+        public Builder tieBreaker(String property, String... more) {
+            List<String> all = new ArrayList<>();
+            all.add(property);
+            all.addAll(List.of(more));
+            this.tieBreakerProperties = List.copyOf(all);
             return this;
         }
 
         public SortSpec build() {
-            if (fields.isEmpty() || defaults.isEmpty() || tieBreakerProperty == null) {
+            if (fields.isEmpty() || defaults.isEmpty() || tieBreakerProperties.isEmpty()) {
                 throw new IllegalStateException("정렬 규칙에는 허용 필드, 기본 정렬, ID 보조 정렬이 모두 필요합니다.");
             }
             List<SortOrder> orders = new ArrayList<>();
@@ -85,7 +98,7 @@ public final class SortSpec {
                 orders.add(new SortOrder(d.field(), property, d.direction()));
             }
             return new SortSpec(Collections.unmodifiableMap(new LinkedHashMap<>(fields)), List.copyOf(orders),
-                    tieBreakerProperty);
+                    tieBreakerProperties);
         }
     }
 }

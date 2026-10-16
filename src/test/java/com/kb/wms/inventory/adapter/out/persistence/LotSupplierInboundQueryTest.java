@@ -16,6 +16,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.security.UserRole;
@@ -54,6 +58,8 @@ import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 @Transactional
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class LotSupplierInboundQueryTest {
+
+    private static final PageCondition LOT_PAGE = TestPages.firstPage(TestPages.order("l.lotId", SortDirection.ASC));
 
     @Autowired private InventoryQueryRepository inventoryQueryRepository;
     @Autowired private InventoryQueryUseCase inventoryQueryUseCase;
@@ -111,7 +117,7 @@ class LotSupplierInboundQueryTest {
         assertThat(lot.supplierId()).isEqualTo(supplierId);
         assertThat(lot.supplierName()).isEqualTo("한빛식품");
 
-        assertThat(inventoryQueryRepository.findLots(LotSearchCondition.unscoped(null, supplierId, null, null)))
+        assertThat(inventoryQueryRepository.findLots(LotSearchCondition.unscoped(null, supplierId, null, null), LOT_PAGE).items())
                 .extracting(LotSummary::lotNumber)
                 .containsExactly("LOT-L1");
 
@@ -121,13 +127,13 @@ class LotSupplierInboundQueryTest {
     @Test
     @DisplayName("로트 범위: 담당 창고에 재고가 있는 로트만 보이고, 재고도 입고 완료 이력도 없는 창고는 비어 있다")
     void lots_warehouseScope() {
-        assertThat(inventoryQueryRepository.findLots(new LotSearchCondition(null, null, null, null, List.of(warehouseId))))
+        assertThat(inventoryQueryRepository.findLots(new LotSearchCondition(null, null, null, null, List.of(warehouseId)), LOT_PAGE).items())
                 .extracting(LotSummary::lotNumber).containsExactly("LOT-L1");
-        assertThat(inventoryQueryRepository.findLots(new LotSearchCondition(null, null, null, null, List.of(9_999L))))
+        assertThat(inventoryQueryRepository.findLots(new LotSearchCondition(null, null, null, null, List.of(9_999L)), LOT_PAGE).items())
                 .isEmpty();
-        assertThat(inventoryQueryRepository.findLots(new LotSearchCondition(null, null, null, null, List.of())))
+        assertThat(inventoryQueryRepository.findLots(new LotSearchCondition(null, null, null, null, List.of()), LOT_PAGE).items())
                 .isEmpty();
-        assertThat(inventoryQueryRepository.findLots(new LotSearchCondition(null, null, null, null, null)))
+        assertThat(inventoryQueryRepository.findLots(new LotSearchCondition(null, null, null, null, null), LOT_PAGE).items())
                 .hasSize(2);
     }
 
@@ -150,12 +156,12 @@ class LotSupplierInboundQueryTest {
     @Test
     @DisplayName("존재하지 않는 supplierId로 로트를 필터링하면 404 SUPPLIER_NOT_FOUND이고, 있는 공급처는 목록을 반환한다")
     void getLots_supplierFilter() {
-        assertThatThrownBy(() -> lotUseCase.getLots(LotSearchCondition.unscoped(null, 9_999L, null, null), HQ))
+        assertThatThrownBy(() -> lotUseCase.getLots(LotSearchCondition.unscoped(null, 9_999L, null, null), LOT_PAGE, HQ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(InventoryErrorCode.SUPPLIER_NOT_FOUND.name());
 
-        assertThat(lotUseCase.getLots(LotSearchCondition.unscoped(null, supplierId, null, null), HQ)).hasSize(1);
+        assertThat(lotUseCase.getLots(LotSearchCondition.unscoped(null, supplierId, null, null), LOT_PAGE, HQ).items()).hasSize(1);
     }
 
     @Test

@@ -5,6 +5,8 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
@@ -40,17 +42,18 @@ public class InventoryQueryService implements InventoryQueryUseCase {
     private final LotRepository lotRepository;
 
     @Override
-    public List<InventorySkuSummary> getInventories(InventorySearchCondition condition, AuthenticatedUser actor) {
+    public PageResult<InventorySkuSummary> getInventories(InventorySearchCondition condition, PageCondition page,
+                                                          AuthenticatedUser actor) {
         List<Long> scope = actor.warehouseScope(condition.warehouseId());
         validateSkuId(condition.skuId());
         validateWarehouseId(condition.warehouseId());
         return inventoryQueryRepository.findSkuSummaries(new InventorySearchCondition(
-                condition.skuId(), condition.warehouseId(), condition.keyword(), scope));
+                condition.skuId(), condition.warehouseId(), condition.keyword(), scope), page);
     }
 
     @Override
-    public List<InventorySectionSummary> getInventoriesBySection(InventorySectionSearchCondition condition,
-                                                                AuthenticatedUser actor) {
+    public PageResult<InventorySectionSummary> getInventoriesBySection(InventorySectionSearchCondition condition,
+                                                                       PageCondition page, AuthenticatedUser actor) {
         List<Long> scope = scopeOf(actor, condition.warehouseId(), condition.sectionId());
         validateSkuId(condition.skuId());
         validateWarehouseId(condition.warehouseId());
@@ -58,18 +61,28 @@ public class InventoryQueryService implements InventoryQueryUseCase {
         validateCategoryId(condition.categoryId());
         return inventoryQueryRepository.findSectionSummaries(new InventorySectionSearchCondition(
                 condition.warehouseId(), condition.sectionId(), condition.categoryId(), condition.skuId(),
-                condition.keyword(), scope));
+                condition.keyword(), scope), page);
     }
 
     @Override
     public List<InventoryLotView> getInventoriesByLot(InventoryLotSearchCondition condition, AuthenticatedUser actor) {
+        return inventoryQueryRepository.findLotViews(scopedLotCondition(condition, actor));
+    }
+
+    @Override
+    public PageResult<InventoryLotView> searchInventoriesByLot(InventoryLotSearchCondition condition, PageCondition page,
+                                                               AuthenticatedUser actor) {
+        return inventoryQueryRepository.findLotViews(scopedLotCondition(condition, actor), page);
+    }
+
+    private InventoryLotSearchCondition scopedLotCondition(InventoryLotSearchCondition condition, AuthenticatedUser actor) {
         List<Long> scope = scopeOf(actor, condition.warehouseId(), condition.sectionId());
         validateSkuId(condition.skuId());
         validateWarehouseId(condition.warehouseId());
         validateSectionId(condition.sectionId());
-        return inventoryQueryRepository.findLotViews(new InventoryLotSearchCondition(
+        return new InventoryLotSearchCondition(
                 condition.skuId(), condition.warehouseId(), condition.sectionId(), condition.lotId(),
-                condition.expiringBefore(), condition.qualityStatus(), condition.includeEmpty(), scope));
+                condition.expiringBefore(), condition.qualityStatus(), condition.includeEmpty(), scope);
     }
 
     @Override
@@ -89,8 +102,8 @@ public class InventoryQueryService implements InventoryQueryUseCase {
     }
 
     @Override
-    public List<InventoryTransactionView> getTransactions(InventoryTransactionSearchCondition condition,
-                                                          AuthenticatedUser actor) {
+    public PageResult<InventoryTransactionView> getTransactions(InventoryTransactionSearchCondition condition,
+                                                                PageCondition page, AuthenticatedUser actor) {
         List<Long> scope = scopeOf(actor, condition.warehouseId(), condition.sectionId());
         validatePeriod(condition);
         if (condition.referenceId() != null && condition.referenceType() == null) {
@@ -103,7 +116,7 @@ public class InventoryQueryService implements InventoryQueryUseCase {
         return inventoryQueryRepository.findTransactions(new InventoryTransactionSearchCondition(
                 condition.inventoryLotId(), condition.warehouseId(), condition.sectionId(), condition.skuId(),
                 condition.lotId(), condition.transactionType(), condition.referenceType(), condition.referenceId(),
-                condition.createdFrom(), condition.createdTo(), scope));
+                condition.createdFrom(), condition.createdTo(), scope), page);
     }
 
     @Override

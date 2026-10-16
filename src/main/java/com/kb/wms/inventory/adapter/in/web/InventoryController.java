@@ -15,8 +15,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.SortSpec;
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.common.response.PageResponse;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inventory.adapter.in.web.dto.request.InventoryAdjustRequest;
 import com.kb.wms.inventory.adapter.in.web.dto.response.InventoryAdjustmentResponse;
@@ -57,52 +61,116 @@ public class InventoryController {
     private final InventoryQueryUseCase inventoryQueryUseCase;
     private final InventoryAdjustmentUseCase inventoryAdjustmentUseCase;
 
+    /** 목록 정렬 규칙. 기본은 SKU 코드순. */
+    static final SortSpec SKU_SORT = SortSpec.builder()
+            .field("skuCode", "s.skuCode")
+            .field("skuName", "s.name")
+            .field("totalQuantity", "sum(il.onHandQuantity)")
+            .field("availableQuantity", "sum(case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.AVAILABLE and l.status = com.kb.wms.inventory.domain.enums.LotStatus.AVAILABLE then il.onHandQuantity - il.allocatedQuantity else 0L end)")
+            .field("allocatedQuantity", "sum(il.allocatedQuantity)")
+            .field("defectiveQuantity", "sum(case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.DEFECTIVE then il.onHandQuantity else 0L end)")
+            .defaultOrder("skuCode", SortDirection.ASC)
+            .tieBreaker("s.skuId")
+            .build();
+
+    /** 구역별 정렬 규칙. 기본은 창고, 구역 코드, SKU 코드순. 같은 값은 구역+SKU로 순서를 고정한다. */
+    static final SortSpec SECTION_SORT = SortSpec.builder()
+            .field("warehouseId", "w.warehouseId")
+            .field("warehouseName", "w.name")
+            .field("sectionCode", "ws.sectionCode")
+            .field("skuCode", "s.skuCode")
+            .field("skuName", "s.name")
+            .field("categoryName", "c.name")
+            .field("totalQuantity", "sum(il.onHandQuantity)")
+            .field("availableQuantity", "sum(case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.AVAILABLE and l.status = com.kb.wms.inventory.domain.enums.LotStatus.AVAILABLE then il.onHandQuantity - il.allocatedQuantity else 0L end)")
+            .field("allocatedQuantity", "sum(il.allocatedQuantity)")
+            .field("defectiveQuantity", "sum(case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.DEFECTIVE then il.onHandQuantity else 0L end)")
+            .defaultOrder("warehouseId", SortDirection.ASC)
+            .defaultOrder("sectionCode", SortDirection.ASC)
+            .defaultOrder("skuCode", SortDirection.ASC)
+            .tieBreaker("ws.sectionId", "s.skuId")
+            .build();
+
+    /** 로트별 정렬 규칙. 기본은 유통기한 임박순(없으면 뒤로). */
+    static final SortSpec LOT_VIEW_SORT = SortSpec.builder()
+            .field("expiryDate", "coalesce(l.expiryDate, {d '9999-12-31'})")
+            .field("lotNumber", "l.lotNumber")
+            .field("skuCode", "s.skuCode")
+            .field("sectionCode", "ws.sectionCode")
+            .field("onHandQuantity", "il.onHandQuantity")
+            .field("allocatedQuantity", "il.allocatedQuantity")
+            .field("availableQuantity", "(case when il.qualityStatus = com.kb.wms.inventory.domain.enums.QualityStatus.AVAILABLE and l.status = com.kb.wms.inventory.domain.enums.LotStatus.AVAILABLE then il.onHandQuantity - il.allocatedQuantity else 0L end)")
+            .field("qualityStatus", "il.qualityStatus")
+            .field("lastCountedAt", "il.lastCountedAt")
+            .defaultOrder("expiryDate", SortDirection.ASC)
+            .tieBreaker("il.inventoryLotId")
+            .build();
+
+    /** 재고 이력 정렬 규칙. 기본은 최신순. */
+    static final SortSpec TRANSACTION_SORT = SortSpec.builder()
+            .field("createdAt", "t.createdAt")
+            .field("transactionType", "t.transactionType")
+            .field("quantityDelta", "t.quantityDelta")
+            .field("skuCode", "s.skuCode")
+            .field("sectionCode", "ws.sectionCode")
+            .field("lotNumber", "l.lotNumber")
+            .field("referenceType", "t.referenceType")
+            .defaultOrder("createdAt", SortDirection.DESC)
+            .tieBreaker("t.transactionId")
+            .build();
+
     @GetMapping("/api/v1/inventory")
-    public ApiResponse<ItemsResponse<InventorySkuSummaryResponse>> getInventories(
+    public ApiResponse<PageResponse<InventorySkuSummaryResponse>> getInventories(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) Long skuId,
             @RequestParam(required = false) Long warehouseId,
-            @RequestParam(required = false) String keyword) {
-        List<InventorySkuSummaryResponse> items = inventoryQueryUseCase
-                .getInventories(InventorySearchCondition.unscoped(skuId, warehouseId, keyword), principal).stream()
-                .map(InventorySkuSummaryResponse::from)
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, SKU_SORT);
+        return ApiResponse.ok(PageResponse.of(
+                inventoryQueryUseCase.getInventories(
+                        InventorySearchCondition.unscoped(skuId, warehouseId, keyword), pageCondition, principal),
+                InventorySkuSummaryResponse::from));
     }
 
     @GetMapping("/api/v1/inventory/by-section")
-    public ApiResponse<ItemsResponse<InventorySectionSummaryResponse>> getInventoriesBySection(
+    public ApiResponse<PageResponse<InventorySectionSummaryResponse>> getInventoriesBySection(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) Long sectionId,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) Long skuId,
-            @RequestParam(required = false) String keyword) {
-        List<InventorySectionSummaryResponse> items = inventoryQueryUseCase
-                .getInventoriesBySection(InventorySectionSearchCondition.unscoped(
-                        warehouseId, sectionId, categoryId, skuId, keyword), principal)
-                .stream()
-                .map(InventorySectionSummaryResponse::from)
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, SECTION_SORT);
+        return ApiResponse.ok(PageResponse.of(
+                inventoryQueryUseCase.getInventoriesBySection(InventorySectionSearchCondition.unscoped(
+                        warehouseId, sectionId, categoryId, skuId, keyword), pageCondition, principal),
+                InventorySectionSummaryResponse::from));
     }
 
     @GetMapping("/api/v1/inventory/by-lot")
-    public ApiResponse<ItemsResponse<InventoryLotViewResponse>> getInventoriesByLot(
+    public ApiResponse<PageResponse<InventoryLotViewResponse>> getInventoriesByLot(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) Long skuId,
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) Long sectionId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate expiringBefore,
             @RequestParam(required = false) QualityStatus qualityStatus,
-            @RequestParam(required = false) Boolean includeEmpty) {
-        List<InventoryLotViewResponse> items = inventoryQueryUseCase
-                .getInventoriesByLot(InventoryLotSearchCondition.unscoped(
-                        skuId, warehouseId, sectionId, null, expiringBefore, qualityStatus, includeEmpty), principal)
-                .stream()
-                .map(InventoryLotViewResponse::from)
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+            @RequestParam(required = false) Boolean includeEmpty,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, LOT_VIEW_SORT);
+        return ApiResponse.ok(PageResponse.of(
+                inventoryQueryUseCase.searchInventoriesByLot(InventoryLotSearchCondition.unscoped(
+                        skuId, warehouseId, sectionId, null, expiringBefore, qualityStatus, includeEmpty),
+                        pageCondition, principal),
+                InventoryLotViewResponse::from));
     }
 
     @GetMapping("/api/v1/inventory/{inventoryId}")
@@ -125,7 +193,7 @@ public class InventoryController {
     }
 
     @GetMapping("/api/v1/inventory/transactions")
-    public ApiResponse<ItemsResponse<InventoryTransactionResponse>> getTransactions(
+    public ApiResponse<PageResponse<InventoryTransactionResponse>> getTransactions(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) Long sectionId,
@@ -135,14 +203,17 @@ public class InventoryController {
             @RequestParam(required = false) ReferenceType referenceType,
             @RequestParam(required = false) Long referenceId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdFrom,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdTo) {
-        List<InventoryTransactionResponse> items = inventoryQueryUseCase.getTransactions(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdTo,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, TRANSACTION_SORT);
+        return ApiResponse.ok(PageResponse.of(
+                inventoryQueryUseCase.getTransactions(
                         InventoryTransactionSearchCondition.unscoped(null, warehouseId, sectionId, skuId, lotId,
-                                transactionType, referenceType, referenceId, createdFrom, createdTo), principal)
-                .stream()
-                .map(InventoryTransactionResponse::from)
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+                                transactionType, referenceType, referenceId, createdFrom, createdTo),
+                        pageCondition, principal),
+                InventoryTransactionResponse::from));
     }
 
     @GetMapping("/api/v1/inventory/{inventoryId}/transactions")

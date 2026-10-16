@@ -2,6 +2,8 @@ package com.kb.wms.inventory.application.port.in;
 
 import java.util.List;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.inventory.application.port.in.query.InventoryLotSearchCondition;
 import com.kb.wms.inventory.application.port.in.query.InventorySearchCondition;
@@ -22,18 +24,25 @@ import com.kb.wms.inventory.application.port.in.result.LowStockItem;
  */
 public interface InventoryQueryUseCase {
 
-    List<InventorySkuSummary> getInventories(InventorySearchCondition condition, AuthenticatedUser actor);
+    PageResult<InventorySkuSummary> getInventories(InventorySearchCondition condition, PageCondition page,
+                                                   AuthenticatedUser actor);
 
-    List<InventorySectionSummary> getInventoriesBySection(InventorySectionSearchCondition condition,
+    PageResult<InventorySectionSummary> getInventoriesBySection(InventorySectionSearchCondition condition,
+                                                                PageCondition page,
                                                          AuthenticatedUser actor);
 
+    PageResult<InventoryLotView> searchInventoriesByLot(InventoryLotSearchCondition condition, PageCondition page,
+                                                        AuthenticatedUser actor);
+
+    /** 페이지 없이 전체(로트 상세의 재고 행 등). */
     List<InventoryLotView> getInventoriesByLot(InventoryLotSearchCondition condition, AuthenticatedUser actor);
 
     InventoryDetail getInventory(Long inventoryLotId, AuthenticatedUser actor);
 
     List<LowStockItem> getLowStock(LowStockSearchCondition condition, AuthenticatedUser actor);
 
-    List<InventoryTransactionView> getTransactions(InventoryTransactionSearchCondition condition, AuthenticatedUser actor);
+    PageResult<InventoryTransactionView> getTransactions(InventoryTransactionSearchCondition condition, PageCondition page,
+                                                         AuthenticatedUser actor);
 
     /**
      * 특정 재고 행의 이력. 재고가 없으면 404 INVENTORY_NOT_FOUND.

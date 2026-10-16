@@ -1,5 +1,11 @@
 package com.kb.wms.inventory.adapter.out.persistence;
 
+import com.kb.wms.inventory.application.port.in.result.InventoryTransactionView;
+import com.kb.wms.inventory.application.port.in.result.LotSummary;
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
 import com.kb.wms.common.security.UserRole;
@@ -72,6 +78,12 @@ import jakarta.persistence.EntityManager;
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class InventoryPersistenceAdapterTest {
 
+    private static final PageCondition LOT_PAGE = TestPages.firstPage(TestPages.order("l.lotId", SortDirection.ASC));
+
+    private static final PageCondition SECTION_PAGE = TestPages.firstPage(TestPages.order("ws.sectionCode", SortDirection.ASC), TestPages.order("ws.sectionId", SortDirection.ASC), TestPages.order("s.skuId", SortDirection.ASC));
+
+    private static final PageCondition SKU_PAGE = TestPages.firstPage(TestPages.order("s.skuCode", SortDirection.ASC), TestPages.order("s.skuId", SortDirection.ASC));
+
     @Autowired private UserRepository userRepository;
     @Autowired private InventoryQueryRepository inventoryQueryRepository;
     @Autowired private InventoryLotRepository inventoryLotRepository;
@@ -128,7 +140,7 @@ class InventoryPersistenceAdapterTest {
     @DisplayName("SKU 집계: 가용 수량은 품질·로트 상태가 모두 AVAILABLE인 행만 합산하고 불량은 따로 집계한다")
     void skuSummary_allWarehouses() {
         List<InventorySkuSummary> result =
-                inventoryQueryRepository.findSkuSummaries(InventorySearchCondition.unscoped(null, null, null));
+                inventoryQueryRepository.findSkuSummaries(InventorySearchCondition.unscoped(null, null, null), SKU_PAGE).items();
 
         assertThat(result).hasSize(1);
         InventorySkuSummary a = result.get(0);
@@ -143,13 +155,13 @@ class InventoryPersistenceAdapterTest {
     @DisplayName("SKU 집계: 창고 필터와 키워드(SKU명 부분 일치)가 적용된다")
     void skuSummary_filter() {
         List<InventorySkuSummary> result =
-                inventoryQueryRepository.findSkuSummaries(InventorySearchCondition.unscoped(null, warehouse1, "라켓"));
+                inventoryQueryRepository.findSkuSummaries(InventorySearchCondition.unscoped(null, warehouse1, "라켓"), SKU_PAGE).items();
 
         assertThat(result).singleElement().satisfies(a -> {
             assertThat(a.totalQuantity()).isEqualTo(115L);
             assertThat(a.availableQuantity()).isEqualTo(80L);
         });
-        assertThat(inventoryQueryRepository.findSkuSummaries(InventorySearchCondition.unscoped(null, null, "셔틀콕")))
+        assertThat(inventoryQueryRepository.findSkuSummaries(InventorySearchCondition.unscoped(null, null, "셔틀콕"), SKU_PAGE).items())
                 .isEmpty();
     }
 
@@ -167,6 +179,80 @@ class InventoryPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("SKU별 집계는 SKU 수로 전체 건수를 센다 (재고 행이 여러 개여도 1건)")
+    void skuSummaries_totalCountsSkus() {
+        var result = inventoryQueryRepository.findSkuSummaries(
+                InventorySearchCondition.unscoped(null, null, null), new PageCondition(1, 1, SKU_PAGE.orders()));
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.totalElements()).isEqualTo(1);
+        assertThat(result.totalPages()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("로트별 재고는 유통기한 식으로 정렬하면 없는 행이 뒤로 가고(내림차순은 앞), 같으면 재고 ID 순이다")
+    void lotViews_sortByExpiryNullsLast() {
+        String expiry = "coalesce(l.expiryDate, {d '9999-12-31'})";
+        InventoryLotSearchCondition all = InventoryLotSearchCondition.unscoped(null, null, null, null, null, null, false);
+        PageCondition asc = TestPages.firstPage(
+                TestPages.order(expiry, SortDirection.ASC), TestPages.order("il.inventoryLotId", SortDirection.ASC));
+        PageCondition desc = TestPages.firstPage(
+                TestPages.order(expiry, SortDirection.DESC), TestPages.order("il.inventoryLotId", SortDirection.DESC));
+
+        // LOT-A(2027-01-01) 두 행이 먼저, 유통기한 없는 행은 뒤
+        assertThat(inventoryQueryRepository.findLotViews(all, asc).items())
+                .extracting(InventoryLotView::inventoryLotId).containsExactly(invR1LotA, invD1LotA, invR2LotB, invR1LotQ);
+        assertThat(inventoryQueryRepository.findLotViews(all, desc).items())
+                .extracting(InventoryLotView::inventoryLotId).containsExactly(invR1LotQ, invR2LotB, invD1LotA, invR1LotA);
+
+        var page2 = inventoryQueryRepository.findLotViews(all, new PageCondition(2, 3, asc.orders()));
+        assertThat(page2.items()).extracting(InventoryLotView::inventoryLotId).containsExactly(invR1LotQ);
+        assertThat(page2.totalElements()).isEqualTo(4);
+        // 페이지 없는 전체 조회도 같은 순서다
+        assertThat(inventoryQueryRepository.findLotViews(all))
+                .extracting(InventoryLotView::inventoryLotId).containsExactly(invR1LotA, invD1LotA, invR2LotB, invR1LotQ);
+    }
+
+    @Test
+    @DisplayName("로트 목록은 페이지로 자르고 전체 건수를 세며, 유통기한 없는 로트는 뒤로 간다")
+    void lots_pagingAndExpirySort() {
+        PageCondition byExpiry = TestPages.firstPage(
+                TestPages.order("coalesce(l.expiryDate, {d '9999-12-31'})", SortDirection.ASC),
+                TestPages.order("l.lotId", SortDirection.ASC));
+        LotSearchCondition all = LotSearchCondition.unscoped(null, null, null, null);
+
+        var first = inventoryQueryRepository.findLots(all, new PageCondition(1, 2, byExpiry.orders()));
+        var second = inventoryQueryRepository.findLots(all, new PageCondition(2, 2, byExpiry.orders()));
+
+        assertThat(first.items()).extracting(LotSummary::lotNumber).containsExactly("LOT-A", "LOT-B");
+        assertThat(second.items()).extracting(LotSummary::lotNumber).containsExactly("LOT-Q");
+        assertThat(first.totalElements()).isEqualTo(3);
+        assertThat(first.totalPages()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("재고 이력은 페이지로 자르고 전체 건수를 세며, 수량 변화로 정렬한다")
+    void transactions_pagingAndSort() {
+        inventoryTransactionRepository.save(InventoryTransaction.record(
+                invR1LotA, TransactionType.INBOUND, 0, 100, ReferenceType.INBOUND, 6L, null, 5L));
+        inventoryTransactionRepository.save(InventoryTransaction.record(
+                invR2LotB, TransactionType.INBOUND, 0, 30, ReferenceType.INBOUND, 7L, null, 5L));
+        entityManager.flush();
+        PageCondition byDelta = TestPages.firstPage(
+                TestPages.order("t.quantityDelta", SortDirection.DESC), TestPages.order("t.transactionId", SortDirection.DESC));
+        InventoryTransactionSearchCondition all = InventoryTransactionSearchCondition.unscoped(
+                null, null, null, null, null, null, null, null, null, null);
+
+        var first = inventoryQueryRepository.findTransactions(all, new PageCondition(1, 1, byDelta.orders()));
+        var second = inventoryQueryRepository.findTransactions(all, new PageCondition(2, 1, byDelta.orders()));
+
+        assertThat(first.items()).extracting(InventoryTransactionView::quantityDelta).containsExactly(100L);
+        assertThat(second.items()).extracting(InventoryTransactionView::quantityDelta).containsExactly(30L);
+        assertThat(first.totalElements()).isEqualTo(2);
+        assertThat(first.totalPages()).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("창고 범위: 담당 창고 목록으로 집계·로트 단위·이력을 좁히고, 빈 목록이면 아무것도 보이지 않는다")
     void warehouseScope_restrictsQueries() {
         inventoryTransactionRepository.save(InventoryTransaction.record(
@@ -177,15 +263,15 @@ class InventoryPersistenceAdapterTest {
 
         // 창고2만 담당: SKU-A 집계는 창고2 재고(30)뿐이다
         assertThat(inventoryQueryRepository.findSkuSummaries(
-                new InventorySearchCondition(null, null, null, List.of(warehouse2))))
+                new InventorySearchCondition(null, null, null, List.of(warehouse2)), SKU_PAGE).items())
                 .singleElement().satisfies(a -> assertThat(a.totalQuantity()).isEqualTo(30L));
         // 두 창고 모두 담당이면 합산한다
         assertThat(inventoryQueryRepository.findSkuSummaries(
-                new InventorySearchCondition(null, null, null, List.of(warehouse1, warehouse2))))
+                new InventorySearchCondition(null, null, null, List.of(warehouse1, warehouse2)), SKU_PAGE).items())
                 .singleElement().satisfies(a -> assertThat(a.totalQuantity()).isEqualTo(145L));
         // 담당 창고가 없으면 비어 있다
         assertThat(inventoryQueryRepository.findSkuSummaries(
-                new InventorySearchCondition(null, null, null, List.of()))).isEmpty();
+                new InventorySearchCondition(null, null, null, List.of()), SKU_PAGE).items()).isEmpty();
 
         assertThat(inventoryQueryRepository.findLotViews(new InventoryLotSearchCondition(
                 null, null, null, null, null, null, false, List.of(warehouse2))))
@@ -309,10 +395,10 @@ class InventoryPersistenceAdapterTest {
     @DisplayName("로트: 유통기한 조건·로트 번호 검색, 단건 조회, find-or-create용 유니크 키 조회")
     void lots() {
         assertThat(inventoryQueryRepository.findLots(
-                LotSearchCondition.unscoped(skuA, null, LocalDate.of(2027, 12, 31), null)))
+                LotSearchCondition.unscoped(skuA, null, LocalDate.of(2027, 12, 31), null), LOT_PAGE).items())
                 .extracting(l -> l.lotNumber())
                 .containsExactly("LOT-A");
-        assertThat(inventoryQueryRepository.findLots(LotSearchCondition.unscoped(null, null, null, "lot-q")))
+        assertThat(inventoryQueryRepository.findLots(LotSearchCondition.unscoped(null, null, null, "lot-q"), LOT_PAGE).items())
                 .singleElement()
                 .satisfies(l -> assertThat(l.skuCode()).isEqualTo("SKU-A"));
         assertThat(inventoryQueryRepository.findLot(lotQ)).isPresent();
@@ -440,7 +526,7 @@ class InventoryPersistenceAdapterTest {
         entityManager.clear();
 
         List<InventorySectionSummary> all = inventoryQueryRepository.findSectionSummaries(
-                InventorySectionSearchCondition.unscoped(null, null, null, null, null)).stream()
+                InventorySectionSearchCondition.unscoped(null, null, null, null, null), SECTION_PAGE).items().stream()
                 .filter(r -> r.skuId().equals(racketSku) || r.skuId().equals(shoesSku)).toList();
 
         // 창고1 D1 → 창고1 R1 → 창고2 R2 순서
@@ -461,21 +547,34 @@ class InventoryPersistenceAdapterTest {
 
         // 카테고리 필터
         assertThat(inventoryQueryRepository.findSectionSummaries(
-                InventorySectionSearchCondition.unscoped(null, null, shoes, null, null)))
+                InventorySectionSearchCondition.unscoped(null, null, shoes, null, null), SECTION_PAGE).items())
                 .extracting(InventorySectionSummary::skuId).containsExactly(shoesSku);
         // 구역·창고·SKU 키워드 필터
         assertThat(inventoryQueryRepository.findSectionSummaries(
-                InventorySectionSearchCondition.unscoped(null, sectionD1, null, racketSku, null)))
+                InventorySectionSearchCondition.unscoped(null, sectionD1, null, racketSku, null), SECTION_PAGE).items())
                 .extracting(InventorySectionSummary::sectionCode).containsExactly("D1");
         assertThat(inventoryQueryRepository.findSectionSummaries(
-                InventorySectionSearchCondition.unscoped(warehouse2, null, null, null, "러닝화")))
+                InventorySectionSearchCondition.unscoped(warehouse2, null, null, null, "러닝화"), SECTION_PAGE).items())
                 .extracting(InventorySectionSummary::skuId).containsExactly(shoesSku);
         // 담당 창고 범위: 창고2만 담당이면 창고1 구역은 보이지 않고, 빈 목록이면 비어 있다
         assertThat(inventoryQueryRepository.findSectionSummaries(
-                new InventorySectionSearchCondition(null, null, null, null, null, List.of(warehouse2))))
+                new InventorySectionSearchCondition(null, null, null, null, null, List.of(warehouse2)), SECTION_PAGE).items())
                 .extracting(InventorySectionSummary::warehouseId).containsOnly(warehouse2);
         assertThat(inventoryQueryRepository.findSectionSummaries(
-                new InventorySectionSearchCondition(null, null, null, null, null, List.of()))).isEmpty();
+                new InventorySectionSearchCondition(null, null, null, null, null, List.of()), SECTION_PAGE).items()).isEmpty();
+
+        // 페이징·집계 정렬: 구역+SKU 행 수로 전체 건수를 세고, 합계 수량으로 정렬한다 (창고1의 라켓 SKU: R1 40, D1 3)
+        PageCondition byTotal = TestPages.firstPage(
+                TestPages.order("sum(il.onHandQuantity)", SortDirection.DESC),
+                TestPages.order("ws.sectionId", SortDirection.ASC), TestPages.order("s.skuId", SortDirection.ASC));
+        InventorySectionSearchCondition racketInWarehouse1 =
+                InventorySectionSearchCondition.unscoped(warehouse1, null, null, racketSku, null);
+        var first = inventoryQueryRepository.findSectionSummaries(racketInWarehouse1, new PageCondition(1, 1, byTotal.orders()));
+        var second = inventoryQueryRepository.findSectionSummaries(racketInWarehouse1, new PageCondition(2, 1, byTotal.orders()));
+        assertThat(first.items()).extracting(InventorySectionSummary::sectionCode).containsExactly("R1");
+        assertThat(second.items()).extracting(InventorySectionSummary::sectionCode).containsExactly("D1");
+        assertThat(first.totalElements()).isEqualTo(2);
+        assertThat(first.totalPages()).isEqualTo(2);
     }
 
     private Long category(String code, String name) {

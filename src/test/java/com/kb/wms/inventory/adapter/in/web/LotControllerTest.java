@@ -1,5 +1,7 @@
 package com.kb.wms.inventory.adapter.in.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static com.kb.wms.common.security.TestAuth.signInAsHqAdmin;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -16,6 +18,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,6 +28,11 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.kb.wms.common.paging.SortOrder;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.TestPages;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.inventory.application.port.in.InventoryQueryUseCase;
 import com.kb.wms.inventory.application.port.in.LotUseCase;
@@ -64,7 +72,7 @@ class LotControllerTest {
         LotSummary summary = new LotSummary(1L, "LOT-001", 2L, "SKU-001", "상품A", 3L, "한빛식품",
                 LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1), LotStatus.AVAILABLE,
                 BigDecimal.TEN, null, null);
-        when(lotUseCase.getLots(eq(LotSearchCondition.unscoped(2L, null, null, null)), any())).thenReturn(List.of(summary));
+        when(lotUseCase.getLots(eq(LotSearchCondition.unscoped(2L, null, null, null)), any(), any())).thenReturn(TestPages.resultOf(List.of(summary)));
 
         mockMvc.perform(get("/api/v1/lots").param("skuId", "2"))
                 .andExpect(status().isOk())
@@ -76,7 +84,7 @@ class LotControllerTest {
     @Test
     @DisplayName("GET /api/v1/lots: 존재하지 않는 skuId로 필터링하면 404 SKU_NOT_FOUND를 반환한다")
     void getLots_skuNotFound() throws Exception {
-        when(lotUseCase.getLots(any(LotSearchCondition.class), any()))
+        when(lotUseCase.getLots(any(LotSearchCondition.class), any(), any()))
                 .thenThrow(new BusinessException(InventoryErrorCode.SKU_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/lots").param("skuId", "999"))
@@ -87,7 +95,7 @@ class LotControllerTest {
     @Test
     @DisplayName("GET /api/v1/lots: 존재하지 않는 supplierId로 필터링하면 404 SUPPLIER_NOT_FOUND를 반환한다")
     void getLots_supplierNotFound() throws Exception {
-        when(lotUseCase.getLots(any(LotSearchCondition.class), any()))
+        when(lotUseCase.getLots(any(LotSearchCondition.class), any(), any()))
                 .thenThrow(new BusinessException(InventoryErrorCode.SUPPLIER_NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/lots").param("supplierId", "999"))
@@ -197,5 +205,62 @@ class LotControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_LOT_STATUS_TRANSITION"));
     }
-}
 
+    @Test
+    @DisplayName("로트 목록은 page·size·sort를 페이지 조건으로 넘기고 pageInfo를 담아 반환한다")
+    void lots_paging() throws Exception {
+        when(lotUseCase.getLots(any(LotSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 2, 5, 11, "lotNumber,asc"));
+
+        mockMvc.perform(get("/api/v1/lots").param("page", "2").param("size", "5").param("sort", "lotNumber,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty())
+                .andExpect(jsonPath("$.data.pageInfo.page").value(2))
+                .andExpect(jsonPath("$.data.pageInfo.size").value(5))
+                .andExpect(jsonPath("$.data.pageInfo.totalElements").value(11))
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(3))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("lotNumber,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(lotUseCase).getLots(any(LotSearchCondition.class), captor.capture(), any());
+        PageCondition page = captor.getValue();
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.orders()).extracting(SortOrder::property).containsExactly("l.lotNumber", "l.lotId");
+        assertThat(page.orders()).extracting(SortOrder::direction).containsOnly(SortDirection.ASC);
+    }
+
+    @Test
+    @DisplayName("로트 목록은 page·size·sort를 생략하면 1페이지, 20건, 기본 정렬(expiryDate,asc)이다")
+    void lots_defaultPaging() throws Exception {
+        when(lotUseCase.getLots(any(LotSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 1, 20, 0, "expiryDate,asc"));
+
+        mockMvc.perform(get("/api/v1/lots"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("expiryDate,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(lotUseCase).getLots(any(LotSearchCondition.class), captor.capture(), any());
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(20);
+        assertThat(captor.getValue().sortLabel()).isEqualTo("expiryDate,asc");
+    }
+
+    @Test
+    @DisplayName("로트 목록의 허용되지 않은 sort 필드와 범위를 벗어난 page·size는 400을 반환한다")
+    void lots_invalidPaging() throws Exception {
+        mockMvc.perform(get("/api/v1/lots").param("sort", "unknown,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/lots").param("sort", "lotNumber,up"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/lots").param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/lots").param("page", "0"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(lotUseCase);
+    }
+}

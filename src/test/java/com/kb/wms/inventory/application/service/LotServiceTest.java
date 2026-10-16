@@ -21,6 +21,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.AuthenticatedUser;
@@ -44,6 +48,8 @@ import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 @ExtendWith(MockitoExtension.class)
 class LotServiceTest {
 
+    private static final PageCondition LOT_PAGE = TestPages.firstPage(TestPages.order("l.lotId", SortDirection.ASC));
+
     private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
 
     @Mock
@@ -64,9 +70,9 @@ class LotServiceTest {
         LotSearchCondition condition = LotSearchCondition.unscoped(1L, null, null, null);
         when(inventoryQueryRepository.existsSku(1L)).thenReturn(true);
         List<LotSummary> expected = List.of();
-        when(inventoryQueryRepository.findLots(condition)).thenReturn(expected);
+        when(inventoryQueryRepository.findLots(condition, LOT_PAGE)).thenReturn(TestPages.resultOf(expected));
 
-        List<LotSummary> result = lotService.getLots(condition, HQ);
+        List<LotSummary> result = lotService.getLots(condition, LOT_PAGE, HQ).items();
 
         assertThat(result).isSameAs(expected);
     }
@@ -77,11 +83,11 @@ class LotServiceTest {
         LotSearchCondition condition = LotSearchCondition.unscoped(999L, null, null, null);
         when(inventoryQueryRepository.existsSku(999L)).thenReturn(false);
 
-        assertThatThrownBy(() -> lotService.getLots(condition, HQ))
+        assertThatThrownBy(() -> lotService.getLots(condition, LOT_PAGE, HQ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(InventoryErrorCode.SKU_NOT_FOUND.name());
-        verify(inventoryQueryRepository, never()).findLots(condition);
+        verify(inventoryQueryRepository, never()).findLots(condition, LOT_PAGE);
     }
 
     @Test
@@ -90,11 +96,11 @@ class LotServiceTest {
         LotSearchCondition condition = LotSearchCondition.unscoped(null, 999L, null, null);
         when(inventoryQueryRepository.existsSupplier(999L)).thenReturn(false);
 
-        assertThatThrownBy(() -> lotService.getLots(condition, HQ))
+        assertThatThrownBy(() -> lotService.getLots(condition, LOT_PAGE, HQ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(InventoryErrorCode.SUPPLIER_NOT_FOUND.name());
-        verify(inventoryQueryRepository, never()).findLots(condition);
+        verify(inventoryQueryRepository, never()).findLots(condition, LOT_PAGE);
     }
 
     @Test
@@ -103,9 +109,9 @@ class LotServiceTest {
         LotSearchCondition condition = LotSearchCondition.unscoped(null, 3L, null, null);
         when(inventoryQueryRepository.existsSupplier(3L)).thenReturn(true);
         List<LotSummary> expected = List.of();
-        when(inventoryQueryRepository.findLots(condition)).thenReturn(expected);
+        when(inventoryQueryRepository.findLots(condition, LOT_PAGE)).thenReturn(TestPages.resultOf(expected));
 
-        assertThat(lotService.getLots(condition, HQ)).isSameAs(expected);
+        assertThat(lotService.getLots(condition, LOT_PAGE, HQ).items()).isSameAs(expected);
     }
 
     @Test
@@ -239,10 +245,10 @@ class LotServiceTest {
     @Test
     @DisplayName("창고 관리자의 로트 목록은 담당 창고 범위로 조회한다")
     void getLots_warehouseManager_scoped() {
-        when(inventoryQueryRepository.findLots(new LotSearchCondition(null, null, null, null, List.of(1L))))
-                .thenReturn(List.of(lotSummary()));
+        when(inventoryQueryRepository.findLots(new LotSearchCondition(null, null, null, null, List.of(1L)), LOT_PAGE))
+                .thenReturn(TestPages.resultOf(List.of(lotSummary())));
 
-        assertThat(lotService.getLots(LotSearchCondition.unscoped(null, null, null, null), manager)).hasSize(1);
+        assertThat(lotService.getLots(LotSearchCondition.unscoped(null, null, null, null), LOT_PAGE, manager).items()).hasSize(1);
     }
 
     @Test
