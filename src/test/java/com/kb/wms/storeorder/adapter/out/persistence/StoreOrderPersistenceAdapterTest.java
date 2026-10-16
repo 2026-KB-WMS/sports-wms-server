@@ -91,6 +91,24 @@ class StoreOrderPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("항목 수와 총액(집계)으로 정렬하고, 같은 값은 발주 ID로 순서를 고정한다")
+    void search_sortedByAggregate() {
+        PageCondition byLineCount = TestPages.firstPage(
+                TestPages.order("count(l)", SortDirection.DESC), TestPages.order("o.storeOrderId", SortDirection.ASC));
+        PageCondition byAmount = TestPages.firstPage(
+                TestPages.order("sum(l.requestedQuantity * l.requestedUnitSupplyPrice)", SortDirection.DESC),
+                TestPages.order("o.storeOrderId", SortDirection.DESC));
+
+        // 항목 수: SO1 2줄, SO2·SO3 1줄
+        assertThat(queryRepository.search(noCondition(), byLineCount).items())
+                .extracting(StoreOrderSummary::storeOrderId).containsExactly(so1, so2, so3);
+        // 총액: SO1 200,000, SO2·SO3 10,000
+        PageResult<StoreOrderSummary> byTotal = queryRepository.search(noCondition(), byAmount);
+        assertThat(byTotal.items()).extracting(StoreOrderSummary::storeOrderId).containsExactly(so1, so3, so2);
+        assertThat(byTotal.totalElements()).isEqualTo(3);
+    }
+
+    @Test
     @DisplayName("조인한 지점명으로 정렬하고, 같은 값은 발주 ID로 순서를 고정한다")
     void search_sortedByStoreName() {
         PageCondition byStore = TestPages.firstPage(
