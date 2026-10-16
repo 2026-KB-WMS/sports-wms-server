@@ -14,4 +14,4 @@
 
 ## 범위 변환
 
-`searchAllocations`, `searchOutbounds`는 `scoped = warehouseIds != null`과 `scopeIds(warehouseIds)`(null·빈 목록이면 `[-1]`)를 JPQL에 넘긴다. 키워드는 `SearchKeyword.normalize`로 정리한다.
+`searchAllocations`, `searchOutbounds`는 `scoped = warehouseIds != null`과 `scopeIds(warehouseIds)`(null·빈 목록이면 `[-1]`)를 JPQL에 넘긴다. 키워드는 `SearchKeyword.normalize`로 정리한다. 두 검색은 `PageCondition`을 `PageAdapter.toPageable`로 바꿔 넘기고 `PageResult`로 돌려준다.

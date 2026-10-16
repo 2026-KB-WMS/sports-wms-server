@@ -13,7 +13,7 @@
 | 메서드 | 경로 | 상태 | 쿼리·바디 | 응답 | 호출 UseCase | 허용 역할 |
 |---|---|---|---|---|---|---|
 | `createOutbound` | POST `/` | 201 | `OutboundCreateRequest` | `OutboundCreateResponse` | `OutboundUseCase.createOutbound` | WAREHOUSE_MANAGER |
-| `getOutbounds` | GET `/` | 200 | `status`, `warehouseId`, `storeId`, `storeOrderId`, `keyword`, `createdFrom`, `createdTo` | `ItemsResponse<OutboundListItemResponse>` | `searchOutbounds` | HQ_ADMIN, WAREHOUSE_MANAGER |
+| `getOutbounds` | GET `/` | 200 | `status`, `warehouseId`, `storeId`, `storeOrderId`, `keyword`, `createdFrom`, `createdTo`, `page`, `size`, `sort` | `PageResponse<OutboundListItemResponse>` | `searchOutbounds`(정렬 필드: `createdAt`, `shippedAt`, `status`, `outboundNo`, `storeName`, `warehouseName`, `lineCount`) | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `getOutboundDetails` | GET `/{outboundId}/details` | 200 | - | `OutboundDetailResponse` | `getOutbound` | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `startPicking` | PATCH `/{outboundId}/picking/start` | 200 | - | `OutboundPickingStartResponse` | `OutboundUseCase.startPicking` | WAREHOUSE_MANAGER |
 | `completePicking` | PATCH `/{outboundId}/picking/complete` | 200 | `OutboundPickingCompleteRequest` | `OutboundPickingCompleteResponse` | `OutboundFulfillmentUseCase.completePicking` | WAREHOUSE_MANAGER |

@@ -1,6 +1,6 @@
 # 응답 DTO (Response)
 
-`outbound/adapter/in/web/dto/response/` · 응답 `record`. 목록은 `ItemsResponse`(`data.items`).
+`outbound/adapter/in/web/dto/response/` · 응답 `record`. 목록은 `PageResponse`(`data.items` + `data.pageInfo`, 페이지네이션 적용).
 
 ## 재고 할당
 

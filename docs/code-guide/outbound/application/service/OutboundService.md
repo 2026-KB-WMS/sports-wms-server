@@ -25,7 +25,7 @@
 | `createOutbound(command, actor)` | 쓰기 | WAREHOUSE_MANAGER |
 | `startPicking(outboundId, actor)` | 쓰기 | WAREHOUSE_MANAGER |
 | `cancel(command, actor)` | 쓰기 | WAREHOUSE_MANAGER |
-| `searchOutbounds(condition, actor)` | 읽기 | HQ_ADMIN, WAREHOUSE_MANAGER |
+| `searchOutbounds(condition, page, actor)` | 읽기 | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `getOutbound(id, actor)` | 읽기 | HQ_ADMIN, WAREHOUSE_MANAGER |
 
 ## createOutbound

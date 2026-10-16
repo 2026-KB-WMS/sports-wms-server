@@ -13,7 +13,7 @@
 | 메서드 | 경로 | 상태 | 쿼리·바디 | 응답 | 설명 | 허용 역할 |
 |---|---|---|---|---|---|---|
 | `allocate` | POST `/` | 201 | `StockAllocateRequest` | `StockAllocateResponse` | FEFO 재고 할당 | WAREHOUSE_MANAGER |
-| `getAllocations` | GET `/` | 200 | `storeOrderId`, `warehouseId`, `skuId`, `status`, `keyword` | `ItemsResponse<StockAllocationItemResponse>` | 할당 목록 | HQ_ADMIN, WAREHOUSE_MANAGER |
+| `getAllocations` | GET `/` | 200 | `storeOrderId`, `warehouseId`, `skuId`, `status`, `keyword`, `page`, `size`, `sort` | `PageResponse<StockAllocationItemResponse>` | 할당 목록(정렬 필드: `allocatedAt`, `status`, `orderNo`, `skuCode`, `allocatedQuantity`) | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `getAllocation` | GET `/{allocationId}` | 200 | - | `StockAllocationDetailResponse` | 할당 상세 | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `releaseAllocation` | PATCH `/{allocationId}/release` | 200 | `OutboundReasonRequest` | `StockAllocationReleaseResponse` | 할당 해제 | WAREHOUSE_MANAGER |
 
