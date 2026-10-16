@@ -14,6 +14,11 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.SortOrder;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
@@ -27,6 +32,8 @@ import com.kb.wms.common.security.UserRole;
 @Transactional
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class UserPersistenceAdapterTest {
+
+    private static final PageCondition USER_PAGE = TestPages.firstPage(TestPages.order("u.createdAt", SortDirection.DESC), TestPages.order("u.userId", SortDirection.DESC));
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 6, 9, 0);
 
@@ -154,7 +161,7 @@ class UserPersistenceAdapterTest {
         User first = signUp("store_owner01", "김점주", "owner01@example.com", UserRole.STORE_OWNER);
         User second = signUp("wh_manager01", "이창고", "wh01@example.com", UserRole.WAREHOUSE_MANAGER);
 
-        List<User> found = userRepository.search(new UserSearchCondition(null, null, null));
+        List<User> found = userRepository.search(new UserSearchCondition(null, null, null), USER_PAGE).items();
 
         assertThat(found).extracting(User::getUserId)
                 .containsExactly(second.getUserId(), first.getUserId());
@@ -169,16 +176,16 @@ class UserPersistenceAdapterTest {
         owner.approve();
         userRepository.save(owner);
 
-        assertThat(userRepository.search(new UserSearchCondition(UserRole.STORE_OWNER, null, null)))
+        assertThat(userRepository.search(new UserSearchCondition(UserRole.STORE_OWNER, null, null), USER_PAGE).items())
                 .extracting(User::getUserId)
                 .containsExactlyInAnyOrder(owner.getUserId(), pendingOwner.getUserId());
-        assertThat(userRepository.search(new UserSearchCondition(null, UserStatus.PENDING, null)))
+        assertThat(userRepository.search(new UserSearchCondition(null, UserStatus.PENDING, null), USER_PAGE).items())
                 .extracting(User::getUserId)
                 .containsExactlyInAnyOrder(pendingOwner.getUserId(), manager.getUserId());
-        assertThat(userRepository.search(new UserSearchCondition(UserRole.STORE_OWNER, UserStatus.ACTIVE, null)))
+        assertThat(userRepository.search(new UserSearchCondition(UserRole.STORE_OWNER, UserStatus.ACTIVE, null), USER_PAGE).items())
                 .extracting(User::getUserId)
                 .containsExactly(owner.getUserId());
-        assertThat(userRepository.search(new UserSearchCondition(UserRole.HQ_ADMIN, null, null))).isEmpty();
+        assertThat(userRepository.search(new UserSearchCondition(UserRole.HQ_ADMIN, null, null), USER_PAGE).items()).isEmpty();
     }
 
     @Test
@@ -188,13 +195,33 @@ class UserPersistenceAdapterTest {
         User byLoginId = signUp("Seoul_Owner", "박점주", "b@example.com", UserRole.STORE_OWNER);
         User byEmail = signUp("owner_c", "최점주", "busan.owner@example.com", UserRole.STORE_OWNER);
 
-        assertThat(userRepository.search(new UserSearchCondition(null, null, "김")))
+        assertThat(userRepository.search(new UserSearchCondition(null, null, "김"), USER_PAGE).items())
                 .extracting(User::getUserId).containsExactly(byName.getUserId());
-        assertThat(userRepository.search(new UserSearchCondition(null, null, "seoul")))
+        assertThat(userRepository.search(new UserSearchCondition(null, null, "seoul"), USER_PAGE).items())
                 .extracting(User::getUserId).containsExactly(byLoginId.getUserId());
-        assertThat(userRepository.search(new UserSearchCondition(null, null, "BUSAN")))
+        assertThat(userRepository.search(new UserSearchCondition(null, null, "BUSAN"), USER_PAGE).items())
                 .extracting(User::getUserId).containsExactly(byEmail.getUserId());
-        assertThat(userRepository.search(new UserSearchCondition(null, null, "  "))).hasSize(3);
-        assertThat(userRepository.search(new UserSearchCondition(null, null, "없는검색어"))).isEmpty();
+        assertThat(userRepository.search(new UserSearchCondition(null, null, "  "), USER_PAGE).items()).hasSize(3);
+        assertThat(userRepository.search(new UserSearchCondition(null, null, "없는검색어"), USER_PAGE).items()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("목록 검색: 페이지 크기만큼 자르고 필터가 반영된 전체 건수와 정렬을 돌려준다")
+    void searchPaging() {
+        signUp("pg_user_c", "다사용자", "pg_c@example.com", UserRole.STORE_OWNER);
+        signUp("pg_user_a", "가사용자", "pg_a@example.com", UserRole.STORE_OWNER);
+        signUp("pg_user_b", "나사용자", "pg_b@example.com", UserRole.STORE_OWNER);
+        signUp("pg_other", "라창고", "pg_d@example.com", UserRole.WAREHOUSE_MANAGER);
+        UserSearchCondition owners = new UserSearchCondition(UserRole.STORE_OWNER, null, "pg_");
+        List<SortOrder> byName = List.of(
+                TestPages.order("u.name", SortDirection.ASC), TestPages.order("u.userId", SortDirection.ASC));
+
+        PageResult<User> first = userRepository.search(owners, new PageCondition(1, 2, byName));
+        PageResult<User> second = userRepository.search(owners, new PageCondition(2, 2, byName));
+
+        assertThat(first.items()).extracting(User::getName).containsExactly("가사용자", "나사용자");
+        assertThat(second.items()).extracting(User::getName).containsExactly("다사용자");
+        assertThat(first.totalElements()).isEqualTo(3);
+        assertThat(first.totalPages()).isEqualTo(2);
     }
 }

@@ -1,10 +1,12 @@
 package com.kb.wms.store.adapter.out.persistence;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.persistence.PageAdapter;
 import com.kb.wms.common.persistence.SearchKeyword;
 import com.kb.wms.store.adapter.out.persistence.entity.StoreJpaEntity;
 import com.kb.wms.store.adapter.out.persistence.repository.StoreJpaRepository;
@@ -33,13 +35,12 @@ public class StorePersistenceAdapter implements StoreRepository {
     }
 
     @Override
-    public List<Store> search(StoreSearchCondition condition) {
-        return storeJpaRepository.search(
+    public PageResult<Store> search(StoreSearchCondition condition, PageCondition page) {
+        return PageAdapter.toPageResult(storeJpaRepository.search(
                         SearchKeyword.normalize(condition.keyword()),
-                        StoreStatus.fromActiveFlag(condition.isActive()))
-                .stream()
-                .map(StoreJpaEntity::toDomain)
-                .toList();
+                        StoreStatus.fromActiveFlag(condition.isActive()),
+                        PageAdapter.toPageable(page)),
+                page, StoreJpaEntity::toDomain);
     }
 
     @Override

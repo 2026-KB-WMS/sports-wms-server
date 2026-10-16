@@ -1,13 +1,14 @@
 package com.kb.wms.store.application.service;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.store.application.port.in.StoreMemberUseCase;
 import com.kb.wms.store.application.port.in.command.StoreMemberAssignCommand;
 import com.kb.wms.store.application.port.in.result.StoreMemberView;
@@ -63,11 +64,12 @@ public class StoreMemberService implements StoreMemberUseCase {
     }
 
     @Override
-    public List<StoreMemberView> getManagers(Long storeId, Long userId, String keyword) {
+    public PageResult<StoreMemberView> getManagers(Long storeId, Long userId, String keyword,
+                                                   PageCondition page) {
         if (storeId != null && !storeRepository.existsById(storeId)) {
             throw new BusinessException(StoreErrorCode.STORE_NOT_FOUND);
         }
-        return storeMemberRepository.search(storeId, userId, keyword);
+        return storeMemberRepository.search(storeId, userId, keyword, page);
     }
 
     @Override

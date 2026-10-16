@@ -1,5 +1,6 @@
 package com.kb.wms.auth.adapter.in.web;
 
+import static org.mockito.ArgumentMatchers.eq;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -26,6 +27,11 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.kb.wms.common.paging.SortOrder;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.TestPages;
 import com.kb.wms.auth.application.port.in.UserManagementUseCase;
 import com.kb.wms.auth.application.port.in.UserUseCase;
 import com.kb.wms.auth.application.port.in.command.UserUpdateCommand;
@@ -87,7 +93,8 @@ class UserControllerTest {
     @Test
     @DisplayName("사용자 목록은 data.items로 반환하고 필터를 조건으로 넘긴다")
     void getUsers_success() throws Exception {
-        when(userUseCase.getUsers(any(UserSearchCondition.class))).thenReturn(List.of(user(UserStatus.PENDING)));
+        when(userUseCase.getUsers(any(UserSearchCondition.class), any()))
+                .thenReturn(TestPages.resultOf(List.of(user(UserStatus.PENDING))));
 
         mockMvc.perform(get("/api/v1/users")
                         .param("role", "STORE_OWNER")
@@ -103,20 +110,20 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.data.items[0].passwordHash").doesNotExist());
 
         ArgumentCaptor<UserSearchCondition> captor = ArgumentCaptor.forClass(UserSearchCondition.class);
-        verify(userUseCase).getUsers(captor.capture());
+        verify(userUseCase).getUsers(captor.capture(), any());
         assertThat(captor.getValue()).isEqualTo(new UserSearchCondition(UserRole.STORE_OWNER, UserStatus.PENDING, "김"));
     }
 
     @Test
     @DisplayName("필터가 없으면 모든 조건을 null로 넘기고 결과가 없으면 빈 배열이다")
     void getUsers_noFilter() throws Exception {
-        when(userUseCase.getUsers(any(UserSearchCondition.class))).thenReturn(List.of());
+        when(userUseCase.getUsers(any(UserSearchCondition.class), any())).thenReturn(TestPages.resultOf(List.of()));
 
         mockMvc.perform(get("/api/v1/users").with(authentication(principal(UserRole.HQ_ADMIN))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items").isEmpty());
 
-        verify(userUseCase).getUsers(new UserSearchCondition(null, null, null));
+        verify(userUseCase).getUsers(eq(new UserSearchCondition(null, null, null)), any());
     }
 
     @Test
@@ -310,5 +317,63 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
 
         verifyNoInteractions(userManagementUseCase);
+    }
+
+    @Test
+    @DisplayName("사용자 목록은 page·size·sort를 페이지 조건으로 넘기고 pageInfo를 담아 반환한다")
+    void getUsers_paging() throws Exception {
+        when(userUseCase.getUsers(any(UserSearchCondition.class), any()))
+                .thenReturn(new PageResult<>(List.of(), 2, 5, 11, "name,asc"));
+
+        mockMvc.perform(get("/api/v1/users").param("page", "2").param("size", "5").param("sort", "name,asc").with(authentication(principal(UserRole.HQ_ADMIN))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty())
+                .andExpect(jsonPath("$.data.pageInfo.page").value(2))
+                .andExpect(jsonPath("$.data.pageInfo.size").value(5))
+                .andExpect(jsonPath("$.data.pageInfo.totalElements").value(11))
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(3))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("name,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(userUseCase).getUsers(any(UserSearchCondition.class), captor.capture());
+        PageCondition page = captor.getValue();
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.orders()).extracting(SortOrder::property).containsExactly("u.name", "u.userId");
+        assertThat(page.orders()).extracting(SortOrder::direction).containsOnly(SortDirection.ASC);
+    }
+
+    @Test
+    @DisplayName("사용자 목록은 page·size·sort를 생략하면 1페이지, 20건, 기본 정렬(createdAt,desc)이다")
+    void getUsers_defaultPaging() throws Exception {
+        when(userUseCase.getUsers(any(UserSearchCondition.class), any()))
+                .thenReturn(new PageResult<>(List.of(), 1, 20, 0, "createdAt,desc"));
+
+        mockMvc.perform(get("/api/v1/users").with(authentication(principal(UserRole.HQ_ADMIN))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("createdAt,desc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(userUseCase).getUsers(any(UserSearchCondition.class), captor.capture());
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(20);
+        assertThat(captor.getValue().sortLabel()).isEqualTo("createdAt,desc");
+    }
+
+    @Test
+    @DisplayName("사용자 목록의 허용되지 않은 sort 필드와 범위를 벗어난 page·size는 400을 반환한다")
+    void getUsers_invalidPaging() throws Exception {
+        mockMvc.perform(get("/api/v1/users").param("sort", "unknown,asc").with(authentication(principal(UserRole.HQ_ADMIN))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/users").param("sort", "name,up").with(authentication(principal(UserRole.HQ_ADMIN))))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/users").param("size", "101").with(authentication(principal(UserRole.HQ_ADMIN))))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/users").param("page", "0").with(authentication(principal(UserRole.HQ_ADMIN))))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(userUseCase);
     }
 }

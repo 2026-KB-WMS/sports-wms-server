@@ -1,5 +1,7 @@
 package com.kb.wms.store.adapter.in.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static com.kb.wms.common.security.TestAuth.as;
 import static com.kb.wms.common.security.TestAuth.signInAsHqAdmin;
 import static com.kb.wms.common.security.TestAuth.storeOwner;
@@ -16,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,6 +31,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kb.wms.common.paging.SortOrder;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.TestPages;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.UserRole;
@@ -100,8 +108,8 @@ class StoreControllerTest {
     @DisplayName("지점 목록을 조회하면 200과 목록을 반환한다")
     void getStores_success() throws Exception {
         Store store = Store.register("ST-GANGNAM", "강남점", "서울시 강남구", "김점주", "02-333-1234");
-        when(storeUseCase.getStores(new StoreSearchCondition("강남", true)))
-                .thenReturn(List.of(store));
+        when(storeUseCase.getStores(eq(new StoreSearchCondition("강남", true)), any()))
+                .thenReturn(TestPages.resultOf(List.of(store)));
 
         mockMvc.perform(get("/api/v1/stores").param("keyword", "강남").param("isActive", "true"))
                 .andExpect(status().isOk())
@@ -214,5 +222,63 @@ class StoreControllerTest {
                         .content(objectMapper.writeValueAsString(java.util.Map.of("reason", "가".repeat(501)))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    @DisplayName("지점 목록은 page·size·sort를 페이지 조건으로 넘기고 pageInfo를 담아 반환한다")
+    void getStores_paging() throws Exception {
+        when(storeUseCase.getStores(any(StoreSearchCondition.class), any()))
+                .thenReturn(new PageResult<>(List.of(), 2, 5, 11, "storeName,asc"));
+
+        mockMvc.perform(get("/api/v1/stores").param("page", "2").param("size", "5").param("sort", "storeName,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty())
+                .andExpect(jsonPath("$.data.pageInfo.page").value(2))
+                .andExpect(jsonPath("$.data.pageInfo.size").value(5))
+                .andExpect(jsonPath("$.data.pageInfo.totalElements").value(11))
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(3))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("storeName,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(storeUseCase).getStores(any(StoreSearchCondition.class), captor.capture());
+        PageCondition page = captor.getValue();
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.orders()).extracting(SortOrder::property).containsExactly("s.name", "s.storeId");
+        assertThat(page.orders()).extracting(SortOrder::direction).containsOnly(SortDirection.ASC);
+    }
+
+    @Test
+    @DisplayName("지점 목록은 page·size·sort를 생략하면 1페이지, 20건, 기본 정렬(createdAt,desc)이다")
+    void getStores_defaultPaging() throws Exception {
+        when(storeUseCase.getStores(any(StoreSearchCondition.class), any()))
+                .thenReturn(new PageResult<>(List.of(), 1, 20, 0, "createdAt,desc"));
+
+        mockMvc.perform(get("/api/v1/stores"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("createdAt,desc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(storeUseCase).getStores(any(StoreSearchCondition.class), captor.capture());
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(20);
+        assertThat(captor.getValue().sortLabel()).isEqualTo("createdAt,desc");
+    }
+
+    @Test
+    @DisplayName("지점 목록의 허용되지 않은 sort 필드와 범위를 벗어난 page·size는 400을 반환한다")
+    void getStores_invalidPaging() throws Exception {
+        mockMvc.perform(get("/api/v1/stores").param("sort", "unknown,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/stores").param("sort", "storeName,up"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/stores").param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/stores").param("page", "0"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(storeUseCase);
     }
 }

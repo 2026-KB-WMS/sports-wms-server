@@ -2,6 +2,8 @@ package com.kb.wms.store.application.port.in;
 
 import java.util.List;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.store.application.port.in.command.StoreRegisterCommand;
 import com.kb.wms.store.application.port.in.command.StoreUpdateCommand;
@@ -18,7 +20,7 @@ public interface StoreUseCase {
 
     Store registerStore(StoreRegisterCommand command);
 
-    List<Store> getStores(StoreSearchCondition condition);
+    PageResult<Store> getStores(StoreSearchCondition condition, PageCondition page);
 
     Store getStore(Long storeId);
 

@@ -5,6 +5,9 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.persistence.PageAdapter;
 import com.kb.wms.common.persistence.SearchKeyword;
 import com.kb.wms.store.adapter.out.persistence.entity.StoreMemberJpaEntity;
 import com.kb.wms.store.adapter.out.persistence.repository.StoreMemberJpaRepository;
@@ -32,8 +35,9 @@ public class StoreMemberPersistenceAdapter implements StoreMemberRepository {
     }
 
     @Override
-    public List<StoreMemberView> search(Long storeId, Long userId, String keyword) {
-        return storeMemberJpaRepository.search(storeId, userId, SearchKeyword.normalize(keyword));
+    public PageResult<StoreMemberView> search(Long storeId, Long userId, String keyword, PageCondition page) {
+        return PageAdapter.toPageResult(storeMemberJpaRepository.search(
+                storeId, userId, SearchKeyword.normalize(keyword), PageAdapter.toPageable(page)), page);
     }
 
     @Override

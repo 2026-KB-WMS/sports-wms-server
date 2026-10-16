@@ -1,7 +1,5 @@
 package com.kb.wms.auth.adapter.in.web;
 
-import java.util.List;
-
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -18,8 +16,11 @@ import com.kb.wms.auth.application.port.in.UserManagementUseCase;
 import com.kb.wms.auth.application.port.in.UserUseCase;
 import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
 import com.kb.wms.auth.domain.enums.UserStatus;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.SortSpec;
 import com.kb.wms.common.response.ApiResponse;
-import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.common.response.PageResponse;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.security.UserRole;
 
@@ -30,7 +31,6 @@ import lombok.RequiredArgsConstructor;
 /**
  * 계정 관리(본사 관리자 전용, SecurityConfig가 HQ_ADMIN만 허용).
  * GET /api/v1/users, PATCH /api/v1/users/{userId}
- * 페이지네이션은 전 도메인 일괄 도입 시 적용한다.
  */
 @Tag(name = "계정 관리")
 @RestController
@@ -41,16 +41,29 @@ public class UserController {
     private final UserUseCase userUseCase;
     private final UserManagementUseCase userManagementUseCase;
 
+    /** 목록 정렬 규칙. 기본은 가입 일시 최신순. */
+    static final SortSpec LIST_SORT = SortSpec.builder()
+            .field("createdAt", "u.createdAt")
+            .field("name", "u.name")
+            .field("loginId", "u.loginId")
+            .field("role", "u.role")
+            .field("status", "u.status")
+            .defaultOrder("createdAt", SortDirection.DESC)
+            .tieBreaker("u.userId")
+            .build();
+
     @GetMapping
-    public ApiResponse<ItemsResponse<UserSummaryResponse>> getUsers(
+    public ApiResponse<PageResponse<UserSummaryResponse>> getUsers(
             @RequestParam(required = false) UserRole role,
             @RequestParam(required = false) UserStatus status,
-            @RequestParam(required = false) String keyword) {
-        List<UserSummaryResponse> items = userUseCase.getUsers(new UserSearchCondition(role, status, keyword))
-                .stream()
-                .map(UserSummaryResponse::of)
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
+        return ApiResponse.ok(PageResponse.of(
+                userUseCase.getUsers(new UserSearchCondition(role, status, keyword), pageCondition),
+                UserSummaryResponse::of));
     }
 
     @PatchMapping("/{userId}")

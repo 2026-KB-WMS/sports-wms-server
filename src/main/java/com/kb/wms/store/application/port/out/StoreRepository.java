@@ -1,8 +1,9 @@
 package com.kb.wms.store.application.port.out;
 
-import java.util.List;
 import java.util.Optional;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.store.application.port.in.query.StoreSearchCondition;
 import com.kb.wms.store.domain.entity.Store;
 
@@ -15,8 +16,8 @@ public interface StoreRepository {
 
     Optional<Store> findById(Long storeId);
 
-    /** 조건이 null이면 해당 조건은 무시한다. 생성 일시 내림차순. */
-    List<Store> search(StoreSearchCondition condition);
+    /** 조건이 null이면 해당 조건은 무시한다. 정렬·페이지는 {@code page}가 정한다. */
+    PageResult<Store> search(StoreSearchCondition condition, PageCondition page);
 
     boolean existsById(Long storeId);
 

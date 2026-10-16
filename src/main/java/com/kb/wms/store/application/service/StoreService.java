@@ -10,6 +10,8 @@ import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.locationcode.LocationCodeIssuer;
 import com.kb.wms.common.locationcode.LocationType;
 import com.kb.wms.common.locationcode.RegionCode;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.statushistory.domain.entity.StatusHistory;
@@ -67,8 +69,8 @@ public class StoreService implements StoreUseCase {
     }
 
     @Override
-    public List<Store> getStores(StoreSearchCondition condition) {
-        return storeRepository.search(condition);
+    public PageResult<Store> getStores(StoreSearchCondition condition, PageCondition page) {
+        return storeRepository.search(condition, page);
     }
 
     @Override

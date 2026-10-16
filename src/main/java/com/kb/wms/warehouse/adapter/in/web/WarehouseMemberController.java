@@ -1,7 +1,5 @@
 package com.kb.wms.warehouse.adapter.in.web;
 
-import java.util.List;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,8 +11,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.SortSpec;
 import com.kb.wms.common.response.ApiResponse;
-import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.common.response.PageResponse;
 import com.kb.wms.warehouse.adapter.in.web.dto.request.WarehouseMemberAssignRequest;
 import com.kb.wms.warehouse.adapter.in.web.dto.response.WarehouseMemberReleaseResponse;
 import com.kb.wms.warehouse.adapter.in.web.dto.response.WarehouseMemberResponse;
@@ -47,16 +48,28 @@ public class WarehouseMemberController {
         return ApiResponse.created(toResponse(member));
     }
 
+    /** 목록 정렬 규칙. 기본은 배정 일시 최신순. */
+    static final SortSpec LIST_SORT = SortSpec.builder()
+            .field("assignedAt", "m.assignedAt")
+            .field("userName", "u.name")
+            .field("loginId", "u.loginId")
+            .field("memberRole", "m.memberRole")
+            .defaultOrder("assignedAt", SortDirection.DESC)
+            .tieBreaker("m.warehouseMemberId")
+            .build();
+
     @GetMapping
-    public ApiResponse<ItemsResponse<WarehouseMemberResponse>> getManagers(
+    public ApiResponse<PageResponse<WarehouseMemberResponse>> getManagers(
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) Long userId,
-            @RequestParam(required = false) String keyword) {
-        List<WarehouseMemberResponse> items =
-                warehouseMemberUseCase.getManagers(warehouseId, userId, keyword).stream()
-                .map(this::toResponse)
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
+        return ApiResponse.ok(PageResponse.of(
+                warehouseMemberUseCase.getManagers(warehouseId, userId, keyword, pageCondition),
+                this::toResponse));
     }
 
     @DeleteMapping("/{warehouseMemberId}")

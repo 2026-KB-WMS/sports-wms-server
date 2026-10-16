@@ -2,6 +2,8 @@ package com.kb.wms.store.adapter.out.persistence.repository;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -20,8 +22,8 @@ public interface StoreMemberJpaRepository extends JpaRepository<StoreMemberJpaEn
             """)
     List<StoreMemberJpaEntity> findByUserId(@Param("userId") Long userId);
 
-    /** 사용자 테이블을 ID로 조인해 이름·로그인 아이디를 붙이고 keyword로 거른다(읽기 전용 조인). */
-    @Query("""
+    /** 사용자 테이블을 ID로 조인해 이름·로그인 아이디를 붙이고 keyword로 거른다(읽기 전용 조인). 정렬·페이징은 {@code Pageable}이 정한다. */
+    @Query(value = """
             select new com.kb.wms.store.application.port.in.result.StoreMemberView(
                 m.storeMemberId, m.storeId, m.userId, u.name, u.loginId, m.memberRole, m.assignedAt)
             from StoreMemberJpaEntity m
@@ -31,9 +33,19 @@ public interface StoreMemberJpaRepository extends JpaRepository<StoreMemberJpaEn
               and (:keyword is null
                    or lower(u.name) like lower(concat('%', :keyword, '%'))
                    or lower(u.loginId) like lower(concat('%', :keyword, '%')))
-            order by m.assignedAt desc, m.storeMemberId desc
+            """,
+            countQuery = """
+            select count(m)
+            from StoreMemberJpaEntity m
+            join UserJpaEntity u on u.userId = m.userId
+            where (:storeId is null or m.storeId = :storeId)
+              and (:userId is null or m.userId = :userId)
+              and (:keyword is null
+                   or lower(u.name) like lower(concat('%', :keyword, '%'))
+                   or lower(u.loginId) like lower(concat('%', :keyword, '%')))
             """)
-    List<StoreMemberView> search(@Param("storeId") Long storeId,
+    Page<StoreMemberView> search(@Param("storeId") Long storeId,
                                  @Param("userId") Long userId,
-                                 @Param("keyword") String keyword);
+                                 @Param("keyword") String keyword,
+                                 Pageable pageable);
 }

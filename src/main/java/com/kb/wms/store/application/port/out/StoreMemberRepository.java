@@ -3,6 +3,8 @@ package com.kb.wms.store.application.port.out;
 import java.util.List;
 import java.util.Optional;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.store.application.port.in.result.StoreMemberView;
 import com.kb.wms.store.domain.entity.StoreMember;
 
@@ -17,9 +19,9 @@ public interface StoreMemberRepository {
 
     /**
      * 사용자의 이름·로그인 아이디를 붙여 조회한다. 조건이 null이면 무시하고, keyword는 이름·로그인 아이디
-     * 부분 일치(대소문자 무시)다. 배정 일시 내림차순.
+     * 부분 일치(대소문자 무시)다. 정렬·페이지는 {@code page}가 정한다.
      */
-    List<StoreMemberView> search(Long storeId, Long userId, String keyword);
+    PageResult<StoreMemberView> search(Long storeId, Long userId, String keyword, PageCondition page);
 
     /** 사용자가 배정된 지점 소속 목록. 배정 일시 내림차순. */
     List<StoreMember> findByUserId(Long userId);
