@@ -11,6 +11,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.auth.application.port.in.UserManagementUseCase;
 import com.kb.wms.auth.application.port.in.UserUseCase;
 import com.kb.wms.auth.application.port.in.command.UserSignupCommand;
@@ -33,6 +36,10 @@ import com.kb.wms.warehouse.application.port.in.command.WarehouseRegisterCommand
 @SpringBootTest
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class UserApprovalWithAffiliationTest {
+
+    private static final PageCondition WM_PAGE = TestPages.firstPage(TestPages.order("m.assignedAt", SortDirection.DESC), TestPages.order("m.warehouseMemberId", SortDirection.DESC));
+
+    private static final PageCondition SM_PAGE = TestPages.firstPage(TestPages.order("m.assignedAt", SortDirection.DESC), TestPages.order("m.storeMemberId", SortDirection.DESC));
 
     private static final Long ADMIN_ID = 9_999L;
     private static final String PASSWORD = "P@ssw0rd!";
@@ -64,7 +71,7 @@ class UserApprovalWithAffiliationTest {
         User result = userManagementUseCase.updateUser(approve(user.getUserId(), warehouseId, null));
 
         assertThat(result.getStatus()).isEqualTo(UserStatus.ACTIVE);
-        assertThat(warehouseMemberUseCase.getManagers(warehouseId, user.getUserId(), null)).hasSize(1);
+        assertThat(warehouseMemberUseCase.getManagers(warehouseId, user.getUserId(), null, WM_PAGE).items()).hasSize(1);
     }
 
     @Test
@@ -77,7 +84,7 @@ class UserApprovalWithAffiliationTest {
         User result = userManagementUseCase.updateUser(approve(user.getUserId(), null, storeId));
 
         assertThat(result.getStatus()).isEqualTo(UserStatus.ACTIVE);
-        assertThat(storeMemberUseCase.getManagers(storeId, user.getUserId(), null)).hasSize(1);
+        assertThat(storeMemberUseCase.getManagers(storeId, user.getUserId(), null, SM_PAGE).items()).hasSize(1);
     }
 
     @Test

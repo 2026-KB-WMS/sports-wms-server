@@ -21,6 +21,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.auth.application.port.in.command.ChangePasswordCommand;
 import com.kb.wms.auth.application.port.in.command.UserSignupCommand;
 import com.kb.wms.auth.application.port.in.command.UserUpdateCommand;
@@ -39,6 +42,8 @@ import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
+
+    private static final PageCondition USER_PAGE = TestPages.firstPage(TestPages.order("u.createdAt", SortDirection.DESC), TestPages.order("u.userId", SortDirection.DESC));
 
     private static final Long ADMIN_ID = 1L;
     private static final Long USER_ID = 12L;
@@ -191,9 +196,9 @@ class UserServiceTest {
     void getUsers() {
         UserSearchCondition condition = new UserSearchCondition(UserRole.STORE_OWNER, UserStatus.PENDING, "김");
         List<User> users = List.of(userWith(USER_ID, UserRole.STORE_OWNER, UserStatus.PENDING));
-        when(userRepository.search(condition)).thenReturn(users);
+        when(userRepository.search(condition, USER_PAGE)).thenReturn(TestPages.resultOf(users));
 
-        assertThat(userService.getUsers(condition)).isEqualTo(users);
+        assertThat(userService.getUsers(condition, USER_PAGE).items()).isEqualTo(users);
     }
 
     @Test

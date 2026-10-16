@@ -13,7 +13,7 @@
 | 메서드 | 트랜잭션 | 설명 |
 |---|---|---|
 | `assignManager(command)` | 쓰기 | 아래 검증 순서 |
-| `getManagers(storeId, userId, keyword)` | 읽기 | `storeId`가 있으면 존재 확인(`STORE_NOT_FOUND`) 후 검색 |
+| `getManagers(storeId, userId, keyword, page)` | 읽기 | `storeId`가 있으면 존재 확인(`STORE_NOT_FOUND`) 후 검색 |
 | `releaseManager(memberId)` | 쓰기 | 없으면 `MEMBER_NOT_FOUND`, 있으면 삭제 |
 
 ## assignManager 검증 순서

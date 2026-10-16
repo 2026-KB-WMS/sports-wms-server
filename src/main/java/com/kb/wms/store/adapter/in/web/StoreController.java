@@ -14,9 +14,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.SortSpec;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.response.ApiResponse;
 import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.common.response.PageResponse;
 import com.kb.wms.store.adapter.in.web.dto.request.StoreDeactivateRequest;
 import com.kb.wms.store.adapter.in.web.dto.request.StoreRegisterRequest;
 import com.kb.wms.store.adapter.in.web.dto.request.StoreUpdateRequest;
@@ -51,15 +55,27 @@ public class StoreController {
         return ApiResponse.created(StoreResponse.from(store));
     }
 
+    /** 목록 정렬 규칙. 기본은 등록 일시 최신순. */
+    static final SortSpec LIST_SORT = SortSpec.builder()
+            .field("createdAt", "s.createdAt")
+            .field("storeName", "s.name")
+            .field("storeCode", "s.storeCode")
+            .field("isActive", "s.status")
+            .defaultOrder("createdAt", SortDirection.DESC)
+            .tieBreaker("s.storeId")
+            .build();
+
     @GetMapping
-    public ApiResponse<ItemsResponse<StoreSummaryResponse>> getStores(
+    public ApiResponse<PageResponse<StoreSummaryResponse>> getStores(
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Boolean isActive) {
-        List<StoreSummaryResponse> items = storeUseCase
-                .getStores(new StoreSearchCondition(keyword, isActive)).stream()
-                .map(StoreSummaryResponse::from)
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
+        return ApiResponse.ok(PageResponse.of(
+                storeUseCase.getStores(new StoreSearchCondition(keyword, isActive), pageCondition),
+                StoreSummaryResponse::from));
     }
 
     @GetMapping("/my")

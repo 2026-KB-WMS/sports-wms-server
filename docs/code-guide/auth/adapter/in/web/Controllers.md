@@ -19,7 +19,7 @@
 
 | 메서드 | 경로 | 상태 | 쿼리·바디 | 응답 | 설명 |
 |---|---|---|---|---|---|
-| `getUsers` | GET `/` | 200 | `role`, `status`, `keyword` | `ItemsResponse<UserSummaryResponse>` | 사용자 목록. 가입 승인 대기는 `status=PENDING` |
+| `getUsers` | GET `/` | 200 | `role`, `status`, `keyword`, `page`, `size`, `sort` | `PageResponse<UserSummaryResponse>` | 사용자 목록(정렬 필드: `createdAt`, `name`, `loginId`, `role`, `status`). 가입 승인 대기는 `status=PENDING` |
 | `updateUser` | PATCH `/{userId}` | 200 | `UserUpdateRequest` | `UserUpdateResponse` | 부분 수정. **승인·반려·비활성화·재활성화도 `status` 변경으로 처리**, 승인과 함께 소속 지정 가능 |
 
 `updateUser`는 `UserUseCase`가 아니라 **`UserManagementUseCase`**를 호출해 승인과 소속 배정을 한 트랜잭션으로 처리한다. 요청 관리자의 ID(`principal.userId()`)를 `actorUserId`로 넘긴다.

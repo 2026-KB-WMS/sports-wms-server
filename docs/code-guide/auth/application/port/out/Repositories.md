@@ -10,7 +10,7 @@
 | `findById(id)` | 단건 |
 | `findByIdForUpdate(id)` | 행을 잠그고 조회. 상태 변경처럼 동시 수정을 막아야 할 때 |
 | `findByLoginId(loginId)` | 아이디로 조회. 아이디는 **소문자로 통일해 저장**하므로 호출 전에 같은 형식으로 맞춘다 |
-| `search(condition)` | 생성 일시 내림차순 |
+| `search(condition, page)` | `PageResult` 반환. 정렬은 페이지 조건을 따른다(기본 생성 일시 내림차순) |
 | `existsByLoginId`, `existsByEmail` | 중복 확인 |
 | `existsByEmailAndUserIdNot(email, userId)` | 본인을 제외한 이메일 중복 (수정 시) |
 | `existsByRole(role)` | 해당 역할의 계정이 하나라도 있는지 (최초 본사 관리자 생성 판단) |

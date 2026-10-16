@@ -1,13 +1,13 @@
 # Store API 명세
 
 > 기준은 레포. 2026-10-02 Notion(최종 수정 2026-09-24)에서 이전. 공통 규칙은 [conventions.md](conventions.md) 참고.
-> Base path: `/api/v1/stores`. 목록 API는 `data.items`만 반환(페이지네이션 보류). 404는 도메인별 코드 사용.
+> Base path: `/api/v1/stores`. 목록 API 중 지점(`GET /stores`)과 지점 담당자 배정(`GET /stores/managers`)은 `page`·`size`·`sort`와 `data.pageInfo`를 지원하고, 내 지점·코드 목록은 페이징 없이 `data.items`만 반환한다. 404는 도메인별 코드 사용.
 
 ## 구현 대비 메모
 
 - Notion의 상태 컬럼은 이 도메인 전부 "시작 전"이지만 코드는 구현되어 있음(상태 컬럼이 오래됨, 코드 기준으로 판단).
-- Notion 명세의 `pageInfo`와 일반 `NOT_FOUND`/`CONFLICT`는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
-- 목록 API는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고). `GET /stores/my`는 토큰 주체(`userId`)의 소속 지점을 돌려주며 `userId` 쿼리 파라미터를 받지 않는다(#170에서 인증 적용). 지점 비활성화의 처리자(`changed_by`)도 토큰 주체이며 `userId` 파라미터를 받지 않는다. 지점 단건의 담당 지점 검사는 서비스가 토큰의 `storeIds`로 한다.
+- Notion 명세의 일반 `NOT_FOUND`/`CONFLICT`는 현재 구현 기준(도메인별 404)과 다름 → conventions.md 기준 따름.
+- 지점(`GET /stores`)과 지점 담당자 배정(`GET /stores/managers`) 목록만 페이징·정렬을 지원한다(#294). 내 지점 목록은 페이징 없이 고정 정렬을 쓴다(각 절의 "정렬" 참고). `GET /stores/my`는 토큰 주체(`userId`)의 소속 지점을 돌려주며 `userId` 쿼리 파라미터를 받지 않는다(#170에서 인증 적용). 지점 비활성화의 처리자(`changed_by`)도 토큰 주체이며 `userId` 파라미터를 받지 않는다. 지점 단건의 담당 지점 검사는 서비스가 토큰의 `storeIds`로 한다.
 - 지점 비활성화의 `STORE_IN_USE` 검사는 구현했다(#141). 지점 행을 잠그지 않아 같은 순간의 발주 등록과는 경합할 수 있다(그렇게 생긴 발주는 승인할 수 없고 취소·반려만 가능).
 - `GET /stores/managers`의 404는 존재하지 않는 `storeId`에만 적용한다. 존재하지 않는 `userId`는 404 없이 빈 `items`를 반환한다.
 - 지점 재활성화는 `PATCH /stores/{storeId}/activate`로 한다([ADR-014](../adr/014-reactivation-and-sku-deactivation-guard.md)). 상태 이력(`StatusHistory`, `INACTIVE`→`ACTIVE`)에 처리자를 기록하며 사유는 받지 않는다.
@@ -40,8 +40,8 @@
 
 ## GET /stores (P0)
 
-- HQ_ADMIN 전용(점주는 403, `GET /stores/my` 사용). Query: `keyword`(지점명·코드), `isActive`(생략 시 전체). `sort`는 받지 않는다.
-- 정렬은 고정(등록 일시 `createdAt` 내림차순, 같으면 `storeId` 내림차순).
+- HQ_ADMIN 전용(점주는 403, `GET /stores/my` 사용). Query: `keyword`(지점명·코드), `isActive`(생략 시 전체), `page`, `size`, `sort`. 응답은 `data.items`와 `data.pageInfo`([ADR-032](../adr/032-pagination-and-sorting.md), 공통 규칙은 [conventions.md](conventions.md)).
+- 정렬: 기본은 등록 일시 `createdAt` 내림차순(같으면 `storeId` 내림차순). `sort` 가능 필드: `createdAt`, `storeName`, `storeCode`, `isActive`.
 - 응답 항목: `storeId, storeCode, storeName, address, latitude, longitude, contactName, contactNumber, isActive`. 지점별 발주·재고 현황은 미포함.
 
 ## GET /stores/{storeId} (P1)
@@ -79,8 +79,8 @@
 
 ## GET /stores/managers (P2)
 
-- HQ_ADMIN. Query: `storeId`, `userId`. `keyword`(사용자 이름·로그인 ID, 부분 일치·대소문자 무시, 공백만 있으면 조건 없음)로 거른다. `sort`는 받지 않는다.
-- 정렬은 고정(배정 일시 `assignedAt` 내림차순, 같으면 `storeMemberId` 내림차순).
+- HQ_ADMIN. Query: `storeId`, `userId`. `keyword`(사용자 이름·로그인 ID, 부분 일치·대소문자 무시, 공백만 있으면 조건 없음)로 거른다. `page`·`size`·`sort`를 받고 응답은 `data.items`와 `data.pageInfo`다([ADR-032](../adr/032-pagination-and-sorting.md), 공통 규칙은 [conventions.md](conventions.md)).
+- 정렬: 기본은 배정 일시 `assignedAt` 내림차순(같으면 `storeMemberId` 내림차순). `sort` 가능 필드: `assignedAt`, `userName`, `loginId`, `memberRole`. 지점명은 응답을 만들 때 채우므로 정렬 필드가 아니다.
 - 응답 항목: `storeMemberId, storeId, storeName, userId, userName, loginId, memberRole, assignedAt`(비밀번호 등 민감 정보는 제외). 사용자 이름·로그인 ID는 사용자 테이블을 ID로 조인해 채운다. 같은 `userId`가 여러 지점으로 여러 행 가능.
 - 에러: 404(존재하지 않는 필터 값)
 

@@ -1,13 +1,13 @@
 # Warehouse API 명세
 
 > 기준은 레포. 2026-10-02 Notion(최종 수정 2026-09-24)에서 이전. 공통 규칙은 [conventions.md](conventions.md) 참고.
-> Base path: `/api/v1/warehouses`. 목록 API는 `data.items`만 반환(페이지네이션 보류). 404는 도메인별 코드 사용.
+> Base path: `/api/v1/warehouses`. 목록 API 중 창고 관리자 배정(`GET /warehouses/managers`)은 `page`·`size`·`sort`와 `data.pageInfo`를 지원하고, 나머지 목록(창고·내 창고·구역·코드)은 페이징 없이 `data.items`만 반환한다. 404는 도메인별 코드 사용.
 
 ## 구현 대비 메모
 
 - `DELETE /warehouses/sections/{sectionId}`는 #214에서 구현했다. 아래 명세와 "구현 대비 메모"가 같다.
-- Notion 명세의 `pageInfo`와 일반 `NOT_FOUND`/`CONFLICT` 코드는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
-- 목록 API는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고). `GET /warehouses/my`는 토큰 주체(`userId`)의 소속 창고를 돌려주며 `userId` 쿼리 파라미터는 받지 않는다(#170에서 인증 적용). 창고·구역 단건과 창고별 구역 목록의 담당 창고 검사는 서비스가 토큰의 `warehouseIds`로 한다.
+- Notion 명세의 일반 `NOT_FOUND`/`CONFLICT` 코드는 현재 구현 기준(도메인별 404)과 다름 → conventions.md 기준 따름.
+- 창고 관리자 배정 목록(`GET /warehouses/managers`)만 페이징·정렬을 지원한다(#294). 창고·내 창고·구역 목록은 마스터 데이터를 한 번에 쓰는 용도라 페이징 없이 고정 정렬을 쓴다(각 절의 "정렬" 참고). 창고 관리자 배정 목록은 이전에 정렬 지정이 없었고 이제 기본이 배정 일시 `assignedAt` 내림차순이라, 첫 페이지의 순서가 이전 응답과 다를 수 있다. `GET /warehouses/my`는 토큰 주체(`userId`)의 소속 창고를 돌려주며 `userId` 쿼리 파라미터는 받지 않는다(#170에서 인증 적용). 창고·구역 단건과 창고별 구역 목록의 담당 창고 검사는 서비스가 토큰의 `warehouseIds`로 한다.
 - 창고·구역 재활성화는 `PATCH .../activate`로 한다([ADR-014](../adr/014-reactivation-and-sku-deactivation-guard.md)). 구역은 창고와 상위 구역이 활성일 때만 가능하다.
 - 수용량 필수·관계 검증(#211, [ADR-018](../adr/018-warehouse-capacity-required-and-hierarchy.md)): 창고 `totalCapacity`와 구역 `capacity`는 등록 시 필수(0 이상, 0 허용)다. 같은 상위 구역 아래 활성 구역들의 `capacity` 합은 상위 구역 `capacity`를, 최상위 활성 구역들의 합은 창고 `totalCapacity`를 넘을 수 없다(0은 "미설정"이 아니라 한도 0). 구역 등록·`capacity` 증가·재활성화에서 넘으면 409 `PARENT_CAPACITY_EXCEEDED`, 상위 수용량을 활성 하위 합보다 작게 줄이면 409 `CAPACITY_BELOW_CHILDREN`이다. 기존 0 수용량 창고·구역은 수정으로 값을 채워야 하위 구역을 추가할 수 있다.
 - 확정 필요(미결): `memberRole` 허용 값(예시 `MANAGER`), `sectionType` 허용 값(`DEFECT` 확정, `ZONE`/`RACK` 예시), 토큰의 소속 정보 갱신 시점, 관리자 0명이 되는 회수 허용 여부, "진행 중 업무" 범위.
@@ -51,7 +51,7 @@
 
 ### GET /warehouses
 
-- HQ_ADMIN 전용. Query: `keyword`(창고명·코드), `isActive`(생략 시 전체). `page`·`size`·`sort`는 받지 않는다(페이지네이션 보류).
+- HQ_ADMIN 전용. Query: `keyword`(창고명·코드), `isActive`(생략 시 전체). `page`·`size`·`sort`는 받지 않는다(페이징 없음).
 - 정렬은 고정(등록 일시 `createdAt` 내림차순, 같으면 `warehouseId` 내림차순).
 - 응답 항목: `warehouseId, warehouseCode, warehouseName, address, latitude, longitude, contactNumber, totalCapacity, isActive`. 구역별 수용량은 미포함.
 
@@ -92,8 +92,8 @@
 
 ### GET /warehouses/managers (P2)
 
-- HQ_ADMIN. Query: `warehouseId`, `userId`. `keyword`(사용자 이름·로그인 ID, 부분 일치·대소문자 무시, 공백만 있으면 조건 없음)로 거른다.
-- 정렬은 명시하지 않는다(현재 코드에 정렬 지정 없음).
+- HQ_ADMIN. Query: `warehouseId`, `userId`, `page`, `size`, `sort`. `keyword`(사용자 이름·로그인 ID, 부분 일치·대소문자 무시, 공백만 있으면 조건 없음)로 거른다. 응답은 `data.items`와 `data.pageInfo`([ADR-032](../adr/032-pagination-and-sorting.md), 공통 규칙은 [conventions.md](conventions.md)).
+- 정렬: 기본은 배정 일시 `assignedAt` 내림차순(같으면 `warehouseMemberId` 내림차순). `sort` 가능 필드: `assignedAt`, `userName`, `loginId`, `memberRole`. 창고명은 응답을 만들 때 채우므로 정렬 필드가 아니다.
 - 응답 항목: `warehouseMemberId, warehouseId, warehouseName, userId, userName, loginId, memberRole, assignedAt`(password 등 민감 정보는 제외). 사용자 이름·로그인 ID는 사용자 테이블을 ID로 조인해 채운다.
 - 같은 `userId`가 여러 창고로 여러 행 가능(UNIQUE는 warehouse_id+user_id). 에러: 존재하지 않는 필터 값 404
 

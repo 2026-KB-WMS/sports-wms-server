@@ -1,7 +1,5 @@
 package com.kb.wms.auth.application.port.in;
 
-import java.util.List;
-
 import com.kb.wms.auth.application.port.in.command.ChangePasswordCommand;
 import com.kb.wms.auth.application.port.in.command.InitialHqAdminCommand;
 import com.kb.wms.auth.application.port.in.command.UserSignupCommand;
@@ -10,6 +8,8 @@ import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
 import com.kb.wms.auth.application.port.in.result.InitialHqAdminResult;
 import com.kb.wms.auth.application.port.in.result.UserView;
 import com.kb.wms.auth.domain.entity.User;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 
 /**
  * 가입·계정 관리 유스케이스.
@@ -27,7 +27,7 @@ public interface UserUseCase {
     /** 다른 도메인이 사용자 역할·상태를 확인할 때 쓴다. 없으면 USER_NOT_FOUND. 엔티티를 내보내지 않는다. */
     UserView getUserView(Long userId);
 
-    List<User> getUsers(UserSearchCondition condition);
+    PageResult<User> getUsers(UserSearchCondition condition, PageCondition page);
 
     /**
      * 부분 수정. 상태가 바뀌면 StatusHistory(USER)를 같은 트랜잭션에서 기록한다.

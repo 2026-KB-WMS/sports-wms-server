@@ -11,7 +11,7 @@
 | 메서드 | 경로 | 상태 | 요청 | 응답 | 설명 |
 |---|---|---|---|---|---|
 | `assignManager` | POST `/` | 201 | `WarehouseMemberAssignRequest` | `WarehouseMemberResponse` | 창고 관리자 배정 |
-| `getManagers` | GET `/` | 200 | 쿼리 `warehouseId`, `userId`, `keyword` (모두 선택) | `ItemsResponse<WarehouseMemberResponse>` | 배정 목록 |
+| `getManagers` | GET `/` | 200 | 쿼리 `warehouseId`, `userId`, `keyword`, `page`, `size`, `sort` (모두 선택) | `PageResponse<WarehouseMemberResponse>` | 배정 목록(정렬 필드: `assignedAt`, `userName`, `loginId`, `memberRole`) |
 | `releaseManager` | DELETE `/{warehouseMemberId}` | 200 | - | `WarehouseMemberReleaseResponse` | 배정 해제 |
 
 세 엔드포인트 모두 HQ_ADMIN 전용(`SecurityConfig`의 `/warehouses/**` 규칙: GET `/warehouses/managers`는 HQ_ADMIN, 그 외는 `/warehouses/**` 기본 규칙).

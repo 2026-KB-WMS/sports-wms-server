@@ -1,7 +1,7 @@
 package com.kb.wms.store.application.port.in;
 
-import java.util.List;
-
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.store.application.port.in.command.StoreMemberAssignCommand;
 import com.kb.wms.store.application.port.in.result.StoreMemberView;
 
@@ -20,7 +20,7 @@ public interface StoreMemberUseCase {
     /**
      * storeId·userId·keyword(사용자 이름·로그인 아이디 부분 일치)가 null이면 해당 조건을 무시하고 조회한다.
      */
-    List<StoreMemberView> getManagers(Long storeId, Long userId, String keyword);
+    PageResult<StoreMemberView> getManagers(Long storeId, Long userId, String keyword, PageCondition page);
 
     void releaseManager(Long storeMemberId);
 }

@@ -1,8 +1,9 @@
 package com.kb.wms.auth.adapter.out.persistence.repository;
 
-import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -30,7 +31,8 @@ public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
 
     boolean existsByRole(UserRole role);
 
-    @Query("""
+    /** 정렬·페이징은 {@code Pageable}이 정한다. */
+    @Query(value = """
             select u from UserJpaEntity u
             where (:role is null or u.role = :role)
               and (:status is null or u.status = :status)
@@ -38,9 +40,18 @@ public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
                    or lower(u.name) like lower(concat('%', :keyword, '%'))
                    or lower(u.loginId) like lower(concat('%', :keyword, '%'))
                    or lower(u.email) like lower(concat('%', :keyword, '%')))
-            order by u.createdAt desc, u.userId desc
+            """,
+            countQuery = """
+            select count(u) from UserJpaEntity u
+            where (:role is null or u.role = :role)
+              and (:status is null or u.status = :status)
+              and (:keyword is null
+                   or lower(u.name) like lower(concat('%', :keyword, '%'))
+                   or lower(u.loginId) like lower(concat('%', :keyword, '%'))
+                   or lower(u.email) like lower(concat('%', :keyword, '%')))
             """)
-    List<UserJpaEntity> search(@Param("role") UserRole role,
+    Page<UserJpaEntity> search(@Param("role") UserRole role,
                                @Param("status") UserStatus status,
-                               @Param("keyword") String keyword);
+                               @Param("keyword") String keyword,
+                               Pageable pageable);
 }

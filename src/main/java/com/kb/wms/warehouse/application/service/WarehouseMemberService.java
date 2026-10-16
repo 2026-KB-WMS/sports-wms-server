@@ -1,13 +1,14 @@
 package com.kb.wms.warehouse.application.service;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.warehouse.application.port.in.WarehouseMemberUseCase;
 import com.kb.wms.warehouse.application.port.in.command.WarehouseMemberAssignCommand;
 import com.kb.wms.warehouse.application.port.in.result.WarehouseMemberView;
@@ -64,11 +65,12 @@ public class WarehouseMemberService implements WarehouseMemberUseCase {
     }
 
     @Override
-    public List<WarehouseMemberView> getManagers(Long warehouseId, Long userId, String keyword) {
+    public PageResult<WarehouseMemberView> getManagers(Long warehouseId, Long userId, String keyword,
+                                                       PageCondition page) {
         if (warehouseId != null && !warehouseRepository.existsById(warehouseId)) {
             throw new BusinessException(WarehouseErrorCode.WAREHOUSE_NOT_FOUND);
         }
-        return warehouseMemberRepository.search(warehouseId, userId, keyword);
+        return warehouseMemberRepository.search(warehouseId, userId, keyword, page);
     }
 
     @Override

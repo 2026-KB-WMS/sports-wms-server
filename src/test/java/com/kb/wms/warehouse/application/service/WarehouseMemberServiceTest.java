@@ -19,6 +19,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.auth.domain.enums.UserStatus;
 import com.kb.wms.auth.exception.AuthErrorCode;
 import com.kb.wms.common.exception.BusinessException;
@@ -35,6 +38,8 @@ import com.kb.wms.warehouse.exception.WarehouseErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class WarehouseMemberServiceTest {
+
+    private static final PageCondition WM_PAGE = TestPages.firstPage(TestPages.order("m.assignedAt", SortDirection.DESC), TestPages.order("m.warehouseMemberId", SortDirection.DESC));
 
     @Mock
     private WarehouseMemberRepository warehouseMemberRepository;
@@ -190,12 +195,12 @@ class WarehouseMemberServiceTest {
     void getManagers_passesFilters() {
         WarehouseMemberView member = new WarehouseMemberView(5L, 1L, 10L, "김담당", "member01", "MANAGER", null);
         when(warehouseRepository.existsById(1L)).thenReturn(true);
-        when(warehouseMemberRepository.search(1L, 10L, "김")).thenReturn(List.of(member));
+        when(warehouseMemberRepository.search(1L, 10L, "김", WM_PAGE)).thenReturn(TestPages.resultOf(List.of(member)));
 
-        List<WarehouseMemberView> result = warehouseMemberService.getManagers(1L, 10L, "김");
+        List<WarehouseMemberView> result = warehouseMemberService.getManagers(1L, 10L, "김", WM_PAGE).items();
 
         assertThat(result).hasSize(1);
-        verify(warehouseMemberRepository).search(eq(1L), eq(10L), eq("김"));
+        verify(warehouseMemberRepository).search(eq(1L), eq(10L), eq("김"), eq(WM_PAGE));
     }
 
     @Test
@@ -203,20 +208,20 @@ class WarehouseMemberServiceTest {
     void getManagers_warehouseNotFound() {
         when(warehouseRepository.existsById(999L)).thenReturn(false);
 
-        assertThatThrownBy(() -> warehouseMemberService.getManagers(999L, null, null))
+        assertThatThrownBy(() -> warehouseMemberService.getManagers(999L, null, null, WM_PAGE).items())
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(WarehouseErrorCode.WAREHOUSE_NOT_FOUND.name());
-        verify(warehouseMemberRepository, never()).search(any(), any(), any());
+        verify(warehouseMemberRepository, never()).search(any(), any(), any(), any());
     }
 
     @Test
     @DisplayName("warehouseId·userId·keyword가 없으면 전체 배정을 조회한다")
     void getManagers_withoutFilters_returnsAll() {
         WarehouseMemberView member = new WarehouseMemberView(5L, 1L, 10L, "김담당", "member01", "MANAGER", null);
-        when(warehouseMemberRepository.search(null, null, null)).thenReturn(List.of(member));
+        when(warehouseMemberRepository.search(null, null, null, WM_PAGE)).thenReturn(TestPages.resultOf(List.of(member)));
 
-        List<WarehouseMemberView> result = warehouseMemberService.getManagers(null, null, null);
+        List<WarehouseMemberView> result = warehouseMemberService.getManagers(null, null, null, WM_PAGE).items();
 
         assertThat(result).hasSize(1);
     }

@@ -18,6 +18,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.locationcode.LocationCodeIssuer;
@@ -40,6 +43,8 @@ import com.kb.wms.store.exception.StoreErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class StoreServiceTest {
+
+    private static final PageCondition STORE_PAGE = TestPages.firstPage(TestPages.order("s.createdAt", SortDirection.DESC), TestPages.order("s.storeId", SortDirection.DESC));
 
     @Mock
     private StoreRepository storeRepository;
@@ -87,9 +92,9 @@ class StoreServiceTest {
     void getStores_returnsAll() {
         Store store = Store.register("ST-GANGNAM", "강남점", "서울시 강남구", "김점주", "02-333-1234");
         StoreSearchCondition condition = new StoreSearchCondition("강남", true);
-        when(storeRepository.search(condition)).thenReturn(List.of(store));
+        when(storeRepository.search(condition, STORE_PAGE)).thenReturn(TestPages.resultOf(List.of(store)));
 
-        List<Store> result = storeService.getStores(condition);
+        List<Store> result = storeService.getStores(condition, STORE_PAGE).items();
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getStoreCode()).isEqualTo("ST-GANGNAM");

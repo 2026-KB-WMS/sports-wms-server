@@ -10,7 +10,7 @@
 | 엔드포인트 | GET `/api/v1/stores` (본사 전용) |
 | 만드는 곳 | `StoreController.getStores` |
 | 쓰는 곳 | `StoreService.getStores` → `StoreRepository.search` |
-| 정렬 | 생성 일시 내림차순, 같으면 `storeId` 내림차순 |
+| 정렬 | 기본은 생성 일시 내림차순, 같으면 `storeId` 내림차순. `sort`로 `createdAt`, `storeName`, `storeCode`, `isActive` 선택 |
 
 | 필드 | 설명 |
 |---|---|

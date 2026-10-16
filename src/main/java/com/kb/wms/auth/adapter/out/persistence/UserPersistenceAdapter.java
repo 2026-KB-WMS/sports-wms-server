@@ -1,6 +1,5 @@
 package com.kb.wms.auth.adapter.out.persistence;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Component;
@@ -10,6 +9,9 @@ import com.kb.wms.auth.adapter.out.persistence.repository.UserJpaRepository;
 import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.persistence.PageAdapter;
 import com.kb.wms.common.persistence.SearchKeyword;
 import com.kb.wms.common.security.UserRole;
 
@@ -44,14 +46,13 @@ public class UserPersistenceAdapter implements UserRepository {
     }
 
     @Override
-    public List<User> search(UserSearchCondition condition) {
-        return userJpaRepository.search(
+    public PageResult<User> search(UserSearchCondition condition, PageCondition page) {
+        return PageAdapter.toPageResult(userJpaRepository.search(
                         condition.role(),
                         condition.status(),
-                        SearchKeyword.normalize(condition.keyword()))
-                .stream()
-                .map(UserJpaEntity::toDomain)
-                .toList();
+                        SearchKeyword.normalize(condition.keyword()),
+                        PageAdapter.toPageable(page)),
+                page, UserJpaEntity::toDomain);
     }
 
     @Override

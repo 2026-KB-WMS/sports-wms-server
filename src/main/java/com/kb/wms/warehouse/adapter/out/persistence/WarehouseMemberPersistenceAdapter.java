@@ -5,6 +5,9 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.persistence.PageAdapter;
 import com.kb.wms.common.persistence.SearchKeyword;
 import com.kb.wms.warehouse.adapter.out.persistence.entity.WarehouseMemberJpaEntity;
 import com.kb.wms.warehouse.adapter.out.persistence.repository.WarehouseMemberJpaRepository;
@@ -33,8 +36,10 @@ public class WarehouseMemberPersistenceAdapter implements WarehouseMemberReposit
     }
 
     @Override
-    public List<WarehouseMemberView> search(Long warehouseId, Long userId, String keyword) {
-        return warehouseMemberJpaRepository.search(warehouseId, userId, SearchKeyword.normalize(keyword));
+    public PageResult<WarehouseMemberView> search(Long warehouseId, Long userId, String keyword,
+                                                  PageCondition page) {
+        return PageAdapter.toPageResult(warehouseMemberJpaRepository.search(
+                warehouseId, userId, SearchKeyword.normalize(keyword), PageAdapter.toPageable(page)), page);
     }
 
     @Override

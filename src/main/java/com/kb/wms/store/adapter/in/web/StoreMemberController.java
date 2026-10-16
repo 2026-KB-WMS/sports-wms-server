@@ -1,7 +1,5 @@
 package com.kb.wms.store.adapter.in.web;
 
-import java.util.List;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,8 +11,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.SortSpec;
 import com.kb.wms.common.response.ApiResponse;
-import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.common.response.PageResponse;
 import com.kb.wms.store.adapter.in.web.dto.request.StoreMemberAssignRequest;
 import com.kb.wms.store.adapter.in.web.dto.response.StoreMemberReleaseResponse;
 import com.kb.wms.store.adapter.in.web.dto.response.StoreMemberResponse;
@@ -46,15 +47,28 @@ public class StoreMemberController {
         return ApiResponse.created(toResponse(member));
     }
 
+    /** 목록 정렬 규칙. 기본은 배정 일시 최신순. */
+    static final SortSpec LIST_SORT = SortSpec.builder()
+            .field("assignedAt", "m.assignedAt")
+            .field("userName", "u.name")
+            .field("loginId", "u.loginId")
+            .field("memberRole", "m.memberRole")
+            .defaultOrder("assignedAt", SortDirection.DESC)
+            .tieBreaker("m.storeMemberId")
+            .build();
+
     @GetMapping("/managers")
-    public ApiResponse<ItemsResponse<StoreMemberResponse>> getManagers(
+    public ApiResponse<PageResponse<StoreMemberResponse>> getManagers(
             @RequestParam(required = false) Long storeId,
             @RequestParam(required = false) Long userId,
-            @RequestParam(required = false) String keyword) {
-        List<StoreMemberResponse> items = storeMemberUseCase.getManagers(storeId, userId, keyword).stream()
-                .map(this::toResponse)
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
+        return ApiResponse.ok(PageResponse.of(
+                storeMemberUseCase.getManagers(storeId, userId, keyword, pageCondition),
+                this::toResponse));
     }
 
     @DeleteMapping("/managers/{storeMemberId}")

@@ -18,7 +18,7 @@
 
 | 쿼리 | 설명 |
 |---|---|
-| `UserJpaRepository.search` | role·status 조건과 keyword(이름·로그인 아이디·이메일 부분 일치). 생성 일시 내림차순 |
+| `UserJpaRepository.search` | role·status 조건과 keyword(이름·로그인 아이디·이메일 부분 일치). 정렬·페이징은 `Pageable`이 정하고(기본 생성 일시 내림차순) 건수는 `countQuery`로 센다 |
 | `UserQueryJpaRepository.findWarehouseIds` | `WarehouseMemberJpaEntity`에서 사용자의 창고 ID (오름차순). 읽기 전용 크로스 도메인 조회(ADR-007) |
 | `UserQueryJpaRepository.findStoreIds` | `StoreMemberJpaEntity`에서 사용자의 지점 ID (오름차순) |
 

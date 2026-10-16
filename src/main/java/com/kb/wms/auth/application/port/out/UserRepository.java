@@ -1,10 +1,11 @@
 package com.kb.wms.auth.application.port.out;
 
-import java.util.List;
 import java.util.Optional;
 
 import com.kb.wms.auth.application.port.in.query.UserSearchCondition;
 import com.kb.wms.auth.domain.entity.User;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.UserRole;
 
 /**
@@ -22,8 +23,8 @@ public interface UserRepository {
     /** 로그인 아이디로 조회한다. 아이디는 소문자로 통일해 저장하므로 호출 전에 같은 형식으로 맞춘다. */
     Optional<User> findByLoginId(String loginId);
 
-    /** 조건이 null이면 해당 조건은 무시한다. 생성 일시 내림차순. */
-    List<User> search(UserSearchCondition condition);
+    /** 조건이 null이면 해당 조건은 무시한다. 정렬·페이지는 {@code page}가 정한다. */
+    PageResult<User> search(UserSearchCondition condition, PageCondition page);
 
     boolean existsByLoginId(String loginId);
 

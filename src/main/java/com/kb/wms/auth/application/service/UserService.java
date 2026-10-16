@@ -26,6 +26,8 @@ import com.kb.wms.auth.domain.enums.UserStatus;
 import com.kb.wms.auth.exception.AuthErrorCode;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.UserRole;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 
@@ -109,8 +111,8 @@ public class UserService implements UserUseCase {
     }
 
     @Override
-    public List<User> getUsers(UserSearchCondition condition) {
-        return userRepository.search(condition);
+    public PageResult<User> getUsers(UserSearchCondition condition, PageCondition page) {
+        return userRepository.search(condition, page);
     }
 
     @Override
