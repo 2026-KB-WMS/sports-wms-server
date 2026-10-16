@@ -1,6 +1,5 @@
 package com.kb.wms.outbound.adapter.in.web;
 
-import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -14,9 +13,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.SortSpec;
+import com.kb.wms.common.response.PageResponse;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.response.ApiResponse;
-import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.outbound.adapter.in.web.dto.request.OutboundReasonRequest;
 import com.kb.wms.outbound.adapter.in.web.dto.request.StockAllocateRequest;
 import com.kb.wms.outbound.adapter.in.web.dto.response.StockAllocateResponse;
@@ -56,21 +58,33 @@ public class AllocationController {
                 request.toCommand(principal.userId()), principal)));
     }
 
+    /** 목록 정렬 규칙. 기본은 할당 일시 최신순. */
+    private static final SortSpec LIST_SORT = SortSpec.builder()
+            .field("allocatedAt", "a.allocatedAt")
+            .field("status", "a.status")
+            .field("orderNo", "o.orderNo")
+            .field("skuCode", "k.skuCode")
+            .field("allocatedQuantity", "a.allocatedQuantity")
+            .defaultOrder("allocatedAt", SortDirection.DESC)
+            .tieBreaker("a.allocationId")
+            .build();
+
     @GetMapping
-    public ApiResponse<ItemsResponse<StockAllocationItemResponse>> getAllocations(
+    public ApiResponse<PageResponse<StockAllocationItemResponse>> getAllocations(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) Long storeOrderId,
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) Long skuId,
             @RequestParam(required = false) AllocationStatus status,
-            @RequestParam(required = false) String keyword) {
-        List<StockAllocationItemResponse> items = stockAllocationUseCase
-                .searchAllocations(StockAllocationSearchCondition.unscoped(
-                        storeOrderId, warehouseId, skuId, status, keyword), principal)
-                .stream()
-                .map(StockAllocationItemResponse::from)
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
+        return ApiResponse.ok(PageResponse.of(
+                stockAllocationUseCase.searchAllocations(StockAllocationSearchCondition.unscoped(
+                        storeOrderId, warehouseId, skuId, status, keyword), pageCondition, principal),
+                StockAllocationItemResponse::from));
     }
 
     @GetMapping("/{allocationId}")

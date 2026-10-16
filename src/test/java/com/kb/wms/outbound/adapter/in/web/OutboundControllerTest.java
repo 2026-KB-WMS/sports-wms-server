@@ -32,6 +32,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortOrder;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.security.UserRole;
 import com.kb.wms.outbound.application.port.in.OutboundFulfillmentUseCase;
@@ -139,9 +144,9 @@ class OutboundControllerTest {
     @Test
     @DisplayName("목록은 data.items와 필터를 전달하고 잘못된 status는 400")
     void list() throws Exception {
-        when(outboundUseCase.searchOutbounds(any(OutboundSearchCondition.class), any())).thenReturn(List.of(
+        when(outboundUseCase.searchOutbounds(any(OutboundSearchCondition.class), any(), any())).thenReturn(TestPages.resultOf(List.of(
                 new OutboundSummary(7L, "OB-20261005-0001", 3L, "SO-20261005-0001", 1L, "강남점", 2L,
-                        "서울 물류센터", OutboundStatus.READY, 2L, null, null, null, NOW)));
+                        "서울 물류센터", OutboundStatus.READY, 2L, null, null, null, NOW))));
 
         mockMvc.perform(get("/api/v1/outbounds").param("status", "READY").param("storeOrderId", "3"))
                 .andExpect(status().isOk())
@@ -150,7 +155,7 @@ class OutboundControllerTest {
                 .andExpect(jsonPath("$.data.items[0].shippedAt").doesNotExist());
 
         ArgumentCaptor<OutboundSearchCondition> captor = ArgumentCaptor.forClass(OutboundSearchCondition.class);
-        verify(outboundUseCase).searchOutbounds(captor.capture(), any());
+        verify(outboundUseCase).searchOutbounds(captor.capture(), any(), any());
         assertThat(captor.getValue().status()).isEqualTo(OutboundStatus.READY);
         assertThat(captor.getValue().storeOrderId()).isEqualTo(3L);
 
@@ -291,5 +296,63 @@ class OutboundControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ \"reason\": \"" + "가".repeat(501) + "\" }"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("출고 목록은 page·size·sort를 페이지 조건으로 넘기고 pageInfo를 담아 반환한다")
+    void list_paging() throws Exception {
+        when(outboundUseCase.searchOutbounds(any(OutboundSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 2, 5, 11, "outboundNo,asc"));
+
+        mockMvc.perform(get("/api/v1/outbounds").param("page", "2").param("size", "5").param("sort", "outboundNo,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty())
+                .andExpect(jsonPath("$.data.pageInfo.page").value(2))
+                .andExpect(jsonPath("$.data.pageInfo.size").value(5))
+                .andExpect(jsonPath("$.data.pageInfo.totalElements").value(11))
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(3))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("outboundNo,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(outboundUseCase).searchOutbounds(any(OutboundSearchCondition.class), captor.capture(), any());
+        PageCondition page = captor.getValue();
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.orders()).extracting(SortOrder::property).containsExactly("ob.outboundNo", "ob.outboundId");
+        assertThat(page.orders()).extracting(SortOrder::direction).containsOnly(SortDirection.ASC);
+    }
+
+    @Test
+    @DisplayName("출고 목록은 page·size·sort를 생략하면 1페이지, 20건, 기본 정렬(createdAt,desc)이다")
+    void list_defaultPaging() throws Exception {
+        when(outboundUseCase.searchOutbounds(any(OutboundSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 1, 20, 0, "createdAt,desc"));
+
+        mockMvc.perform(get("/api/v1/outbounds"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("createdAt,desc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(outboundUseCase).searchOutbounds(any(OutboundSearchCondition.class), captor.capture(), any());
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(20);
+        assertThat(captor.getValue().sortLabel()).isEqualTo("createdAt,desc");
+    }
+
+    @Test
+    @DisplayName("출고 목록의 허용되지 않은 sort 필드와 범위를 벗어난 page·size는 400을 반환한다")
+    void list_invalidPaging() throws Exception {
+        mockMvc.perform(get("/api/v1/outbounds").param("sort", "unknown,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/outbounds").param("sort", "outboundNo,up"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/outbounds").param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/outbounds").param("page", "0"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(outboundUseCase);
     }
 }

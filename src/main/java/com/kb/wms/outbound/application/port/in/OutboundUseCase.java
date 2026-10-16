@@ -2,6 +2,8 @@ package com.kb.wms.outbound.application.port.in;
 
 import java.util.List;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.outbound.application.port.in.command.OutboundCancelCommand;
 import com.kb.wms.outbound.application.port.in.command.OutboundCreateCommand;
@@ -30,7 +32,7 @@ public interface OutboundUseCase {
     /** READY 출고만 취소한다. 재고·할당·발주 상태는 그대로 두고, 할당은 다시 묶거나 해제할 수 있게 된다. */
     OutboundCancelResult cancel(OutboundCancelCommand command, AuthenticatedUser actor);
 
-    List<OutboundSummary> searchOutbounds(OutboundSearchCondition condition, AuthenticatedUser actor);
+    PageResult<OutboundSummary> searchOutbounds(OutboundSearchCondition condition, PageCondition page, AuthenticatedUser actor);
 
     OutboundDetail getOutbound(Long outboundId, AuthenticatedUser actor);
 }

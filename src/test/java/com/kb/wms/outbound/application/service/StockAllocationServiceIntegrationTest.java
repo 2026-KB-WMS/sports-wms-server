@@ -16,6 +16,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.security.UserRole;
@@ -73,6 +77,9 @@ import jakarta.persistence.EntityManager;
 @Transactional
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class StockAllocationServiceIntegrationTest {
+
+    private static final PageCondition AL_PAGE = TestPages.firstPage(
+            TestPages.order("a.allocatedAt", SortDirection.DESC), TestPages.order("a.allocationId", SortDirection.DESC));
 
     private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
 
@@ -482,8 +489,8 @@ class StockAllocationServiceIntegrationTest {
         stockSkuB();
         useCase.allocate(new StockAllocateCommand(order, USER), HQ);
 
-        List<StockAllocationSummary> all = useCase.searchAllocations(StockAllocationSearchCondition.unscoped(order, null, null, null, null), HQ);
-        List<StockAllocationSummary> released = useCase.searchAllocations(StockAllocationSearchCondition.unscoped(order, null, null, AllocationStatus.RELEASED, null), HQ);
+        List<StockAllocationSummary> all = useCase.searchAllocations(StockAllocationSearchCondition.unscoped(order, null, null, null, null), AL_PAGE, HQ).items();
+        List<StockAllocationSummary> released = useCase.searchAllocations(StockAllocationSearchCondition.unscoped(order, null, null, AllocationStatus.RELEASED, null), AL_PAGE, HQ).items();
 
         assertThat(all).hasSize(3);
         assertThat(released).isEmpty();

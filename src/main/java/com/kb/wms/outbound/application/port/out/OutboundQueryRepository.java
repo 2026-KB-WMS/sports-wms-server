@@ -4,6 +4,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.outbound.application.port.in.query.OutboundSearchCondition;
 import com.kb.wms.outbound.application.port.in.query.StockAllocationSearchCondition;
 import com.kb.wms.outbound.application.port.in.result.FefoStockCandidate;
@@ -20,7 +22,7 @@ import com.kb.wms.outbound.application.port.in.result.StockAllocationView;
 public interface OutboundQueryRepository {
 
     /** 할당 목록. 할당 일시 내림차순, 같으면 할당 ID 내림차순. */
-    List<StockAllocationSummary> searchAllocations(StockAllocationSearchCondition condition);
+    PageResult<StockAllocationSummary> searchAllocations(StockAllocationSearchCondition condition, PageCondition page);
 
     /** 할당 ID 목록의 요약(할당 ID 오름차순). 할당 생성 응답에 쓴다. 빈 컬렉션이면 빈 목록. */
     List<StockAllocationSummary> findAllocationSummaries(Collection<Long> allocationIds);
@@ -31,7 +33,7 @@ public interface OutboundQueryRepository {
     Optional<Long> findActiveOutboundIdByAllocationId(Long allocationId);
 
     /** 출고 목록. 생성 일시 내림차순, 같으면 출고 ID 내림차순. */
-    List<OutboundSummary> searchOutbounds(OutboundSearchCondition condition);
+    PageResult<OutboundSummary> searchOutbounds(OutboundSearchCondition condition, PageCondition page);
 
     Optional<OutboundView> findOutboundView(Long outboundId);
 

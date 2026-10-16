@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.outbound.application.port.in.OutboundUseCase;
 import com.kb.wms.outbound.application.port.in.command.OutboundCancelCommand;
@@ -195,7 +197,8 @@ public class OutboundService implements OutboundUseCase {
     }
 
     @Override
-    public List<OutboundSummary> searchOutbounds(OutboundSearchCondition condition, AuthenticatedUser actor) {
+    public PageResult<OutboundSummary> searchOutbounds(OutboundSearchCondition condition, PageCondition page,
+                                                       AuthenticatedUser actor) {
         List<Long> scope = actor.warehouseScope(condition.warehouseId());
         if (condition.createdFrom() != null && condition.createdTo() != null
                 && condition.createdFrom().isAfter(condition.createdTo())) {
@@ -203,7 +206,7 @@ public class OutboundService implements OutboundUseCase {
         }
         return outboundQueryRepository.searchOutbounds(new OutboundSearchCondition(
                 condition.status(), condition.warehouseId(), condition.storeId(), condition.storeOrderId(),
-                condition.keyword(), condition.createdFrom(), condition.createdTo(), scope));
+                condition.keyword(), condition.createdFrom(), condition.createdTo(), scope), page);
     }
 
     @Override

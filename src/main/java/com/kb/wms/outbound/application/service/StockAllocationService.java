@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.outbound.application.port.in.StockAllocationUseCase;
 import com.kb.wms.outbound.application.port.in.command.StockAllocateCommand;
@@ -167,12 +169,12 @@ public class StockAllocationService implements StockAllocationUseCase {
     }
 
     @Override
-    public List<StockAllocationSummary> searchAllocations(StockAllocationSearchCondition condition,
-                                                          AuthenticatedUser actor) {
+    public PageResult<StockAllocationSummary> searchAllocations(StockAllocationSearchCondition condition,
+                                                                PageCondition page, AuthenticatedUser actor) {
         List<Long> scope = actor.warehouseScope(condition.warehouseId());
         return outboundQueryRepository.searchAllocations(new StockAllocationSearchCondition(
                 condition.storeOrderId(), condition.warehouseId(), condition.skuId(), condition.status(),
-                condition.keyword(), scope));
+                condition.keyword(), scope), page);
     }
 
     @Override

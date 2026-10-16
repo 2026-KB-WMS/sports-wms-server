@@ -32,6 +32,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortOrder;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.security.UserRole;
 import com.kb.wms.outbound.application.port.in.StockAllocationUseCase;
@@ -146,7 +151,8 @@ class AllocationControllerTest {
     @Test
     @DisplayName("목록은 data.items와 필터를 전달하고 잘못된 status는 400")
     void list() throws Exception {
-        when(useCase.searchAllocations(any(StockAllocationSearchCondition.class), any())).thenReturn(List.of(summary()));
+        when(useCase.searchAllocations(any(StockAllocationSearchCondition.class), any(), any()))
+                .thenReturn(TestPages.resultOf(List.of(summary())));
 
         mockMvc.perform(get("/api/v1/allocations").param("storeOrderId", "3").param("status", "ALLOCATED")
                         .param("keyword", "LOT"))
@@ -155,7 +161,7 @@ class AllocationControllerTest {
 
         ArgumentCaptor<StockAllocationSearchCondition> captor =
                 ArgumentCaptor.forClass(StockAllocationSearchCondition.class);
-        verify(useCase).searchAllocations(captor.capture(), any());
+        verify(useCase).searchAllocations(captor.capture(), any(), any());
         assertThat(captor.getValue().storeOrderId()).isEqualTo(3L);
         assertThat(captor.getValue().status()).isEqualTo(AllocationStatus.ALLOCATED);
         assertThat(captor.getValue().keyword()).isEqualTo("LOT");
@@ -204,5 +210,63 @@ class AllocationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{ \"reason\": \"사유\" }"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("ALLOCATION_IN_OUTBOUND"));
+    }
+
+    @Test
+    @DisplayName("할당 목록은 page·size·sort를 페이지 조건으로 넘기고 pageInfo를 담아 반환한다")
+    void list_paging() throws Exception {
+        when(useCase.searchAllocations(any(StockAllocationSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 2, 5, 11, "skuCode,asc"));
+
+        mockMvc.perform(get("/api/v1/allocations").param("page", "2").param("size", "5").param("sort", "skuCode,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty())
+                .andExpect(jsonPath("$.data.pageInfo.page").value(2))
+                .andExpect(jsonPath("$.data.pageInfo.size").value(5))
+                .andExpect(jsonPath("$.data.pageInfo.totalElements").value(11))
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(3))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("skuCode,asc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(useCase).searchAllocations(any(StockAllocationSearchCondition.class), captor.capture(), any());
+        PageCondition page = captor.getValue();
+        assertThat(page.page()).isEqualTo(2);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.orders()).extracting(SortOrder::property).containsExactly("k.skuCode", "a.allocationId");
+        assertThat(page.orders()).extracting(SortOrder::direction).containsOnly(SortDirection.ASC);
+    }
+
+    @Test
+    @DisplayName("할당 목록은 page·size·sort를 생략하면 1페이지, 20건, 기본 정렬(allocatedAt,desc)이다")
+    void list_defaultPaging() throws Exception {
+        when(useCase.searchAllocations(any(StockAllocationSearchCondition.class), any(), any()))
+                .thenReturn(new PageResult<>(List.of(), 1, 20, 0, "allocatedAt,desc"));
+
+        mockMvc.perform(get("/api/v1/allocations"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.data.pageInfo.sort").value("allocatedAt,desc"));
+
+        ArgumentCaptor<PageCondition> captor = ArgumentCaptor.forClass(PageCondition.class);
+        verify(useCase).searchAllocations(any(StockAllocationSearchCondition.class), captor.capture(), any());
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(20);
+        assertThat(captor.getValue().sortLabel()).isEqualTo("allocatedAt,desc");
+    }
+
+    @Test
+    @DisplayName("할당 목록의 허용되지 않은 sort 필드와 범위를 벗어난 page·size는 400을 반환한다")
+    void list_invalidPaging() throws Exception {
+        mockMvc.perform(get("/api/v1/allocations").param("sort", "unknown,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/allocations").param("sort", "skuCode,up"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/allocations").param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/allocations").param("page", "0"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(useCase);
     }
 }
