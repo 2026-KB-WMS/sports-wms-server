@@ -13,7 +13,7 @@
 | 메서드 | 경로 | 상태 | 쿼리·바디 | 응답 | 설명 | 허용 역할 |
 |---|---|---|---|---|---|---|
 | `registerStoreOrder` | POST `/` | 201 | `StoreOrderRegisterRequest` | `StoreOrderRegisterResponse` | 발주 등록 | STORE_OWNER |
-| `getStoreOrders` | GET `/` | 200 | `status`, `storeId`, `warehouseId`, `keyword`, `requestedFrom`, `requestedTo`, `page`, `size`, `sort` | `PageResponse<StoreOrderListItemResponse>` | 전체 목록(정렬 필드: `requestedAt`, `requestedDeliveryAt`, `status`, `orderNo`, `storeName`, `warehouseName`) | HQ_ADMIN |
+| `getStoreOrders` | GET `/` | 200 | `status`, `storeId`, `warehouseId`, `keyword`, `requestedFrom`, `requestedTo`, `page`, `size`, `sort` | `PageResponse<StoreOrderListItemResponse>` | 전체 목록(정렬 필드: `requestedAt`, `requestedDeliveryAt`, `status`, `orderNo`, `storeName`, `warehouseName`, `lineCount`, `totalAmount`) | HQ_ADMIN |
 | `getMyStoreOrders` | GET `/my` | 200 | 위와 같음 | `PageResponse<StoreOrderListItemResponse>` | 내 발주 (점주: 담당 지점, 창고 관리자: 배정 창고) | STORE_OWNER, WAREHOUSE_MANAGER |
 | `getStoreOrder` | GET `/{orderId}` | 200 | - | `StoreOrderResponse` | 헤더 단건 | HQ_ADMIN, STORE_OWNER, WAREHOUSE_MANAGER |
 | `getStoreOrderDetails` | GET `/{orderId}/details` | 200 | - | `StoreOrderDetailsResponse` | 항목·출고·상태 이력 | 위와 같음 |

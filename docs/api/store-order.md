@@ -86,7 +86,7 @@
 
 - 권한: HQ_ADMIN만. 점주·창고 관리자는 `GET /orders/my`를 쓴다(403).
 - Query: `status`(REQUESTED/APPROVED/ASSIGNED/ON_HOLD/COMPLETED/CANCELED/REJECTED), `storeId`, `warehouseId`, `keyword`(주문 번호·지점명 부분 일치), `requestedFrom`, `requestedTo`(ISO-8601, 양 끝 포함: `>= requestedFrom`, `<= requestedTo`), `page`, `size`, `sort`.
-- 정렬: 기본은 `requestedAt` 내림차순(같으면 `storeOrderId` 내림차순). `sort` 가능 필드: `requestedAt`, `requestedDeliveryAt`, `status`, `orderNo`, `storeName`, `warehouseName`. 진행 단계(`progressStage`)는 저장 값이 아니라 정렬할 수 없다. 응답은 `data.items`와 `data.pageInfo`.
+- 정렬: 기본은 `requestedAt` 내림차순(같으면 `storeOrderId` 내림차순). `sort` 가능 필드: `requestedAt`, `requestedDeliveryAt`, `status`, `orderNo`, `storeName`, `warehouseName`, `lineCount`, `totalAmount`. 진행 단계(`progressStage`)는 저장 값이 아니라 정렬할 수 없다. 응답은 `data.items`와 `data.pageInfo`.
 - 응답 항목: `storeOrderId, orderNo, storeId, storeName, warehouseId, warehouseName, status, progressStage, requestedAt, requestedDeliveryAt, lineCount, totalAmount, latestOutboundStatus`
 - 에러: 400(`status` 값·일시 형식 오류, `requestedFrom`이 `requestedTo`보다 늦음, `page`·`size` 범위, 허용되지 않은 `sort`), 403, 404(존재하지 않는 `storeId`·`warehouseId` 필터)
 - 규칙: 미배정 발주(`REQUESTED`, `APPROVED`)는 `warehouseId`·`warehouseName`이 `null`. `latestOutboundStatus`는 가장 최근 출고의 상태이며 출고가 없으면 `null`. 항목별 수량은 `/details`. 조회 전용.

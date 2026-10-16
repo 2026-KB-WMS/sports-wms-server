@@ -71,6 +71,8 @@ public class StoreOrderController {
             .field("orderNo", "o.orderNo")
             .field("storeName", "s.name")
             .field("warehouseName", "w.name")
+            .field("lineCount", "count(l)")
+            .field("totalAmount", "sum(l.requestedQuantity * l.requestedUnitSupplyPrice)")
             .defaultOrder("requestedAt", SortDirection.DESC)
             .tieBreaker("o.storeOrderId")
             .build();
