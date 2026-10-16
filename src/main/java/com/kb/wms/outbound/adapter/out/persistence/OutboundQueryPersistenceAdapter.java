@@ -6,6 +6,9 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.persistence.PageAdapter;
 import com.kb.wms.common.persistence.SearchKeyword;
 import com.kb.wms.outbound.adapter.out.persistence.repository.OutboundQueryJpaRepository;
 import com.kb.wms.outbound.adapter.out.persistence.repository.StockAllocationQueryJpaRepository;
@@ -29,11 +32,13 @@ public class OutboundQueryPersistenceAdapter implements OutboundQueryRepository 
     private final OutboundQueryJpaRepository outboundQueryRepository;
 
     @Override
-    public List<StockAllocationSummary> searchAllocations(StockAllocationSearchCondition condition) {
-        return allocationQueryRepository.search(
+    public PageResult<StockAllocationSummary> searchAllocations(StockAllocationSearchCondition condition,
+                                                                PageCondition page) {
+        return PageAdapter.toPageResult(allocationQueryRepository.search(
                 condition.storeOrderId(), condition.warehouseId(), condition.skuId(), condition.status(),
                 SearchKeyword.normalize(condition.keyword()),
-                condition.warehouseIds() != null, scopeIds(condition.warehouseIds()));
+                condition.warehouseIds() != null, scopeIds(condition.warehouseIds()),
+                PageAdapter.toPageable(page)), page);
     }
 
     @Override
@@ -55,11 +60,12 @@ public class OutboundQueryPersistenceAdapter implements OutboundQueryRepository 
     }
 
     @Override
-    public List<OutboundSummary> searchOutbounds(OutboundSearchCondition condition) {
-        return outboundQueryRepository.search(
+    public PageResult<OutboundSummary> searchOutbounds(OutboundSearchCondition condition, PageCondition page) {
+        return PageAdapter.toPageResult(outboundQueryRepository.search(
                 condition.status(), condition.warehouseId(), condition.storeId(), condition.storeOrderId(),
                 SearchKeyword.normalize(condition.keyword()), condition.createdFrom(), condition.createdTo(),
-                condition.warehouseIds() != null, scopeIds(condition.warehouseIds()));
+                condition.warehouseIds() != null, scopeIds(condition.warehouseIds()),
+                PageAdapter.toPageable(page)), page);
     }
 
     /** JPQL의 IN에 빈 목록을 넘기지 않으려는 자리 값. 범위 조건을 쓰지 않거나 담당 창고가 없을 때 쓴다. */

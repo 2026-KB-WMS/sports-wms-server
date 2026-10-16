@@ -16,6 +16,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.security.UserRole;
@@ -68,6 +72,12 @@ import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 @Transactional
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class OutboundServiceIntegrationTest {
+
+    private static final PageCondition OB_PAGE = TestPages.firstPage(
+            TestPages.order("ob.createdAt", SortDirection.DESC), TestPages.order("ob.outboundId", SortDirection.DESC));
+
+    private static final PageCondition AL_PAGE = TestPages.firstPage(
+            TestPages.order("a.allocatedAt", SortDirection.DESC), TestPages.order("a.allocationId", SortDirection.DESC));
 
     private static final AuthenticatedUser HQ = new AuthenticatedUser(1L, UserRole.HQ_ADMIN, List.of(), List.of());
 
@@ -175,7 +185,7 @@ class OutboundServiceIntegrationTest {
         List<Long> ids = allocate();
         useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ);
         // 첫 출고를 취소해 할당을 다시 묶을 수 있게 한다
-        Long first = useCase.searchOutbounds(emptyCondition(), HQ).get(0).outboundId();
+        Long first = useCase.searchOutbounds(emptyCondition(), OB_PAGE, HQ).items().get(0).outboundId();
         useCase.cancel(new OutboundCancelCommand(first, "재작업", USER), HQ);
 
         OutboundCreateResult second = useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ);
@@ -255,7 +265,7 @@ class OutboundServiceIntegrationTest {
                 new OutboundCreateCommand(order, null, USER, List.of()), HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
 
-        assertThat(useCase.searchOutbounds(emptyCondition(), HQ)).isEmpty();
+        assertThat(useCase.searchOutbounds(emptyCondition(), OB_PAGE, HQ).items()).isEmpty();
     }
 
     // ---------- 피킹 시작 ----------
@@ -338,15 +348,15 @@ class OutboundServiceIntegrationTest {
         useCase.createOutbound(new OutboundCreateCommand(order, null, USER), HQ);
 
         List<OutboundSummary> ready = useCase.searchOutbounds(OutboundSearchCondition.unscoped(
-                OutboundStatus.READY, null, null, order, null, null, null), HQ);
+                OutboundStatus.READY, null, null, order, null, null, null), OB_PAGE, HQ).items();
         List<OutboundSummary> picking = useCase.searchOutbounds(OutboundSearchCondition.unscoped(
-                OutboundStatus.PICKING, null, null, null, null, null, null), HQ);
+                OutboundStatus.PICKING, null, null, null, null, null, null), OB_PAGE, HQ).items();
 
         assertThat(ready).hasSize(1);
         assertThat(picking).isEmpty();
         LocalDateTime now = LocalDateTime.now();
         assertThatThrownBy(() -> useCase.searchOutbounds(OutboundSearchCondition.unscoped(
-                null, null, null, null, null, now, now.minusDays(1)), HQ))
+                null, null, null, null, null, now, now.minusDays(1)), OB_PAGE, HQ))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("VALIDATION_ERROR"));
     }
 
@@ -416,25 +426,25 @@ class OutboundServiceIntegrationTest {
                 .map(i -> i.allocationId()).toList();
         Long outboundId = useCase.createOutbound(new OutboundCreateCommand(order, null, 7L), mine).view().outboundId();
 
-        assertThat(useCase.searchOutbounds(emptyCondition(), mine)).hasSize(1);
-        assertThat(useCase.searchOutbounds(emptyCondition(), other)).isEmpty();
+        assertThat(useCase.searchOutbounds(emptyCondition(), OB_PAGE, mine).items()).hasSize(1);
+        assertThat(useCase.searchOutbounds(emptyCondition(), OB_PAGE, other).items()).isEmpty();
         assertThat(allocationUseCase.searchAllocations(
                 com.kb.wms.outbound.application.port.in.query.StockAllocationSearchCondition.unscoped(
-                        null, null, null, null, null), mine)).hasSize(allocationIds.size());
+                        null, null, null, null, null), AL_PAGE, mine).items()).hasSize(allocationIds.size());
         assertThat(allocationUseCase.searchAllocations(
                 com.kb.wms.outbound.application.port.in.query.StockAllocationSearchCondition.unscoped(
-                        null, null, null, null, null), other)).isEmpty();
+                        null, null, null, null, null), AL_PAGE, other).items()).isEmpty();
 
         assertThatThrownBy(() -> useCase.getOutbound(outboundId, other))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
         assertThatThrownBy(() -> allocationUseCase.getAllocation(allocationIds.get(0), other))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
         assertThatThrownBy(() -> useCase.searchOutbounds(OutboundSearchCondition.unscoped(
-                null, warehouse, null, null, null, null, null), other))
+                null, warehouse, null, null, null, null, null), OB_PAGE, other))
                 .satisfies(e -> assertThat(errorCodeOf(e)).isEqualTo("FORBIDDEN"));
 
         // 본사는 전체를 본다
-        assertThat(useCase.searchOutbounds(emptyCondition(), HQ)).hasSize(1);
+        assertThat(useCase.searchOutbounds(emptyCondition(), OB_PAGE, HQ).items()).hasSize(1);
         assertThat(useCase.getOutbound(outboundId, HQ).view().outboundId()).isEqualTo(outboundId);
     }
 }

@@ -5,6 +5,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
@@ -18,8 +20,11 @@ import com.kb.wms.outbound.domain.enums.OutboundStatus;
 /** 출고 조회 전용. 다른 도메인 테이블은 ID 기준 읽기 전용 조인만 한다(ADR-007). */
 public interface OutboundQueryJpaRepository extends Repository<OutboundJpaEntity, Long> {
 
-    /** 출고에는 항목이 1개 이상이므로 항목과 inner join해 항목 수를 센다. 창고는 발주에 배정된 창고다. */
-    @Query("""
+    /**
+     * 출고에는 항목이 1개 이상이므로 항목과 inner join해 항목 수를 센다. 창고는 발주에 배정된 창고다.
+     * 정렬·페이징은 {@code Pageable}이 정하고, {@code group by} 쿼리라 건수 쿼리를 따로 둔다.
+     */
+    @Query(value = """
             select new com.kb.wms.outbound.application.port.in.result.OutboundSummary(
                 ob.outboundId, ob.outboundNo, o.storeOrderId, o.orderNo, o.storeId, st.name,
                 o.warehouseId, w.name, ob.status, count(l), ob.shippedAt, ob.shippedBy, su.name, ob.createdAt)
@@ -41,9 +46,26 @@ public interface OutboundQueryJpaRepository extends Repository<OutboundJpaEntity
               and (:createdTo is null or ob.createdAt <= :createdTo)
             group by ob.outboundId, ob.outboundNo, o.storeOrderId, o.orderNo, o.storeId, st.name,
                      o.warehouseId, w.name, ob.status, ob.shippedAt, ob.shippedBy, su.name, ob.createdAt
-            order by ob.createdAt desc, ob.outboundId desc
+            """,
+            countQuery = """
+            select count(distinct ob.outboundId)
+            from OutboundJpaEntity ob
+            join StoreOrderJpaEntity o on o.storeOrderId = ob.storeOrderId
+            join StoreJpaEntity st on st.storeId = o.storeId
+            left join WarehouseJpaEntity w on w.warehouseId = o.warehouseId
+            join OutboundLineJpaEntity l on l.outboundId = ob.outboundId
+            where (:status is null or ob.status = :status)
+              and (:warehouseId is null or o.warehouseId = :warehouseId)
+              and (:scoped = false or o.warehouseId in :warehouseIds)
+              and (:storeId is null or o.storeId = :storeId)
+              and (:storeOrderId is null or o.storeOrderId = :storeOrderId)
+              and (:keyword is null
+                   or lower(ob.outboundNo) like lower(concat('%', :keyword, '%'))
+                   or lower(o.orderNo) like lower(concat('%', :keyword, '%')))
+              and (:createdFrom is null or ob.createdAt >= :createdFrom)
+              and (:createdTo is null or ob.createdAt <= :createdTo)
             """)
-    List<OutboundSummary> search(@Param("status") OutboundStatus status,
+    Page<OutboundSummary> search(@Param("status") OutboundStatus status,
                                  @Param("warehouseId") Long warehouseId,
                                  @Param("storeId") Long storeId,
                                  @Param("storeOrderId") Long storeOrderId,
@@ -51,7 +73,8 @@ public interface OutboundQueryJpaRepository extends Repository<OutboundJpaEntity
                                  @Param("createdFrom") LocalDateTime createdFrom,
                                  @Param("createdTo") LocalDateTime createdTo,
                                  @Param("scoped") boolean scoped,
-                                 @Param("warehouseIds") Collection<Long> warehouseIds);
+                                 @Param("warehouseIds") Collection<Long> warehouseIds,
+                                 Pageable pageable);
 
     @Query("""
             select new com.kb.wms.outbound.application.port.in.result.OutboundView(

@@ -1,7 +1,6 @@
 package com.kb.wms.outbound.adapter.in.web;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -16,9 +15,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.SortSpec;
+import com.kb.wms.common.response.PageResponse;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.common.response.ApiResponse;
-import com.kb.wms.common.response.ItemsResponse;
 import com.kb.wms.outbound.adapter.in.web.dto.request.OutboundCreateRequest;
 import com.kb.wms.outbound.adapter.in.web.dto.request.OutboundPickingCompleteRequest;
 import com.kb.wms.outbound.adapter.in.web.dto.request.OutboundReasonRequest;
@@ -66,8 +68,21 @@ public class OutboundController {
                 outboundUseCase.createOutbound(request.toCommand(principal.userId()), principal)));
     }
 
+    /** 목록 정렬 규칙. 기본은 등록 일시 최신순. */
+    private static final SortSpec LIST_SORT = SortSpec.builder()
+            .field("createdAt", "ob.createdAt")
+            .field("shippedAt", "ob.shippedAt")
+            .field("status", "ob.status")
+            .field("outboundNo", "ob.outboundNo")
+            .field("storeName", "st.name")
+            .field("warehouseName", "w.name")
+            .field("lineCount", "count(l)")
+            .defaultOrder("createdAt", SortDirection.DESC)
+            .tieBreaker("ob.outboundId")
+            .build();
+
     @GetMapping
-    public ApiResponse<ItemsResponse<OutboundListItemResponse>> getOutbounds(
+    public ApiResponse<PageResponse<OutboundListItemResponse>> getOutbounds(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) OutboundStatus status,
             @RequestParam(required = false) Long warehouseId,
@@ -75,14 +90,15 @@ public class OutboundController {
             @RequestParam(required = false) Long storeOrderId,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdFrom,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdTo) {
-        List<OutboundListItemResponse> items = outboundUseCase
-                .searchOutbounds(OutboundSearchCondition.unscoped(
-                        status, warehouseId, storeId, storeOrderId, keyword, createdFrom, createdTo), principal)
-                .stream()
-                .map(OutboundListItemResponse::from)
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdTo,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
+        return ApiResponse.ok(PageResponse.of(
+                outboundUseCase.searchOutbounds(OutboundSearchCondition.unscoped(
+                        status, warehouseId, storeId, storeOrderId, keyword, createdFrom, createdTo), pageCondition, principal),
+                OutboundListItemResponse::from));
     }
 
     @GetMapping("/{outboundId}/details")

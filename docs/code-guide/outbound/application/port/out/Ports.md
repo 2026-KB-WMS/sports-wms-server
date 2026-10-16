@@ -39,11 +39,11 @@
 
 | 메서드 | 설명 |
 |---|---|
-| `searchAllocations(condition)` | 할당 일시 내림차순 |
+| `searchAllocations(condition, page)` | `PageResult` 반환. 정렬은 페이지 조건을 따른다(기본 할당 일시 내림차순) |
 | `findAllocationSummaries(ids)` | 할당 ID 목록 요약(ID 오름차순). 할당 생성 응답에 사용. 빈 컬렉션이면 빈 목록 |
 | `findAllocationView(id)` | 할당 상세 |
 | `findActiveOutboundIdByAllocationId(id)` | 할당이 연결된 **취소되지 않은** 출고 ID |
-| `searchOutbounds(condition)` | 생성 일시 내림차순 |
+| `searchOutbounds(condition, page)` | `PageResult` 반환. 정렬은 페이지 조건을 따른다(기본 생성 일시 내림차순) |
 | `findOutboundView(id)`, `findOutboundLineViews(id)` | 출고 헤더·항목 (항목 ID 오름차순) |
 | `findFefoCandidates(warehouseId, skuIds)` | SKU별 FEFO 후보. 품질 AVAILABLE, 로트 AVAILABLE, 구역 ACTIVE, 가용 > 0. 유통기한 빠른 순(없으면 뒤) → 로트 생성 순 → 재고 행 ID 순. **잠그지 않는 조회**이므로 실제 예약은 재고 유스케이스가 잠그고 다시 검증 |
 

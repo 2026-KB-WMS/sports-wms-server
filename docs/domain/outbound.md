@@ -94,7 +94,7 @@
 - 도메인 모델 폴더는 `domain/entity/`(`StockAllocation`, `Outbound`, `OutboundLine`), `domain/enums/`(`AllocationStatus`, `OutboundStatus`)로 나눈다. 모든 엔티티 참조는 `Long xxxId`만 쓴다(ADR-005).
 - 사용자에게 보이는 오류 메시지는 도메인별 `OutboundErrorCode` enum에서 서비스가 던지고, 도메인 모델의 가드 예외는 개발자용 메시지를 인라인으로 둔다.
 - 다른 도메인 데이터(지점명·창고명·SKU·로트·구역)는 조회 쿼리에서 ID 기준 읽기 전용 조인으로 가져온다(ADR-007).
-- 목록 페이지네이션은 전 도메인 일괄 적용 때까지 보류한다(`data.items`).
+- 목록(`GET /allocations`, `GET /outbounds`)은 페이지네이션·정렬을 지원한다(#291, [ADR-032](../adr/032-pagination-and-sorting.md)).
 - 수량 컬럼은 BIGINT, 단가는 DECIMAL(18,2)다. `created_by`·`allocated_by`·`shipped_by`처럼 회원 도메인이 없어 가리킬 수 없던 FK는 인덱스만 두었다가 V15에서 ALTER TABLE로 추가했다.
 
 ## 리뷰 시 자주 놓치는 지점

@@ -4,6 +4,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
@@ -17,7 +19,7 @@ import com.kb.wms.outbound.domain.enums.AllocationStatus;
 /** 재고 할당 조회 전용. 다른 도메인 테이블은 ID 기준 읽기 전용 조인만 한다(ADR-007). */
 public interface StockAllocationQueryJpaRepository extends Repository<StockAllocationJpaEntity, Long> {
 
-    @Query("""
+    @Query(value = """
             select new com.kb.wms.outbound.application.port.in.result.StockAllocationSummary(
                 a.allocationId, o.storeOrderId, o.orderNo, a.storeOrderLineId, o.warehouseId,
                 k.skuId, k.skuCode, k.name, a.inventoryLotId, lot.lotId, lot.lotNumber, lot.expiryDate,
@@ -39,15 +41,34 @@ public interface StockAllocationQueryJpaRepository extends Repository<StockAlloc
                    or lower(o.orderNo) like lower(concat('%', :keyword, '%'))
                    or lower(k.skuCode) like lower(concat('%', :keyword, '%'))
                    or lower(lot.lotNumber) like lower(concat('%', :keyword, '%')))
-            order by a.allocatedAt desc, a.allocationId desc
+            """,
+            countQuery = """
+            select count(a)
+            from StockAllocationJpaEntity a
+            join StoreOrderLineJpaEntity sl on sl.storeOrderLineId = a.storeOrderLineId
+            join StoreOrderJpaEntity o on o.storeOrderId = sl.storeOrderId
+            join ProductSkuJpaEntity k on k.skuId = sl.skuId
+            join InventoryLotJpaEntity il on il.inventoryLotId = a.inventoryLotId
+            join LotJpaEntity lot on lot.lotId = il.lotId
+            join WarehouseSectionJpaEntity sec on sec.sectionId = il.sectionId
+            where (:storeOrderId is null or o.storeOrderId = :storeOrderId)
+              and (:warehouseId is null or o.warehouseId = :warehouseId)
+              and (:scoped = false or o.warehouseId in :warehouseIds)
+              and (:skuId is null or k.skuId = :skuId)
+              and (:status is null or a.status = :status)
+              and (:keyword is null
+                   or lower(o.orderNo) like lower(concat('%', :keyword, '%'))
+                   or lower(k.skuCode) like lower(concat('%', :keyword, '%'))
+                   or lower(lot.lotNumber) like lower(concat('%', :keyword, '%')))
             """)
-    List<StockAllocationSummary> search(@Param("storeOrderId") Long storeOrderId,
+    Page<StockAllocationSummary> search(@Param("storeOrderId") Long storeOrderId,
                                         @Param("warehouseId") Long warehouseId,
                                         @Param("skuId") Long skuId,
                                         @Param("status") AllocationStatus status,
                                         @Param("keyword") String keyword,
                                         @Param("scoped") boolean scoped,
-                                        @Param("warehouseIds") Collection<Long> warehouseIds);
+                                        @Param("warehouseIds") Collection<Long> warehouseIds,
+                                        Pageable pageable);
 
     @Query("""
             select new com.kb.wms.outbound.application.port.in.result.StockAllocationSummary(

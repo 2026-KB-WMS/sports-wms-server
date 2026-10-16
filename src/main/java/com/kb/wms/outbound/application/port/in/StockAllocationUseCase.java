@@ -2,6 +2,8 @@ package com.kb.wms.outbound.application.port.in;
 
 import java.util.List;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.outbound.application.port.in.command.StockAllocateCommand;
 import com.kb.wms.outbound.application.port.in.command.StockAllocationReleaseCommand;
@@ -25,7 +27,8 @@ public interface StockAllocationUseCase {
     /** ALLOCATED 할당을 해제한다. 취소되지 않은 출고에 연결된 할당은 해제할 수 없다. */
     StockAllocationReleaseResult release(StockAllocationReleaseCommand command, AuthenticatedUser actor);
 
-    List<StockAllocationSummary> searchAllocations(StockAllocationSearchCondition condition, AuthenticatedUser actor);
+    PageResult<StockAllocationSummary> searchAllocations(StockAllocationSearchCondition condition, PageCondition page,
+                                                         AuthenticatedUser actor);
 
     StockAllocationDetail getAllocation(Long allocationId, AuthenticatedUser actor);
 }

@@ -14,7 +14,7 @@
 이전 시점에 확인한 Notion 명세와의 차이와, 구현하면서 정하는 규칙을 적는다. 달라진 점은 이 목록에 추가한다.
 
 - Notion 상태 컬럼은 "시작 전"이다.
-- Notion 명세의 `pageInfo`(`page`·`size`·`sort`)와 일반 `NOT_FOUND`는 현재 구현 기준과 다름 → conventions.md 기준을 따른다. 목록 API는 `data.items`만 반환하고 `page`·`size`는 지원하지 않는다(페이지네이션 보류). 404는 도메인 전용 코드를 쓴다(`OUTBOUND_NOT_FOUND`, `ALLOCATION_NOT_FOUND`로 확정. 발주·창고·지점·SKU는 각 도메인 코드).
+- Notion 명세의 `pageInfo`(`page`·`size`·`sort`)와 일반 `NOT_FOUND`는 현재 구현 기준과 다름 → conventions.md 기준을 따른다. 목록 API(`GET /allocations`, `GET /outbounds`)는 `page`·`size`·`sort`와 `data.pageInfo`를 지원한다([ADR-032](../adr/032-pagination-and-sorting.md), 공통 규칙은 [conventions.md](conventions.md)). 404는 도메인 전용 코드를 쓴다(`OUTBOUND_NOT_FOUND`, `ALLOCATION_NOT_FOUND`로 확정. 발주·창고·지점·SKU는 각 도메인 코드).
 - 인증·인가는 #170에서 적용했다. 처리 사용자는 토큰 주체이며 `userId` 쿼리 파라미터는 받지 않는다. 역할은 보안 설정이, 담당 창고 범위(발주에 배정된 창고)는 서비스가 검사한다: 단건·쓰기는 비담당 창고면 403, 목록은 창고를 생략하면 담당 창고로 좁히고 비담당 창고를 지정하면 403이다.
 - 모든 상태 변경과 사유는 `StatusHistory`에 기록한다(`entity_type`은 `OUTBOUND`, `STOCK_ALLOCATION`). 응답의 `cancelReason`은 이 이력에서 읽는다.
 - 출고에는 창고 컬럼이 없다. 창고 기준 조회·권한은 지점 발주의 `warehouse_id`를 쓴다.
@@ -71,9 +71,10 @@
 ## GET /allocations (P1)
 
 - 권한: HQ_ADMIN, WAREHOUSE_MANAGER(담당 창고 발주의 할당만)
-- Query: `storeOrderId`, `warehouseId`, `skuId`, `status`(`ALLOCATED`/`PICKED`/`RELEASED`), `keyword`(발주 번호·SKU 코드·로트 번호 부분 일치). `page`·`size`·`sort`는 페이지네이션 도입 때 적용(구현 대비 메모). 정렬은 고정(`allocatedAt` 내림차순, 같으면 `allocationId` 내림차순).
+- Query: `storeOrderId`, `warehouseId`, `skuId`, `status`(`ALLOCATED`/`PICKED`/`RELEASED`), `keyword`(발주 번호·SKU 코드·로트 번호 부분 일치), `page`, `size`, `sort`.
+- 정렬: 기본은 `allocatedAt` 내림차순(같으면 `allocationId` 내림차순). `sort` 가능 필드: `allocatedAt`, `status`, `orderNo`, `skuCode`, `allocatedQuantity`. 응답은 `data.items`와 `data.pageInfo`.
 - 응답: `data.items[]`: `allocationId, storeOrderId, orderNo, storeOrderLineId, warehouseId, skuId, skuCode, skuName, inventoryLotId, lotId, lotNumber, expiryDate, sectionId, sectionCode, allocatedQuantity, pickedQuantity, status, allocatedAt, releasedAt`
-- 에러: 400(`status` 값·필터 형식 오류), 403(점주, 또는 담당하지 않는 창고를 `warehouseId`로 지정), 404(존재하지 않는 `storeOrderId`·`warehouseId`·`skuId`로 필터링. 현재 구현은 404가 아니라 빈 목록이며, 위 "구현 대비 메모" 참고)
+- 에러: 400(`status` 값·필터 형식 오류, `page`·`size` 범위, 허용되지 않은 `sort`), 403(점주, 또는 담당하지 않는 창고를 `warehouseId`로 지정), 404(존재하지 않는 `storeOrderId`·`warehouseId`·`skuId`로 필터링. 현재 구현은 404가 아니라 빈 목록이며, 위 "구현 대비 메모" 참고)
 - 규칙: 조회 전용. 재고 행·로트·구역 정보는 `InventoryLot`·`Lot`·`WarehouseSection`을 ID 기준 읽기 전용 조인으로 가져온다(ADR-007). `warehouseId`를 생략한 창고 관리자는 담당 창고들의 할당을 받는다.
 
 ## GET /allocations/{allocationId} (P1)
@@ -108,9 +109,10 @@
 ## GET /outbounds (P1)
 
 - 권한: HQ_ADMIN, WAREHOUSE_MANAGER(담당 창고 발주의 출고만)
-- Query: `status`(`READY`/`PICKING`/`PICKED`/`SHIPPED`/`DELIVERED`/`CANCELED`), `warehouseId`(발주에 배정된 창고 기준), `storeId`, `storeOrderId`, `keyword`(출고 번호·발주 번호 부분 일치), `createdFrom`, `createdTo`(ISO-8601, 양 끝 포함: `>= createdFrom`, `<= createdTo`). 정렬은 고정(`createdAt` 내림차순, 같으면 `outboundId` 내림차순). 페이지네이션은 보류.
+- Query: `status`(`READY`/`PICKING`/`PICKED`/`SHIPPED`/`DELIVERED`/`CANCELED`), `warehouseId`(발주에 배정된 창고 기준), `storeId`, `storeOrderId`, `keyword`(출고 번호·발주 번호 부분 일치), `createdFrom`, `createdTo`(ISO-8601, 양 끝 포함: `>= createdFrom`, `<= createdTo`), `page`, `size`, `sort`.
+- 정렬: 기본은 `createdAt` 내림차순(같으면 `outboundId` 내림차순). `sort` 가능 필드: `createdAt`, `shippedAt`, `status`, `outboundNo`, `storeName`, `warehouseName`, `lineCount`. 응답은 `data.items`와 `data.pageInfo`.
 - 응답: `data.items[]`: `outboundId, outboundNo, storeOrderId, orderNo, storeId, storeName, warehouseId, warehouseName, status, lineCount, shippedAt, shippedBy, shippedByName, createdAt`
-- 에러: 400(`status` 값·일시 형식 오류, `createdFrom`이 `createdTo`보다 늦음), 403, 404(존재하지 않는 필터 대상)
+- 에러: 400(`status` 값·일시 형식 오류, `createdFrom`이 `createdTo`보다 늦음, `page`·`size` 범위, 허용되지 않은 `sort`), 403, 404(존재하지 않는 필터 대상)
 - 규칙: 목록에는 헤더 정보와 `lineCount`만 담는다. `shippedAt`·`shippedBy`·`shippedByName`은 배송 시작 전 `null`이다. 조회 전용.
 
 ## GET /outbounds/{outboundId}/details (P2)

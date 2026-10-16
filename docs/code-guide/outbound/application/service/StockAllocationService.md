@@ -14,7 +14,7 @@
 |---|---|---|
 | `allocate(command, actor)` | 쓰기 | WAREHOUSE_MANAGER |
 | `release(command, actor)` | 쓰기 | WAREHOUSE_MANAGER |
-| `searchAllocations(condition, actor)` | 읽기 | HQ_ADMIN, WAREHOUSE_MANAGER |
+| `searchAllocations(condition, page, actor)` | 읽기 | HQ_ADMIN, WAREHOUSE_MANAGER |
 | `getAllocation(id, actor)` | 읽기 | HQ_ADMIN, WAREHOUSE_MANAGER |
 
 ## allocate
@@ -59,7 +59,7 @@
 
 | 메서드 | 규칙 |
 |---|---|
-| `searchAllocations` | `actor.warehouseScope(warehouseId)`로 범위 계산. 정렬은 할당 일시 내림차순 |
+| `searchAllocations` | `actor.warehouseScope(warehouseId)`로 범위 계산. 정렬·페이징은 페이지 조건을 따른다(기본 할당 일시 내림차순) |
 | `getAllocation` | 할당의 발주 창고가 담당 창고여야 한다. `outboundId`는 **취소되지 않은 출고에 연결된 경우에만** 채운다 |
 
 ## 잠금 순서

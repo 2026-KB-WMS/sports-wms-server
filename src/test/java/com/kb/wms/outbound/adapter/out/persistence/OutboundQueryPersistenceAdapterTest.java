@@ -1,5 +1,9 @@
 package com.kb.wms.outbound.adapter.out.persistence;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.auth.application.port.out.UserRepository;
 import com.kb.wms.auth.domain.entity.User;
 import com.kb.wms.common.security.UserRole;
@@ -71,6 +75,12 @@ import com.kb.wms.warehouse.domain.enums.WarehouseStatus;
 @Transactional
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class OutboundQueryPersistenceAdapterTest {
+
+    private static final PageCondition OB_PAGE = TestPages.firstPage(
+            TestPages.order("ob.createdAt", SortDirection.DESC), TestPages.order("ob.outboundId", SortDirection.DESC));
+
+    private static final PageCondition AL_PAGE = TestPages.firstPage(
+            TestPages.order("a.allocatedAt", SortDirection.DESC), TestPages.order("a.allocationId", SortDirection.DESC));
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 5, 9, 0);
 
@@ -237,7 +247,7 @@ class OutboundQueryPersistenceAdapterTest {
         allocation(otherLineA, lotBusan, 2, NOW.plusHours(2));
 
         List<StockAllocationSummary> items = queryRepository.searchAllocations(
-                StockAllocationSearchCondition.unscoped(order, null, null, null, null));
+                StockAllocationSearchCondition.unscoped(order, null, null, null, null), AL_PAGE).items();
 
         assertThat(items).extracting(StockAllocationSummary::allocationId)
                 .containsExactly(newer.getAllocationId(), older.getAllocationId());
@@ -249,6 +259,71 @@ class OutboundQueryPersistenceAdapterTest {
         assertThat(first.sectionCode()).isEqualTo("A-02");
         assertThat(first.warehouseId()).isEqualTo(seoul);
         assertThat(first.status()).isEqualTo(AllocationStatus.ALLOCATED);
+    }
+
+    @Test
+    @DisplayName("할당 목록은 페이지 크기만큼 자르고 전체 건수를 세며, 수량·SKU 코드로 정렬한다")
+    void searchAllocations_pagingAndSorting() {
+        StockAllocation a5 = allocation(lineA, lotEarly, 5, NOW);
+        StockAllocation a3 = allocation(lineA, lotLate, 3, NOW.plusHours(1));
+        StockAllocation a2 = allocation(otherLineA, lotBusan, 2, NOW.plusHours(2));
+        StockAllocationSearchCondition all = StockAllocationSearchCondition.unscoped(null, null, null, null, null);
+
+        PageCondition byQuantity = TestPages.firstPage(
+                TestPages.order("a.allocatedQuantity", SortDirection.DESC), TestPages.order("a.allocationId", SortDirection.DESC));
+        PageResult<StockAllocationSummary> first = queryRepository.searchAllocations(all, new PageCondition(1, 2, byQuantity.orders()));
+        PageResult<StockAllocationSummary> second = queryRepository.searchAllocations(all, new PageCondition(2, 2, byQuantity.orders()));
+
+        assertThat(first.items()).extracting(StockAllocationSummary::allocationId)
+                .containsExactly(a5.getAllocationId(), a3.getAllocationId());
+        assertThat(second.items()).extracting(StockAllocationSummary::allocationId).containsExactly(a2.getAllocationId());
+        assertThat(first.totalElements()).isEqualTo(3);
+        assertThat(first.totalPages()).isEqualTo(2);
+
+        PageCondition bySku = TestPages.firstPage(
+                TestPages.order("k.skuCode", SortDirection.DESC), TestPages.order("a.allocationId", SortDirection.ASC));
+        assertThat(queryRepository.searchAllocations(all, bySku).items()).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("전체 건수는 필터를 적용한 할당 건수다")
+    void searchAllocations_countFollowsFilter() {
+        allocation(lineA, lotEarly, 5, NOW);
+        allocation(lineA, lotLate, 3, NOW.plusHours(1));
+        allocation(otherLineA, lotBusan, 2, NOW.plusHours(2));
+
+        PageResult<StockAllocationSummary> result = queryRepository.searchAllocations(
+                StockAllocationSearchCondition.unscoped(order, null, null, null, null), new PageCondition(1, 1, AL_PAGE.orders()));
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.totalElements()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("출고 목록은 항목 수(집계)로 정렬하고, 페이지 크기만큼 자르며 전체 건수는 출고 건수다")
+    void searchOutbounds_pagingAndLineCountSort() {
+        StockAllocation a1 = allocation(lineA, lotEarly, 5, NOW);
+        StockAllocation a2 = allocation(lineA, lotLate, 3, NOW);
+        StockAllocation a3 = allocation(otherLineA, lotBusan, 2, NOW);
+        Outbound first = outbound("OB-20261005-0001", order, a1.getAllocationId(), a2.getAllocationId());
+        Outbound second = outbound("OB-20261005-0002", otherOrder, a3.getAllocationId());
+        OutboundSearchCondition all = OutboundSearchCondition.unscoped(null, null, null, null, null, null, null);
+
+        PageCondition byLines = TestPages.firstPage(
+                TestPages.order("count(l)", SortDirection.DESC), TestPages.order("ob.outboundId", SortDirection.DESC));
+        PageResult<OutboundSummary> page1 = queryRepository.searchOutbounds(all, new PageCondition(1, 1, byLines.orders()));
+        PageResult<OutboundSummary> page2 = queryRepository.searchOutbounds(all, new PageCondition(2, 1, byLines.orders()));
+
+        // 항목 2줄인 출고가 먼저, 1줄인 출고가 다음
+        assertThat(page1.items()).extracting(OutboundSummary::outboundId).containsExactly(first.getOutboundId());
+        assertThat(page2.items()).extracting(OutboundSummary::outboundId).containsExactly(second.getOutboundId());
+        // 항목 행은 3개지만 출고는 2건
+        assertThat(page1.totalElements()).isEqualTo(2);
+        assertThat(page1.totalPages()).isEqualTo(2);
+
+        PageCondition byWarehouse = TestPages.firstPage(
+                TestPages.order("w.name", SortDirection.ASC), TestPages.order("ob.outboundId", SortDirection.ASC));
+        assertThat(queryRepository.searchOutbounds(all, byWarehouse).items()).hasSize(2);
     }
 
     @Test
@@ -275,7 +350,7 @@ class OutboundQueryPersistenceAdapterTest {
     }
 
     private List<Long> ids(StockAllocationSearchCondition condition) {
-        return queryRepository.searchAllocations(condition).stream()
+        return queryRepository.searchAllocations(condition, AL_PAGE).items().stream()
                 .map(StockAllocationSummary::allocationId).toList();
     }
 
@@ -328,7 +403,7 @@ class OutboundQueryPersistenceAdapterTest {
         Outbound second = outbound("OB-20261005-0002", otherOrder, a3.getAllocationId());
 
         List<OutboundSummary> items = queryRepository.searchOutbounds(
-                OutboundSearchCondition.unscoped(null, null, null, null, null, null, null));
+                OutboundSearchCondition.unscoped(null, null, null, null, null, null, null), OB_PAGE).items();
 
         assertThat(items).extracting(OutboundSummary::outboundId)
                 .containsExactly(second.getOutboundId(), first.getOutboundId());
@@ -355,7 +430,7 @@ class OutboundQueryPersistenceAdapterTest {
         entityManager.clear();
 
         List<OutboundSummary> items = queryRepository.searchOutbounds(
-                OutboundSearchCondition.unscoped(null, null, null, null, null, null, null));
+                OutboundSearchCondition.unscoped(null, null, null, null, null, null, null), OB_PAGE).items();
 
         assertThat(items.stream().filter(s -> s.outboundId().equals(shipped.getOutboundId())).findFirst()
                 .orElseThrow().shippedByName()).isEqualTo("정배송");
@@ -394,7 +469,7 @@ class OutboundQueryPersistenceAdapterTest {
     }
 
     private List<Long> outboundIds(OutboundSearchCondition condition) {
-        return queryRepository.searchOutbounds(condition).stream().map(OutboundSummary::outboundId).toList();
+        return queryRepository.searchOutbounds(condition, OB_PAGE).items().stream().map(OutboundSummary::outboundId).toList();
     }
 
     @Test
