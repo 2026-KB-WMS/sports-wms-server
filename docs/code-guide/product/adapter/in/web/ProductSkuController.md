@@ -11,7 +11,7 @@
 | 메서드 | 경로 | 상태 | 요청 | 응답 | 설명 |
 |---|---|---|---|---|---|
 | `registerSku` | POST `/` | 201 | `ProductSkuRegisterRequest` | `ProductSkuCreateResponse` | SKU 등록. 응답에 옵션 요약 포함 |
-| `getSkus` | GET `/` | 200 | 쿼리 `productId`, `brandId`, `categoryId`, `keyword`, `isActive` | `ItemsResponse<ProductSkuListItemResponse>` | 목록 조회 |
+| `getSkus` | GET `/` | 200 | 쿼리 `productId`, `brandId`, `categoryId`, `keyword`, `isActive`, `page`, `size`, `sort` | `PageResponse<ProductSkuListItemResponse>` | 목록 조회(정렬 필드: `createdAt`, `skuCode`, `skuName`, `productName`, `currentSupplyPrice`, `isActive`). 옵션은 현재 페이지 SKU만 조회 |
 | `getSku` | GET `/{skuId}` | 200 | - | `ProductSkuDetailResponse` | 상세 조회 (상품·브랜드·카테고리 정보와 옵션 포함) |
 | `updateSku` | PATCH `/{skuId}` | 200 | `ProductSkuUpdateRequest` | `ProductSkuUpdateResponse` | 이름·바코드·무게·단가·안전 재고 부분 수정 |
 | `changeSkuStatus` | PATCH `/{skuId}/status` | 200 | `ProductSkuStatusRequest` | `ProductSkuStatusResponse` | 활성/비활성 전환 |

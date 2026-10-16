@@ -1,5 +1,7 @@
 package com.kb.wms.product.application.port.in;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.product.application.port.in.query.ProductSkuSearchCondition;
 import java.util.List;
 
@@ -27,7 +29,7 @@ public interface ProductSkuUseCase {
     ProductSku updateSku(ProductSkuUpdateCommand command, AuthenticatedUser actor);
 
     /** 필터의 상품·브랜드·카테고리가 없으면 PRODUCT_NOT_FOUND·BRAND_NOT_FOUND·CATEGORY_NOT_FOUND */
-    List<ProductSku> getSkus(ProductSkuSearchCondition condition);
+    PageResult<ProductSku> getSkus(ProductSkuSearchCondition condition, PageCondition page);
 
     ProductSku getSku(Long skuId);
 
@@ -35,7 +37,7 @@ public interface ProductSkuUseCase {
     ProductSkuView getSkuView(Long skuId);
 
     /** 사용자 요청용 목록 조회. 점주(STORE_OWNER)에게는 활성 SKU만 돌려준다. */
-    List<ProductSku> getSkus(ProductSkuSearchCondition condition, AuthenticatedUser actor);
+    PageResult<ProductSku> getSkus(ProductSkuSearchCondition condition, PageCondition page, AuthenticatedUser actor);
 
     /** 사용자 요청용 단건 조회. 점주가 비활성 SKU를 조회하면 SKU_NOT_FOUND(404)다. */
     ProductSku getSku(Long skuId, AuthenticatedUser actor);

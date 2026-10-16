@@ -1,6 +1,5 @@
 package com.kb.wms.product.adapter.in.web;
 
-import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -14,8 +13,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.SortSpec;
 import com.kb.wms.common.response.ApiResponse;
-import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.common.response.PageResponse;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductRegisterRequest;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductUpdateRequest;
@@ -53,18 +55,31 @@ public class ProductController {
         return ApiResponse.created(toDetailResponse(product));
     }
 
+    /** 목록 정렬 규칙. 기본은 등록 일시 최신순. */
+    static final SortSpec LIST_SORT = SortSpec.builder()
+            .field("createdAt", "p.createdAt")
+            .field("productName", "p.name")
+            .field("productCode", "p.productCode")
+            .field("isActive", "p.status")
+            .defaultOrder("createdAt", SortDirection.DESC)
+            .tieBreaker("p.productId")
+            .build();
+
     @GetMapping
-    public ApiResponse<ItemsResponse<ProductSummaryResponse>> getProducts(
+    public ApiResponse<PageResponse<ProductSummaryResponse>> getProducts(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) Long brandId,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Boolean isActive) {
-        List<ProductSummaryResponse> items = productUseCase
-                .getProducts(new ProductSearchCondition(brandId, categoryId, keyword, isActive), principal).stream()
-                .map(this::toSummaryResponse)
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
+        return ApiResponse.ok(PageResponse.of(
+                productUseCase.getProducts(new ProductSearchCondition(brandId, categoryId, keyword, isActive),
+                        pageCondition, principal),
+                this::toSummaryResponse));
     }
 
     @GetMapping("/{productId}")

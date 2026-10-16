@@ -1,7 +1,8 @@
 package com.kb.wms.product.adapter.out.persistence.repository;
 
-import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,7 +14,8 @@ public interface ProductJpaRepository extends JpaRepository<ProductJpaEntity, Lo
 
     boolean existsByProductCode(String productCode);
 
-    @Query("""
+    /** 정렬·페이징은 {@code Pageable}이 정한다. */
+    @Query(value = """
             select p from ProductJpaEntity p
             where (:brandId is null or p.brandId = :brandId)
               and (:categoryId is null or p.categoryId = :categoryId)
@@ -21,10 +23,19 @@ public interface ProductJpaRepository extends JpaRepository<ProductJpaEntity, Lo
               and (:keyword is null
                    or lower(p.name) like lower(concat('%', :keyword, '%'))
                    or lower(p.productCode) like lower(concat('%', :keyword, '%')))
-            order by p.createdAt desc, p.productId desc
+            """,
+            countQuery = """
+            select count(p) from ProductJpaEntity p
+            where (:brandId is null or p.brandId = :brandId)
+              and (:categoryId is null or p.categoryId = :categoryId)
+              and (:status is null or p.status = :status)
+              and (:keyword is null
+                   or lower(p.name) like lower(concat('%', :keyword, '%'))
+                   or lower(p.productCode) like lower(concat('%', :keyword, '%')))
             """)
-    List<ProductJpaEntity> search(@Param("brandId") Long brandId,
+    Page<ProductJpaEntity> search(@Param("brandId") Long brandId,
                                   @Param("categoryId") Long categoryId,
                                   @Param("keyword") String keyword,
-                                  @Param("status") ProductStatus status);
+                                  @Param("status") ProductStatus status,
+                                  Pageable pageable);
 }

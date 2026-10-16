@@ -16,8 +16,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.SortSpec;
 import com.kb.wms.common.response.ApiResponse;
-import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.common.response.PageResponse;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductSkuRegisterRequest;
 import com.kb.wms.product.adapter.in.web.dto.request.ProductSkuStatusRequest;
@@ -66,30 +70,42 @@ public class ProductSkuController {
                 ProductSkuCreateResponse.of(sku, productSkuUseCase.getSkuOptions(sku.getSkuId())));
     }
 
+    /** 목록 정렬 규칙. 기본은 등록 일시 최신순. 매입가는 점주에게 숨기는 값이라 정렬 필드에서 제외한다. */
+    static final SortSpec LIST_SORT = SortSpec.builder()
+            .field("createdAt", "s.createdAt")
+            .field("skuCode", "s.skuCode")
+            .field("skuName", "s.name")
+            .field("productName", "p.name")
+            .field("currentSupplyPrice", "s.currentSupplyPrice")
+            .field("isActive", "s.status")
+            .defaultOrder("createdAt", SortDirection.DESC)
+            .tieBreaker("s.skuId")
+            .build();
+
     @GetMapping
-    public ApiResponse<ItemsResponse<ProductSkuListItemResponse>> getSkus(
+    public ApiResponse<PageResponse<ProductSkuListItemResponse>> getSkus(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) Long productId,
             @RequestParam(required = false) Long brandId,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Boolean isActive) {
+            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
         // 같은 상품의 SKU가 여러 개이므로 상품명은 상품당 한 번만 조회한다.
         Map<Long, String> productNames = new HashMap<>();
-        List<ProductSku> skus = productSkuUseCase
-                .getSkus(new ProductSkuSearchCondition(productId, brandId, categoryId, keyword, isActive), principal);
-        // 옵션은 SKU 전체를 한 번에 조회한다(SKU마다 조회하면 N+1).
+        PageResult<ProductSku> skus = productSkuUseCase.getSkus(
+                new ProductSkuSearchCondition(productId, brandId, categoryId, keyword, isActive), pageCondition, principal);
+        // 옵션은 현재 페이지의 SKU만 한 번에 조회한다(SKU마다 조회하면 N+1).
         Map<Long, List<SkuOptionSummary>> options = productSkuUseCase.getSkuOptionsBySkuIds(
-                skus.stream().map(ProductSku::getSkuId).toList());
-        List<ProductSkuListItemResponse> items = skus.stream()
-                .map(sku -> ProductSkuListItemResponse.of(
-                        sku,
-                        productNames.computeIfAbsent(sku.getProductId(),
-                                id -> productUseCase.getProduct(id).getName()),
-                        options.getOrDefault(sku.getSkuId(), List.of()),
-                        sku.isPurchaseInfoVisibleTo(principal.isStoreOwner())))
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+                skus.items().stream().map(ProductSku::getSkuId).toList());
+        return ApiResponse.ok(PageResponse.of(skus, sku -> ProductSkuListItemResponse.of(
+                sku,
+                productNames.computeIfAbsent(sku.getProductId(), id -> productUseCase.getProduct(id).getName()),
+                options.getOrDefault(sku.getSkuId(), List.of()),
+                sku.isPurchaseInfoVisibleTo(principal.isStoreOwner()))));
     }
 
     @GetMapping("/{skuId}")

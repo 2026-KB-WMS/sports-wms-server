@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.product.application.port.in.ProductSkuUseCase;
 import com.kb.wms.product.application.port.in.command.ProductSkuRegisterCommand;
@@ -197,7 +199,7 @@ public class ProductSkuService implements ProductSkuUseCase {
     }
 
     @Override
-    public List<ProductSku> getSkus(ProductSkuSearchCondition condition) {
+    public PageResult<ProductSku> getSkus(ProductSkuSearchCondition condition, PageCondition page) {
         if (condition.productId() != null && productRepository.findById(condition.productId()).isEmpty()) {
             throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);
         }
@@ -207,7 +209,7 @@ public class ProductSkuService implements ProductSkuUseCase {
         if (condition.categoryId() != null && categoryRepository.findById(condition.categoryId()).isEmpty()) {
             throw new BusinessException(ProductErrorCode.CATEGORY_NOT_FOUND);
         }
-        return productSkuRepository.search(condition);
+        return productSkuRepository.search(condition, page);
     }
 
     @Override
@@ -225,12 +227,13 @@ public class ProductSkuService implements ProductSkuUseCase {
 
     /** 점주에게는 판매 가능한(활성) SKU만 보이므로, isActive 필터가 무엇이든 활성 SKU로 고정한다. */
     @Override
-    public List<ProductSku> getSkus(ProductSkuSearchCondition condition, AuthenticatedUser actor) {
+    public PageResult<ProductSku> getSkus(ProductSkuSearchCondition condition, PageCondition page,
+                                          AuthenticatedUser actor) {
         if (actor.isStoreOwner()) {
             return getSkus(new ProductSkuSearchCondition(condition.productId(), condition.brandId(),
-                    condition.categoryId(), condition.keyword(), true));
+                    condition.categoryId(), condition.keyword(), true), page);
         }
-        return getSkus(condition);
+        return getSkus(condition, page);
     }
 
     /** 점주에게 비활성 SKU는 없는 것으로 보인다(404). */

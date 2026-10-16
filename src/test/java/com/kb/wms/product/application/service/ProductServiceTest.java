@@ -18,6 +18,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.kb.wms.common.paging.TestPages;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.paging.PageCondition;
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
 import com.kb.wms.common.security.AuthenticatedUser;
@@ -39,6 +43,8 @@ import com.kb.wms.product.exception.ProductErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 class ProductServiceTest {
+
+    private static final PageCondition PRODUCT_PAGE = TestPages.firstPage(TestPages.order("p.createdAt", SortDirection.DESC), TestPages.order("p.productId", SortDirection.DESC));
 
     @Mock
     private ProductRepository productRepository;
@@ -155,11 +161,11 @@ class ProductServiceTest {
         ProductSearchCondition condition = new ProductSearchCondition(1L, 2L, "라켓", true);
         when(brandRepository.findById(1L)).thenReturn(Optional.of(Brand.register("브랜드 A", null)));
         when(categoryRepository.findById(2L)).thenReturn(Optional.of(Category.register(null, "RACKET", "라켓", 1, 0)));
-        when(productRepository.search(condition)).thenReturn(List.of());
+        when(productRepository.search(condition, PRODUCT_PAGE)).thenReturn(TestPages.resultOf(List.of()));
 
-        productService.getProducts(condition);
+        productService.getProducts(condition, PRODUCT_PAGE);
 
-        verify(productRepository).search(eq(condition));
+        verify(productRepository).search(eq(condition), eq(PRODUCT_PAGE));
     }
 
     @Test
@@ -167,11 +173,11 @@ class ProductServiceTest {
     void getProducts_brandNotFound() {
         when(brandRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> productService.getProducts(new ProductSearchCondition(999L, null, null, null)))
+        assertThatThrownBy(() -> productService.getProducts(new ProductSearchCondition(999L, null, null, null), PRODUCT_PAGE))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.BRAND_NOT_FOUND.name());
-        verify(productRepository, never()).search(any());
+        verify(productRepository, never()).search(any(), any());
     }
 
     @Test
@@ -179,11 +185,11 @@ class ProductServiceTest {
     void getProducts_categoryNotFound() {
         when(categoryRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> productService.getProducts(new ProductSearchCondition(null, 999L, null, null)))
+        assertThatThrownBy(() -> productService.getProducts(new ProductSearchCondition(null, 999L, null, null), PRODUCT_PAGE))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCodeName())
                 .isEqualTo(ProductErrorCode.CATEGORY_NOT_FOUND.name());
-        verify(productRepository, never()).search(any());
+        verify(productRepository, never()).search(any(), any());
     }
 
     @Test
@@ -397,18 +403,18 @@ class ProductServiceTest {
     @Test
     @DisplayName("점주의 상품 목록은 isActive 필터와 상관없이 활성 상품만 조회하고, 본사·창고 관리자는 필터를 그대로 쓴다")
     void getProducts_storeOwnerOnlyActive() {
-        when(productRepository.search(new ProductSearchCondition(null, null, "라켓", true))).thenReturn(List.of());
-        when(productRepository.search(new ProductSearchCondition(null, null, "라켓", false))).thenReturn(List.of());
+        when(productRepository.search(new ProductSearchCondition(null, null, "라켓", true), PRODUCT_PAGE)).thenReturn(TestPages.resultOf(List.of()));
+        when(productRepository.search(new ProductSearchCondition(null, null, "라켓", false), PRODUCT_PAGE)).thenReturn(TestPages.resultOf(List.of()));
 
-        productService.getProducts(new ProductSearchCondition(null, null, "라켓", false), storeOwner);
-        productService.getProducts(new ProductSearchCondition(null, null, "라켓", null), storeOwner);
-        productService.getProducts(new ProductSearchCondition(null, null, "라켓", false), hqAdmin);
-        productService.getProducts(new ProductSearchCondition(null, null, "라켓", false), warehouseManager);
+        productService.getProducts(new ProductSearchCondition(null, null, "라켓", false), PRODUCT_PAGE, storeOwner);
+        productService.getProducts(new ProductSearchCondition(null, null, "라켓", null), PRODUCT_PAGE, storeOwner);
+        productService.getProducts(new ProductSearchCondition(null, null, "라켓", false), PRODUCT_PAGE, hqAdmin);
+        productService.getProducts(new ProductSearchCondition(null, null, "라켓", false), PRODUCT_PAGE, warehouseManager);
 
         verify(productRepository, org.mockito.Mockito.times(2))
-                .search(new ProductSearchCondition(null, null, "라켓", true));
+                .search(new ProductSearchCondition(null, null, "라켓", true), PRODUCT_PAGE);
         verify(productRepository, org.mockito.Mockito.times(2))
-                .search(new ProductSearchCondition(null, null, "라켓", false));
+                .search(new ProductSearchCondition(null, null, "라켓", false), PRODUCT_PAGE);
     }
 
     @Test

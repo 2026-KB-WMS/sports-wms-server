@@ -1,15 +1,15 @@
 # Product API 명세
 
 > 기준은 레포. 2026-10-02 Notion(최종 수정 2026-09-24)에서 이전. 공통 규칙은 [conventions.md](conventions.md) 참고.
-> Base path: `/api/v1/products`. 목록 API는 `data.items`만 반환(페이지네이션 보류, ADR/conventions 메모 참고). 404는 도메인별 코드 사용.
+> Base path: `/api/v1/products`. 목록 API 중 상품(`GET /products`)과 SKU(`GET /products/skus`)는 `page`·`size`·`sort`와 `data.pageInfo`를 지원하고, 브랜드·카테고리·옵션 그룹·단위 목록은 페이징 없이 `data.items`만 반환한다. 404는 도메인별 코드 사용.
 
 ## 구현 대비 메모
 
 - 코드에만 있고 Notion 명세가 없던 엔드포인트: `PATCH /api/v1/products/skus/{skuId}/status` (SKU 활성/비활성). 아래 "PATCH /products/skus/{skuId}/status" 절에 코드 기준으로 명세를 보강했다.
 - 상품 비활성화(`PATCH /products/{productId}`의 `isActive=false`)는 같은 트랜잭션에서 하위 ACTIVE SKU를 모두 비활성화한다(구현됨). 상품을 다시 활성화해도 SKU는 자동으로 활성화되지 않는다(SKU 상태 변경 API로 개별 복구).
 - 상품 비활성화 차단(#194): 상품의 SKU에 재고(보유·할당 수량 > 0)가 있거나 진행 중인 입고(`ARRIVED`·`INSPECTING`)·창고 발주(`REQUESTED`·`CONFIRMED`)·출고(`READY`·`PICKING`·`PICKED`·`SHIPPED`)·지점 발주(`REQUESTED`·`APPROVED`·`ASSIGNED`·`ON_HOLD`) 항목이 있으면 409 `PRODUCT_IN_USE`다(창고 비활성화 `WAREHOUSE_IN_USE`와 같은 상태 기준). 출고는 SKU를 직접 갖지 않아 출고가 속한 지점 발주의 항목으로 판단한다. SKU 단건 비활성화(`PATCH /products/skus/{skuId}/status`)에도 같은 검사를 SKU 단위로 적용한다(409 `SKU_IN_USE`, [ADR-014](../adr/014-reactivation-and-sku-deactivation-guard.md)). 상품 비활성화가 하위 SKU를 함께 비활성화할 때는 상품 단위 검사가 이미 끝났으므로 SKU 검사를 다시 하지 않는다. 검사와 비활성화 사이에 새 재고·발주가 생기는 경합은 막지 않는다(창고 구역처럼 행을 잠그지 않음).
-- 목록 API(상품·브랜드·카테고리·SKU)는 `page`·`size`·`sort`를 받지 않고 고정 정렬을 쓴다(각 절의 "정렬" 참고).
-- Notion 명세의 `pageInfo`, 일반 `NOT_FOUND`는 현재 구현 기준(페이지네이션 보류, 도메인별 404)과 다름 → conventions.md 기준 따름.
+- 상품·SKU 목록만 페이징·정렬을 지원한다(#293). 브랜드·카테고리·옵션 그룹·단위 목록은 마스터 데이터를 한 번에 그리는 용도라 페이징 없이 고정 정렬을 쓴다(각 절의 "정렬" 참고).
+- Notion 명세의 일반 `NOT_FOUND`는 현재 구현 기준(도메인별 404)과 다름 → conventions.md 기준 따름.
 - 점주(STORE_OWNER) 제한(#182): 상품·SKU 목록은 `isActive` 필터와 상관없이 활성 항목만, 비활성 상품·SKU 단건은 404(`PRODUCT_NOT_FOUND`/`SKU_NOT_FOUND`)다. SKU 목록·단건 응답에서 `currentPurchasePrice`·`safetyStockQuantity` 필드는 점주에게 생략한다. 값이 없는(미설정) 경우도 필드를 생략하므로, 본사·창고 관리자 응답에서도 `null` 대신 필드가 빠진다. SKU의 점주 제한(활성만)은 명세에 명시돼 있지 않아 상품과 같게 적용했다.
 - SKU 단가 필수·수정(#207, [ADR-017](../adr/017-sku-price-required-and-update.md)): SKU 등록의 매입·공급 단가는 필수이고(0 이상, 0 허용) DB도 `NOT NULL`이다. 등록 후 `PATCH /products/skus/{skuId}`로 이름·바코드·중량·단가·안전재고를 수정하며, 단가가 바뀌면 처리자와 함께 이력(`sku_price_history`)을 남긴다.
 - 카테고리별 옵션 그룹 지정·상품 스펙·SKU 옵션 검증(#241, [ADR-025](../adr/025-category-option-groups-spec-and-sku-options.md)): 카테고리마다 옵션 그룹을 `SPEC`(상품 단위) 또는 `SKU`(SKU 단위)로 지정하고, 상품 등록은 SPEC 값을, SKU 등록은 SKU 옵션 값을 지정된 그룹마다 하나씩 받는다. 같은 상품에 같은 옵션 조합의 SKU는 둘 수 없다(409). 이 규칙은 등록·수정 시점에만 적용하며 이미 저장된 상품·SKU는 바꾸지 않는다.
@@ -58,8 +58,8 @@
 ## GET /products — 상품 목록
 
 - 권한: 전체. STORE_OWNER는 활성 상품만 조회.
-- Query: `categoryId`, `brandId`, `keyword`, `isActive`. `page`·`size`·`sort`는 받지 않는다(페이지네이션 보류).
-- 정렬은 고정(등록 일시 `createdAt` 내림차순, 같으면 `productId` 내림차순).
+- Query: `categoryId`, `brandId`, `keyword`, `isActive`, `page`, `size`, `sort`. 응답은 `data.items`와 `data.pageInfo`([ADR-032](../adr/032-pagination-and-sorting.md), 공통 규칙은 [conventions.md](conventions.md)).
+- 정렬: 기본은 등록 일시 `createdAt` 내림차순(같으면 `productId` 내림차순). `sort` 가능 필드: `createdAt`, `productName`, `productCode`, `isActive`. 브랜드·카테고리 이름으로는 정렬하지 않는다.
 - 응답: `data.items[]`
 - 에러: 400, 401, 404 `BRAND_NOT_FOUND`(존재하지 않는 `brandId` 필터), 404 `CATEGORY_NOT_FOUND`(존재하지 않는 `categoryId` 필터)
 
@@ -184,7 +184,8 @@
 ## GET /products/skus — SKU 목록
 
 - STORE_OWNER에게는 매입가(`currentPurchasePrice`)와 안전재고(`safetyStockQuantity`) 미노출.
-- Query: `productId`, `brandId`, `categoryId`, `keyword`, `isActive`. 정렬은 고정(등록 일시 `createdAt` 내림차순, 같으면 `skuId` 내림차순).
+- Query: `productId`, `brandId`, `categoryId`, `keyword`, `isActive`, `page`, `size`, `sort`. 응답은 `data.items`와 `data.pageInfo`([ADR-032](../adr/032-pagination-and-sorting.md), 공통 규칙은 [conventions.md](conventions.md)).
+- 정렬: 기본은 등록 일시 `createdAt` 내림차순(같으면 `skuId` 내림차순). `sort` 가능 필드: `createdAt`, `skuCode`, `skuName`, `productName`, `currentSupplyPrice`, `isActive`. 매입가(`currentPurchasePrice`)는 점주에게 숨기는 값이라 정렬 필드에서 제외한다. 옵션 값(`optionValues`)은 현재 페이지의 SKU만 조회한다.
 - 에러: 404 `PRODUCT_NOT_FOUND`(존재하지 않는 `productId` 필터), 404 `BRAND_NOT_FOUND`(`brandId`), 404 `CATEGORY_NOT_FOUND`(`categoryId`)
 - 응답 항목에 `optionValues[]` 포함. 응답 `data.items[]`.
 

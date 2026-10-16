@@ -50,7 +50,7 @@
 | 메서드 | 설명 |
 |---|---|
 | `save`, `findById` | 기본 |
-| `search(condition)` | 조건이 null이면 무시. 생성 일시 내림차순 |
+| `search(condition, page)` | `PageResult` 반환. 조건이 null이면 무시. 정렬은 페이지 조건을 따른다(기본 생성 일시 내림차순) |
 | `existsByProductCode(code)` | 코드 중복 확인 |
 
 ## ProductSkuRepository
@@ -59,7 +59,7 @@
 |---|---|
 | `save`, `findById` | 기본 |
 | `findAll(productId)` | productId가 null이면 전체 |
-| `search(condition)` | 조건이 null이면 무시. 브랜드·카테고리는 SKU가 속한 상품 기준. 생성 일시 내림차순 |
+| `search(condition, page)` | `PageResult` 반환. 조건이 null이면 무시. 브랜드·카테고리는 SKU가 속한 상품 기준. 정렬은 페이지 조건을 따른다(기본 생성 일시 내림차순) |
 | `existsBySkuCode`, `existsByBarcode` | 중복 확인 |
 
 ## ProductSpecRepository
