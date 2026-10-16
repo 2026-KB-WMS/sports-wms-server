@@ -3,6 +3,8 @@ package com.kb.wms.storeorder.application.port.out;
 import java.util.List;
 import java.util.Optional;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.storeorder.application.port.in.query.StoreOrderSearchCondition;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderLineView;
 import com.kb.wms.storeorder.application.port.in.result.StoreOrderSummary;
@@ -18,7 +20,7 @@ import com.kb.wms.storeorder.application.port.in.result.StoreOrderView;
 public interface StoreOrderQueryRepository {
 
     /** 요청 일시 내림차순, 발주 ID 내림차순. 조건이 null이면 해당 조건은 무시한다. */
-    List<StoreOrderSummary> search(StoreOrderSearchCondition condition);
+    PageResult<StoreOrderSummary> search(StoreOrderSearchCondition condition, PageCondition page);
 
     Optional<StoreOrderView> findView(Long storeOrderId);
 

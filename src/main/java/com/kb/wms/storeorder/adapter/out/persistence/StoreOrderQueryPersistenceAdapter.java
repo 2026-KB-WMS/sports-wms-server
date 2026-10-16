@@ -5,6 +5,9 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
+import com.kb.wms.common.persistence.PageAdapter;
 import com.kb.wms.common.persistence.SearchKeyword;
 import com.kb.wms.storeorder.adapter.out.persistence.repository.StoreOrderJpaRepository;
 import com.kb.wms.storeorder.adapter.out.persistence.repository.StoreOrderLineJpaRepository;
@@ -24,13 +27,14 @@ public class StoreOrderQueryPersistenceAdapter implements StoreOrderQueryReposit
     private final StoreOrderLineJpaRepository storeOrderLineJpaRepository;
 
     @Override
-    public List<StoreOrderSummary> search(StoreOrderSearchCondition condition) {
-        return storeOrderJpaRepository.search(
+    public PageResult<StoreOrderSummary> search(StoreOrderSearchCondition condition, PageCondition page) {
+        return PageAdapter.toPageResult(storeOrderJpaRepository.search(
                 condition.status(), condition.storeId(), condition.warehouseId(),
                 SearchKeyword.normalize(condition.keyword()),
                 condition.requestedFrom(), condition.requestedTo(),
                 condition.storeIds() != null, scopeIds(condition.storeIds()),
-                condition.warehouseIds() != null, scopeIds(condition.warehouseIds()));
+                condition.warehouseIds() != null, scopeIds(condition.warehouseIds()),
+                PageAdapter.toPageable(page)), page);
     }
 
     /** JPQL의 IN에 빈 목록을 넘기지 않으려는 자리 값. 범위 조건을 쓰지 않거나 담당 범위가 비었을 때 쓴다. */

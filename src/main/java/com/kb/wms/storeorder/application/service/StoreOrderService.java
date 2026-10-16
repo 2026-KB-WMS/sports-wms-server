@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kb.wms.common.exception.BusinessException;
 import com.kb.wms.common.exception.ErrorCode;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.security.AuthenticatedUser;
 import com.kb.wms.statushistory.application.port.in.StatusHistoryUseCase;
 import com.kb.wms.storeorder.application.port.in.StoreOrderUseCase;
@@ -117,8 +119,8 @@ public class StoreOrderService implements StoreOrderUseCase {
     }
 
     @Override
-    public List<StoreOrderListItem> getStoreOrders(StoreOrderSearchCondition condition) {
-        return searchStoreOrders(condition);
+    public PageResult<StoreOrderListItem> getStoreOrders(StoreOrderSearchCondition condition, PageCondition page) {
+        return searchStoreOrders(condition, page);
     }
 
     /**
@@ -126,7 +128,8 @@ public class StoreOrderService implements StoreOrderUseCase {
      * 지점·창고를 필터로 지정하면 담당 범위여야 하고(아니면 403), 본사 관리자는 이 조회를 쓰지 않는다(403).
      */
     @Override
-    public List<StoreOrderListItem> getMyStoreOrders(StoreOrderSearchCondition condition, AuthenticatedUser actor) {
+    public PageResult<StoreOrderListItem> getMyStoreOrders(StoreOrderSearchCondition condition, PageCondition page,
+                                                           AuthenticatedUser actor) {
         List<Long> storeScope = null;
         List<Long> warehouseScope = null;
         if (actor.isStoreOwner()) {
@@ -146,10 +149,10 @@ public class StoreOrderService implements StoreOrderUseCase {
         }
         return searchStoreOrders(new StoreOrderSearchCondition(
                 condition.status(), condition.storeId(), condition.warehouseId(), condition.keyword(),
-                condition.requestedFrom(), condition.requestedTo(), storeScope, warehouseScope));
+                condition.requestedFrom(), condition.requestedTo(), storeScope, warehouseScope), page);
     }
 
-    private List<StoreOrderListItem> searchStoreOrders(StoreOrderSearchCondition condition) {
+    private PageResult<StoreOrderListItem> searchStoreOrders(StoreOrderSearchCondition condition, PageCondition page) {
         if (condition.requestedFrom() != null && condition.requestedTo() != null
                 && condition.requestedFrom().isAfter(condition.requestedTo())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "요청 시작 일시는 종료 일시보다 늦을 수 없습니다.");
@@ -161,18 +164,17 @@ public class StoreOrderService implements StoreOrderUseCase {
             warehouseAvailabilityPort.requireExists(condition.warehouseId());
         }
 
-        List<StoreOrderSummary> summaries = storeOrderQueryRepository.search(condition);
+        PageResult<StoreOrderSummary> result = storeOrderQueryRepository.search(condition, page);
+        List<StoreOrderSummary> summaries = result.items();
         List<Long> orderIds = summaries.stream().map(StoreOrderSummary::storeOrderId).toList();
         Map<Long, StoreOrderOutboundStatus> latestStatuses =
                 storeOrderOutboundPort.findLatestOutboundStatuses(orderIds);
 
-        return summaries.stream()
-                .map(summary -> {
-                    StoreOrderOutboundStatus latest = latestStatuses.get(summary.storeOrderId());
-                    return new StoreOrderListItem(summary, latest,
-                            StoreOrderProgressStage.resolve(summary.status(), latest, summary.hasShortage()));
-                })
-                .toList();
+        return result.map(summary -> {
+            StoreOrderOutboundStatus latest = latestStatuses.get(summary.storeOrderId());
+            return new StoreOrderListItem(summary, latest,
+                    StoreOrderProgressStage.resolve(summary.status(), latest, summary.hasShortage()));
+        });
     }
 
     @Override

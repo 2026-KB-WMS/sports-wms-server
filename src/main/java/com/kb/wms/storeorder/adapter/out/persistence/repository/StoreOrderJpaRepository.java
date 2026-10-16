@@ -5,6 +5,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -33,7 +35,7 @@ public interface StoreOrderJpaRepository extends JpaRepository<StoreOrderJpaEnti
      * 발주는 항목이 1개 이상이므로 항목과 inner join해 항목 수·금액 합계·부족 항목 수를 집계한다.
      * 창고는 배정 전에는 null이므로 left join이다. 금액은 저장하지 않고 요청 수량 × 공급 단가로 계산한다.
      */
-    @Query("""
+    @Query(value = """
             select new com.kb.wms.storeorder.application.port.in.result.StoreOrderSummary(
                 o.storeOrderId, o.orderNo, o.storeId, s.name, o.warehouseId, w.name,
                 o.status, o.requestedAt, o.requestedDeliveryAt, count(l),
@@ -55,9 +57,24 @@ public interface StoreOrderJpaRepository extends JpaRepository<StoreOrderJpaEnti
               and (:requestedTo is null or o.requestedAt <= :requestedTo)
             group by o.storeOrderId, o.orderNo, o.storeId, s.name, o.warehouseId, w.name,
                      o.status, o.requestedAt, o.requestedDeliveryAt
-            order by o.requestedAt desc, o.storeOrderId desc
+            """,
+            countQuery = """
+            select count(distinct o.storeOrderId)
+            from StoreOrderJpaEntity o
+            join StoreJpaEntity s on s.storeId = o.storeId
+            join StoreOrderLineJpaEntity l on l.storeOrderId = o.storeOrderId
+            where (:status is null or o.status = :status)
+              and (:storeId is null or o.storeId = :storeId)
+              and (:warehouseId is null or o.warehouseId = :warehouseId)
+              and (:storeScoped = false or o.storeId in :storeIds)
+              and (:warehouseScoped = false or o.warehouseId in :warehouseIds)
+              and (:keyword is null
+                   or lower(o.orderNo) like lower(concat('%', :keyword, '%'))
+                   or lower(s.name) like lower(concat('%', :keyword, '%')))
+              and (:requestedFrom is null or o.requestedAt >= :requestedFrom)
+              and (:requestedTo is null or o.requestedAt <= :requestedTo)
             """)
-    List<StoreOrderSummary> search(@Param("status") StoreOrderStatus status,
+    Page<StoreOrderSummary> search(@Param("status") StoreOrderStatus status,
                                    @Param("storeId") Long storeId,
                                    @Param("warehouseId") Long warehouseId,
                                    @Param("keyword") String keyword,
@@ -66,7 +83,8 @@ public interface StoreOrderJpaRepository extends JpaRepository<StoreOrderJpaEnti
                                    @Param("storeScoped") boolean storeScoped,
                                    @Param("storeIds") Collection<Long> storeIds,
                                    @Param("warehouseScoped") boolean warehouseScoped,
-                                   @Param("warehouseIds") Collection<Long> warehouseIds);
+                                   @Param("warehouseIds") Collection<Long> warehouseIds,
+                                   Pageable pageable);
 
     @Query("""
             select new com.kb.wms.storeorder.application.port.in.result.StoreOrderView(

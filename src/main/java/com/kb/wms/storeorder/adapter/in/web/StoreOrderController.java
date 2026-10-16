@@ -17,8 +17,11 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.security.AuthenticatedUser;
+import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.SortDirection;
+import com.kb.wms.common.paging.SortSpec;
 import com.kb.wms.common.response.ApiResponse;
-import com.kb.wms.common.response.ItemsResponse;
+import com.kb.wms.common.response.PageResponse;
 import com.kb.wms.storeorder.adapter.in.web.dto.request.StoreOrderAssignRequest;
 import com.kb.wms.storeorder.adapter.in.web.dto.request.StoreOrderCancelRequest;
 import com.kb.wms.storeorder.adapter.in.web.dto.request.StoreOrderReasonRequest;
@@ -52,13 +55,25 @@ import lombok.RequiredArgsConstructor;
  *
  * <p>처리 사용자는 토큰 주체이고, 역할은 SecurityConfig가, 담당 지점·창고 범위와 취소 권한(작성자·상태별)은 서비스가 검사한다.
  * {@code GET /orders/my}는 점주의 담당 지점·창고 관리자의 배정 창고 발주만 돌려준다.
- * 목록은 페이지네이션 없이 전체를 반환한다(공통 페이징 도입 시 추가).
+ * 목록(GET /orders, GET /orders/my)은 페이지네이션·정렬(page, size, sort)을 지원한다.
  */
 @Tag(name = "지점 발주")
 @RestController
 @RequestMapping("/api/v1/orders")
 @RequiredArgsConstructor
 public class StoreOrderController {
+
+    /** 목록 정렬 규칙. 기본은 요청 일시 최신순. 진행 단계(progressStage)는 저장 값이 아니라 정렬할 수 없다. */
+    private static final SortSpec LIST_SORT = SortSpec.builder()
+            .field("requestedAt", "o.requestedAt")
+            .field("requestedDeliveryAt", "o.requestedDeliveryAt")
+            .field("status", "o.status")
+            .field("orderNo", "o.orderNo")
+            .field("storeName", "s.name")
+            .field("warehouseName", "w.name")
+            .defaultOrder("requestedAt", SortDirection.DESC)
+            .tieBreaker("o.storeOrderId")
+            .build();
 
     private final StoreOrderUseCase storeOrderUseCase;
 
@@ -74,38 +89,40 @@ public class StoreOrderController {
     }
 
     @GetMapping
-    public ApiResponse<ItemsResponse<StoreOrderListItemResponse>> getStoreOrders(
+    public ApiResponse<PageResponse<StoreOrderListItemResponse>> getStoreOrders(
             @RequestParam(required = false) StoreOrderStatus status,
             @RequestParam(required = false) Long storeId,
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedFrom,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedTo) {
-        List<StoreOrderListItemResponse> items = storeOrderUseCase
-                .getStoreOrders(StoreOrderSearchCondition.unscoped(
-                        status, storeId, warehouseId, keyword, requestedFrom, requestedTo))
-                .stream()
-                .map(StoreOrderListItemResponse::from)
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedTo,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
+        return ApiResponse.ok(PageResponse.of(
+                storeOrderUseCase.getStoreOrders(StoreOrderSearchCondition.unscoped(
+                        status, storeId, warehouseId, keyword, requestedFrom, requestedTo), pageCondition),
+                StoreOrderListItemResponse::from));
     }
 
     @GetMapping("/my")
-    public ApiResponse<ItemsResponse<StoreOrderListItemResponse>> getMyStoreOrders(
+    public ApiResponse<PageResponse<StoreOrderListItemResponse>> getMyStoreOrders(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) StoreOrderStatus status,
             @RequestParam(required = false) Long storeId,
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedFrom,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedTo) {
-        List<StoreOrderListItemResponse> items = storeOrderUseCase
-                .getMyStoreOrders(StoreOrderSearchCondition.unscoped(
-                        status, storeId, warehouseId, keyword, requestedFrom, requestedTo), principal)
-                .stream()
-                .map(StoreOrderListItemResponse::from)
-                .toList();
-        return ApiResponse.ok(ItemsResponse.of(items));
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime requestedTo,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
+        return ApiResponse.ok(PageResponse.of(
+                storeOrderUseCase.getMyStoreOrders(StoreOrderSearchCondition.unscoped(
+                        status, storeId, warehouseId, keyword, requestedFrom, requestedTo), pageCondition, principal),
+                StoreOrderListItemResponse::from));
     }
 
     @GetMapping("/{orderId}")

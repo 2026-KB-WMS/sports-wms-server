@@ -80,7 +80,7 @@
 - 인증·인가 적용됨(#170): 처리 사용자는 토큰 주체이고, 역할은 보안 설정이, 담당 지점·창고 범위와 취소 권한은 서비스가 검사한다([`api/authorization.md`](../api/authorization.md), ADR-012).
 - 다른 도메인 데이터(지점명·창고명·SKU 정보)는 조회 쿼리에서 ID 기준 읽기 전용 조인으로 가져온다(ADR-007 방식).
 - 지점 도메인의 `STORE_IN_USE`(진행 중 발주가 있으면 비활성화 금지)는 연결했다(#141). 지점 도메인은 `StoreOrderPresencePort`로 확인하고, 이 도메인의 읽기 전용 `StoreOrderPresenceUseCase`에 연결한다. 발주 등록·상태 전이 유스케이스와 분리해 지점 ↔ 발주 순환 의존을 피한다.
-- 목록 페이지네이션은 전 도메인 일괄 적용 때까지 보류한다(`data.items`).
+- 목록(`GET /orders`, `GET /orders/my`)은 페이지네이션·정렬을 지원한다(#290, [ADR-032](../adr/032-pagination-and-sorting.md)).
 
 ## 리뷰 시 자주 놓치는 지점
 
