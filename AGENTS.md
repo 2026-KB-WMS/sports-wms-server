@@ -37,7 +37,7 @@ com.kb.wms.<domain>/
 - **엔티티 참조는 `Long xxxId`만** 사용한다. 같은 도메인/다른 도메인 모두 `@ManyToOne`, `@OneToMany` 등 JPA 연관관계 금지 ([ADR-005](docs/adr/005-entity-reference-by-id.md)). 예외: 조회 전용 API의 JPQL 조인([ADR-007](docs/adr/007-inventory-query-jpql-cross-domain-join.md)), 복합키 `sku_option_value`([ADR-009](docs/adr/009-sku-option-value-embedded-id.md)).
 - 수량 컬럼(`*_quantity`)은 **BIGINT** (DECIMAL 금지).
 - API JSON 필드명은 **camelCase** 전부 (응답 envelope의 `statusCode`, `errorCode`, `pageInfo` 포함). snake_case 금지.
-- 목록 API는 `data.items`로 통일한다. 페이징은 전 도메인 일괄 적용 예정이므로 지금은 추가하지 않는다.
+- 목록 API는 `data.items`로 통일한다. 페이징·정렬(`page`·`size`·`sort`, `data.pageInfo`)은 도메인별로 **필요한 목록에만** 적용하고, 어느 목록에 적용할지는 도메인 작업 시작 전에 사용자에게 확인받는다([ADR-032](docs/adr/032-pagination-and-sorting.md), 공통 코드 `common.paging`).
 - 사용자에게 노출되는 에러는 도메인별 `<Domain>ErrorCode` enum + 서비스에서 throw. 도메인 모델 내부 가드 예외는 개발자용으로 inline 유지 ([ADR-008](docs/adr/008-inventory-two-tier-exceptions.md)).
 - 404는 도메인 전용 코드 사용 (`PRODUCT_NOT_FOUND`, `SUPPLIER_NOT_FOUND` 등), generic `NOT_FOUND` 지양.
 - 다른 도메인 데이터를 읽는 조회 API는 서비스에서 조합하지 않고, **읽기 전용 쿼리 조인(ID 기준)** 으로 처리한다.

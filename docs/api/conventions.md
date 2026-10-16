@@ -3,7 +3,7 @@
 모든 엔드포인트가 따르는 공통 규칙이다. 이 문서가 기준(source of truth)이며, 2026-10-02에 Notion "공통 API 규칙"(최종 수정 2026-09-24)에서 이전했다. 도메인별 엔드포인트 명세의 "검증 및 비즈니스 규칙"에는 여기에 없는 도메인 특수 규칙만 추가로 적는다. 비기능 요구사항(성능·동시성·보안 등)은 별도 문서(Notion "비기능 요구사항")에서 관리한다.
 
 > **현재 구현 기준 메모** (결정 사항, 아래 규칙과 다르면 이 메모가 우선)
-> - 페이지네이션은 보류 중이다. 목록 API는 `data.items`만 반환하고(`data.pageInfo`는 아직 없음), 페이징은 전 도메인에 한꺼번에 추가한다.
+> - 페이지네이션은 도메인별로 필요한 목록에만 적용한다([ADR-032](../adr/032-pagination-and-sorting.md), #287). 적용한 목록은 `data.items`와 `data.pageInfo`를 돌려주고, 적용하지 않은 목록은 지금처럼 `data.items`만 돌려주며 `page`·`size`·`sort`를 받지 않는다(보내도 무시). 어느 목록이 적용 대상인지는 각 도메인 API 문서가 기준이다.
 > - 리소스 404는 도메인 전용 코드를 쓴다 (예: `PRODUCT_NOT_FOUND`, `SUPPLIER_NOT_FOUND`).
 
 ## 기본 정보 공통 규칙
@@ -27,7 +27,13 @@
 - 토큰은 로그인(`POST /auth/login`)이 발급하는 액세스 토큰(JWT, HS256)뿐이며 만료는 3600초다. 리프레시 토큰은 없다 ([ADR-011](../adr/011-jwt-access-token-only.md), [auth.md](auth.md)).
 
 ### Query Parameters (목록 조회 공통)
-- `page`(1부터 시작, 기본 1), `size`(기본 20, 최대 100), `sort`(예: `createdAt,desc`) — **페이지네이션 도입 시 적용** (위 구현 기준 메모 참고). 현재는 어떤 목록 API도 `page`·`size`·`sort`를 받지 않고(보내도 무시된다) 엔드포인트마다 고정된 정렬을 쓴다. 기본 정렬은 각 명세의 "정렬" 항목에 적는다.
+- 페이지네이션을 적용한 목록 API만 아래 파라미터를 받는다 (적용 여부는 각 도메인 API 문서 기준, 위 구현 기준 메모 참고). 적용하지 않은 목록은 받지 않고(보내도 무시된다) 엔드포인트마다 고정된 정렬을 쓴다.
+  - `page`: 1부터 시작, 기본 1.
+  - `size`: 기본 20, 1~100.
+  - `sort`: `필드,asc|desc` 형식 하나(예: `createdAt,desc`). 방향을 생략하면 asc, 대소문자는 구분하지 않는다. 정렬할 수 있는 필드는 API마다 정해져 있고 각 명세의 "정렬" 항목에 적는다. 생략하면 그 API의 기본 정렬을 쓴다.
+  - 범위를 벗어난 `page`·`size`, 허용되지 않은 `sort` 필드·방향·형식(정렬 기준 둘 이상 포함)은 400 `VALIDATION_ERROR`다.
+  - 어떤 정렬이든 마지막에 ID를 첫 정렬과 같은 방향으로 붙여 순서를 고정한다(같은 값이 많아도 페이지 사이에 행이 겹치거나 빠지지 않는다).
+  - 기본 정렬은 각 명세의 "정렬" 항목에 적는다.
 - 일시 범위 필터(`createdFrom`/`createdTo`, `arrivedFrom`/`arrivedTo`, `requestedFrom`/`requestedTo`)는 양 끝을 모두 포함한다(`>= from`, `<= to`). `expiringBefore`도 당일을 포함한다(`<=`).
 - 도메인별 필터 파라미터(예: `skuId`, `sectionId`, `expiringBefore`)는 각 엔드포인트 명세의 "Query Parameters"에서 개별 정의하고, 여기서 정한 페이지네이션 파라미터 이름은 그대로 재사용한다.
 
@@ -42,7 +48,14 @@
   "data": { }
 }
 ```
-- 목록 조회 API는 `data.items`(배열)를 포함한다. 페이지네이션 도입 후에는 `data.pageInfo`(`page`, `size`, `totalElements`, `totalPages`)도 포함한다.
+- 목록 조회 API는 `data.items`(배열)를 포함한다. 페이지네이션을 적용한 목록은 `data.pageInfo`도 포함한다.
+  ```json
+  "data": {
+    "items": [ ],
+    "pageInfo": { "page": 1, "size": 20, "totalElements": 135, "totalPages": 7, "sort": "createdAt,desc" }
+  }
+  ```
+  `totalElements`는 조건에 맞는 전체 건수, `totalPages`는 올림한 전체 페이지 수(항목이 없으면 0)다. `sort`는 실제 적용된 첫 정렬 기준이며, 요청에 `sort`가 없으면 기본 정렬이 내려가므로 화면이 정렬 화살표를 그릴 때 쓴다. 범위를 넘어선 `page`는 `items`가 빈 배열이고 `pageInfo`는 그대로 채워진다.
 - 생성(201) 응답은 `statusCode`가 `201`, `message`가 `"생성되었습니다."`이고 나머지 구조는 같다.
 - JSON 필드명은 요청·응답 모두 camelCase로 통일한다(`statusCode`, `errorCode`, `pageInfo`, `totalElements`, `totalPages` 등). 스네이크 케이스 필드는 쓰지 않는다. (2026-09-24 결정)
 

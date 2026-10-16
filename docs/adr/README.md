@@ -43,3 +43,4 @@
 | [029](029-purchase-order-line-supplier.md) | 창고 발주의 공급처는 발주 라인 단위로 배정하고, SKU-공급처는 다대다로 매핑한다 | Accepted | 2026-10-15 |
 | [030](030-supplier-order-split.md) | 창고 발주 요청과 공급처 발주서를 분리한다 | Accepted | 2026-10-15 |
 | [031](031-flyway-baseline-squash.md) | Flyway 마이그레이션을 단일 baseline으로 통합하고, 이후 변경은 V2부터 쌓는다 | Accepted | 2026-10-15 |
+| [032](032-pagination-and-sorting.md) | 목록 API 페이지네이션·정렬 규칙 — 필요한 목록에만 적용하고, 정렬 필드는 API별 화이트리스트로 제한한다 | Accepted | 2026-10-16 |
