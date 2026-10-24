@@ -44,8 +44,9 @@ public class DashboardQueryPersistenceAdapter implements DashboardQueryRepositor
     private static final String OUTBOUND_IN_PROGRESS = OUTBOUND_STATUS + "PICKING, "
             + OUTBOUND_STATUS + "PICKED, " + OUTBOUND_STATUS + "SHIPPED";
 
-    /** 재고 합계에서 빼는 로트 상태(격리·폐기). */
-    private static final String EXCLUDED_LOT_STATUSES = LOT_STATUS + "QUARANTINED, " + LOT_STATUS + "DISPOSED";
+    /** 재고 합계에서 빼는 로트 상태(격리·폐기·만료). */
+    private static final String EXCLUDED_LOT_STATUSES = LOT_STATUS + "QUARANTINED, " + LOT_STATUS + "DISPOSED, "
+            + LOT_STATUS + "EXPIRED";
 
     /** 정상 재고 조건: 격리·폐기 로트가 아니고 품질 상태가 가용인 재고. 쿼리의 il(재고), l(로트) 별칭을 쓴다. */
     private static final String SOUND_STOCK = "l.status not in (" + EXCLUDED_LOT_STATUSES + ")"
@@ -86,10 +87,11 @@ public class DashboardQueryPersistenceAdapter implements DashboardQueryRepositor
 
     @Override
     public InventoryTotals findInventoryTotals(LocalDate expiringOnOrBefore) {
-        // 격리·폐기가 우선이라 한 재고가 두 분류에 겹쳐 잡히지 않는다(불량은 격리·폐기 로트 밖에서만 센다).
+        // 로트 상태가 우선이라 한 재고가 두 분류에 겹쳐 잡히지 않는다(불량은 격리·폐기·만료 로트 밖에서만 센다).
         Long totalQuantity = onHandSum(SOUND_STOCK);
         Long quarantinedQuantity = onHandSum("l.status = " + LOT_STATUS + "QUARANTINED");
         Long disposedQuantity = onHandSum("l.status = " + LOT_STATUS + "DISPOSED");
+        Long expiredQuantity = onHandSum("l.status = " + LOT_STATUS + "EXPIRED");
         Long defectiveQuantity = onHandSum("l.status not in (" + EXCLUDED_LOT_STATUSES + ")"
                 + " and il.qualityStatus = " + QUALITY_STATUS + "DEFECTIVE");
         Long activeSkuCount = count("select count(s) from ProductSkuJpaEntity s where s.status = "
@@ -103,8 +105,8 @@ public class DashboardQueryPersistenceAdapter implements DashboardQueryRepositor
                 """.formatted(LOT_STATUS + "AVAILABLE"), Long.class)
                 .setParameter("limit", expiringOnOrBefore)
                 .getSingleResult();
-        return new InventoryTotals(totalQuantity, quarantinedQuantity, disposedQuantity, defectiveQuantity,
-                activeSkuCount, loadLowStockBasis().lowStockSkuCount(), expiringLotCount);
+        return new InventoryTotals(totalQuantity, quarantinedQuantity, disposedQuantity, expiredQuantity,
+                defectiveQuantity, activeSkuCount, loadLowStockBasis().lowStockSkuCount(), expiringLotCount);
     }
 
     private Long onHandSum(String condition) {
