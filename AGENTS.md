@@ -27,6 +27,7 @@ com.kb.wms.<domain>/
 ```
 
 - 도메인: auth, dashboard, inbound, inventory, outbound, product, statushistory, storeorder, store, warehouse. 공통 코드는 `common`(SecurityConfig, GlobalExceptionHandler, ApiResponse).
+- `dashboard`는 역할별 홈을 레이어 안의 하위 패키지로 나눈다(`hq`, `warehouse`). 예: `application/port/in/hq`, `adapter/in/web/warehouse`. 새 역할 홈(점주 등)도 같은 방식으로 추가한다.
 - 새 도메인/기능은 **product 도메인의 구조를 기준 예시**로 따른다.
 - 패키지 매핑 주의: `inbound` = Supplier/PurchaseOrder/PurchaseOrderLine/Inbound/InboundLine (ERD "입고"), `storeorder` = StoreOrder/StoreOrderLine (ERD "발주", 지점→창고 요청). `inbound`의 PurchaseOrder(창고 발주)와 혼동하지 않는다.
 
