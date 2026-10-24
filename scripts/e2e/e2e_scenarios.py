@@ -12,15 +12,14 @@
 """
 import argparse
 import json
+import random
+import string
 import sys
 import time
 import urllib.error
 import urllib.request
 
 RUN = time.strftime("%m%d%H%M%S")
-# 브랜드 코드는 영문 3자(유니크)라 실행 시각에서 만든다.
-BRAND_CODE = "".join(chr(ord("A") + (int(RUN) // 26 ** i) % 26) for i in range(3))
-CATEGORY_CODE = "".join(chr(ord("A") + (int(RUN) // 26 ** i) % 26) for i in range(3, 6))
 PASSWORD = "E2ePass!2345"
 
 results = []  # (name, ok, detail)
@@ -76,6 +75,20 @@ def must(name, resp, status=200):
 
 def section(title):
     print("\n== " + title)
+
+
+def register_with_code(name, call, dup_error, attempts=30):
+    """영문 3자 코드(유니크)를 무작위로 골라 등록한다. 이미 쓰는 코드(409)면 다른 코드로 다시 시도한다."""
+    for _ in range(attempts):
+        code = "".join(random.choices(string.ascii_uppercase, k=3))
+        status, body = call(code)
+        if status == 409 and body.get("errorCode") == dup_error:
+            continue
+        if status != 201:
+            raise Abort("%s: HTTP %s %s" % (name, status, json.dumps(body, ensure_ascii=False)[:300]))
+        print("  seed  " + name)
+        return code, body["data"]
+    raise Abort("%s: 코드 %d회 모두 중복" % (name, attempts))
 
 
 def run(api, admin_id, admin_pw):
@@ -135,9 +148,12 @@ def run(api, admin_id, admin_pw):
 
     # ---------------------------------------------------------------- 상품·공급처
     section("2. 시드: 상품·공급처")
-    brand = must("브랜드", api.call("POST", "/products/brands", {"brandCode": BRAND_CODE, "brandName": "E2E브랜드" + RUN, "description": "e2e"}, token=admin), 201)["brandId"]
-    cat = must("카테고리", api.call("POST", "/products/categories", {
-        "categoryCode": CATEGORY_CODE, "categoryName": "E2E카테고리", "sortOrder": 1}, token=admin), 201)["categoryId"]
+    BRAND_CODE, brand_data = register_with_code("브랜드", lambda code: api.call("POST", "/products/brands", {
+        "brandCode": code, "brandName": "E2E브랜드" + RUN, "description": "e2e"}, token=admin), "DUPLICATE_BRAND_CODE")
+    brand = brand_data["brandId"]
+    CATEGORY_CODE, cat_data = register_with_code("카테고리", lambda code: api.call("POST", "/products/categories", {
+        "categoryCode": code, "categoryName": "E2E카테고리", "sortOrder": 1}, token=admin), "DUPLICATE_CATEGORY_CODE")
+    cat = cat_data["categoryId"]
     prod = must("상품", api.call("POST", "/products", {
         "brandId": brand, "categoryId": cat, "productName": "E2E 상품"}, token=admin), 201)["productId"]
     prod_code = api.call("GET", "/products/%s" % prod, token=admin)[1]["data"]["productCode"]
@@ -164,20 +180,35 @@ def run(api, admin_id, admin_pw):
         "currentPurchasePrice": 1, "currentSupplyPrice": 1}, token=admin), 409, "DUPLICATE_SKU_OPTION_COMBINATION")
     supplier = must("공급처", api.call("POST", "/suppliers", {
         "supplierCode": "SUP-" + RUN, "supplierName": "E2E공급처", "managerName": "담당", "contactNumber": "02-111-1111"}, token=admin), 201)["supplierId"]
+    supplier_unmapped = must("공급처(SKU 매핑 없음)", api.call("POST", "/suppliers", {
+        "supplierCode": "SUPX-" + RUN, "supplierName": "E2E공급처X", "managerName": "담당", "contactNumber": "02-333-3333"}, token=admin), 201)["supplierId"]
+    # 발주 확정은 라인 SKU에 매핑된 공급처만 지정할 수 있다
+    for sku in (sku1, sku2):
+        must("SKU-공급처 매핑 %s" % sku, api.call("POST", "/products/skus/%s/suppliers" % sku, {"supplierId": supplier}, token=admin), 201)
 
     # ---------------------------------------------------------------- 시나리오 A: 입고
     section("3. 시나리오 A: 창고 발주 → 입고 → 재고 반영")
     po = must("발주 등록", api.call("POST", "/purchase-orders", {
-        "warehouseId": w1, "supplierId": supplier,
+        "warehouseId": w1,
         "lines": [{"skuId": sku1, "expectedQuantity": 100}, {"skuId": sku2, "expectedQuantity": 20}]}, token=wm1), 201)
     po_id = po["purchaseOrderId"]
     lines = {l["skuId"]: l for l in po["lines"]}
     check("발주 등록 상태 REQUESTED", po["status"] == "REQUESTED", po["status"])
-    expect("창고 관리자는 발주 확정 불가(403)", api.call("PATCH", "/purchase-orders/%s/confirm" % po_id, token=wm1), 403)
-    expect("본사 발주 확정", api.call("PATCH", "/purchase-orders/%s/confirm" % po_id, token=admin), 200)
+    confirm_path = "/purchase-orders/%s/confirm" % po_id
+    assign = lambda sid: {"lines": [{"purchaseOrderLineId": l["purchaseOrderLineId"], "supplierId": sid} for l in lines.values()]}
+    expect("창고 관리자는 발주 확정 불가(403)", api.call("PATCH", confirm_path, assign(supplier), token=wm1), 403)
+    expect("라인 공급처 없이 확정(400 LINE_SUPPLIER_REQUIRED)", api.call("PATCH", confirm_path, token=admin), 400, "LINE_SUPPLIER_REQUIRED")
+    expect("SKU에 매핑되지 않은 공급처로 확정(409 SKU_SUPPLIER_NOT_MAPPED)",
+           api.call("PATCH", confirm_path, assign(supplier_unmapped), token=admin), 409, "SKU_SUPPLIER_NOT_MAPPED")
+    conf = expect("본사 발주 확정(라인별 공급처 지정)", api.call("PATCH", confirm_path, assign(supplier), token=admin), 200)
+    if not conf or len(conf["supplierOrders"]) != 1:
+        raise Abort("발주 확정 응답에 공급처 발주서 1건이 없다: %s" % conf)
+    so = conf["supplierOrders"][0]
+    so_id = so["supplierOrderId"]
+    check("공급처 발주서 ISSUED, 공급처 일치", so["status"] == "ISSUED" and so["supplierId"] == supplier, so)
 
-    ib = must("입고 등록", api.call("POST", "/inbounds", {"purchaseOrderId": po_id}, token=wm1), 201)["inboundId"]
-    expect("같은 발주에 진행 중 입고 중복 등록(409)", api.call("POST", "/inbounds", {"purchaseOrderId": po_id}, token=wm1), 409, "INBOUND_IN_PROGRESS")
+    ib = must("입고 등록", api.call("POST", "/inbounds", {"supplierOrderId": so_id}, token=wm1), 201)["inboundId"]
+    expect("같은 발주서에 진행 중 입고 중복 등록(409)", api.call("POST", "/inbounds", {"supplierOrderId": so_id}, token=wm1), 409, "INBOUND_IN_PROGRESS")
     expect("assignable-sections 조회", api.call("GET", "/inbounds/%s/assignable-sections" % ib, token=wm1), 200)
     expect("검수 전 완료 불가(409)", api.call("PATCH", "/inbounds/%s/complete" % ib, token=wm1), 409)
     insp = {"lines": [
@@ -195,6 +226,7 @@ def run(api, admin_id, admin_pw):
     done = expect("입고 완료", api.call("PATCH", "/inbounds/%s/complete" % ib, token=wm1), 200)
     if done:
         check("발주 COMPLETED", done["purchaseOrder"]["status"] == "COMPLETED", done["purchaseOrder"])
+        check("공급처 발주서 COMPLETED", done["supplierOrder"]["status"] == "COMPLETED", done.get("supplierOrder"))
     expect("완료 재호출(409)", api.call("PATCH", "/inbounds/%s/complete" % ib, token=wm1), 409)
 
     def by_lot(sku):
@@ -382,6 +414,26 @@ def run(api, admin_id, admin_pw):
     expect("가입 신청 전화번호 형식 오류(400)", api.call("POST", "/auth/signup", {
         "loginId": "bad_phone_" + RUN, "password": PASSWORD, "name": "bad", "email": "bad_%s@e2e.test" % RUN,
         "phone": "01012345678", "role": "STORE_OWNER"}), 400, "VALIDATION_ERROR")
+
+    # ---------------------------------------------------------------- 시나리오 H: 본사 대시보드
+    # 같은 DB에 이전 실행 데이터가 남을 수 있어 수치는 보지 않고 응답 구조·권한·오류만 확인한다.
+    section("10. 시나리오 H: 본사 대시보드")
+    sm = expect("대시보드 요약(본사)", api.call("GET", "/dashboard/hq/summary", token=admin), 200)
+    if sm:
+        check("요약 최상위 필드", all(k in sm for k in ("month", "pending", "inventory", "inbound", "outbound", "storeOrders", "warehouses")), list(sm))
+        check("재고 분류 필드", all(k in sm["inventory"] for k in (
+            "totalQuantity", "quarantinedQuantity", "disposedQuantity", "expiredQuantity", "defectiveQuantity")), sm["inventory"])
+        check("지점 발주 byStatus에 모든 상태", len(sm["storeOrders"]["byStatus"]) == 7, sm["storeOrders"]["byStatus"])
+        check("활성 창고가 warehouses에 포함", any(w["warehouseId"] == w1 for w in sm["warehouses"]), [w["warehouseId"] for w in sm["warehouses"]])
+    tr = expect("대시보드 추이(본사, months=3)", api.call("GET", "/dashboard/hq/trends?months=3", token=admin), 200)
+    if tr:
+        check("추이 3개월", len(tr["items"]) == 3, len(tr["items"]))
+        check("지난 달 진행중 수량은 null", tr["items"][0]["inboundInProgressQuantity"] is None, tr["items"][0])
+    expect("창고 필터 추이", api.call("GET", "/dashboard/hq/trends?warehouseId=%s" % w1, token=admin), 200)
+    expect("없는 창고 추이(404)", api.call("GET", "/dashboard/hq/trends?warehouseId=99999999", token=admin), 404, "WAREHOUSE_NOT_FOUND")
+    expect("임박 일수 범위 오류(400)", api.call("GET", "/dashboard/hq/summary?expiringWithinDays=366", token=admin), 400, "VALIDATION_ERROR")
+    expect("창고 관리자는 대시보드 불가(403)", api.call("GET", "/dashboard/hq/summary", token=wm1), 403)
+    expect("점주는 대시보드 불가(403)", api.call("GET", "/dashboard/hq/trends", token=own1), 403)
 
 
 def main():
