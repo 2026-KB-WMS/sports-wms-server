@@ -44,3 +44,4 @@
 | [030](030-supplier-order-split.md) | 창고 발주 요청과 공급처 발주서를 분리한다 | Accepted | 2026-10-15 |
 | [031](031-flyway-baseline-squash.md) | Flyway 마이그레이션을 단일 baseline으로 통합하고, 이후 변경은 V2부터 쌓는다 | Accepted | 2026-10-15 |
 | [032](032-pagination-and-sorting.md) | 목록 API 페이지네이션·정렬 규칙 — 필요한 목록에만 적용하고, 정렬 필드는 API별 화이트리스트로 제한한다 | Accepted | 2026-10-16 |
+| [033](033-dashboard-readonly-aggregation.md) | 대시보드는 엔티티 없는 읽기 전용 도메인으로 두고, 집계는 조회 전용 쿼리 조인으로 처리한다 | Accepted | 2026-10-24 |
