@@ -50,6 +50,7 @@
     "totalQuantity": 184200,
     "quarantinedQuantity": 1200,
     "disposedQuantity": 300,
+    "expiredQuantity": 150,
     "defectiveQuantity": 450,
     "activeSkuCount": 312,
     "lowStockSkuCount": 18,
@@ -92,9 +93,9 @@
   - `unassignedApprovedStoreOrderCount`: 지점 발주 `APPROVED` (창고 배정 전).
   - 기간 필터 없이 현재 시점 전체를 센다.
 - `inventory`
-  - `totalQuantity`: 전 창고 정상 재고 수량 합. `QUARANTINED`·`DISPOSED` 로트와 품질 상태 `DEFECTIVE` 재고는 제외하고 `EXPIRED` 로트는 포함한다.
-  - `quarantinedQuantity`·`disposedQuantity`: 격리·폐기 로트의 재고 수량 합. 로트 상태가 우선이라 이 로트의 불량 재고도 여기에 센다.
-  - `defectiveQuantity`: 격리·폐기가 아닌 로트의 `DEFECTIVE` 재고 수량 합. 세 값은 서로 겹치지 않는다.
+  - `totalQuantity`: 전 창고 정상 재고 수량 합. `QUARANTINED`·`DISPOSED`·`EXPIRED` 로트와 품질 상태 `DEFECTIVE` 재고는 제외한다.
+  - `quarantinedQuantity`·`disposedQuantity`·`expiredQuantity`: 격리·폐기·만료 로트의 재고 수량 합. 로트 상태가 우선이라 이 로트의 불량 재고도 여기에 센다.
+  - `defectiveQuantity`: 격리·폐기·만료가 아닌 로트의 `DEFECTIVE` 재고 수량 합. 네 값은 서로 겹치지 않는다.
   - `activeSkuCount`: 활성 SKU 수.
   - `lowStockSkuCount`: `GET /inventory/low-stock`과 같은 조건(`availableQuantity < safetyStockQuantity`, 안전재고 0·비활성 SKU 제외)의 SKU 수.
   - `expiringLotCount`: 재고가 남은 `AVAILABLE` 로트 중 `expiryDate <= 오늘 + expiringWithinDays`인 로트 수(당일 포함).
@@ -141,7 +142,7 @@
 
 ## 결정 사항 (2026-10-23)
 
-- `totalQuantity`는 격리(`QUARANTINED`)·폐기(`DISPOSED`) 로트와 불량(`DEFECTIVE`) 재고를 제외하고, 세 가지를 각각 `quarantinedQuantity`·`disposedQuantity`·`defectiveQuantity`로 따로 내려준다. `warehouses[].inventoryQuantity`도 같은 정상 재고 기준이다. 유통기한 경과(`EXPIRED`) 로트는 별도 언급이 없어 포함으로 두었으며, 빼려면 사용자 확인이 필요하다.
+- `totalQuantity`는 격리(`QUARANTINED`)·폐기(`DISPOSED`)·만료(`EXPIRED`) 로트와 불량(`DEFECTIVE`) 재고를 제외하고, 각각 `quarantinedQuantity`·`disposedQuantity`·`expiredQuantity`·`defectiveQuantity`로 따로 내려준다(2026-10-24 결정, 만료 제외는 #314). `warehouses[].inventoryQuantity`도 같은 정상 재고 기준이다. 지금은 `EXPIRED`로 바꾸는 API와 만료 배치가 없어 `expiredQuantity`가 0이다.
 - `month`는 과거 달 조회를 허용한다.
 - `storeOrders`는 요청 시각(`createdAt`) 기준으로 월을 나눈다. 완료 시각 기준은 미완료 상태를 월에 배치할 수 없어 쓰지 않는다.
 - 지연 건은 이번 범위에서 뺐다. 후보였던 기준은 출고 `READY`가 `createdAt` 기준 5일 초과였다.

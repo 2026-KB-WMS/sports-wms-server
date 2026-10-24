@@ -103,6 +103,11 @@ class DashboardQueryPersistenceAdapterTest {
         inventoryLot(s2, lotB, 7L, 0L, QualityStatus.DEFECTIVE);
         // 격리 로트의 불량 재고는 격리로만 센다(불량과 겹치지 않음)
         inventoryLot(s2, lotA2, 3L, 0L, QualityStatus.DEFECTIVE);
+
+        Long lotG = lot(skuD, LotStatus.EXPIRED, LocalDate.of(2026, 9, 1));
+        inventoryLot(s1, lotG, 25L, 0L);
+        // 만료 로트의 불량 재고도 만료로만 센다
+        inventoryLot(s2, lotG, 2L, 0L, QualityStatus.DEFECTIVE);
     }
 
     @Test
@@ -125,15 +130,16 @@ class DashboardQueryPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("재고 총량은 격리·폐기·불량을 빼고 따로 세며, 안전 재고 미달과 유통기한 임박을 센다")
+    @DisplayName("재고 총량은 격리·폐기·만료·불량을 빼고 따로 세며, 안전 재고 미달과 유통기한 임박을 센다")
     void inventoryTotals() {
         InventoryTotals totals = repository.findInventoryTotals(LocalDate.of(2026, 11, 15));
 
-        // 60 + 30 + 20 + 20 (격리·폐기·불량 제외, 재고 0은 영향 없음)
+        // 60 + 30 + 20 + 20 (격리·폐기·만료·불량 제외, 재고 0은 영향 없음)
         assertThat(totals.totalQuantity()).isEqualTo(130L);
-        // 격리 500 + 3, 폐기 40, 불량 7 (격리 로트의 불량 3은 불량에 중복 집계하지 않음)
+        // 격리 500 + 3, 폐기 40, 만료 25 + 2 (격리·만료 로트의 불량은 불량에 중복 집계하지 않음), 불량 7
         assertThat(totals.quarantinedQuantity()).isEqualTo(503L);
         assertThat(totals.disposedQuantity()).isEqualTo(40L);
+        assertThat(totals.expiredQuantity()).isEqualTo(27L);
         assertThat(totals.defectiveQuantity()).isEqualTo(7L);
         // A, B, D (C는 비활성)
         assertThat(totals.activeSkuCount()).isEqualTo(3L);
