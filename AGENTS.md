@@ -26,7 +26,7 @@ com.kb.wms.<domain>/
 └── exception/                # <Domain>ErrorCode
 ```
 
-- 도메인: auth, inbound, inventory, outbound, product, statushistory, storeorder, store, warehouse. 공통 코드는 `common`(SecurityConfig, GlobalExceptionHandler, ApiResponse).
+- 도메인: auth, dashboard, inbound, inventory, outbound, product, statushistory, storeorder, store, warehouse. 공통 코드는 `common`(SecurityConfig, GlobalExceptionHandler, ApiResponse).
 - 새 도메인/기능은 **product 도메인의 구조를 기준 예시**로 따른다.
 - 패키지 매핑 주의: `inbound` = Supplier/PurchaseOrder/PurchaseOrderLine/Inbound/InboundLine (ERD "입고"), `storeorder` = StoreOrder/StoreOrderLine (ERD "발주", 지점→창고 요청). `inbound`의 PurchaseOrder(창고 발주)와 혼동하지 않는다.
 
@@ -48,7 +48,7 @@ com.kb.wms.<domain>/
 ## 문서 (`docs/`)
 
 - `docs/README.md`의 표가 **어떤 문서의 기준이 레포이고 어떤 문서가 아직 Notion인지** 알려준다. 먼저 이 표를 본다.
-- 이전 완료(레포가 기준): `docs/adr/`(기술 결정 기록), `docs/api/conventions.md`(공통 API 규칙), 구현 완료된 도메인의 API 명세(`docs/api/product.md`, `warehouse.md`, `inventory.md`, `store.md`, `inbound.md`, `auth.md`), 구현을 시작하며 이전한 지점 발주 문서(`docs/api/store-order.md`, `docs/domain/store-order.md`), 인증·계정 도메인 문서(`docs/domain/auth.md`), 역할 매트릭스(`docs/api/authorization.md`).
+- 이전 완료(레포가 기준): `docs/adr/`(기술 결정 기록), `docs/api/conventions.md`(공통 API 규칙), 구현 완료된 도메인의 API 명세(`docs/api/product.md`, `warehouse.md`, `inventory.md`, `store.md`, `inbound.md`, `auth.md`, `dashboard.md`), 구현을 시작하며 이전한 지점 발주 문서(`docs/api/store-order.md`, `docs/domain/store-order.md`), 인증·계정 도메인 문서(`docs/domain/auth.md`), 역할 매트릭스(`docs/api/authorization.md`).
 - 아직 Notion이 기준: ERD, 반품 업무 상태 전이도 등. **도메인 구현을 시작할 때 해당 도메인 문서를 `docs/`로 옮기고** 표를 갱신한다.
 - 이전된 API 명세 안의 "구현 대비 메모"는 Notion 명세와 코드의 알려진 차이다. 새로 발견한 차이도 임의로 고치지 말고 그 메모에 추가하거나 사용자에게 보고한다.
 - `docs/domain/<도메인>.md`는 상태 전이, 권한, 부수 효과 정리다. 입고·출고·발주처럼 상태 전이와 재고 연동이 있는 도메인은 구현/리뷰 전에 읽는다. 아직 Notion에서 이전되지 않은 내용의 요약이면 문서 상단에 "기준은 Notion"이라고 적혀 있고, 충돌하면 Notion을 따른다. (현재 `inbound.md`는 구현 완료로, `store-order.md`는 구현 시작 시점에 기준 문서로 승격됨)

@@ -113,6 +113,8 @@ public class SecurityConfig {
                         .hasAnyRole("HQ_ADMIN", "WAREHOUSE_MANAGER")
                         .requestMatchers("/api/v1/allocations/**", "/api/v1/outbounds/**")
                         .hasRole("WAREHOUSE_MANAGER")
+                        // 대시보드: 본사 홈은 본사 관리자만.
+                        .requestMatchers("/api/v1/dashboard/hq/**").hasRole("HQ_ADMIN")
                         // 위에서 정하지 않은 요청은 로그인한 사용자만 호출할 수 있다.
                         .anyRequest().authenticated());
 

@@ -1,6 +1,6 @@
-# Dashboard 도메인 API 명세 (초안)
+# Dashboard 도메인 API 명세
 
-> **초안.** 2026-10-23 작성, 아직 구현 전이며 기준 문서가 아니다. 공통 규칙은 [conventions.md](conventions.md), 역할 규칙은 [authorization.md](authorization.md) 참고.
+> 2026-10-23 작성, 2026-10-24 구현과 함께 기준 문서로 승격했다(이슈 #306). 공통 규칙은 [conventions.md](conventions.md), 역할 규칙은 [authorization.md](authorization.md) 참고.
 > Base path: `/api/v1/dashboard`. 이 문서는 **본사(HQ_ADMIN) 홈**만 다룬다. 창고 관리자 홈은 별도 항목으로 추가한다.
 > 읽기 전용 집계 API다. 다른 도메인 테이블을 서비스에서 조합하지 않고 읽기 전용 쿼리 조인(ID 기준)으로 집계한다.
 

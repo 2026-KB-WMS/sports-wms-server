@@ -97,6 +97,11 @@
 | GET /allocations 계열, GET /outbounds 계열 | HQ_ADMIN, WAREHOUSE_MANAGER(담당 창고). STORE_OWNER 불가 |
 | POST /outbounds, PATCH /outbounds/{id}/picking/start, /picking/complete, /ship, /deliver, /cancel | WAREHOUSE_MANAGER(담당 창고). HQ_ADMIN 불가 |
 
+## 대시보드 (dashboard)
+| 엔드포인트 | 역할 |
+|---|---|
+| GET /dashboard/hq/summary, GET /dashboard/hq/trends | HQ_ADMIN만. 창고 관리자·점주는 403 |
+
 ## 메모
 - 처리 사용자(`createdBy`, `changedBy`, `receivedBy` 등)는 요청 파라미터가 아니라 토큰의 `userId`로 채운다. `userId` 쿼리 파라미터는 받지 않는다(#170에서 제거).
 - 역할·계정 상태·소속은 토큰이 아니라 요청마다 DB에서 읽는다. 소속·역할 변경과 계정 비활성화(ACTIVE가 아니면 401)가 다음 요청부터 반영된다([ADR-016](../adr/016-reload-user-per-request.md)).
