@@ -1,7 +1,7 @@
 # Dashboard 도메인 API 명세
 
 > 2026-10-23 작성, 2026-10-24 구현과 함께 기준 문서로 승격했다(이슈 #306). 공통 규칙은 [conventions.md](conventions.md), 역할 규칙은 [authorization.md](authorization.md) 참고.
-> Base path: `/api/v1/dashboard`. 이 문서는 **본사(HQ_ADMIN) 홈**만 다룬다. 창고 관리자 홈은 별도 항목으로 추가한다.
+> Base path: `/api/v1/dashboard`. 이 문서는 **본사(HQ_ADMIN) 홈**과 **창고 관리자 홈**을 다룬다. 창고 관리자 홈은 2026-10-24 초안이고 구현 시작 시점에 기준 문서로 확정한다. 점주 홈은 별도 항목으로 추가한다.
 > 읽기 전용 집계 API다. 다른 도메인 테이블을 서비스에서 조합하지 않고 읽기 전용 쿼리 조인(ID 기준)으로 집계한다.
 
 ## 엔드포인트
@@ -10,9 +10,10 @@
 |---|---|---|---|
 | GET | /dashboard/hq/summary | HQ_ADMIN | 조치 대기 + 총 집계 (홈 진입 시 호출, 가볍게) |
 | GET | /dashboard/hq/trends | HQ_ADMIN | 월간 추이 + 출고 상위 SKU (무거움, 별도 호출) |
+| GET | /dashboard/warehouse/summary | WAREHOUSE_MANAGER(담당 창고) | 창고 작업 대기 + 가용 수용량 + 부족 재고·유통기한 임박 (초안) |
 
-- 두 API 모두 페이지네이션 없음. 목록처럼 보이는 `items`는 고정 개수이며 `page`·`size`·`sort`는 받지 않는다(보내도 무시).
-- 창고 관리자·점주 호출은 403 `FORBIDDEN`.
+- 모든 API는 페이지네이션 없음. 목록처럼 보이는 `items`·`lowStockSkus`는 고정 개수이며 `page`·`size`·`sort`는 받지 않는다(보내도 무시).
+- `/dashboard/hq/**`는 창고 관리자·점주 호출이 403 `FORBIDDEN`이다. `/dashboard/warehouse/**`는 창고 관리자 전용이고 본사·점주는 403이다.
 
 ## 집계 기준 (결정)
 
@@ -131,14 +132,62 @@
 - `*InProgressQuantity`는 **현재 달 항목에만** 값이 있고 지난 달은 `null`이다(진행중은 스냅샷이므로).
 - `topOutboundSkus`: 현재 달 출고 **완료** 수량 상위 5개 SKU, 수량 내림차순(같으면 `skuId` 오름차순). 5개 미만이면 있는 만큼만. `warehouseId` 필터를 따른다.
 
+## GET /dashboard/warehouse/summary (초안)
+
+창고 관리자 홈(화면 WH-01)이 한 번에 부르는 API다. 창고를 고르면 화면 전체가 그 창고 데이터로 바뀐다.
+
+- Query
+  - `warehouseId`: 담당 창고가 **하나**면 생략 가능(그 창고), **여럿**이면 필수(없으면 400 `VALIDATION_ERROR`). 담당이 아닌 창고는 존재 여부와 관계없이 403(`authorization.md`의 소속 범위 규칙).
+  - `expiringWithinDays`(선택, 1~365, 기본 30): 유통기한 임박 기준 일수.
+- 응답 `data`:
+
+```json
+{
+  "warehouseId": 1,
+  "warehouseName": "서울 센터",
+  "pending": {
+    "inbound": { "arrivedCount": 2, "inspectingCount": 1 },
+    "outbound": { "readyCount": 5, "pickingCount": 2, "shippedCount": 3 }
+  },
+  "capacity": {
+    "capacity": 10000,
+    "currentCapacity": 6200,
+    "availableCapacity": 3800,
+    "usageRate": 0.62
+  },
+  "inventory": {
+    "lowStockSkuCount": 18,
+    "lowStockSkus": [
+      { "skuId": 12, "skuCode": "SKU-0012", "skuName": "축구공 5호", "availableQuantity": 3, "safetyStockQuantity": 20 }
+    ],
+    "expiringLotCount": 7
+  }
+}
+```
+
+### 필드 정의
+
+- `pending`: 담당 창고의 현재 시점 작업 건수(기간 필터 없음). 단계별로 나눠 "지금 내가 할 일"을 보여준다.
+  - `inbound.arrivedCount`: 입고 `ARRIVED`(검수 전), `inspectingCount`: `INSPECTING`(검수 중).
+  - `outbound.readyCount`: 출고 `READY`(피킹 전), `pickingCount`: `PICKING`·`PICKED`(작업 중), `shippedCount`: `SHIPPED`(배송 중).
+  - 취소(`CANCELED`)와 완료(`COMPLETED`·`DELIVERED`)는 세지 않는다.
+- `capacity`: 구역 API와 같은 이름·의미를 쓴다(`currentCapacity`는 구역에 적치된 수량, `availableCapacity = capacity - currentCapacity`).
+  - `currentCapacity`: 창고의 **활성 구역 전체**의 `currentCapacity` 합. 적치는 구역 단위로만 늘고 상위 구역에 합산되지 않으므로 겹치지 않는다. 하위 구역이 있는 구역에도 직접 적치할 수 있어 리프 구역만 더하지 않는다.
+  - `capacity`: 창고의 활성 **최상위 구역**(`parentSectionId` 없음)의 `capacity` 합. 하위 구역 수용량은 상위 구역 수용량 안에 포함되므로 전체를 더하면 부풀려진다.
+  - `usageRate = currentCapacity / capacity`, 소수 둘째 자리 반올림. `capacity`가 0이면 `null`.
+- `inventory`
+  - `lowStockSkuCount`: 본사 홈·`GET /inventory/low-stock`과 같은 조건(`availableQuantity < safetyStockQuantity`, 안전재고 0·비활성 SKU 제외)을 이 창고 재고로 계산한 SKU 수.
+  - `lowStockSkus`: 부족 폭(`safetyStockQuantity - availableQuantity`)이 큰 상위 5개. 같으면 `skuId` 오름차순. 5개 미만이면 있는 만큼만. 전체 목록은 `GET /inventory/low-stock`을 쓴다.
+  - `expiringLotCount`: 이 창고에 재고가 남은 `AVAILABLE` 로트 중 `expiryDate <= 오늘 + expiringWithinDays`(당일 포함).
+
 ## 에러
 
 | 상태 | 코드 | 조건 |
 |---|---|---|
-| 400 | VALIDATION_ERROR | `month` 형식 오류, `expiringWithinDays`·`months` 범위 오류 |
+| 400 | VALIDATION_ERROR | `month` 형식 오류, `expiringWithinDays`·`months` 범위 오류, 담당 창고가 여럿인데 `warehouseId` 없음 |
 | 401 | UNAUTHORIZED | 토큰 없음·만료 |
-| 403 | FORBIDDEN | HQ_ADMIN이 아님 |
-| 404 | WAREHOUSE_NOT_FOUND | `warehouseId`가 없는 창고 (trends) |
+| 403 | FORBIDDEN | `/hq/**`는 HQ_ADMIN이 아님, `/warehouse/**`는 창고 관리자가 아니거나 담당이 아닌 `warehouseId` |
+| 404 | WAREHOUSE_NOT_FOUND | `warehouseId`가 없는 창고 (hq trends) |
 
 ## 결정 사항 (2026-10-23)
 
@@ -146,6 +195,13 @@
 - `month`는 과거 달 조회를 허용한다.
 - `storeOrders`는 요청 시각(`createdAt`) 기준으로 월을 나눈다. 완료 시각 기준은 미완료 상태를 월에 배치할 수 없어 쓰지 않는다.
 - 지연 건은 이번 범위에서 뺐다. 후보였던 기준은 출고 `READY`가 `createdAt` 기준 5일 초과였다.
+
+## 결정 사항: 창고 관리자 홈 (2026-10-24)
+
+- 창고를 하나씩 조회한다(`warehouseId`). 담당 창고 합산·창고별 배열은 쓰지 않는다.
+- 작업 대기는 입고·출고 단계별 건수로 준다. "재고 할당 대기"(배정됐지만 할당 전인 지점 발주)는 이번 범위에서 뺀다.
+- 수용량은 구역 API의 이름(`capacity`·`currentCapacity`·`availableCapacity`)을 그대로 쓰고, 구역 유형별·구역별 목록은 주지 않는다.
+- 부족 재고는 건수와 상위 5개를 주고, 유통기한 임박 로트 건수를 함께 준다.
 
 ## 구현 시 참고
 
