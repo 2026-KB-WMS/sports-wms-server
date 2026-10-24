@@ -1,6 +1,7 @@
 package com.kb.wms.dashboard.application.port.in.warehouse.result;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 /**
  * 창고의 수용량 사용 현황. 이름과 의미는 구역 API와 같다.
@@ -16,4 +17,12 @@ public record CapacityUsage(
         BigDecimal availableCapacity,
         BigDecimal usageRate
 ) {
+
+    /** 수용량과 적치량으로 가용량과 사용률을 채운다. */
+    public static CapacityUsage of(BigDecimal capacity, BigDecimal currentCapacity) {
+        BigDecimal usageRate = capacity.signum() == 0
+                ? null
+                : currentCapacity.divide(capacity, 2, RoundingMode.HALF_UP);
+        return new CapacityUsage(capacity, currentCapacity, capacity.subtract(currentCapacity), usageRate);
+    }
 }
