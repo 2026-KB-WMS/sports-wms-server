@@ -39,7 +39,8 @@ class ArchitectureTest {
             .orShould().beAnnotatedWith("jakarta.persistence.ManyToMany");
 
     private static final List<String> DOMAINS = List.of(
-            "auth", "inbound", "inventory", "outbound", "product", "statushistory", "storeorder", "store", "warehouse");
+            "auth", "dashboard", "inbound", "inventory", "outbound", "product", "statushistory", "storeorder", "store",
+            "warehouse");
 
     /** 다른 도메인에서는 {@code application.port.in}만 쓸 수 있다. 같은 도메인 안과 common은 제한하지 않는다. */
     @ArchTest
