@@ -101,6 +101,7 @@
 | 엔드포인트 | 역할 |
 |---|---|
 | GET /dashboard/hq/summary, GET /dashboard/hq/trends | HQ_ADMIN만. 창고 관리자·점주는 403 |
+| GET /dashboard/warehouse/summary | WAREHOUSE_MANAGER(담당 창고)만. 본사·점주는 403, 담당이 아닌 `warehouseId`는 존재 여부와 관계없이 403 |
 
 ## 메모
 - 처리 사용자(`createdBy`, `changedBy`, `receivedBy` 등)는 요청 파라미터가 아니라 토큰의 `userId`로 채운다. `userId` 쿼리 파라미터는 받지 않는다(#170에서 제거).
