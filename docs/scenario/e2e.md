@@ -2,7 +2,7 @@
 
 실행 중인 서버에 HTTP로만 접근해 시드 데이터를 만들고 업무 흐름·예외·권한을 검증하는 시나리오다. 실행 스크립트는 [`scripts/e2e/e2e_scenarios.py`](../../scripts/e2e/e2e_scenarios.py)이며, 이 문서는 그 스크립트가 무엇을 검증하는지 설명한다. 기대 응답의 기준은 `docs/api/*.md`와 `docs/domain/*.md`이고, 이 문서와 다르면 API 명세가 기준이다.
 
-- 마지막 실행: 2026-10-24, MySQL 8.4 임시 컨테이너 + `bootRun`, 121개 통과 / 0 실패 (같은 DB에서 세 번 연속 통과). 임시 앱은 `SPRING_DATASOURCE_URL`로 컨테이너를 가리켜 띄운다.
+- 마지막 실행: 2026-10-25, MySQL 8.4 임시 컨테이너 + `bootRun`, 132개 통과 / 0 실패 (같은 DB에서 세 번 연속 통과). 임시 앱은 `SPRING_DATASOURCE_URL`로 컨테이너를 가리켜 띄운다.
 - 검증 항목 번호는 스크립트의 `check`/`expect` 이름과 같다.
 
 ## 실행
@@ -154,6 +154,18 @@
 | 없는 `warehouseId`로 `trends` | 404 `WAREHOUSE_NOT_FOUND` |
 | `expiringWithinDays=366`으로 `summary` | 400 `VALIDATION_ERROR` |
 | 창고 관리자·점주가 대시보드 호출 | 403 |
+
+### I. 창고 관리자 대시보드
+
+`wm1`은 W1만 담당한다. 수치는 앞 시나리오에 따라 달라지므로 응답 구조·권한·오류만 확인한다. 수치는 `WarehouseDashboardApiIntegrationTest`가 검증한다.
+
+| 호출 | 기대 |
+|---|---|
+| `wm1`이 `GET /dashboard/warehouse/summary`(`warehouseId` 생략) | 200, 대상은 W1, 최상위 필드(`warehouseName`·`pending`·`capacity`·`inventory`), 작업 대기 단계별 필드, 수용량 필드 4개, `lowStockSkus` 5개 이하 |
+| `wm1`이 `warehouseId=W1`로 호출 | 200 |
+| `wm1`이 `warehouseId=W2`로 호출 | 403 `FORBIDDEN` |
+| `expiringWithinDays=0` | 400 `VALIDATION_ERROR` |
+| 본사·점주가 창고 대시보드 호출 | 403 |
 
 ## 범위 밖
 
