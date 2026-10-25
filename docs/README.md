@@ -16,7 +16,7 @@
 | API 명세: 입고 (공급처·창고 발주·입고) | **레포** | [`api/inbound.md`](api/inbound.md) | 2026-10-02 이전 완료(Supplier 5 + PurchaseOrder 6 + Inbound 9). 상단 "구현 대비 메모" 참고 |
 | API 명세: 지점 발주 | **레포** | [`api/store-order.md`](api/store-order.md) | 2026-10-03 이전 완료(12개, 구현 완료). 재고 할당 `/allocations`는 제외(출고 도메인으로 이전). 상단 "구현 대비 메모" 참고 |
 | API 명세: 출고·재고 할당 | **레포** | [`api/outbound.md`](api/outbound.md) | 2026-10-05 이전 완료(출고 8 + 재고 할당 4 = 12개, 구현 완료). 상단 "구현 대비 메모" 참고 |
-| API 명세: 대시보드 (본사 홈 요약·추이) | **레포** | [`api/dashboard.md`](api/dashboard.md) | 2026-10-24 기준 문서로 승격(구현 2개, 창고 관리자·점주 홈은 범위 밖). 집계 방식은 [ADR-033](adr/033-dashboard-readonly-aggregation.md) |
+| API 명세: 대시보드 (본사 홈 요약·추이, 창고 관리자 홈) | **레포** | [`api/dashboard.md`](api/dashboard.md) | 2026-10-24 기준 문서로 승격(본사 홈 2개), 2026-10-25 창고 관리자 홈 1개 추가. 점주 홈은 범위 밖. 집계 방식은 [ADR-033](adr/033-dashboard-readonly-aggregation.md) |
 | 인가 규칙·역할 매트릭스 | **레포** | [`api/authorization.md`](api/authorization.md) | 2026-10-08 작성(#169). 도메인 API 명세의 권한 항목을 한 표로 모음. 불일치하면 도메인 명세가 기준 |
 | API 명세: 인증 (가입·로그인·내 정보·계정 관리) | **레포** | [`api/auth.md`](api/auth.md) | 2026-10-08 이전 완료(구현 6개, 비밀번호 변경 #193 추가; Notion의 `GET /users/{userId}`는 미구현). 상단 "구현 대비 메모" 참고 |
 | 인증·계정 도메인 상태 전이/권한/부수 효과/토큰 정책 | **레포** | [`domain/auth.md`](domain/auth.md) | 2026-10-08 기준 문서로 작성(구현 완료). 최초 본사 관리자 생성(ADR-013)과 보류 항목 포함 |

@@ -1,7 +1,7 @@
 # Dashboard 도메인 API 명세
 
-> 2026-10-23 작성, 2026-10-24 구현과 함께 기준 문서로 승격했다(이슈 #306). 공통 규칙은 [conventions.md](conventions.md), 역할 규칙은 [authorization.md](authorization.md) 참고.
-> Base path: `/api/v1/dashboard`. 이 문서는 **본사(HQ_ADMIN) 홈**과 **창고 관리자 홈**을 다룬다. 창고 관리자 홈은 2026-10-24 초안이고 구현 시작 시점에 기준 문서로 확정한다. 점주 홈은 별도 항목으로 추가한다.
+> 2026-10-23 작성, 2026-10-24 구현과 함께 기준 문서로 승격했다(본사 홈 #306, 창고 관리자 홈 #321). 공통 규칙은 [conventions.md](conventions.md), 역할 규칙은 [authorization.md](authorization.md) 참고.
+> Base path: `/api/v1/dashboard`. 이 문서는 **본사(HQ_ADMIN) 홈**과 **창고 관리자 홈**을 다룬다. 창고 관리자 홈은 2026-10-24 초안을 2026-10-25 구현과 함께 기준 문서로 확정했다. 점주 홈은 별도 항목으로 추가한다.
 > 읽기 전용 집계 API다. 다른 도메인 테이블을 서비스에서 조합하지 않고 읽기 전용 쿼리 조인(ID 기준)으로 집계한다.
 
 ## 엔드포인트
@@ -10,7 +10,7 @@
 |---|---|---|---|
 | GET | /dashboard/hq/summary | HQ_ADMIN | 조치 대기 + 총 집계 (홈 진입 시 호출, 가볍게) |
 | GET | /dashboard/hq/trends | HQ_ADMIN | 월간 추이 + 출고 상위 SKU (무거움, 별도 호출) |
-| GET | /dashboard/warehouse/summary | WAREHOUSE_MANAGER(담당 창고) | 창고 작업 대기 + 가용 수용량 + 부족 재고·유통기한 임박 (초안) |
+| GET | /dashboard/warehouse/summary | WAREHOUSE_MANAGER(담당 창고) | 창고 작업 대기 + 가용 수용량 + 부족 재고·유통기한 임박 |
 
 - 모든 API는 페이지네이션 없음. 목록처럼 보이는 `items`·`lowStockSkus`는 고정 개수이며 `page`·`size`·`sort`는 받지 않는다(보내도 무시).
 - `/dashboard/hq/**`는 창고 관리자·점주 호출이 403 `FORBIDDEN`이다. `/dashboard/warehouse/**`는 창고 관리자 전용이고 본사·점주는 403이다.
@@ -132,12 +132,12 @@
 - `*InProgressQuantity`는 **현재 달 항목에만** 값이 있고 지난 달은 `null`이다(진행중은 스냅샷이므로).
 - `topOutboundSkus`: 현재 달 출고 **완료** 수량 상위 5개 SKU, 수량 내림차순(같으면 `skuId` 오름차순). 5개 미만이면 있는 만큼만. `warehouseId` 필터를 따른다.
 
-## GET /dashboard/warehouse/summary (초안)
+## GET /dashboard/warehouse/summary
 
 창고 관리자 홈(화면 WH-01)이 한 번에 부르는 API다. 창고를 고르면 화면 전체가 그 창고 데이터로 바뀐다.
 
 - Query
-  - `warehouseId`: 담당 창고가 **하나**면 생략 가능(그 창고), **여럿**이면 필수(없으면 400 `VALIDATION_ERROR`). 담당이 아닌 창고는 존재 여부와 관계없이 403(`authorization.md`의 소속 범위 규칙).
+  - `warehouseId`: 담당 창고가 **하나**면 생략 가능(그 창고), **여럿**이면 필수(없으면 400 `VALIDATION_ERROR`). 담당 창고가 없는데 생략하면 403 `FORBIDDEN`. 담당이 아닌 창고는 존재 여부와 관계없이 403(`authorization.md`의 소속 범위 규칙).
   - `expiringWithinDays`(선택, 1~365, 기본 30): 유통기한 임박 기준 일수.
 - 응답 `data`:
 
@@ -186,7 +186,7 @@
 |---|---|---|
 | 400 | VALIDATION_ERROR | `month` 형식 오류, `expiringWithinDays`·`months` 범위 오류, 담당 창고가 여럿인데 `warehouseId` 없음 |
 | 401 | UNAUTHORIZED | 토큰 없음·만료 |
-| 403 | FORBIDDEN | `/hq/**`는 HQ_ADMIN이 아님, `/warehouse/**`는 창고 관리자가 아니거나 담당이 아닌 `warehouseId` |
+| 403 | FORBIDDEN | `/hq/**`는 HQ_ADMIN이 아님, `/warehouse/**`는 창고 관리자가 아니거나 담당이 아닌 `warehouseId`, 담당 창고가 없는데 `warehouseId` 생략 |
 | 404 | WAREHOUSE_NOT_FOUND | `warehouseId`가 없는 창고 (hq trends) |
 
 ## 결정 사항 (2026-10-23)
