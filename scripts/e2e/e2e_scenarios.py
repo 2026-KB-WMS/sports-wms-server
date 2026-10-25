@@ -435,6 +435,23 @@ def run(api, admin_id, admin_pw):
     expect("창고 관리자는 대시보드 불가(403)", api.call("GET", "/dashboard/hq/summary", token=wm1), 403)
     expect("점주는 대시보드 불가(403)", api.call("GET", "/dashboard/hq/trends", token=own1), 403)
 
+    # ---------------------------------------------------------------- 시나리오 I: 창고 관리자 대시보드
+    # wm1은 W1만 담당한다. 수치는 앞 시나리오에 따라 달라지므로 응답 구조·권한·오류만 확인한다.
+    section("11. 시나리오 I: 창고 관리자 대시보드")
+    ws = expect("창고 대시보드 요약(담당 창고 하나, warehouseId 생략)", api.call("GET", "/dashboard/warehouse/summary", token=wm1), 200)
+    if ws:
+        check("창고 요약 대상은 W1", ws["warehouseId"] == w1, ws["warehouseId"])
+        check("창고 요약 최상위 필드", all(k in ws for k in ("warehouseName", "pending", "capacity", "inventory")), list(ws))
+        check("작업 대기 단계별 필드", all(k in ws["pending"]["inbound"] for k in ("arrivedCount", "inspectingCount"))
+              and all(k in ws["pending"]["outbound"] for k in ("readyCount", "pickingCount", "shippedCount")), ws["pending"])
+        check("수용량 필드", all(k in ws["capacity"] for k in ("capacity", "currentCapacity", "availableCapacity", "usageRate")), ws["capacity"])
+        check("부족 재고 상위 5개 이하", len(ws["inventory"]["lowStockSkus"]) <= 5, len(ws["inventory"]["lowStockSkus"]))
+    expect("담당 창고 지정 요약", api.call("GET", "/dashboard/warehouse/summary?warehouseId=%s" % w1, token=wm1), 200)
+    expect("비담당 창고 요약(403)", api.call("GET", "/dashboard/warehouse/summary?warehouseId=%s" % w2, token=wm1), 403, "FORBIDDEN")
+    expect("창고 대시보드 임박 일수 범위 오류(400)", api.call("GET", "/dashboard/warehouse/summary?expiringWithinDays=0", token=wm1), 400, "VALIDATION_ERROR")
+    expect("본사는 창고 대시보드 불가(403)", api.call("GET", "/dashboard/warehouse/summary?warehouseId=%s" % w1, token=admin), 403)
+    expect("점주는 창고 대시보드 불가(403)", api.call("GET", "/dashboard/warehouse/summary", token=own1), 403)
+
 
 def main():
     # Windows 콘솔(cp949)에서도 한글이 깨지지 않게 한다.
