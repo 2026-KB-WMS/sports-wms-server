@@ -18,6 +18,9 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        # 요청별 SQL 실행 횟수를 세어 ApiTimingFilter 로그에 싣는다.
+        session_factory:
+          statement_inspector: com.kb.wms.common.logging.QueryCountInspector
         jdbc:
           time_zone: Asia/Seoul
 
