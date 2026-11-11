@@ -31,6 +31,10 @@ spring:
 
 # 액세스 토큰(HS256) 서명 키는 32바이트 이상이어야 한다. 아래 값은 로컬 개발용이다.
 wms:
+  # 개발 중 콘솔 확인용. 성능 측정 때는 둘 다 끈다(로그 출력 시간이 응답시간에 포함된다).
+  api-log:
+    show-queries: false
+    screen-separator: false
   jwt:
     secret: local-dev-only-jwt-secret-key-change-me-0123456789
     access-token-validity-seconds: 3600
