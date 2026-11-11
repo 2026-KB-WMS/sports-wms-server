@@ -1,8 +1,9 @@
 package com.kb.wms.warehouse.adapter.in.web;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -64,11 +65,9 @@ public class WarehouseSectionController {
             @RequestParam(required = false) String sectionType,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Boolean isActive) {
-        List<WarehouseSectionResponse> items = warehouseSectionUseCase
+        List<WarehouseSectionResponse> items = toResponses(warehouseSectionUseCase
                 .getSections(new WarehouseSectionSearchCondition(
-                        warehouseId, parentSectionId, sectionType, keyword, isActive), principal).stream()
-                .map(this::toResponse)
-                .toList();
+                        warehouseId, parentSectionId, sectionType, keyword, isActive), principal));
         return ApiResponse.ok(ItemsResponse.of(items));
     }
 
@@ -80,11 +79,9 @@ public class WarehouseSectionController {
             @RequestParam(required = false) String sectionType,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Boolean isActive) {
-        List<WarehouseSectionResponse> items = warehouseSectionUseCase
+        List<WarehouseSectionResponse> items = toResponses(warehouseSectionUseCase
                 .getSections(new WarehouseSectionSearchCondition(
-                        warehouseId, parentSectionId, sectionType, keyword, isActive), principal).stream()
-                .map(this::toResponse)
-                .toList();
+                        warehouseId, parentSectionId, sectionType, keyword, isActive), principal));
         return ApiResponse.ok(ItemsResponse.of(items));
     }
 
@@ -121,19 +118,18 @@ public class WarehouseSectionController {
         return ApiResponse.ok(new WarehouseSectionDeleteResponse(sectionId));
     }
 
-    /** 목록에서는 창고명·상위 구역 코드를 창고·상위 구역당 한 번만 조회한다. */
+    /** 목록에서는 창고명·상위 구역 코드를 현재 목록에 필요한 것만 한 번에 읽는다(구역마다 조회하면 N+1). */
     private List<WarehouseSectionResponse> toResponses(List<WarehouseSection> sections) {
-        Map<Long, String> warehouseNames = new HashMap<>();
-        Map<Long, String> parentCodes = new HashMap<>();
+        Map<Long, String> warehouseNames = warehouseUseCase.getWarehouseNames(
+                sections.stream().map(WarehouseSection::getWarehouseId).collect(Collectors.toSet()));
+        Map<Long, String> parentCodes = warehouseSectionUseCase.getSectionCodes(
+                sections.stream().map(WarehouseSection::getParentSectionId).filter(Objects::nonNull)
+                        .collect(Collectors.toSet()));
         return sections.stream()
                 .map(section -> WarehouseSectionResponse.from(
                         section,
-                        warehouseNames.computeIfAbsent(section.getWarehouseId(),
-                                id -> warehouseUseCase.getWarehouse(id).getName()),
-                        section.getParentSectionId() == null
-                                ? null
-                                : parentCodes.computeIfAbsent(section.getParentSectionId(),
-                                        id -> warehouseSectionUseCase.getSection(id).getSectionCode())))
+                        warehouseNames.get(section.getWarehouseId()),
+                        section.getParentSectionId() == null ? null : parentCodes.get(section.getParentSectionId())))
                 .toList();
     }
 

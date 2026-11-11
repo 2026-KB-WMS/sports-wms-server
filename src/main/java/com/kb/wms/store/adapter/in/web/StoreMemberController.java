@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.paging.SortDirection;
 import com.kb.wms.common.paging.SortSpec;
 import com.kb.wms.common.response.ApiResponse;
@@ -66,9 +67,12 @@ public class StoreMemberController {
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String sort) {
         PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
-        return ApiResponse.ok(PageResponse.of(
-                storeMemberUseCase.getManagers(storeId, userId, keyword, pageCondition),
-                this::toResponse));
+        PageResult<StoreMemberView> members = storeMemberUseCase.getManagers(storeId, userId, keyword, pageCondition);
+        // 지점명은 현재 페이지에 필요한 것만 한 번에 읽는다(담당자마다 조회하면 N+1).
+        java.util.Map<Long, String> storeNames = storeUseCase.getStoreNames(
+                members.items().stream().map(StoreMemberView::storeId).collect(java.util.stream.Collectors.toSet()));
+        return ApiResponse.ok(PageResponse.of(members,
+                member -> StoreMemberResponse.of(member, storeNames.get(member.storeId()))));
     }
 
     @DeleteMapping("/managers/{storeMemberId}")

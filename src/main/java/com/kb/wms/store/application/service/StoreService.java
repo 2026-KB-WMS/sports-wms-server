@@ -80,6 +80,12 @@ public class StoreService implements StoreUseCase {
     }
 
     @Override
+    public java.util.Map<Long, String> getStoreNames(java.util.Collection<Long> storeIds) {
+        return storeRepository.findByIdIn(storeIds).stream()
+                .collect(java.util.stream.Collectors.toMap(Store::getStoreId, Store::getName));
+    }
+
+    @Override
     public StoreView getStoreView(Long storeId) {
         Store store = getStore(storeId);
         return new StoreView(store.getStoreId(), store.isActive());

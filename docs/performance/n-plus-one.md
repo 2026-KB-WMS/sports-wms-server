@@ -51,6 +51,54 @@ python scripts/perf/measure_api.py --label after --out after.json --compare befo
 - 수정 후 쿼리 수는 페이지 크기와 무관하게 상품 목록 5개, SKU 목록 7개로 일정하다.
 - 남은 쿼리: 상품 목록은 사용자 조회, 목록, 건수, 브랜드, 카테고리다. SKU 목록은 여기에 옵션 값·옵션 그룹 조회가 더해진다.
 
+### 2-2. 창고 구역 목록 (#344)
+
+**원인**
+
+- `GET /warehouses/sections`, `GET /warehouses/{warehouseId}/sections`: 컨트롤러가 목록의 구역마다 `warehouseUseCase.getWarehouse(id)`로 창고를, 상위 구역이 있으면 `warehouseSectionUseCase.getSection(parentId)`로 상위 구역 코드를 한 건씩 읽었다. 구역 28건에 52쿼리, 14건에 28쿼리였다.
+- 같은 컨트롤러에 창고·상위 구역을 한 번만 읽도록 캐시하는 `toResponses`가 있었지만 어느 엔드포인트도 호출하지 않았다.
+
+**해결**
+
+- 창고 ID별 이름 `WarehouseUseCase.getWarehouseNames`, 구역 ID별 코드 `WarehouseSectionUseCase.getSectionCodes`를 추가했다. 아웃바운드 포트에는 `findByIdIn(Collection<Long>)`을 추가했다.
+- 두 목록 엔드포인트가 `toResponses`를 쓰도록 바꾸고, `toResponses`는 현재 목록에 필요한 창고·상위 구역 ID만 모아 한 번에 읽도록 다시 썼다. 단건 조회·등록·수정 응답은 기존 `toResponse`를 그대로 쓴다.
+- 응답 JSON은 바뀌지 않는다. 로컬 DB에서 28건 모두 창고명이 채워졌고, 상위 구역이 있는 22건 모두 상위 구역 코드가 채워졌다. 컨트롤러 테스트에 목록에서 `getWarehouse`, `getSection`이 호출되지 않는지 검증을 넣었다.
+
+**결과** (로컬 docker-compose, 구역 28건, 창고 2개, 워밍업 5회 후 30회)
+
+| API | 쿼리 | 쿼리 변화 | 중앙값(ms) | 중앙값 변화 | p95(ms) | p95 변화 |
+|---|---|---|---|---|---|---|
+| 창고 구역 목록(전체, 28건) | 52 → 4 | -92% | 78 → 17 | -78% | 118 → 21 | -82% |
+| 창고 구역 목록(창고별, 14건) | 28 → 5 | -82% | 35 → 16.5 | -53% | 41 → 20 | -51% |
+
+- 이 목록은 페이징이 없어 건수가 늘면 쿼리 수 차이가 더 벌어진다. 수정 후 쿼리 수는 구역 수와 무관하다.
+- 같은 측정에서 코드를 바꾸지 않은 상품·SKU 목록도 시간이 +3%~+87% 흔들렸다(쿼리 수는 그대로). 컨테이너를 다시 띄운 직후 JIT가 덜 데워진 영향으로 보이며, 시간은 이처럼 참고용이고 개선율은 쿼리 횟수로 판단한다.
+
+### 2-3. 지점·창고 담당자 목록 (#344)
+
+**원인**
+
+- `GET /stores/managers`: `StoreMemberController`가 담당자 행마다 `storeUseCase.getStore(member.storeId())`로 지점명을 읽었다. 20건에 23쿼리, 38건에 40쿼리였다.
+- `GET /warehouses/managers`: `WarehouseMemberController`가 담당자 행마다 `warehouseUseCase.getWarehouse(member.warehouseId())`로 창고명을 읽었다. 20건에 23쿼리, 32건에 34쿼리였다.
+
+**해결**
+
+- 지점 ID별 이름 `StoreUseCase.getStoreNames`를 추가했다(`StoreRepository.findByIdIn`). 창고 쪽은 2-2에서 추가한 `WarehouseUseCase.getWarehouseNames`를 그대로 쓴다.
+- 두 컨트롤러는 현재 페이지 담당자의 지점·창고 ID를 모아 이름 맵을 한 번 만들고 응답 변환에서 맵을 읽는다. 담당자 등록(`POST`) 응답은 한 건이라 기존 `toResponse`를 그대로 쓴다.
+- 응답 JSON은 바뀌지 않는다. 로컬 DB에서 지점 담당자 38건, 창고 담당자 32건 모두 이름이 채워졌다. 컨트롤러 테스트에 목록에서 `getStore`, `getWarehouse`가 호출되지 않는지 검증을 넣었다.
+
+**결과** (로컬 docker-compose, 워밍업 5회 후 30회)
+
+| API | 쿼리 | 쿼리 변화 | 중앙값(ms) | 중앙값 변화 | p95(ms) | p95 변화 |
+|---|---|---|---|---|---|---|
+| 지점 담당자 목록 size=20 | 23 → 4 | -83% | 37 → 13 | -65% | 48 → 16 | -67% |
+| 지점 담당자 목록 size=100 (38건) | 40 → 3 | -92% | 62 → 12 | -81% | 79 → 16 | -80% |
+| 창고 담당자 목록 size=20 | 23 → 4 | -83% | 29 → 11 | -62% | 40 → 13 | -68% |
+| 창고 담당자 목록 size=100 (32건) | 34 → 3 | -91% | 47 → 9 | -81% | 89 → 12 | -87% |
+
+- 수정 후 쿼리 수는 건수와 무관하게 3~4개(사용자 조회, 목록, 건수, 이름)다. `size=100`에서는 한 페이지에 다 담겨 건수 쿼리가 생략된다.
+- 이 측정에서도 코드를 바꾸지 않은 상품·SKU·구역 목록의 시간이 컨테이너 재시작 직후라 +27%~+120% 흔들렸다. 개선율은 쿼리 횟수로 판단한다.
+
 ## 3. 요약 표
 
 | 날짜 | 이슈 | 대상 API | 쿼리(수정 전 → 후) | 중앙값(ms) | 비고 |
@@ -59,14 +107,26 @@ python scripts/perf/measure_api.py --label after --out after.json --compare befo
 | 2026-11-11 | #342 | `GET /products` (size=100) | 203 → 5 | 996.5 → 33.5 | 위와 같음 |
 | 2026-11-11 | #342 | `GET /products/skus` (size=20) | 14 → 7 | 86 → 33 | 상품명 일괄 조회 |
 | 2026-11-11 | #342 | `GET /products/skus` (size=100) | 39 → 7 | 184.5 → 39.5 | 위와 같음 |
+| 2026-11-11 | #344 | `GET /warehouses/sections` (28건) | 52 → 4 | 78 → 17 | 창고명·상위 구역 코드 일괄 조회 |
+| 2026-11-11 | #344 | `GET /warehouses/{id}/sections` (14건) | 28 → 5 | 35 → 16.5 | 위와 같음 |
+| 2026-11-11 | #344 | `GET /stores/managers` (size=20) | 23 → 4 | 37 → 13 | 지점명 일괄 조회 |
+| 2026-11-11 | #344 | `GET /stores/managers` (size=100, 38건) | 40 → 3 | 62 → 12 | 위와 같음 |
+| 2026-11-11 | #344 | `GET /warehouses/managers` (size=20) | 23 → 4 | 29 → 11 | 창고명 일괄 조회 |
+| 2026-11-11 | #344 | `GET /warehouses/managers` (size=100, 32건) | 34 → 3 | 47 → 9 | 위와 같음 |
 
 ## 4. 남은 후보
 
-코드 가이드와 로그로 확인된 것만 적는다. 전 API를 훑은 목록이 아니다.
+2026-11-11에 모든 GET 목록·상세 API를 소규모 데이터(SKU 1,000개)로 한 번씩 호출해 요청당 쿼리 수를 확인했다(`size=20`, `size=100`). 대부분의 목록은 건수와 무관하게 2~7쿼리였다. 건수에 비례해 늘어난 곳은 구역 목록(§2-2)과 담당자 목록(§2-3)이고 이미 고쳤다. 아직 남은 것은 아래와 같다.
+
+| 대상 | 관찰 | 비고 |
+|---|---|---|
+| `GET /products/option-groups` | 10건 12쿼리 | 건수 + 2. 원인 코드는 아직 확인 전이고, 규모가 작아 영향은 작다. |
+| 상세 API (`GET /products/skus/{id}` 8쿼리, `/products/{id}` 7, `/lots/{id}` 6, `/orders/{id}/details` 6) | 한 건 조회에 6~8쿼리 | 건수에 비례하는지는 라인 수가 다른 데이터로 확인하지 않았다. 목록 N+1이 아니라 상세 조립 비용일 수 있다. |
+
+아래는 N+1은 아니지만 함께 볼 후보다.
 
 | 대상 | 내용 | 확인 근거 |
 |---|---|---|
-| 창고 구역 목록(`WarehouseSectionController`의 `getAllSections`, `getSectionsByWarehouse`) | 목록의 구역마다 창고와 상위 구역을 조회한다. `toResponses`가 정의돼 있지만 호출되지 않는다. | [`code-guide/warehouse/adapter/in/web/WarehouseSectionController.md`](../code-guide/warehouse/adapter/in/web/WarehouseSectionController.md) |
 | `GET /dashboard/hq/summary` | 요청 한 번에 26쿼리. N+1은 아니고 집계 쿼리 묶음이다. 안전 재고 기준 SKU와 창고·SKU별 가용 재고를 전부 읽는 쿼리는 SKU 수에 비례해 커진다. | 성능 시나리오 S9에서 측정 |
 | 모든 인증 요청의 사용자 조회 1회 | 요청마다 사용자를 다시 읽는 설계다([ADR-016](../adr/016-reload-user-per-request.md)). N+1이 아니라 의도된 비용이고, 쿼리 횟수에 항상 1건 포함된다. | ADR-016 |
 

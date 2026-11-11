@@ -16,6 +16,9 @@ public interface StoreRepository {
 
     Optional<Store> findById(Long storeId);
 
+    /** 없는 ID는 결과에서 빠진다. 담당자 목록에서 지점명을 한 번에 읽을 때 쓴다. */
+    java.util.List<Store> findByIdIn(java.util.Collection<Long> storeIds);
+
     /** 조건이 null이면 해당 조건은 무시한다. 정렬·페이지는 {@code page}가 정한다. */
     PageResult<Store> search(StoreSearchCondition condition, PageCondition page);
 

@@ -110,13 +110,16 @@ class WarehouseMemberControllerTest {
         WarehouseMemberView member = new WarehouseMemberView(5L, 1L, 10L, "김담당", "member01", "MANAGER", null);
         when(warehouseMemberUseCase.getManagers(isNull(), isNull(), isNull(), any()))
                 .thenReturn(TestPages.resultOf(List.of(member)));
-        when(warehouseUseCase.getWarehouse(1L)).thenReturn(warehouse);
+        when(warehouseUseCase.getWarehouseNames(any())).thenReturn(java.util.Map.of(1L, warehouse.getName()));
 
         mockMvc.perform(get("/api/v1/warehouses/managers"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].userId").value(10L))
                 .andExpect(jsonPath("$.data.items[0].userName").value("김담당"))
-                .andExpect(jsonPath("$.data.items[0].loginId").value("member01"));
+                .andExpect(jsonPath("$.data.items[0].loginId").value("member01"))
+                .andExpect(jsonPath("$.data.items[0].warehouseName").value("서울 물류센터"));
+        // 목록에서 담당자마다 창고를 조회하면 N+1이므로 일괄 조회만 쓴다.
+        verify(warehouseUseCase, org.mockito.Mockito.never()).getWarehouse(any());
     }
 
     @Test

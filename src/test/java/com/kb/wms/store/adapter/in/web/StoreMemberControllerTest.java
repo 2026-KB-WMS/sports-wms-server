@@ -109,13 +109,16 @@ class StoreMemberControllerTest {
         StoreMemberView member = new StoreMemberView(5L, 1L, 10L, "김담당", "member01", "OWNER", null);
         when(storeMemberUseCase.getManagers(isNull(), isNull(), isNull(), any()))
                 .thenReturn(TestPages.resultOf(List.of(member)));
-        when(storeUseCase.getStore(1L)).thenReturn(store);
+        when(storeUseCase.getStoreNames(any())).thenReturn(java.util.Map.of(1L, store.getName()));
 
         mockMvc.perform(get("/api/v1/stores/managers"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].userId").value(10L))
                 .andExpect(jsonPath("$.data.items[0].userName").value("김담당"))
-                .andExpect(jsonPath("$.data.items[0].loginId").value("member01"));
+                .andExpect(jsonPath("$.data.items[0].loginId").value("member01"))
+                .andExpect(jsonPath("$.data.items[0].storeName").value("강남점"));
+        // 목록에서 담당자마다 지점을 조회하면 N+1이므로 일괄 조회만 쓴다.
+        verify(storeUseCase, org.mockito.Mockito.never()).getStore(any());
     }
 
     @Test

@@ -22,6 +22,9 @@ public interface WarehouseUseCase {
 
     Warehouse getWarehouse(Long warehouseId);
 
+    /** 창고 ID별 이름. 목록 응답에서 항목마다 조회하지 않도록 한 번에 읽는다. 없는 ID는 맵에 없다. */
+    java.util.Map<Long, String> getWarehouseNames(java.util.Collection<Long> warehouseIds);
+
     /** 다른 도메인이 창고 이름·활성 여부를 확인할 때 쓴다. 없으면 WAREHOUSE_NOT_FOUND. 엔티티를 내보내지 않는다. */
     WarehouseView getWarehouseView(Long warehouseId);
 

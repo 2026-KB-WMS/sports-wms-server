@@ -35,6 +35,11 @@ public class StorePersistenceAdapter implements StoreRepository {
     }
 
     @Override
+    public java.util.List<Store> findByIdIn(java.util.Collection<Long> storeIds) {
+        return storeJpaRepository.findAllById(storeIds).stream().map(StoreJpaEntity::toDomain).toList();
+    }
+
+    @Override
     public PageResult<Store> search(StoreSearchCondition condition, PageCondition page) {
         return PageAdapter.toPageResult(storeJpaRepository.search(
                         SearchKeyword.normalize(condition.keyword()),

@@ -33,6 +33,11 @@ public class WarehousePersistenceAdapter implements WarehouseRepository {
     }
 
     @Override
+    public List<Warehouse> findByIdIn(java.util.Collection<Long> warehouseIds) {
+        return warehouseJpaRepository.findAllById(warehouseIds).stream().map(WarehouseJpaEntity::toDomain).toList();
+    }
+
+    @Override
     public Optional<Warehouse> findByIdForUpdate(Long warehouseId) {
         return warehouseJpaRepository.findByIdForUpdate(warehouseId).map(WarehouseJpaEntity::toDomain);
     }
