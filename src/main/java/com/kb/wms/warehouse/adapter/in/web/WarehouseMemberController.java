@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.paging.SortDirection;
 import com.kb.wms.common.paging.SortSpec;
 import com.kb.wms.common.response.ApiResponse;
@@ -67,9 +68,14 @@ public class WarehouseMemberController {
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String sort) {
         PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
-        return ApiResponse.ok(PageResponse.of(
-                warehouseMemberUseCase.getManagers(warehouseId, userId, keyword, pageCondition),
-                this::toResponse));
+        PageResult<WarehouseMemberView> members = warehouseMemberUseCase.getManagers(
+                warehouseId, userId, keyword, pageCondition);
+        // 창고명은 현재 페이지에 필요한 것만 한 번에 읽는다(담당자마다 조회하면 N+1).
+        java.util.Map<Long, String> warehouseNames = warehouseUseCase.getWarehouseNames(
+                members.items().stream().map(WarehouseMemberView::warehouseId)
+                        .collect(java.util.stream.Collectors.toSet()));
+        return ApiResponse.ok(PageResponse.of(members,
+                member -> WarehouseMemberResponse.of(member, warehouseNames.get(member.warehouseId()))));
     }
 
     @DeleteMapping("/{warehouseMemberId}")

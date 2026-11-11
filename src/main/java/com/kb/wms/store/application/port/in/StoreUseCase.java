@@ -24,6 +24,9 @@ public interface StoreUseCase {
 
     Store getStore(Long storeId);
 
+    /** 지점 ID별 이름. 목록 응답에서 항목마다 조회하지 않도록 한 번에 읽는다. 없는 ID는 맵에 없다. */
+    java.util.Map<Long, String> getStoreNames(java.util.Collection<Long> storeIds);
+
     /** 다른 도메인이 지점 활성 여부를 확인할 때 쓴다. 없으면 STORE_NOT_FOUND. 엔티티를 내보내지 않는다. */
     StoreView getStoreView(Long storeId);
 
