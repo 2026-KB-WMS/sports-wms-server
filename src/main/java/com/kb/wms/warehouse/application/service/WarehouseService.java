@@ -80,6 +80,12 @@ public class WarehouseService implements WarehouseUseCase {
     }
 
     @Override
+    public java.util.Map<Long, String> getWarehouseNames(java.util.Collection<Long> warehouseIds) {
+        return warehouseRepository.findByIdIn(warehouseIds).stream()
+                .collect(java.util.stream.Collectors.toMap(Warehouse::getWarehouseId, Warehouse::getName));
+    }
+
+    @Override
     public WarehouseView getWarehouseView(Long warehouseId) {
         Warehouse warehouse = getWarehouse(warehouseId);
         return new WarehouseView(warehouse.getWarehouseId(), warehouse.getName(), warehouse.isActive());

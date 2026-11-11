@@ -25,6 +25,9 @@ public interface WarehouseSectionUseCase {
 
     WarehouseSection getSection(Long sectionId);
 
+    /** 구역 ID별 구역 코드. 목록 응답에서 항목마다 조회하지 않도록 한 번에 읽는다. 없는 ID는 맵에 없다. */
+    java.util.Map<Long, String> getSectionCodes(java.util.Collection<Long> sectionIds);
+
     /** 다른 도메인이 구역의 소속 창고·유형·활성 여부를 확인할 때 쓴다. 없으면 SECTION_NOT_FOUND. */
     WarehouseSectionView getSectionView(Long sectionId);
 

@@ -16,6 +16,9 @@ public interface WarehouseSectionRepository {
 
     Optional<WarehouseSection> findById(Long sectionId);
 
+    /** 없는 ID는 결과에서 빠진다. 구역 목록에서 상위 구역 코드를 한 번에 읽을 때 쓴다. */
+    List<WarehouseSection> findByIdIn(java.util.Collection<Long> sectionIds);
+
     /**
      * SELECT ... FOR UPDATE로 조회한다. 사용 용량(current_capacity)을 바꿀 때 트랜잭션 안에서만 호출한다.
      */

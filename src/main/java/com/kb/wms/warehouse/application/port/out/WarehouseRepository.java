@@ -15,6 +15,9 @@ public interface WarehouseRepository {
 
     Optional<Warehouse> findById(Long warehouseId);
 
+    /** 없는 ID는 결과에서 빠진다. 구역 목록에서 창고명을 한 번에 읽을 때 쓴다. */
+    List<Warehouse> findByIdIn(java.util.Collection<Long> warehouseIds);
+
     /**
      * SELECT ... FOR UPDATE로 조회한다. 창고 아래 구역 수용량 관계를 확인·변경할 때 트랜잭션 안에서만 호출한다.
      */

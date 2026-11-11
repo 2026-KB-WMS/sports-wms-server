@@ -126,28 +126,38 @@ class WarehouseSectionControllerTest {
         WarehouseSection section = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
         when(warehouseSectionUseCase.getSections(eq(new WarehouseSectionSearchCondition(null, null, null, null, null)), any()))
                 .thenReturn(List.of(section));
-        when(warehouseUseCase.getWarehouse(1L)).thenReturn(warehouse);
+        when(warehouseUseCase.getWarehouseNames(any())).thenReturn(java.util.Map.of(1L, warehouse.getName()));
+        when(warehouseSectionUseCase.getSectionCodes(any())).thenReturn(java.util.Map.of());
 
         mockMvc.perform(get("/api/v1/warehouses/sections").with(hqAdmin()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].sectionCode").value("A-01"));
+                .andExpect(jsonPath("$.data.items[0].sectionCode").value("A-01"))
+                .andExpect(jsonPath("$.data.items[0].warehouseName").value("서울 물류센터"));
+        // 목록에서 구역마다 창고·상위 구역을 조회하면 N+1이므로 일괄 조회만 쓴다.
+        verify(warehouseUseCase, org.mockito.Mockito.never()).getWarehouse(any());
+        verify(warehouseSectionUseCase, org.mockito.Mockito.never()).getSection(any());
     }
 
     @Test
     @DisplayName("창고별 구역 목록을 조회하면 200과 해당 창고의 구역만 반환한다")
     void getSectionsByWarehouse_success() throws Exception {
-        WarehouseSection section = WarehouseSection.register(1L, null, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
+        WarehouseSection section = WarehouseSection.register(1L, 10L, "A-01", "1구역", "ZONE", BigDecimal.valueOf(100));
         when(warehouseSectionUseCase.getSections(
                 eq(new WarehouseSectionSearchCondition(1L, 10L, "RACK", "A-", true)), any()))
                 .thenReturn(List.of(section));
-        when(warehouseUseCase.getWarehouse(1L)).thenReturn(warehouse);
+        when(warehouseUseCase.getWarehouseNames(any())).thenReturn(java.util.Map.of(1L, warehouse.getName()));
+        when(warehouseSectionUseCase.getSectionCodes(any())).thenReturn(java.util.Map.of(10L, "A-00"));
 
         mockMvc.perform(get("/api/v1/warehouses/{warehouseId}/sections", 1L).with(hqAdmin())
                         .param("parentSectionId", "10").param("sectionType", "RACK")
                         .param("keyword", "A-").param("isActive", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].sectionCode").value("A-01"))
-                .andExpect(jsonPath("$.data.items[0].warehouseId").value(1L));
+                .andExpect(jsonPath("$.data.items[0].warehouseId").value(1L))
+                .andExpect(jsonPath("$.data.items[0].warehouseName").value("서울 물류센터"))
+                .andExpect(jsonPath("$.data.items[0].parentSectionCode").value("A-00"));
+        verify(warehouseUseCase, org.mockito.Mockito.never()).getWarehouse(any());
+        verify(warehouseSectionUseCase, org.mockito.Mockito.never()).getSection(any());
     }
 
     @Test

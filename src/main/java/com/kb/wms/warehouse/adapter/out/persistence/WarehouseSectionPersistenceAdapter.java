@@ -35,6 +35,12 @@ public class WarehouseSectionPersistenceAdapter implements WarehouseSectionRepos
     }
 
     @Override
+    public List<WarehouseSection> findByIdIn(java.util.Collection<Long> sectionIds) {
+        return warehouseSectionJpaRepository.findAllById(sectionIds).stream()
+                .map(WarehouseSectionJpaEntity::toDomain).toList();
+    }
+
+    @Override
     public Optional<WarehouseSection> findByIdForUpdate(Long sectionId) {
         return warehouseSectionJpaRepository.findByIdForUpdate(sectionId).map(WarehouseSectionJpaEntity::toDomain);
     }

@@ -114,6 +114,13 @@ public class WarehouseSectionService implements WarehouseSectionUseCase {
     }
 
     @Override
+    public java.util.Map<Long, String> getSectionCodes(java.util.Collection<Long> sectionIds) {
+        return warehouseSectionRepository.findByIdIn(sectionIds).stream()
+                .collect(java.util.stream.Collectors.toMap(WarehouseSection::getSectionId,
+                        WarehouseSection::getSectionCode));
+    }
+
+    @Override
     public WarehouseSectionView getSectionView(Long sectionId) {
         WarehouseSection section = getSection(sectionId);
         return new WarehouseSectionView(section.getSectionId(), section.getWarehouseId(),
