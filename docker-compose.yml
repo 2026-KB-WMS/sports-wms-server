@@ -21,6 +21,8 @@ services:
       WMS_ADMIN_PHONE: ${WMS_ADMIN_PHONE:-}
       WMS_APILOG_SHOWQUERIES: ${WMS_APILOG_SHOWQUERIES:-true}
       WMS_APILOG_SCREENSEPARATOR: ${WMS_APILOG_SCREENSEPARATOR:-true}
+      # 로컬 콘솔에서 API 로그를 읽기 쉽게 시각 + 레벨 + 메시지만 남긴다(앱 기본 패턴은 그대로).
+      LOGGING_PATTERN_CONSOLE: "%d{HH:mm:ss.SSS} %-5level %msg%n%wEx"
     ports:
       - "8080:8080"
 

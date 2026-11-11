@@ -39,7 +39,7 @@ class ApiTimingFilterOptionsTest {
                 .content("{\"loginId\":\"no-such-user\",\"password\":\"pw\"}"));
 
         assertThat(output.getOut()).containsPattern(
-                "POST /api/v1/auth/login -> 401 \\(\\d+ms, queries=[1-9]\\d*\\)\\R  \\[1\\] select ");
+                "POST /api/v1/auth/login -> 401 \\(\\d+ms, queries=[1-9]\\d*\\)\\R  \\[1\\] select \\.\\.\\. from users ");
     }
 
     @Test
@@ -51,8 +51,9 @@ class ApiTimingFilterOptionsTest {
         mockMvc.perform(get("/api/v1/products/brands").header("X-Screen", "screen-b"));
 
         String out = output.getOut();
-        assertThat(out).containsPattern("========== screen-a ==========\\RGET /api/v1/products/brands -> 401");
-        assertThat(out).containsPattern("========== screen-b ==========\\RGET /api/v1/products/brands -> 401");
+        // 구분선은 별도 로그 줄이라 다음 줄에 요약 줄이 시각 접두사와 함께 이어진다.
+        assertThat(out).containsPattern("========== screen-a ==========\\R.*GET /api/v1/products/brands -> 401");
+        assertThat(out).containsPattern("========== screen-b ==========\\R.*GET /api/v1/products/brands -> 401");
         assertThat(out.split("========== screen-a ==========", -1)).hasSize(2);
     }
 }

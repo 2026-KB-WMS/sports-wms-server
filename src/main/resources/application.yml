@@ -34,6 +34,7 @@ wms:
   # 개발 중 콘솔 확인용. 성능 측정 때는 둘 다 끈다(로그 출력 시간이 응답시간에 포함된다).
   api-log:
     show-queries: false
+    full-queries: false  # show-queries일 때 긴 select 컬럼 목록을 줄이지 않고 전체를 본다
     screen-separator: false
   jwt:
     secret: local-dev-only-jwt-secret-key-change-me-0123456789
