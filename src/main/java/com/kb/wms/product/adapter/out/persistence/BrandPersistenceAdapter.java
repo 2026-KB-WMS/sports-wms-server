@@ -33,6 +33,11 @@ public class BrandPersistenceAdapter implements BrandRepository {
     }
 
     @Override
+    public List<Brand> findByIdIn(java.util.Collection<Long> brandIds) {
+        return brandJpaRepository.findAllById(brandIds).stream().map(BrandJpaEntity::toDomain).toList();
+    }
+
+    @Override
     public Optional<Brand> findByIdForUpdate(Long brandId) {
         return brandJpaRepository.findByIdForUpdate(brandId).map(BrandJpaEntity::toDomain);
     }

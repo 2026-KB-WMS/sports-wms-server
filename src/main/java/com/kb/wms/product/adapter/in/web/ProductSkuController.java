@@ -1,6 +1,5 @@
 package com.kb.wms.product.adapter.in.web;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -94,16 +93,17 @@ public class ProductSkuController {
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String sort) {
         PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
-        // 같은 상품의 SKU가 여러 개이므로 상품명은 상품당 한 번만 조회한다.
-        Map<Long, String> productNames = new HashMap<>();
         PageResult<ProductSku> skus = productSkuUseCase.getSkus(
                 new ProductSkuSearchCondition(productId, brandId, categoryId, keyword, isActive), pageCondition, principal);
         // 옵션은 현재 페이지의 SKU만 한 번에 조회한다(SKU마다 조회하면 N+1).
         Map<Long, List<SkuOptionSummary>> options = productSkuUseCase.getSkuOptionsBySkuIds(
                 skus.items().stream().map(ProductSku::getSkuId).toList());
+        // 같은 상품의 SKU가 여러 개이므로 상품명은 현재 페이지의 상품만 한 번에 읽는다.
+        Map<Long, String> productNames = productUseCase.getProductNames(
+                skus.items().stream().map(ProductSku::getProductId).collect(java.util.stream.Collectors.toSet()));
         return ApiResponse.ok(PageResponse.of(skus, sku -> ProductSkuListItemResponse.of(
                 sku,
-                productNames.computeIfAbsent(sku.getProductId(), id -> productUseCase.getProduct(id).getName()),
+                productNames.get(sku.getProductId()),
                 options.getOrDefault(sku.getSkuId(), List.of()),
                 sku.isPurchaseInfoVisibleTo(principal.isStoreOwner()))));
     }

@@ -21,4 +21,7 @@ public interface CategoryUseCase {
     List<Category> getCategories(CategorySearchCondition condition);
 
     Category getCategory(Long categoryId);
+
+    /** 카테고리 ID별 이름. 목록 응답에서 항목마다 조회하지 않도록 한 번에 읽는다. 없는 ID는 맵에 없다. */
+    java.util.Map<Long, String> getCategoryNames(java.util.Collection<Long> categoryIds);
 }

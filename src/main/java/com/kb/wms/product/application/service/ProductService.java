@@ -180,6 +180,12 @@ public class ProductService implements ProductUseCase {
                 .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
     }
 
+    @Override
+    public java.util.Map<Long, String> getProductNames(java.util.Collection<Long> productIds) {
+        return productRepository.findByIdIn(productIds).stream()
+                .collect(java.util.stream.Collectors.toMap(Product::getProductId, Product::getName));
+    }
+
     /** 점주에게는 판매 가능한(활성) 상품만 보이므로, isActive 필터가 무엇이든 활성 상품으로 고정한다. */
     @Override
     public PageResult<Product> getProducts(ProductSearchCondition condition, PageCondition page,

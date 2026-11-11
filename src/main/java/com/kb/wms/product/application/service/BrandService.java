@@ -90,4 +90,10 @@ public class BrandService implements BrandQueryUseCase {
         return brandRepository.findById(brandId)
                 .orElseThrow(() -> new BusinessException(ProductErrorCode.BRAND_NOT_FOUND));
     }
+
+    @Override
+    public java.util.Map<Long, String> getBrandNames(java.util.Collection<Long> brandIds) {
+        return brandRepository.findByIdIn(brandIds).stream()
+                .collect(java.util.stream.Collectors.toMap(Brand::getBrandId, Brand::getName));
+    }
 }

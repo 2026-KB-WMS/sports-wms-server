@@ -218,7 +218,7 @@ class ProductSkuControllerTest {
         ProductSku sku = mockSku();
         when(productSkuUseCase.getSkus(eq(new ProductSkuSearchCondition(1L, 2L, 3L, "SKU", true)), any(), any()))
                 .thenReturn(TestPages.resultOf(List.of(sku)));
-        when(productUseCase.getProduct(sku.getProductId())).thenReturn(Product.register(1L, 1L, "P-0001", "라켓 A", null));
+        when(productUseCase.getProductNames(any())).thenReturn(java.util.Map.of(sku.getProductId(), "라켓 A"));
         when(productSkuUseCase.getSkuOptions(sku.getSkuId())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/products/skus")
@@ -227,6 +227,8 @@ class ProductSkuControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].skuCode").value("SKU-0001"))
                 .andExpect(jsonPath("$.data.items[0].productName").value("라켓 A"));
+        // 목록에서 SKU마다 상품을 조회하면 N+1이므로 일괄 조회만 쓴다.
+        verify(productUseCase, org.mockito.Mockito.never()).getProduct(any());
     }
 
     @Test

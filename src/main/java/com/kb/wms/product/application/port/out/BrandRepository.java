@@ -15,6 +15,9 @@ public interface BrandRepository {
 
     Optional<Brand> findById(Long brandId);
 
+    /** 없는 ID는 결과에서 빠진다. 목록에서 브랜드명을 한 번에 읽을 때 쓴다. */
+    List<Brand> findByIdIn(java.util.Collection<Long> brandIds);
+
     /** 행을 비관적 락으로 잠가 읽는다. 상품 코드 채번을 브랜드 단위로 직렬화할 때 쓴다. */
     Optional<Brand> findByIdForUpdate(Long brandId);
 
