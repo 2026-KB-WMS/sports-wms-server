@@ -32,6 +32,12 @@ TARGETS = [
     ('상품 목록 size=100', '/products?size=100', '/api/v1/products'),
     ('SKU 목록 size=20', '/products/skus?size=20', '/api/v1/products/skus'),
     ('SKU 목록 size=100', '/products/skus?size=100', '/api/v1/products/skus'),
+    ('창고 구역 목록(전체)', '/warehouses/sections', '/api/v1/warehouses/sections'),
+    ('창고 구역 목록(창고별)', '/warehouses/{warehouseId}/sections', '/api/v1/warehouses/{warehouseId}/sections'),
+    ('지점 담당자 목록 size=20', '/stores/managers?size=20', '/api/v1/stores/managers'),
+    ('지점 담당자 목록 size=100', '/stores/managers?size=100', '/api/v1/stores/managers'),
+    ('창고 담당자 목록 size=20', '/warehouses/managers?size=20', '/api/v1/warehouses/managers'),
+    ('창고 담당자 목록 size=100', '/warehouses/managers?size=100', '/api/v1/warehouses/managers'),
 ]
 LOG_LINE = re.compile(r'(GET) (\S+) -> (\d+) \((\d+)ms, queries=(\d+)\)')
 WARMUP = 5
@@ -61,7 +67,10 @@ def percentile(values, pct):
 
 def measure(args, token):
     results = {}
+    # 경로의 {warehouseId}는 첫 번째 창고로 채운다. 로그 패턴은 그대로 둔다.
+    warehouse_id = base.Api(args.base_url).get('/warehouses', token)['items'][0]['warehouseId']
     for name, path, pattern in TARGETS:
+        path = path.replace('{warehouseId}', str(warehouse_id))
         for _ in range(WARMUP):
             call(args.base_url, path, token)
         since = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
