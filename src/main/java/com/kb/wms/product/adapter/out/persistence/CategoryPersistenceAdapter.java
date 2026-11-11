@@ -33,6 +33,11 @@ public class CategoryPersistenceAdapter implements CategoryRepository {
     }
 
     @Override
+    public List<Category> findByIdIn(java.util.Collection<Long> categoryIds) {
+        return categoryJpaRepository.findAllById(categoryIds).stream().map(CategoryJpaEntity::toDomain).toList();
+    }
+
+    @Override
     public List<Category> search(CategorySearchCondition condition) {
         return categoryJpaRepository.search(
                         condition.parentCategoryId(),

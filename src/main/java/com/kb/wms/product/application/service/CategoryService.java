@@ -90,4 +90,10 @@ public class CategoryService implements CategoryUseCase {
         return categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new BusinessException(ProductErrorCode.CATEGORY_NOT_FOUND));
     }
+
+    @Override
+    public java.util.Map<Long, String> getCategoryNames(java.util.Collection<Long> categoryIds) {
+        return categoryRepository.findByIdIn(categoryIds).stream()
+                .collect(java.util.stream.Collectors.toMap(Category::getCategoryId, Category::getName));
+    }
 }

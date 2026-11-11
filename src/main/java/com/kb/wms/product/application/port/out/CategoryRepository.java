@@ -15,6 +15,9 @@ public interface CategoryRepository {
 
     Optional<Category> findById(Long categoryId);
 
+    /** 없는 ID는 결과에서 빠진다. 목록에서 카테고리명을 한 번에 읽을 때 쓴다. */
+    List<Category> findByIdIn(java.util.Collection<Long> categoryIds);
+
     /** 카테고리 정렬 순서(sortOrder) 오름차순 */
     List<Category> search(CategorySearchCondition condition);
 

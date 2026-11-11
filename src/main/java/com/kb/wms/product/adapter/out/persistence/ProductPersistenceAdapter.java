@@ -36,6 +36,11 @@ public class ProductPersistenceAdapter implements ProductRepository {
     }
 
     @Override
+    public List<Product> findByIdIn(java.util.Collection<Long> productIds) {
+        return productJpaRepository.findAllById(productIds).stream().map(ProductJpaEntity::toDomain).toList();
+    }
+
+    @Override
     public PageResult<Product> search(ProductSearchCondition condition, PageCondition page) {
         return PageAdapter.toPageResult(productJpaRepository.search(
                         condition.brandId(),

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.kb.wms.common.paging.PageCondition;
+import com.kb.wms.common.paging.PageResult;
 import com.kb.wms.common.paging.SortDirection;
 import com.kb.wms.common.paging.SortSpec;
 import com.kb.wms.common.response.ApiResponse;
@@ -76,10 +77,15 @@ public class ProductController {
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String sort) {
         PageCondition pageCondition = PageCondition.of(page, size, sort, LIST_SORT);
-        return ApiResponse.ok(PageResponse.of(
-                productUseCase.getProducts(new ProductSearchCondition(brandId, categoryId, keyword, isActive),
-                        pageCondition, principal),
-                this::toSummaryResponse));
+        PageResult<Product> products = productUseCase.getProducts(
+                new ProductSearchCondition(brandId, categoryId, keyword, isActive), pageCondition, principal);
+        // 브랜드·카테고리명은 현재 페이지에 필요한 것만 한 번에 읽는다(상품마다 조회하면 N+1).
+        java.util.Map<Long, String> brandNames = brandQueryUseCase.getBrandNames(
+                products.items().stream().map(Product::getBrandId).collect(java.util.stream.Collectors.toSet()));
+        java.util.Map<Long, String> categoryNames = categoryUseCase.getCategoryNames(
+                products.items().stream().map(Product::getCategoryId).collect(java.util.stream.Collectors.toSet()));
+        return ApiResponse.ok(PageResponse.of(products, product -> ProductSummaryResponse.of(
+                product, brandNames.get(product.getBrandId()), categoryNames.get(product.getCategoryId()))));
     }
 
     @GetMapping("/{productId}")
@@ -95,10 +101,6 @@ public class ProductController {
             @Valid @RequestBody ProductUpdateRequest request) {
         Product product = productUseCase.updateProduct(request.toCommand(productId));
         return ApiResponse.ok(toDetailResponse(product));
-    }
-
-    private ProductSummaryResponse toSummaryResponse(Product product) {
-        return ProductSummaryResponse.of(product, brandName(product.getBrandId()), categoryName(product.getCategoryId()));
     }
 
     private ProductDetailResponse toDetailResponse(Product product) {

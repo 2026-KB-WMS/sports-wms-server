@@ -138,14 +138,19 @@ class ProductControllerTest {
     void getProducts_success() throws Exception {
         Product product = Product.register(1L, 2L, "P-0001", "라켓 A", "설명");
         when(productUseCase.getProducts(eq(new ProductSearchCondition(1L, 2L, "라켓", true)), any(), any())).thenReturn(TestPages.resultOf(List.of(product)));
-        when(brandQueryUseCase.getBrand(1L)).thenReturn(Brand.register("브랜드 A", null));
-        when(categoryUseCase.getCategory(2L)).thenReturn(Category.register(null, "CAT-002", "가방", 1, 0));
+        when(brandQueryUseCase.getBrandNames(any())).thenReturn(java.util.Map.of(1L, "브랜드 A"));
+        when(categoryUseCase.getCategoryNames(any())).thenReturn(java.util.Map.of(2L, "가방"));
 
         mockMvc.perform(get("/api/v1/products")
                         .param("brandId", "1").param("categoryId", "2")
                         .param("keyword", "라켓").param("isActive", "true"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].productCode").value("P-0001"));
+                .andExpect(jsonPath("$.data.items[0].productCode").value("P-0001"))
+                .andExpect(jsonPath("$.data.items[0].brandName").value("브랜드 A"))
+                .andExpect(jsonPath("$.data.items[0].categoryName").value("가방"));
+        // 목록에서 상품마다 브랜드·카테고리를 조회하면 N+1이므로 일괄 조회만 쓴다.
+        verify(brandQueryUseCase, org.mockito.Mockito.never()).getBrand(any());
+        verify(categoryUseCase, org.mockito.Mockito.never()).getCategory(any());
     }
 
     @Test

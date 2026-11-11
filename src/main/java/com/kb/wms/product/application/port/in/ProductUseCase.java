@@ -27,6 +27,9 @@ public interface ProductUseCase {
 
     Product getProduct(Long productId);
 
+    /** 상품 ID별 이름. SKU 목록 응답에서 항목마다 조회하지 않도록 한 번에 읽는다. 없는 ID는 맵에 없다. */
+    java.util.Map<Long, String> getProductNames(java.util.Collection<Long> productIds);
+
     /** 사용자 요청용 목록 조회. 점주(STORE_OWNER)에게는 활성 상품만 돌려준다. */
     PageResult<Product> getProducts(ProductSearchCondition condition, PageCondition page, AuthenticatedUser actor);
 
