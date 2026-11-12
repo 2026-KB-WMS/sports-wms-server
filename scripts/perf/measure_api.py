@@ -38,6 +38,11 @@ TARGETS = [
     ('지점 담당자 목록 size=100', '/stores/managers?size=100', '/api/v1/stores/managers'),
     ('창고 담당자 목록 size=20', '/warehouses/managers?size=20', '/api/v1/warehouses/managers'),
     ('창고 담당자 목록 size=100', '/warehouses/managers?size=100', '/api/v1/warehouses/managers'),
+    ('옵션 그룹 전체', '/products/option-groups', '/api/v1/products/option-groups'),
+    ('상품별 옵션 그룹(SKU 최다 상품)', '/products/{productId}/option-groups',
+     '/api/v1/products/{productId}/option-groups'),
+    ('카테고리별 옵션 그룹', '/products/categories/{categoryId}/option-groups',
+     '/api/v1/products/categories/{categoryId}/option-groups'),
 ]
 LOG_LINE = re.compile(r'(GET) (\S+) -> (\d+) \((\d+)ms, queries=(\d+)\)')
 WARMUP = 5
@@ -65,12 +70,37 @@ def percentile(values, pct):
     return ordered[min(len(ordered) - 1, int(round(pct / 100 * (len(ordered) - 1))))]
 
 
+def busiest_product_id(base_url, token):
+    """SKU가 가장 많은 상품. 상품별 옵션 그룹 조회는 SKU 수에 비례해 쿼리가 늘기 때문에 이 상품으로 잰다."""
+    counts = {}
+    data = base.Api(base_url).get('/products/skus?size=100', token)
+    pages = data['pageInfo']['totalPages']
+    for page in range(1, pages + 1):
+        if page > 1:
+            data = base.Api(base_url).get('/products/skus?size=100&page=%d' % page, token)
+        for item in data['items']:
+            counts[item['productId']] = counts.get(item['productId'], 0) + 1
+    return max(counts, key=counts.get)
+
+
+def category_with_option_groups(base_url, token):
+    """옵션 그룹이 지정된 첫 카테고리."""
+    api = base.Api(base_url)
+    for category in api.get('/products/categories', token)['items']:
+        if api.get('/products/categories/%d/option-groups' % category['categoryId'], token)['items']:
+            return category['categoryId']
+    sys.exit('옵션 그룹이 지정된 카테고리가 없습니다.')
+
+
 def measure(args, token):
     results = {}
     # 경로의 {warehouseId}는 첫 번째 창고로 채운다. 로그 패턴은 그대로 둔다.
     warehouse_id = base.Api(args.base_url).get('/warehouses', token)['items'][0]['warehouseId']
+    product_id = busiest_product_id(args.base_url, token)
+    category_id = category_with_option_groups(args.base_url, token)
     for name, path, pattern in TARGETS:
-        path = path.replace('{warehouseId}', str(warehouse_id))
+        path = (path.replace('{warehouseId}', str(warehouse_id)).replace('{productId}', str(product_id))
+                .replace('{categoryId}', str(category_id)))
         for _ in range(WARMUP):
             call(args.base_url, path, token)
         since = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
