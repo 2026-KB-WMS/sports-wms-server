@@ -68,6 +68,11 @@ public class CategoryOptionGroupService implements CategoryOptionGroupUseCase {
         Map<Long, OptionGroup> groups = optionGroupRepository.findAllByIds(
                         mappings.stream().map(CategoryOptionGroup::getOptionGroupId).toList()).stream()
                 .collect(Collectors.toMap(OptionGroup::getOptionGroupId, Function.identity()));
+        // 지정마다 옵션 값을 조회하면 N+1이므로 한 번에 읽어 그룹별로 나눈다.
+        Map<Long, List<com.kb.wms.product.domain.entity.OptionValue>> valuesByGroup = optionValueRepository
+                .findByOptionGroupIdIn(mappings.stream().map(CategoryOptionGroup::getOptionGroupId).toList())
+                .stream()
+                .collect(Collectors.groupingBy(com.kb.wms.product.domain.entity.OptionValue::getOptionGroupId));
         return mappings.stream()
                 .map(mapping -> new CategoryOptionGroupSummary(
                         mapping.getOptionGroupId(),
@@ -76,7 +81,7 @@ public class CategoryOptionGroupService implements CategoryOptionGroupUseCase {
                         mapping.getOptionType(),
                         mapping.getSortOrder(),
                         mapping.getCategoryId(),
-                        optionValueRepository.findByOptionGroupId(mapping.getOptionGroupId()).stream()
+                        valuesByGroup.getOrDefault(mapping.getOptionGroupId(), List.of()).stream()
                                 .sorted(Comparator.comparingInt(
                                         com.kb.wms.product.domain.entity.OptionValue::getSortOrder))
                                 .map(value -> new OptionValueSummary(value.getOptionValueId(),

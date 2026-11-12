@@ -64,7 +64,7 @@ class CategoryOptionGroupServiceTest {
         when(categoryOptionResolver.effectiveMappings(1L)).thenReturn(List.of(weight));
         when(optionGroupRepository.findAllByIds(List.of(10L)))
                 .thenReturn(List.of(OptionGroup.builder().optionGroupId(10L).name("무게").build()));
-        when(optionValueRepository.findByOptionGroupId(10L)).thenReturn(List.of(
+        when(optionValueRepository.findByOptionGroupIdIn(List.of(10L))).thenReturn(List.of(
                 OptionValue.builder().optionValueId(100L).optionGroupId(10L).optionCode("3U").value("3U")
                         .sortOrder(2).build(),
                 OptionValue.builder().optionValueId(101L).optionGroupId(10L).optionCode("4U").value("4U")
