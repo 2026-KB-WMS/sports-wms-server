@@ -10,6 +10,8 @@ public interface OptionValueJpaRepository extends JpaRepository<OptionValueJpaEn
 
     List<OptionValueJpaEntity> findByOptionGroupId(Long optionGroupId);
 
+    List<OptionValueJpaEntity> findByOptionGroupIdIn(java.util.Collection<Long> optionGroupIds);
+
     boolean existsByOptionGroupIdAndValue(Long optionGroupId, String value);
 
     boolean existsByOptionGroupIdAndOptionCode(Long optionGroupId, String optionCode);

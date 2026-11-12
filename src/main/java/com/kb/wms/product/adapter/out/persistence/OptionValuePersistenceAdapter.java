@@ -47,6 +47,16 @@ public class OptionValuePersistenceAdapter implements OptionValueRepository {
     }
 
     @Override
+    public List<OptionValue> findByOptionGroupIdIn(java.util.Collection<Long> optionGroupIds) {
+        if (optionGroupIds.isEmpty()) {
+            return List.of();
+        }
+        return optionValueJpaRepository.findByOptionGroupIdIn(optionGroupIds).stream()
+                .map(OptionValueJpaEntity::toDomain)
+                .toList();
+    }
+
+    @Override
     public boolean existsByOptionGroupIdAndValue(Long optionGroupId, String value) {
         return optionValueJpaRepository.existsByOptionGroupIdAndValue(optionGroupId, value);
     }

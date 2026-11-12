@@ -93,25 +93,20 @@ class OptionGroupServiceTest {
         ProductSku sku2 = ProductSku.builder().skuId(2L).productId(productId).build();
         when(productSkuRepository.findAll(productId)).thenReturn(List.of(sku1, sku2));
 
-        when(skuOptionValueRepository.findBySkuId(1L)).thenReturn(List.of(
+        when(skuOptionValueRepository.findBySkuIdIn(List.of(1L, 2L))).thenReturn(List.of(
                 SkuOptionValue.connect(1L, 10L), // 색상=빨강
-                SkuOptionValue.connect(1L, 20L)  // 그립사이즈=G4
-        ));
-        when(skuOptionValueRepository.findBySkuId(2L)).thenReturn(List.of(
-                SkuOptionValue.connect(2L, 11L) // 색상=파랑
+                SkuOptionValue.connect(1L, 20L), // 그립사이즈=G4
+                SkuOptionValue.connect(2L, 11L)  // 색상=파랑
         ));
 
         OptionValue red = OptionValue.builder().optionValueId(10L).optionGroupId(1L).value("빨강").sortOrder(1).build();
         OptionValue blue = OptionValue.builder().optionValueId(11L).optionGroupId(1L).value("파랑").sortOrder(2).build();
         OptionValue g4 = OptionValue.builder().optionValueId(20L).optionGroupId(2L).value("G4").sortOrder(1).build();
-        when(optionValueRepository.findById(10L)).thenReturn(Optional.of(red));
-        when(optionValueRepository.findById(11L)).thenReturn(Optional.of(blue));
-        when(optionValueRepository.findById(20L)).thenReturn(Optional.of(g4));
+        when(optionValueRepository.findAllByIds(any())).thenReturn(List.of(red, blue, g4));
 
         OptionGroup colorGroup = OptionGroup.builder().optionGroupId(1L).name("색상").build();
         OptionGroup sizeGroup = OptionGroup.builder().optionGroupId(2L).name("그립 사이즈").build();
-        when(optionGroupRepository.findById(1L)).thenReturn(Optional.of(colorGroup));
-        when(optionGroupRepository.findById(2L)).thenReturn(Optional.of(sizeGroup));
+        when(optionGroupRepository.findAllByIds(any())).thenReturn(List.of(colorGroup, sizeGroup));
 
         List<ProductOptionGroupSummary> result = optionGroupService.getOptionGroupsByProduct(productId);
 
@@ -120,6 +115,29 @@ class OptionGroupServiceTest {
         assertThat(result.get(0).values()).extracting("value").containsExactly("빨강", "파랑");
         assertThat(result.get(1).optionGroupId()).isEqualTo(2L);
         assertThat(result.get(1).values()).extracting("value").containsExactly("G4");
+        // SKU·옵션 값·그룹을 항목마다 조회하면 N+1이므로 일괄 조회만 쓴다.
+        verify(skuOptionValueRepository, never()).findBySkuId(any());
+        verify(optionValueRepository, never()).findById(any());
+        verify(optionGroupRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("전체 옵션 그룹 조회는 옵션 값을 그룹마다 조회하지 않고 한 번에 읽어 그룹별로 나눈다")
+    void getOptionGroups_loadsValuesInBatch() {
+        OptionGroup color = OptionGroup.builder().optionGroupId(1L).name("색상").build();
+        OptionGroup size = OptionGroup.builder().optionGroupId(2L).name("사이즈").build();
+        when(optionGroupRepository.findAll()).thenReturn(List.of(size, color));
+        when(optionValueRepository.findByOptionGroupIdIn(List.of(1L, 2L))).thenReturn(List.of(
+                OptionValue.builder().optionValueId(11L).optionGroupId(1L).value("파랑").sortOrder(2).build(),
+                OptionValue.builder().optionValueId(10L).optionGroupId(1L).value("빨강").sortOrder(1).build(),
+                OptionValue.builder().optionValueId(20L).optionGroupId(2L).value("G4").sortOrder(1).build()));
+
+        List<ProductOptionGroupSummary> result = optionGroupService.getOptionGroups();
+
+        assertThat(result).extracting(ProductOptionGroupSummary::optionGroupId).containsExactly(1L, 2L);
+        assertThat(result.get(0).values()).extracting("value").containsExactly("빨강", "파랑");
+        assertThat(result.get(1).values()).extracting("value").containsExactly("G4");
+        verify(optionValueRepository, never()).findByOptionGroupId(any());
     }
 
     private Product mockProduct() {

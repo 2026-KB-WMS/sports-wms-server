@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,10 +58,16 @@ public class OptionGroupService implements OptionGroupUseCase {
 
     @Override
     public List<ProductOptionGroupSummary> getOptionGroups() {
-        return optionGroupRepository.findAll().stream()
+        List<OptionGroup> groups = optionGroupRepository.findAll().stream()
                 .sorted(Comparator.comparing(OptionGroup::getOptionGroupId))
+                .toList();
+        // 그룹마다 옵션 값을 조회하면 N+1이므로 한 번에 읽어 그룹별로 나눈다.
+        Map<Long, List<OptionValue>> valuesByGroup = optionValueRepository
+                .findByOptionGroupIdIn(groups.stream().map(OptionGroup::getOptionGroupId).toList()).stream()
+                .collect(Collectors.groupingBy(OptionValue::getOptionGroupId));
+        return groups.stream()
                 .map(group -> new ProductOptionGroupSummary(group.getOptionGroupId(), group.getName(),
-                        optionValueRepository.findByOptionGroupId(group.getOptionGroupId()).stream()
+                        valuesByGroup.getOrDefault(group.getOptionGroupId(), List.of()).stream()
                                 .sorted(Comparator.comparingInt(OptionValue::getSortOrder))
                                 .map(ov -> new OptionValueSummary(ov.getOptionValueId(), ov.getOptionCode(),
                                         ov.getValue(), ov.getSortOrder(), ov.isActive()))
@@ -75,24 +83,25 @@ public class OptionGroupService implements OptionGroupUseCase {
 
         List<ProductSku> skus = productSkuRepository.findAll(productId);
 
+        // SKU·옵션 값·그룹을 항목마다 조회하면 SKU 수에 비례해 쿼리가 늘어나므로 각각 한 번에 읽는다.
         Set<Long> optionValueIds = new LinkedHashSet<>();
-        for (ProductSku sku : skus) {
-            for (SkuOptionValue link : skuOptionValueRepository.findBySkuId(sku.getSkuId())) {
-                optionValueIds.add(link.getOptionValueId());
-            }
+        for (SkuOptionValue link : skuOptionValueRepository.findBySkuIdIn(
+                skus.stream().map(ProductSku::getSkuId).toList())) {
+            optionValueIds.add(link.getOptionValueId());
         }
 
         // optionGroupId 오름차순으로 묶기 위해 TreeMap을 사용한다.
         Map<Long, List<OptionValue>> valuesByGroup = new TreeMap<>();
-        for (Long optionValueId : optionValueIds) {
-            optionValueRepository.findById(optionValueId).ifPresent(optionValue ->
-                    valuesByGroup.computeIfAbsent(optionValue.getOptionGroupId(), key -> new ArrayList<>())
-                            .add(optionValue));
+        for (OptionValue optionValue : optionValueRepository.findAllByIds(optionValueIds)) {
+            valuesByGroup.computeIfAbsent(optionValue.getOptionGroupId(), key -> new ArrayList<>())
+                    .add(optionValue);
         }
+        Map<Long, OptionGroup> groups = optionGroupRepository.findAllByIds(valuesByGroup.keySet()).stream()
+                .collect(Collectors.toMap(OptionGroup::getOptionGroupId, Function.identity()));
 
         List<ProductOptionGroupSummary> summaries = new ArrayList<>();
         for (Map.Entry<Long, List<OptionValue>> entry : valuesByGroup.entrySet()) {
-            OptionGroup group = optionGroupRepository.findById(entry.getKey()).orElse(null);
+            OptionGroup group = groups.get(entry.getKey());
             if (group == null) {
                 continue;
             }

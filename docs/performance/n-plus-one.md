@@ -99,6 +99,31 @@ python scripts/perf/measure_api.py --label after --out after.json --compare befo
 - 수정 후 쿼리 수는 건수와 무관하게 3~4개(사용자 조회, 목록, 건수, 이름)다. `size=100`에서는 한 페이지에 다 담겨 건수 쿼리가 생략된다.
 - 이 측정에서도 코드를 바꾸지 않은 상품·SKU·구역 목록의 시간이 컨테이너 재시작 직후라 +27%~+120% 흔들렸다. 개선율은 쿼리 횟수로 판단한다.
 
+### 2-4. 옵션 그룹 조회 3종 (#346)
+
+**원인**
+
+- `GET /products/{productId}/option-groups`: `OptionGroupService`가 SKU마다 `findBySkuId`, 옵션 값마다 `findById`, 그룹마다 `findById`를 호출했다. SKU 수와 옵션 값 수에 비례해 쿼리가 늘어난다.
+- `GET /products/option-groups`: 옵션 그룹마다 `findByOptionGroupId`로 옵션 값을 읽었다.
+- `GET /products/categories/{categoryId}/option-groups`: `CategoryOptionGroupService`가 지정된 그룹마다 `findByOptionGroupId`로 옵션 값을 읽었다.
+
+**해결**
+
+- `OptionValueRepository.findByOptionGroupIdIn`을 추가했다. 이미 있던 `SkuOptionValueRepository.findBySkuIdIn`, `OptionValueRepository.findAllByIds`, `OptionGroupRepository.findAllByIds`와 함께 쓴다.
+- 세 조회 모두 필요한 ID를 모아 한 번씩 읽고 메모리에서 그룹별로 나눈다. 정렬 기준(그룹 ID 오름차순, 옵션 값 `sortOrder` 오름차순)과 응답 JSON은 그대로다.
+- 서비스 테스트에 단건 조회(`findBySkuId`, `findById`, `findByOptionGroupId`)가 호출되지 않는지 검증을 넣었다.
+
+**결과** (로컬 docker-compose, 워밍업 5회 후 30회)
+
+| API | 쿼리 | 쿼리 변화 | 중앙값(ms) | 중앙값 변화 | p95(ms) | p95 변화 |
+|---|---|---|---|---|---|---|
+| 옵션 그룹 전체 (10건) | 12 → 3 | -75% | 19 → 11 | -42% | 31 → 17 | -45% |
+| 상품별 옵션 그룹 (SKU 4개) | 12 → 6 | -50% | 15 → 14 | -7% | 22 → 25 | +14% |
+| 카테고리별 옵션 그룹 | 9 → 5 | -44% | 15.5 → 13.5 | -13% | 21 → 17 | -19% |
+
+- 상품별 조회는 시드 데이터에서 SKU가 가장 많은 상품도 4개뿐이라 개선 폭이 작게 보인다. 수정 후 쿼리 수(6)는 SKU 수와 무관하고, 수정 전에는 SKU와 옵션 값이 늘수록 계속 늘어나는 구조였다(코드 기준 추정이며 SKU가 많은 상품으로 실측하지는 않았다).
+- 상품별 조회의 시간은 변화가 측정 오차 안이다. 쿼리 수로 판단한다.
+
 ## 3. 요약 표
 
 | 날짜 | 이슈 | 대상 API | 쿼리(수정 전 → 후) | 중앙값(ms) | 비고 |
@@ -113,6 +138,9 @@ python scripts/perf/measure_api.py --label after --out after.json --compare befo
 | 2026-11-11 | #344 | `GET /stores/managers` (size=100, 38건) | 40 → 3 | 62 → 12 | 위와 같음 |
 | 2026-11-11 | #344 | `GET /warehouses/managers` (size=20) | 23 → 4 | 29 → 11 | 창고명 일괄 조회 |
 | 2026-11-11 | #344 | `GET /warehouses/managers` (size=100, 32건) | 34 → 3 | 47 → 9 | 위와 같음 |
+| 2026-11-12 | #346 | `GET /products/option-groups` (10건) | 12 → 3 | 19 → 11 | 옵션 값 일괄 조회 |
+| 2026-11-12 | #346 | `GET /products/{id}/option-groups` (SKU 4개) | 12 → 6 | 15 → 14 | SKU 수와 무관한 쿼리 수 |
+| 2026-11-12 | #346 | `GET /products/categories/{id}/option-groups` | 9 → 5 | 15.5 → 13.5 | 옵션 값 일괄 조회 |
 
 ## 4. 남은 후보
 
@@ -120,7 +148,6 @@ python scripts/perf/measure_api.py --label after --out after.json --compare befo
 
 | 대상 | 관찰 | 비고 |
 |---|---|---|
-| `GET /products/option-groups` | 10건 12쿼리 | 건수 + 2. 원인 코드는 아직 확인 전이고, 규모가 작아 영향은 작다. |
 | 상세 API (`GET /products/skus/{id}` 8쿼리, `/products/{id}` 7, `/lots/{id}` 6, `/orders/{id}/details` 6) | 한 건 조회에 6~8쿼리 | 건수에 비례하는지는 라인 수가 다른 데이터로 확인하지 않았다. 목록 N+1이 아니라 상세 조립 비용일 수 있다. |
 
 아래는 N+1은 아니지만 함께 볼 후보다.
