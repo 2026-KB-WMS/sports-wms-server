@@ -56,6 +56,8 @@
 | `StoreOrderConcurrencyTest` | 발주 상태 변경 |
 | `SignupConcurrencyTest` | 가입 중복 (유니크 제약) |
 | `InitialHqAdminConcurrencyTest` | 초기 관리자 (유니크 제약) |
+| `InventoryLockOrderConcurrencyTest` | 출고 피킹 vs 재고 조정 락 순서, 동시 피킹 수량 유실 |
+| `InboundRegisterStaleReadTest` | 입고 등록 vs 발주 취소 (낡은 읽기) |
 
 락은 있지만 위 목록에 전용 테스트가 없는 곳(창고·구역, 로트, 사용자 상태 변경, 코드 발급, 발주서 상태 변경)은 S4 대조 때 채운다.
 
@@ -91,3 +93,14 @@
 
 - 발주 헤더를 잠근 채 재고로 내려가는 출고 경로와, 다른 발주가 같은 재고를 잠그는 경로 사이의 교차. 출고 피킹은 구역 → 재고 순서라 4-1의 `adjust`를 제외하면 반대 순서 쌍은 찾지 못했다.
 - 창고 비활성화는 구역을 잠근 뒤 여러 도메인을 조회만 하는데, 조회 쪽이 락을 거는지는 확인하지 않았다.
+
+### 4-4. 후속 검증 후보
+
+재고·발주 수량과 직결되는데 전용 테스트가 아직 없는 곳이다.
+
+- 출고 피킹 완료·배송 완료 경합 (`OutboundFulfillmentService`)
+- 발주 취소·부분 종결 때 출고·할당 정리 (`OutboundOrderLinkService`)
+- 구역 비활성화·삭제 vs 입고 적치 (순차 요청은 `SECTION_HAS_INVENTORY`로 막히고, 락은 두 요청이 겹치는 순간을 막는다)
+- 사용자 상태 변경 vs 로그인, 창고·구역 수정, 위치 코드 발급: 드물게 쓰이고 틀려도 수량이 어긋나지 않아 우선순위가 낮다. 상품 코드 발급은 H2 테스트 스키마가 `category`(`TINYINT`)와 `option_value`(`value` 예약어) 테이블을 만들지 못해 상품 등록 통합 테스트를 쓸 수 없다.
+
+위 테스트와 4-1의 수정은 모두 H2에서만 확인했다. MySQL(InnoDB) 검증은 [`scenario/performance.md`](../scenario/performance.md) S4에서 한다.
