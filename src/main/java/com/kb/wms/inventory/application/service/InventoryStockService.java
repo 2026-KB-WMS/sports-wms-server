@@ -144,12 +144,12 @@ public class InventoryStockService implements InventoryStockUseCase {
     @Override
     public List<StockLotView> ship(List<StockShipCommand> commands) {
         // 입고와 같은 잠금 순서(구역 → 재고 행)를 지키기 위해, 재고 행의 구역을 먼저 읽어 구역부터 잠근다.
+        // 재고 행 전체를 읽으면 그 객체가 영속성 컨텍스트에 남아 아래 lockAll이 낡은 값을 돌려주므로 구역 ID만 읽는다.
         sectionCapacityPort.lock(commands.stream()
                 .map(StockShipCommand::inventoryLotId).distinct()
-                .map(id -> inventoryLotRepository.findById(id)
+                .map(id -> inventoryLotRepository.findSectionIdById(id)
                         .orElseThrow(() -> new BusinessException(InventoryErrorCode.INVENTORY_NOT_FOUND,
                                 InventoryErrorCode.INVENTORY_NOT_FOUND.getDefaultMessage() + " (재고 " + id + ")")))
-                .map(InventoryLot::getSectionId)
                 .toList());
         Map<Long, InventoryLot> locked = lockAll(commands.stream().map(StockShipCommand::inventoryLotId).toList());
         for (StockShipCommand command : commands) {

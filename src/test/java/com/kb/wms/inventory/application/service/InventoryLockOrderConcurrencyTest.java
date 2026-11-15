@@ -153,6 +153,38 @@ class InventoryLockOrderConcurrencyTest {
         assertThat(result.getOnHandQuantity()).isBetween(100L, 101L);
     }
 
+    @Test
+    @DisplayName("같은 재고에 출고 피킹이 동시에 겹쳐도 보유·할당 수량이 유실되지 않는다")
+    void concurrentShip_doesNotLoseUpdates() throws Exception {
+        int threads = 20;
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        CyclicBarrier barrier = new CyclicBarrier(threads);
+        List<Future<Void>> futures = new ArrayList<>();
+        try {
+            for (int i = 0; i < threads; i++) {
+                futures.add(executor.submit(() -> {
+                    barrier.await(5, TimeUnit.SECONDS);
+                    stockUseCase.ship(List.of(new StockShipCommand(inventoryLotId, 1L, 1L, 1L, USER)));
+                    return null;
+                }));
+            }
+            List<String> failures = new ArrayList<>();
+            for (int i = 0; i < futures.size(); i++) {
+                collectFailure(futures.get(i), "ship", i, failures);
+            }
+            assertThat(failures).as("실패한 피킹").isEmpty();
+        } finally {
+            executor.shutdown();
+        }
+
+        InventoryLot result = inventoryLotRepository.findById(inventoryLotId).orElseThrow();
+        System.out.println("[SHIP-STALE] onHand=" + result.getOnHandQuantity() + ", allocated=" + result.getAllocatedQuantity());
+
+        // 시작: 보유 100, 할당 100. 20건이 1씩 피킹하면 둘 다 80이어야 한다.
+        assertThat(result.getOnHandQuantity()).as("보유 수량").isEqualTo(80L);
+        assertThat(result.getAllocatedQuantity()).as("할당 수량").isEqualTo(80L);
+    }
+
     private void collectFailure(Future<Void> future, String name, int round, List<String> failures) {
         try {
             future.get(30, TimeUnit.SECONDS);
