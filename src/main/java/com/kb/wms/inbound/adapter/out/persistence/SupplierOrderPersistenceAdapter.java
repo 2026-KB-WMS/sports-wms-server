@@ -34,6 +34,11 @@ public class SupplierOrderPersistenceAdapter implements SupplierOrderRepository 
     }
 
     @Override
+    public Optional<Long> findPurchaseOrderIdById(Long supplierOrderId) {
+        return supplierOrderJpaRepository.findPurchaseOrderIdById(supplierOrderId);
+    }
+
+    @Override
     public List<SupplierOrder> findByPurchaseOrderId(Long purchaseOrderId) {
         return supplierOrderJpaRepository.findByPurchaseOrderIdOrderBySupplierOrderIdAsc(purchaseOrderId).stream()
                 .map(SupplierOrderJpaEntity::toDomain)

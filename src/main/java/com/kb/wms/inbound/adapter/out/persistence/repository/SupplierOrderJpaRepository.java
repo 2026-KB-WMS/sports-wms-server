@@ -32,6 +32,9 @@ public interface SupplierOrderJpaRepository extends JpaRepository<SupplierOrderJ
     @Query("select so from SupplierOrderJpaEntity so where so.supplierOrderId = :supplierOrderId")
     Optional<SupplierOrderJpaEntity> findByIdForUpdate(@Param("supplierOrderId") Long supplierOrderId);
 
+    @Query("select so.purchaseOrderId from SupplierOrderJpaEntity so where so.supplierOrderId = :supplierOrderId")
+    Optional<Long> findPurchaseOrderIdById(@Param("supplierOrderId") Long supplierOrderId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select so from SupplierOrderJpaEntity so

@@ -78,7 +78,7 @@
 - **수정 (#357).** `adjust`가 구역 ID를 먼저 읽어 구역을 잠그고 재고 행을 잠그도록 바꿨다. 같은 테스트가 100라운드 모두 통과한다.
 - **함정.** 구역 ID를 얻으려고 재고 행을 `findById`로 통째로 읽으면 그 객체가 영속성 컨텍스트에 남아, 뒤이은 `FOR UPDATE`가 락만 잡고 **낡은 값을 돌려준다.** 처음 시도에서 이 때문에 조정이 서로 덮어써 `STALE_QUANTITY` 검사가 뚫렸다(150과 80이 둘 다 성공). 그래서 구역 ID만 읽는 `findSectionIdById`를 따로 만들었다.
 - **`ship`도 같은 함정이었다 (#360).** `ship`이 구역 ID를 얻으려고 재고 행을 `findById`로 읽은 뒤 `lockAll`로 잠갔다. 같은 재고에 피킹 20건을 동시에 보내면 오류 없이 전부 성공하지만 보유·할당 수량이 80이 아니라 99로 남았다(19건 유실). `findSectionIdById`로 바꾸자 80으로 맞는다(`InventoryLockOrderConcurrencyTest.concurrentShip_doesNotLoseUpdates`).
-- **확인하지 못한 것.** `InboundService.registerInbound`(89~94행)가 공급사 주문을 `findById`로 읽은 뒤 같은 트랜잭션에서 `findByIdForUpdate`로 다시 읽는다. 주석은 "락을 기다리는 사이 바뀐 상태를 반영한다"인데, 같은 객체가 영속성 컨텍스트에 남아 있으면 낡은 상태가 돌아올 수 있다. 재현하지 않았다.
+- **`registerInbound`도 같은 함정이었다 (#363).** 공급처 발주서를 `findById`로 읽은 뒤 발주 행 락을 기다리는 사이 발주가 취소돼도, 락을 얻은 뒤 `findByIdForUpdate`가 낡은 객체(진행 중)를 돌려줘 취소된 발주서에 입고가 만들어졌다. 발주 락을 쥔 채 공급처 발주서를 취소하는 동안 입고 등록을 대기시키는 테스트(`InboundRegisterStaleReadTest`)에서 입고가 1건 생기는 것을 확인했다. 발주 ID만 읽는 `findPurchaseOrderIdById`로 바꾸자 등록이 거절된다.
 
 ### 4-2. 문제 없다고 본 것
 
