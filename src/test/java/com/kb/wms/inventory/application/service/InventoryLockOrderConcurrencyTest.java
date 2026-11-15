@@ -14,7 +14,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -113,8 +112,6 @@ class InventoryLockOrderConcurrencyTest {
         productSkuJpaRepository.deleteById(skuId);
     }
 
-    // #353에서 데드락이 재현됐다(H2, 100라운드 중 100번). 잠금 순서를 고치는 #357에서 이 줄을 지우고 통과를 확인한다.
-    @Disabled("재고 조정 vs 출고 피킹 데드락 재현됨. #357에서 수정 후 활성화")
     @Test
     @DisplayName("같은 재고에 출고 피킹(구역 → 재고)과 재고 조정(재고 → 구역)이 반복해서 겹쳐도 락 충돌 없이 끝난다")
     void shipAndAdjust_onSameInventory_doNotDeadlock() throws Exception {

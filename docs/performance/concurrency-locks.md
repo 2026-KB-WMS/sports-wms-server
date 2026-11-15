@@ -25,7 +25,7 @@
 | inventory | `InventoryStockService` (입고 반영) | 구역(ID 오름차순 일괄) → 재고 행(섹션+로트 단건) | **구역 → 재고** (§4-1) |
 | inventory | `InventoryStockService` (예약·해제) | 재고 여러 건(ID 오름차순 일괄). 구역은 잠그지 않음 | ([ADR-006](../adr/006-inventory-pessimistic-lock.md)) |
 | inventory | `InventoryStockService` (출고 `ship`) | 구역(ID 오름차순) → 재고 여러 건(ID 오름차순 일괄) | 구역 → 재고 (입고 반영과 같은 순서) |
-| inventory | `InventoryAdjustmentService` | 재고 1건 → 구역(수용량 증감) | **재고 → 구역** (§4-1, 데드락 재현됨) |
+| inventory | `InventoryAdjustmentService` | 구역 → 재고 1건 (수용량 증감) | 구역 → 재고 (#357에서 변경, §4-1) |
 | inventory | `LotService` (상태 변경) | 로트 → 그 로트의 재고 행 전체(ID 오름차순) | 로트 → 재고 행 |
 | warehouse | `WarehouseSectionService` (등록) | 창고만 (상위 구역은 잠금 없이 조회) | - |
 | warehouse | `WarehouseSectionService` (수정·활성화) | 구역 → 창고 | 구역 → 창고 |
@@ -63,19 +63,21 @@
 
 순환 락은 최대한 피한다. 아래는 코드를 읽어 찾은 후보와 재현 결과다.
 
-### 4-1. 재고 조정만 재고 행 → 구역 순서 (데드락 재현됨)
+### 4-1. 재고 조정만 재고 행 → 구역 순서였음 (재현 후 #357에서 수정)
 
 | 경로 | 순서 |
 |---|---|
 | 입고 반영(`InventoryStockService.receive`), 출고 피킹(`ship`) | 구역 → 재고 행 |
-| 재고 조정(`InventoryAdjustmentService.adjust`) | 재고 행 → 구역 |
+| 재고 조정(`InventoryAdjustmentService.adjust`) | 재고 행 → 구역 (수정 전) → 구역 → 재고 행 (#357 이후) |
 
 `ship`은 입고와 같은 순서를 지키려고 재고 행의 구역을 먼저 읽어 구역부터 잠근다(코드 주석). 순서가 반대인 건 `adjust` 하나다. 재고 행을 잠근 뒤 수용량을 늘리거나 줄이려고 구역을 잠그기 때문이다. 같은 구역·같은 재고에 `adjust`와 `ship`(또는 입고 반영)이 동시에 오면 서로 상대가 쥔 행을 기다린다.
 
 **재현 결과 (#353).** `InventoryLockOrderConcurrencyTest`에서 `ship`과 `adjust`를 100라운드 동시에 보냈더니 H2에서 100라운드 모두 `Deadlock detected`로 실패했다(`adjust` 95번, `ship` 5번이 희생자, `CannotAcquireLockException`). 수량 충돌로 거절될 일이 없게 만든 테스트라 실패는 전부 락 충돌이다.
 
 - 재현은 H2에서만 했다. 운영 DB인 MySQL(InnoDB)에서 같은 데드락이 나는지는 확인하지 않았다.
-- 테스트는 수정 전까지 `@Disabled`로 남겨 두었다. 수정은 #357에서 한다. 방향은 `adjust`가 재고 행을 읽어 구역 ID를 알아낸 뒤 구역을 먼저 잠그는 것(`ship`과 같은 방식)이다.
+- **수정 (#357).** `adjust`가 구역 ID를 먼저 읽어 구역을 잠그고 재고 행을 잠그도록 바꿨다. 같은 테스트가 100라운드 모두 통과한다.
+- **함정.** 구역 ID를 얻으려고 재고 행을 `findById`로 통째로 읽으면 그 객체가 영속성 컨텍스트에 남아, 뒤이은 `FOR UPDATE`가 락만 잡고 **낡은 값을 돌려준다.** 처음 시도에서 이 때문에 조정이 서로 덮어써 `STALE_QUANTITY` 검사가 뚫렸다(150과 80이 둘 다 성공). 그래서 구역 ID만 읽는 `findSectionIdById`를 따로 만들었다.
+- **확인하지 않은 것.** `InventoryStockService.ship`도 구역 ID를 얻으려고 재고 행을 `findById`로 읽은 뒤 `lockAll`로 잠근다. 같은 함정이 있을 수 있으나 이번에 확인하거나 고치지 않았다.
 
 ### 4-2. 문제 없다고 본 것
 

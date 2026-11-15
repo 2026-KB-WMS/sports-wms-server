@@ -67,6 +67,7 @@ class InventoryAdjustmentServiceTest {
     void adjust_otherWarehouse_forbidden() {
         InventoryAdjustCommand command = new InventoryAdjustCommand(1L, 100L, 120L, "실사 결과 반영", 99L);
         AuthenticatedUser other = new AuthenticatedUser(98L, UserRole.WAREHOUSE_MANAGER, List.of(2L), List.of());
+        when(inventoryLotRepository.findSectionIdById(1L)).thenReturn(Optional.of(lot.getSectionId()));
         when(inventoryLotRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(lot));
 
         assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command, other))
@@ -81,6 +82,7 @@ class InventoryAdjustmentServiceTest {
     @DisplayName("현재 보유 수량과 beforeQuantity가 일치하고 수량이 늘어나면 구역 사용 용량을 증가시키고 조정에 성공한다")
     void adjust_increase_success() {
         InventoryAdjustCommand command = new InventoryAdjustCommand(1L, 100L, 120L, "실사 결과 반영", 99L);
+        when(inventoryLotRepository.findSectionIdById(1L)).thenReturn(Optional.of(lot.getSectionId()));
         when(inventoryLotRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(lot));
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(inventoryTransactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -98,6 +100,7 @@ class InventoryAdjustmentServiceTest {
     @DisplayName("수량이 줄어들면 구역 사용 용량을 줄이고 조정에 성공한다")
     void adjust_decrease_success() {
         InventoryAdjustCommand command = new InventoryAdjustCommand(1L, 100L, 80L, "파손 수량 제외", 99L);
+        when(inventoryLotRepository.findSectionIdById(1L)).thenReturn(Optional.of(lot.getSectionId()));
         when(inventoryLotRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(lot));
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(inventoryTransactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -114,7 +117,7 @@ class InventoryAdjustmentServiceTest {
     @DisplayName("존재하지 않는 재고를 조정하면 INVENTORY_NOT_FOUND 예외를 던진다")
     void adjust_inventoryNotFound() {
         InventoryAdjustCommand command = new InventoryAdjustCommand(999L, 100L, 120L, "사유", 99L);
-        when(inventoryLotRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
+        when(inventoryLotRepository.findSectionIdById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command, actor))
                 .isInstanceOf(BusinessException.class)
@@ -126,6 +129,7 @@ class InventoryAdjustmentServiceTest {
     @DisplayName("beforeQuantity가 현재 보유 수량과 다르면 STALE_QUANTITY 예외를 던진다")
     void adjust_staleQuantity() {
         InventoryAdjustCommand command = new InventoryAdjustCommand(1L, 90L, 120L, "사유", 99L);
+        when(inventoryLotRepository.findSectionIdById(1L)).thenReturn(Optional.of(lot.getSectionId()));
         when(inventoryLotRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(lot));
 
         assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command, actor))
@@ -141,6 +145,7 @@ class InventoryAdjustmentServiceTest {
     @DisplayName("조정 후 수량이 할당 수량보다 작으면 BELOW_ALLOCATED_QUANTITY 예외를 던진다")
     void adjust_belowAllocatedQuantity() {
         InventoryAdjustCommand command = new InventoryAdjustCommand(1L, 100L, 10L, "사유", 99L);
+        when(inventoryLotRepository.findSectionIdById(1L)).thenReturn(Optional.of(lot.getSectionId()));
         when(inventoryLotRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(lot));
 
         assertThatThrownBy(() -> inventoryAdjustmentService.adjust(command, actor))

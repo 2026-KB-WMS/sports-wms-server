@@ -1,6 +1,7 @@
 package com.kb.wms.inventory.application.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,7 +36,7 @@ public class InventoryAdjustmentService implements InventoryAdjustmentUseCase {
     private final InventoryQueryRepository inventoryQueryRepository;
 
     /**
-     * 재고 행을 잠근 뒤 화면에서 본 수량(beforeQuantity)이 현재 값과 같을 때만 조정한다.
+     * 구역과 재고 행을 잠근 뒤 화면에서 본 수량(beforeQuantity)이 현재 값과 같을 때만 조정한다.
      * 같은 요청이 중복 전송돼도 두 번째는 STALE_QUANTITY로 거절되어 중복 반영되지 않는다.
      * 수량 변경, 구역 사용 용량 증감, 이력 기록은 한 트랜잭션이다.
      */
@@ -43,6 +44,11 @@ public class InventoryAdjustmentService implements InventoryAdjustmentUseCase {
     public InventoryAdjustmentResult adjust(InventoryAdjustCommand command, AuthenticatedUser actor) {
         validate(command);
 
+        // 입고 반영·출고 피킹과 같은 잠금 순서(구역 → 재고 행)를 지킨다. 반대로 잠그면 같은 재고에 겹친 요청과 데드락이 난다.
+        // 재고 행 전체를 먼저 읽으면 그 객체가 영속성 컨텍스트에 남아 아래 ForUpdate가 낡은 값을 돌려주므로, 구역 ID만 읽는다.
+        Long sectionId = inventoryLotRepository.findSectionIdById(command.inventoryLotId())
+                .orElseThrow(() -> new BusinessException(InventoryErrorCode.INVENTORY_NOT_FOUND));
+        sectionCapacityPort.lock(List.of(sectionId));
         InventoryLot inventoryLot = inventoryLotRepository.findByIdForUpdate(command.inventoryLotId())
                 .orElseThrow(() -> new BusinessException(InventoryErrorCode.INVENTORY_NOT_FOUND));
         // 담당 창고 확인은 행을 잠근 뒤 같은 트랜잭션에서 한다.
