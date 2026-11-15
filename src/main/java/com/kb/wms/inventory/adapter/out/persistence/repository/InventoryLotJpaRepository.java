@@ -27,6 +27,9 @@ import jakarta.persistence.LockModeType;
  */
 public interface InventoryLotJpaRepository extends JpaRepository<InventoryLotJpaEntity, Long> {
 
+    @Query("select il.sectionId from InventoryLotJpaEntity il where il.inventoryLotId = :id")
+    Optional<Long> findSectionIdById(@Param("id") Long inventoryLotId);
+
     // ---------- 잠금 조회 (SELECT ... FOR UPDATE) ----------
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

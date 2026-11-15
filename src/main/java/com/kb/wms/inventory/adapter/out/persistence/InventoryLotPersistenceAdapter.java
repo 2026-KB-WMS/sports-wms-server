@@ -30,6 +30,11 @@ public class InventoryLotPersistenceAdapter implements InventoryLotRepository {
     }
 
     @Override
+    public Optional<Long> findSectionIdById(Long inventoryLotId) {
+        return inventoryLotJpaRepository.findSectionIdById(inventoryLotId);
+    }
+
+    @Override
     public Optional<InventoryLot> findByIdForUpdate(Long inventoryLotId) {
         return inventoryLotJpaRepository.findByIdForUpdate(inventoryLotId).map(InventoryLotJpaEntity::toDomain);
     }

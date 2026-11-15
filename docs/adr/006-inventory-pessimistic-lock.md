@@ -22,3 +22,5 @@ InventoryLot 조회 중 수량을 변경하는 모든 경로(findByIdForUpdate, 
 - InventoryStockUseCase/InventoryAdjustmentUseCase 구현체는 반드시 findByIdForUpdate류를 통해 조회한 InventoryLot만 변경해야 하며, 잠금 없이 조회한 인스턴스를 수정·저장하면 안 된다.
 - 여러 로트를 한 번에 다루는 로직(예: FIFO 할당)은 findAllByIdInForUpdate처럼 ID 오름차순 정렬로 잠그는 순서를 통일해 데드락을 예방한다.
 - 트랜잭션 범위를 짧게 유지해야 하므로, 잠금을 건 상태에서 외부 API 호출 등 느린 작업을 하지 않는다.
+- 구역과 재고 행을 함께 잠그는 경로는 **구역 → 재고 행** 순서를 지킨다(입고 반영, 출고 피킹, 재고 조정). 반대로 잠그면 같은 재고에 겹친 요청과 데드락이 난다(#353에서 재현, #357에서 수정).
+- 구역 ID를 얻으려고 재고 행을 락 없이 통째로 읽지 않는다. 그 객체가 영속성 컨텍스트에 남아 뒤이은 ForUpdate 조회가 낡은 값을 돌려준다. 필요한 값만 읽는 쿼리(`findSectionIdById`)를 쓴다.

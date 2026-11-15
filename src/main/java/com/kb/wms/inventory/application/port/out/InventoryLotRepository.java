@@ -21,6 +21,12 @@ public interface InventoryLotRepository {
     Optional<InventoryLot> findByIdForUpdate(Long inventoryLotId);
 
     /**
+     * 재고 행의 구역 ID만 읽는다. 구역을 먼저 잠그려고 재고 행을 읽어야 할 때 쓴다.
+     * 행 전체를 읽으면 그 객체가 영속성 컨텍스트에 남아, 뒤이은 ForUpdate 조회가 락만 잡고 낡은 값을 돌려준다.
+     */
+    Optional<Long> findSectionIdById(Long inventoryLotId);
+
+    /**
      * 여러 행을 inventory_lot_id 오름차순으로 잠근다(교착 방지). 없는 ID는 결과에서 빠진다.
      */
     List<InventoryLot> findAllByIdsForUpdate(Collection<Long> inventoryLotIds);
