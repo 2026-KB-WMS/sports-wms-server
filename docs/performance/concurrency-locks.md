@@ -23,8 +23,9 @@
 | inbound | `InboundService` (입고 취소), `InboundInspectService` (검수) | 입고 1건만 (발주서·로트는 잠금 없이 조회) | - |
 | inbound | `PurchaseOrderService` (확정·취소 등 4곳) | 발주서, 라인 또는 공급사 주문 | 발주서 → 라인 / 발주서 → 공급사 주문 (입고는 존재 여부만 읽고 잠그지 않음) |
 | inventory | `InventoryStockService` (입고 반영) | 구역(ID 오름차순 일괄) → 재고 행(섹션+로트 단건) | **구역 → 재고** (§4-1) |
-| inventory | `InventoryStockService` (예약·해제·출고) | 재고 여러 건(ID 오름차순 일괄) → 출고 시 구역(수용량 차감) | **재고 → 구역** (§4-1) ([ADR-006](../adr/006-inventory-pessimistic-lock.md)) |
-| inventory | `InventoryAdjustmentService` | 재고 1건 → 구역(수용량 증감) | **재고 → 구역** (§4-1) |
+| inventory | `InventoryStockService` (예약·해제) | 재고 여러 건(ID 오름차순 일괄). 구역은 잠그지 않음 | ([ADR-006](../adr/006-inventory-pessimistic-lock.md)) |
+| inventory | `InventoryStockService` (출고 `ship`) | 구역(ID 오름차순) → 재고 여러 건(ID 오름차순 일괄) | 구역 → 재고 (입고 반영과 같은 순서) |
+| inventory | `InventoryAdjustmentService` | 재고 1건 → 구역(수용량 증감) | **재고 → 구역** (§4-1, 데드락 재현됨) |
 | inventory | `LotService` (상태 변경) | 로트 → 그 로트의 재고 행 전체(ID 오름차순) | 로트 → 재고 행 |
 | warehouse | `WarehouseSectionService` (등록) | 창고만 (상위 구역은 잠금 없이 조회) | - |
 | warehouse | `WarehouseSectionService` (수정·활성화) | 구역 → 창고 | 구역 → 창고 |
@@ -60,16 +61,21 @@
 
 ## 4. 순환 락(데드락) 점검
 
-순환 락은 최대한 피한다. 아래는 코드를 읽어 찾은 후보이고, **아직 고치거나 재현하지 않았다.** 나중에 꼭 다시 본다.
+순환 락은 최대한 피한다. 아래는 코드를 읽어 찾은 후보와 재현 결과다.
 
-### 4-1. 재고 행과 구역 행의 순서가 반대 (후보)
+### 4-1. 재고 조정만 재고 행 → 구역 순서 (데드락 재현됨)
 
 | 경로 | 순서 |
 |---|---|
-| 입고 완료 → `InventoryStockService` 입고 반영 | 구역 → 재고 행 |
-| 출고 피킹 완료(`ship`), 재고 조정(`adjust`) | 재고 행 → 구역 |
+| 입고 반영(`InventoryStockService.receive`), 출고 피킹(`ship`) | 구역 → 재고 행 |
+| 재고 조정(`InventoryAdjustmentService.adjust`) | 재고 행 → 구역 |
 
-같은 구역·같은 로트에 대해 입고 반영과 출고 피킹(또는 조정)이 동시에 오면 서로 상대가 쥔 행을 기다린다. 입고 쪽은 "구역을 먼저 잠그는" 것이 의도다(구역 비활성화·삭제와 겹치지 않게, `WarehouseSectionService` 주석). 그래서 고친다면 출고·조정 쪽을 구역 → 재고 순으로 맞추는 방향이 되는데, 재고를 먼저 읽어야 구역 ID를 아는 구조라 설계 검토가 필요하다. 재현 테스트부터 만든다.
+`ship`은 입고와 같은 순서를 지키려고 재고 행의 구역을 먼저 읽어 구역부터 잠근다(코드 주석). 순서가 반대인 건 `adjust` 하나다. 재고 행을 잠근 뒤 수용량을 늘리거나 줄이려고 구역을 잠그기 때문이다. 같은 구역·같은 재고에 `adjust`와 `ship`(또는 입고 반영)이 동시에 오면 서로 상대가 쥔 행을 기다린다.
+
+**재현 결과 (#353).** `InventoryLockOrderConcurrencyTest`에서 `ship`과 `adjust`를 100라운드 동시에 보냈더니 H2에서 100라운드 모두 `Deadlock detected`로 실패했다(`adjust` 95번, `ship` 5번이 희생자, `CannotAcquireLockException`). 수량 충돌로 거절될 일이 없게 만든 테스트라 실패는 전부 락 충돌이다.
+
+- 재현은 H2에서만 했다. 운영 DB인 MySQL(InnoDB)에서 같은 데드락이 나는지는 확인하지 않았다.
+- 테스트는 수정 전까지 `@Disabled`로 남겨 두었다. 수정은 #357에서 한다. 방향은 `adjust`가 재고 행을 읽어 구역 ID를 알아낸 뒤 구역을 먼저 잠그는 것(`ship`과 같은 방식)이다.
 
 ### 4-2. 문제 없다고 본 것
 
@@ -80,5 +86,5 @@
 
 ### 4-3. 아직 안 본 것
 
-- 발주 헤더를 잠근 채 재고(→ 구역)로 내려가는 출고 경로와, 다른 발주가 같은 재고를 잠그는 경로 사이의 교차는 4-1과 같이 본다.
+- 발주 헤더를 잠근 채 재고로 내려가는 출고 경로와, 다른 발주가 같은 재고를 잠그는 경로 사이의 교차. 출고 피킹은 구역 → 재고 순서라 4-1의 `adjust`를 제외하면 반대 순서 쌍은 찾지 못했다.
 - 창고 비활성화는 구역을 잠근 뒤 여러 도메인을 조회만 하는데, 조회 쪽이 락을 거는지는 확인하지 않았다.
