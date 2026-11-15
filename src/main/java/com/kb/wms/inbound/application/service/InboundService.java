@@ -85,13 +85,14 @@ public class InboundService implements InboundUseCase {
                     "비고는 " + NOTE_MAX_LENGTH + "자 이하여야 합니다.");
         }
 
-        SupplierOrder found = supplierOrderRepository.findById(command.supplierOrderId())
+        // 발주서를 통째로 읽으면 영속성 컨텍스트에 남아, 아래 FOR UPDATE가 락만 잡고 낡은 상태를 돌려준다.
+        // 그래서 락 대상(발주 ID)만 읽고, 발주서는 발주 락을 잡은 뒤 처음 읽는다.
+        Long purchaseOrderId = supplierOrderRepository.findPurchaseOrderIdById(command.supplierOrderId())
                 .orElseThrow(() -> new BusinessException(SupplierOrderErrorCode.SUPPLIER_ORDER_NOT_FOUND));
-        PurchaseOrder purchaseOrder = purchaseOrderRepository.findByIdForUpdate(found.getPurchaseOrderId())
+        PurchaseOrder purchaseOrder = purchaseOrderRepository.findByIdForUpdate(purchaseOrderId)
                 .orElseThrow(() -> new BusinessException(PurchaseOrderErrorCode.PURCHASE_ORDER_NOT_FOUND));
         actor.requireWarehouseAccess(purchaseOrder.getWarehouseId());
-        // 요청 락을 잡은 뒤 발주서를 다시 읽어, 락을 기다리는 사이 취소·완료된 상태를 반영한다.
-        SupplierOrder supplierOrder = supplierOrderRepository.findByIdForUpdate(found.getSupplierOrderId())
+        SupplierOrder supplierOrder = supplierOrderRepository.findByIdForUpdate(command.supplierOrderId())
                 .orElseThrow(() -> new BusinessException(SupplierOrderErrorCode.SUPPLIER_ORDER_NOT_FOUND));
         if (!supplierOrder.isInProgress()) {
             throw new BusinessException(ErrorCode.CONFLICT,

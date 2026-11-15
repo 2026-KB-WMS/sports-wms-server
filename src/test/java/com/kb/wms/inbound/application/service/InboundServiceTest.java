@@ -112,7 +112,7 @@ class InboundServiceTest {
 
     /** 요청(4L)이 확정 상태이고 발주서(8L)가 주어진 상태인 등록 시나리오를 만든다. */
     private void givenRegisterTarget(SupplierOrderStatus supplierOrderStatus) {
-        when(supplierOrderRepository.findById(8L)).thenReturn(Optional.of(supplierOrder(supplierOrderStatus)));
+        when(supplierOrderRepository.findPurchaseOrderIdById(8L)).thenReturn(Optional.of(4L));
         when(purchaseOrderRepository.findByIdForUpdate(4L))
                 .thenReturn(Optional.of(purchaseOrder(PurchaseOrderStatus.CONFIRMED)));
         when(supplierOrderRepository.findByIdForUpdate(8L))
@@ -245,7 +245,7 @@ class InboundServiceTest {
     @Test
     @DisplayName("없는 공급처 발주서에 입고를 등록하면 SUPPLIER_ORDER_NOT_FOUND를 던진다")
     void register_supplierOrderNotFound() {
-        when(supplierOrderRepository.findById(999L)).thenReturn(Optional.empty());
+        when(supplierOrderRepository.findPurchaseOrderIdById(999L)).thenReturn(Optional.empty());
 
         assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(999L, null, null, 5L), HQ),
                 SupplierOrderErrorCode.SUPPLIER_ORDER_NOT_FOUND.name());
@@ -255,7 +255,7 @@ class InboundServiceTest {
     @Test
     @DisplayName("발주서가 속한 요청을 찾을 수 없으면 PURCHASE_ORDER_NOT_FOUND를 던진다")
     void register_purchaseOrderNotFound() {
-        when(supplierOrderRepository.findById(8L)).thenReturn(Optional.of(supplierOrder(SupplierOrderStatus.ISSUED)));
+        when(supplierOrderRepository.findPurchaseOrderIdById(8L)).thenReturn(Optional.of(4L));
         when(purchaseOrderRepository.findByIdForUpdate(4L)).thenReturn(Optional.empty());
 
         assertError(() -> inboundService.registerInbound(new InboundRegisterCommand(8L, null, null, 5L), HQ),
@@ -531,7 +531,7 @@ class InboundServiceTest {
     @Test
     @DisplayName("입고 등록은 발주서가 속한 요청의 창고가 담당 창고일 때만 할 수 있다")
     void register_otherWarehouse_forbidden() {
-        when(supplierOrderRepository.findById(8L)).thenReturn(Optional.of(supplierOrder(SupplierOrderStatus.ISSUED)));
+        when(supplierOrderRepository.findPurchaseOrderIdById(8L)).thenReturn(Optional.of(4L));
         when(purchaseOrderRepository.findByIdForUpdate(4L))
                 .thenReturn(java.util.Optional.of(purchaseOrder(PurchaseOrderStatus.CONFIRMED)));
 

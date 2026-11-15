@@ -18,6 +18,9 @@ public interface SupplierOrderRepository {
     /** 비관적 쓰기 락으로 발주서를 조회한다. 입고 등록·완료 전파가 서로 어긋나지 않게 한다. */
     Optional<SupplierOrder> findByIdForUpdate(Long supplierOrderId);
 
+    /** 발주서를 영속성 컨텍스트에 올리지 않고 소속 발주 ID만 읽는다. 뒤이은 {@link #findByIdForUpdate}가 낡은 객체를 돌려주지 않게 한다. */
+    Optional<Long> findPurchaseOrderIdById(Long supplierOrderId);
+
     /** 요청에 속한 발주서(발주서 ID 오름차순). */
     List<SupplierOrder> findByPurchaseOrderId(Long purchaseOrderId);
 
