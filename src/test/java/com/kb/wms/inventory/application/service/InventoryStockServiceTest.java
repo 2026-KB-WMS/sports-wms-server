@@ -301,7 +301,7 @@ class InventoryStockServiceTest {
     @DisplayName("피킹 수량만큼 보유·할당 수량을 차감하고 구역 사용 용량을 비운다")
     void ship_fullyPicked_success() {
         InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 30L);
-        when(inventoryLotRepository.findById(1L)).thenReturn(Optional.of(lot));
+        when(inventoryLotRepository.findSectionIdById(1L)).thenReturn(Optional.of(lot.getSectionId()));
         StockShipCommand command = new StockShipCommand(1L, 30L, 30L, 7L, 9L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -318,7 +318,7 @@ class InventoryStockServiceTest {
     @DisplayName("할당 수량보다 적게 피킹하면 부족분은 해제되고 피킹분만 출고 처리된다")
     void ship_shortPicked_releasesShortage() {
         InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 30L);
-        when(inventoryLotRepository.findById(1L)).thenReturn(Optional.of(lot));
+        when(inventoryLotRepository.findSectionIdById(1L)).thenReturn(Optional.of(lot.getSectionId()));
         StockShipCommand command = new StockShipCommand(1L, 30L, 20L, 7L, 9L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
         when(inventoryLotRepository.save(any(InventoryLot.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -334,7 +334,7 @@ class InventoryStockServiceTest {
     @DisplayName("피킹 수량이 할당 수량보다 크면 VALIDATION_ERROR 예외를 던진다")
     void ship_pickedExceedsAllocated() {
         InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 30L);
-        when(inventoryLotRepository.findById(1L)).thenReturn(Optional.of(lot));
+        when(inventoryLotRepository.findSectionIdById(1L)).thenReturn(Optional.of(lot.getSectionId()));
         StockShipCommand command = new StockShipCommand(1L, 30L, 40L, 7L, 9L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
 
@@ -348,7 +348,7 @@ class InventoryStockServiceTest {
     @DisplayName("재고의 할당 수량이 요청한 출고 할당 수량보다 적으면 CONFLICT 예외를 던진다")
     void ship_insufficientAllocated() {
         InventoryLot lot = lotWith(1L, 10L, 5L, 100L, 10L);
-        when(inventoryLotRepository.findById(1L)).thenReturn(Optional.of(lot));
+        when(inventoryLotRepository.findSectionIdById(1L)).thenReturn(Optional.of(lot.getSectionId()));
         StockShipCommand command = new StockShipCommand(1L, 30L, 30L, 7L, 9L);
         when(inventoryLotRepository.findAllByIdsForUpdate(List.of(1L))).thenReturn(List.of(lot));
 
