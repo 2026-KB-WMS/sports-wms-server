@@ -324,15 +324,112 @@ def s_4_9(env):
             'detail': '%d라운드 중 취소된 발주에 입고가 남은 라운드 %d' % (rounds, violations)}
 
 
+def multi_line_order(env, skus, qty):
+    """SKU마다 qty씩 요청하는 발주 한 건을 만든다."""
+    return env.api.post('/orders', {
+        'storeId': env.gangnam, 'requestedDeliveryAt': '2026-12-31T10:00:00', 'note': 'S4',
+        'lines': [{'skuId': sku, 'requestedQuantity': qty} for sku in skus]}, env.owner)['storeOrderId']
+
+
+def s_4_6(env):
+    """두 SKU(각 2개 로트)를 서로 다른 순서로 요청하는 발주 20건을 동시에 할당해 여러 로트를 한 번에 잠그는 요청이 교차하게 한다."""
+    a, b = env.next_sku(), env.next_sku()
+    for sku in (a, b):
+        env.stock(sku, 100)
+        env.stock(sku, 100)
+    orders = []
+    for i in range(20):
+        oid = multi_line_order(env, [a, b] if i % 2 == 0 else [b, a], 5)
+        env.approve_assign(oid)
+        orders.append(oid)
+    results = fire([lambda o=o: env.client.request('POST', '/allocations', {'storeOrderId': o}, env.manager)
+                    for o in orders])
+    ta, tb = env.sku_total(a), env.sku_total(b)
+    success = sum(1 for s, _ in results if 0 < s < 300)
+    return {'tally': tally(results), 'ok': success == 20 and ta['allocatedQuantity'] == 100
+            and tb['allocatedQuantity'] == 100,
+            'detail': '성공 %d건, 할당 A %d / B %d (기대 100 / 100)'
+                      % (success, ta['allocatedQuantity'], tb['allocatedQuantity'])}
+
+
+def s_4_10(env):
+    """검수 중 입고의 완료(새 재고 행 생성)와 같은 로트의 상태 변경(격리)을 동시에 호출 (--rounds 라운드)."""
+    rounds = env.args.rounds
+    sku = env.next_sku()
+    total = Counter()
+    bad = 0
+    for _ in range(rounds):
+        po = base.request_order(env.api, env.ctx, 'manager01', SEOUL, [(sku, 10)], 'S4 입고 완료 vs 로트 격리')
+        so = base.confirm_order(env.api, env.ctx, po)[0]['supplierOrderId']
+        inbound = base.receive(env.api, env.ctx, 'manager01', SEOUL, so, complete=False)
+        lot_id = env.api.get('/inbounds/%d/details' % inbound, env.manager)['items'][0]['lotId']
+        results = fire([
+            lambda: env.client.request('PATCH', '/inbounds/%d/complete' % inbound, None, env.manager),
+            lambda: env.client.request('PATCH', '/lots/%d/status' % lot_id,
+                                       {'status': 'QUARANTINED', 'reason': 'S4 동시 격리'}, env.hq)])
+        total.update(tally(results))
+        bad += sum(1 for s, _ in results if s == 0 or s >= 500)
+    return {'tally': dict(sorted(total.items())), 'ok': bad == 0,
+            'detail': '%d라운드, 5xx·연결 오류 %d건' % (rounds, bad)}
+
+
+def s_4_11(env):
+    """할당·출고 생성까지 끝난 발주의 본사 취소와 같은 출고의 피킹 시작을 동시에 호출 (--rounds 라운드)."""
+    rounds = env.args.rounds
+    sku = env.next_sku()
+    env.stock(sku, 1000)
+    orders = []
+    for _ in range(rounds):
+        oid = env.store_order(sku, 1)
+        env.approve_assign(oid)
+        env.api.post('/allocations', {'storeOrderId': oid}, env.manager)
+        ob = env.api.post('/outbounds', {'storeOrderId': oid, 'note': 'S4'}, env.manager)['outboundId']
+        orders.append((oid, ob))
+    total = Counter()
+    for oid, ob in orders:
+        results = fire([
+            lambda: env.client.request('PATCH', '/orders/%d/cancel' % oid, {'reason': 'S4 취소'}, env.hq),
+            lambda: env.client.request('PATCH', '/outbounds/%d/picking/start' % ob, None, env.manager)])
+        total.update(tally(results))
+    canceled = sum(1 for oid, _ in orders if env.order_status(oid) == 'CANCELED')
+    live = rounds - canceled
+    stock = env.sku_total(sku)
+    unexpected = {k: v for k, v in total.items() if k[0] in '05'}
+    return {'tally': dict(sorted(total.items())), 'ok': stock['allocatedQuantity'] == live and not unexpected,
+            'detail': '취소 %d건, 살아 있는 발주 %d건, 재고 할당 %d (기대 %d), 5xx·연결 오류 %s'
+                      % (canceled, live, stock['allocatedQuantity'], live, unexpected or '없음')}
+
+
+def s_4_12(env):
+    """같은 출고의 배송 시작(ship) 10건, 이어서 배송 완료(deliver) 10건을 각각 동시에 호출."""
+    sku = env.next_sku()
+    env.stock(sku, 100)
+    ((ob, lines),) = prepare_outbounds(env, sku, 1)
+    env.api.patch('/outbounds/%d/picking/complete' % ob, {'lines': lines}, env.manager)
+    ship = fire([lambda: env.client.request('PATCH', '/outbounds/%d/ship' % ob, None, env.manager)
+                 for _ in range(10)])
+    deliver = fire([lambda: env.client.request('PATCH', '/outbounds/%d/deliver' % ob, None, env.manager)
+                    for _ in range(10)])
+    ship_ok = sum(1 for s, _ in ship if 0 < s < 300)
+    deliver_ok = sum(1 for s, _ in deliver if 0 < s < 300)
+    return {'tally': {'ship': tally(ship), 'deliver': tally(deliver)}, 'ok': ship_ok == 1 and deliver_ok == 1,
+            'detail': 'ship 성공 %d건, deliver 성공 %d건 (기대 1, 1)' % (ship_ok, deliver_ok)}
+
+
+
 SCENARIOS = [
     ('4-1', '서로 다른 발주 20건 동시 할당(가용 100, 수량 10씩)', s_4_1),
     ('4-2', '같은 발주 할당 20건', s_4_2),
     ('4-3', '같은 입고 완료 20건', s_4_3),
     ('4-4', '같은 재고 조정 20건', s_4_4),
     ('4-5', '같은 발주 승인·반려·취소 각 5건', s_4_5),
+    ('4-6', '여러 로트를 서로 다른 순서로 잠그는 할당 교차', s_4_6),
     ('4-7', '같은 재고 피킹 완료 20건', s_4_7),
     ('4-8', '피킹 완료 vs 재고 조정 교차', s_4_8),
     ('4-9', '입고 등록 vs 발주 취소', s_4_9),
+    ('4-10', '입고 완료(새 재고 행) vs 로트 격리', s_4_10),
+    ('4-11', '발주 취소 vs 출고 피킹 시작', s_4_11),
+    ('4-12', '같은 출고의 배송 시작·완료 중복 호출', s_4_12),
 ]
 
 

@@ -100,15 +100,18 @@ public class StockAllocationService implements StockAllocationUseCase {
                                     .collect(Collectors.joining("; ")) + ")");
         }
 
+        // 재고 행을 먼저 잠그고 할당 행을 저장한다. 할당 행을 먼저 넣으면 외래 키 검사가 재고 행에 공유 잠금(S)을 걸어,
+        // 같은 재고에 동시에 들어온 요청끼리 서로 배타 잠금(X)을 기다리는 데드락이 MySQL(InnoDB)에서 난다(#367).
+        outboundStockPort.allocate(sumBy(placements, Placement::inventoryLotId).entrySet().stream()
+                .map(e -> new StockQuantity(e.getKey(), e.getValue()))
+                .toList());
+
         LocalDateTime now = LocalDateTime.now();
         List<StockAllocation> saved = stockAllocationRepository.saveAll(placements.stream()
                 .map(p -> StockAllocation.allocate(p.storeOrderLineId(), p.inventoryLotId(), p.quantity(),
                         command.userId(), now))
                 .toList());
 
-        outboundStockPort.allocate(sumBy(placements, Placement::inventoryLotId).entrySet().stream()
-                .map(e -> new StockQuantity(e.getKey(), e.getValue()))
-                .toList());
         storeOrderPort.increaseAllocated(sumBy(placements, Placement::storeOrderLineId).entrySet().stream()
                 .map(e -> new LineQuantity(e.getKey(), e.getValue()))
                 .toList());
