@@ -103,4 +103,4 @@
 - 구역 비활성화·삭제 vs 입고 적치 (순차 요청은 `SECTION_HAS_INVENTORY`로 막히고, 락은 두 요청이 겹치는 순간을 막는다)
 - 사용자 상태 변경 vs 로그인, 창고·구역 수정, 위치 코드 발급: 드물게 쓰이고 틀려도 수량이 어긋나지 않아 우선순위가 낮다. 상품 코드 발급은 H2 테스트 스키마가 `category`(`TINYINT`)와 `option_value`(`value` 예약어) 테이블을 만들지 못해 상품 등록 통합 테스트를 쓸 수 없다.
 
-위 테스트와 4-1의 수정은 모두 H2에서만 확인했다. MySQL(InnoDB) 검증은 [`scenario/performance.md`](../scenario/performance.md) S4에서 한다.
+위 JUnit 테스트와 4-1의 수정은 H2에서 확인했고, 2026-11-16에 같은 경합을 MySQL(InnoDB)에서도 실행했다. 수정 전 재현과 수정 후 통과는 같은 결과였고, H2에서는 안 보이던 데드락 하나(서로 다른 발주의 동시 할당, 외래 키 S 잠금 → X 잠금 업그레이드)를 새로 찾았다. 자세한 내용은 [`s4-mysql-results.md`](s4-mysql-results.md)에 있다.

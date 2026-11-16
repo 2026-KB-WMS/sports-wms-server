@@ -26,6 +26,7 @@
 | 성능 테스트 시나리오 (응답시간·동시성·부하·내구) | **레포** | [`scenario/performance.md`](scenario/performance.md) | 2026-10-27 작성(계획 단계, 스크립트·측정 결과 없음). 기준 수치는 Notion 비기능 요구사항 명세의 "성능 목표 (제안)" |
 | N+1 조회 개선 기록 (전후 쿼리 횟수·응답시간, 측정 방법) | **레포** | [`performance/n-plus-one.md`](performance/n-plus-one.md) | 2026-11-11 작성(#342). 측정은 `scripts/perf/measure_api.py` |
 | 동시성 제어 현황 (락 목록, 유니크 제약으로 막는 곳, 테스트) | **레포** | [`performance/concurrency-locks.md`](performance/concurrency-locks.md) | 2026-11-15 작성. 기준은 코드. 순환 락 점검은 문서 §4 |
+| S4 동시성 정합성 MySQL 실행 결과 (수정 전후, 데드락) | **레포** | [`performance/s4-mysql-results.md`](performance/s4-mysql-results.md) | 2026-11-16 작성(#366). 실행은 `scripts/perf/s4_concurrency.py` |
 | ERD 데이터 사전 / ERD 개요 | Notion | WMS 문서 관리 | 도메인 구현 시 이전 검토. 컬럼 정의는 Flyway SQL이 실제 기준 |
 | 기능 명세, 유스케이스, 사용자별 요구사항, 비기능 명세, 프로젝트 개요, 화면 설계 | Notion | WMS 문서 관리 | 이전 계획 없음 (기획 문서) |
 | 개발 일정, [보류] 항목 | Notion | WMS 개발 일정 DB | 진행 관리용, 이전하지 않음 |
@@ -44,6 +45,6 @@ docs/
 ├── adr/               # 기술 결정 기록
 ├── api/               # 공통 규칙 + (이전된) 도메인별 API 명세
 ├── domain/            # 상태 전이, 권한, 부수 효과
-├── performance/       # N+1 개선 기록, 동시성 제어(락) 현황
+├── performance/       # N+1 개선 기록, 동시성 제어(락) 현황, S4 MySQL 결과
 └── scenario/          # e2e 시나리오(검증 흐름·시드 데이터)
 ```
